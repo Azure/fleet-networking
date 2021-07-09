@@ -17,6 +17,11 @@ jobs:
         go-version: ^1.16
       id: go
 
+    - name: Install Tools
+      run: |
+        curl -sSLo envtest-bins.tar.gz "https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.19.2-$(go env GOOS)-$(go env GOARCH).tar.gz"
+        sudo tar zxvf  envtest-bins.tar.gz -C /usr/local
+
     - name: Checkout Codes
       uses: actions/checkout@v2
 
