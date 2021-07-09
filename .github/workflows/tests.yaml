@@ -1,0 +1,32 @@
+name: Unit Tests
+
+on:
+    pull_request: {}
+    push: {}
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.16
+      id: go
+
+    - name: Checkout Codes
+      uses: actions/checkout@v2
+
+    - name: Go Vet
+      run: |
+        go vet ./...
+
+    - name: Build Binaries
+      run: |
+        make
+
+    - name: Unit Tests
+      run: go test -cover ./...

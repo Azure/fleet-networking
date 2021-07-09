@@ -1,9 +1,12 @@
 # Binaries for programs and plugins
+bin
+testbin
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+.vscode
 
 # Test binary, built with `go test -c`
 *.test

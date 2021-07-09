@@ -1,0 +1,24 @@
+# permissions for end users to edit aksclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: akscluster-editor-role
+rules:
+- apiGroups:
+  - networking.aks.io
+  resources:
+  - aksclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.aks.io
+  resources:
+  - aksclusters/status
+  verbs:
+  - get

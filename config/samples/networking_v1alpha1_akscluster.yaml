@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aks-cluster
+  namespace: default
+type: Opaque
+data:
+  kubeconfig: KUBECONFIGENCODED
+---
+apiVersion: networking.aks.io/v1alpha1
+kind: AKSCluster
+metadata:
+  name: aks-cluster
+  namespace: default
+spec:
+  kubeConfigSecret: aks-cluster

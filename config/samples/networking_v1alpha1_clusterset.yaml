@@ -1,0 +1,6 @@
+apiVersion: networking.aks.io/v1alpha1
+kind: ClusterSet
+metadata:
+  name: clusterset-sample
+spec:
+  clusters: ["aks-cluster"]
