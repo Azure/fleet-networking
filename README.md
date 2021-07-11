@@ -4,7 +4,7 @@ A multi-cluster networking operator for Azure. The project is still under **DRAF
 
 ## How to deploy the operator
 
-Create Azure service principal and then create the the following cloud-config file:
+Create Azure service principal and then create the following cloud-config file:
 
 ```json
 {
