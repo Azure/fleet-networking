@@ -136,70 +136,81 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 
 	if dirtyGLB {
 		if glb.FrontendIPConfigurations == nil || len(*glb.FrontendIPConfigurations) == 0 {
+			// Delete the GLB for the last deleting rule.
 			log.Info("Deleting the GLB since there is no frontend IP configurations")
 			if rerr := r.LoadBalancerClient.Delete(context.Background(), r.AzureConfig.GlobalLoadBalancerResourceGroup, r.AzureConfig.GlobalLoadBalancerName); rerr != nil {
 				log.Error(rerr.Error(), "unable to delete global load balancer")
 				return rerr.Error()
 			}
-			return nil
-		}
-
-		log.Info("Updating GLB")
-		if rerr := r.LoadBalancerClient.CreateOrUpdate(context.Background(),
-			r.AzureConfig.GlobalLoadBalancerResourceGroup,
-			r.AzureConfig.GlobalLoadBalancerName,
-			*glb,
-			""); rerr != nil {
-			log.Error(rerr.Error(), "unable to update global load balancer")
-			return rerr.Error()
-		}
-
-		if newBackendAddressPool != nil {
-			log.Info("Updating GLB backend pool")
-			if rerr := r.LoadBalancerClient.CreateOrUpdateBackendPools(
-				context.Background(),
-				r.AzureConfig.GlobalLoadBalancerResourceGroup,
-				r.AzureConfig.GlobalLoadBalancerName,
-				to.String(newBackendAddressPool.Name),
-				*newBackendAddressPool,
-				""); rerr != nil {
-				log.Error(rerr.Error(), "unable to update global load balancer backend address pool")
-				return rerr.Error()
+		} else {
+			// Update the GLB on rule/probe changes.
+			if err := r.updateGLB(glb, globalService, newBackendAddressPool, serviceName); err != nil {
+				return err
 			}
-		}
-
-		// Get and update status.VIP
-		pip, rerr := r.PublicIPClient.Get(context.Background(),
-			r.AzureConfig.GlobalLoadBalancerResourceGroup,
-			serviceName,
-			"")
-		if rerr != nil {
-			log.Error(rerr.Error(), "unable to fetch VIP")
-			return rerr.Error()
-		}
-		vip := to.String(pip.IPAddress)
-		if err := r.reconcileGlobalVIP(globalService, vip); err != nil {
-			log.Error(err, "unable to reconcile global VIP")
-			return err
 		}
 	}
 
 	// Delete the global VIP that is not referenced anymore.
 	if vipToDelete != "" {
 		log.Info("Deleting the global VIP that is not referenced anymore")
-		// TODO: Reconcile annotation for services in each member cluster.
 		vipName := getLastSegment(vipToDelete, "/")
-		if rerr := r.PublicIPClient.Delete(
-			context.Background(),
-			r.AzureConfig.GlobalLoadBalancerResourceGroup,
-			vipName); rerr != nil {
-			return rerr.Error()
+		if err := r.deleteGlobalVip(globalService, vipName); err != nil {
+			log.Error(err, "unable to delete global VIP")
+			return err
 		}
 	}
 
 	return nil
 }
 
+// updateGLB updates rules/probes/backendPools for the GLB.
+func (r *GlobalServiceReconciler) updateGLB(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, newBackendAddressPool *network.BackendAddressPool, serviceName string) error {
+	namespacedName := types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Name}
+	log := r.Log.WithValues("globalservice", namespacedName.String())
+
+	log.Info("Updating GLB")
+	if rerr := r.LoadBalancerClient.CreateOrUpdate(context.Background(),
+		r.AzureConfig.GlobalLoadBalancerResourceGroup,
+		r.AzureConfig.GlobalLoadBalancerName,
+		*glb,
+		""); rerr != nil {
+		log.Error(rerr.Error(), "unable to update global load balancer")
+		return rerr.Error()
+	}
+
+	if newBackendAddressPool != nil {
+		log.Info("Updating GLB backend pool")
+		if rerr := r.LoadBalancerClient.CreateOrUpdateBackendPools(
+			context.Background(),
+			r.AzureConfig.GlobalLoadBalancerResourceGroup,
+			r.AzureConfig.GlobalLoadBalancerName,
+			to.String(newBackendAddressPool.Name),
+			*newBackendAddressPool,
+			""); rerr != nil {
+			log.Error(rerr.Error(), "unable to update global load balancer backend address pool")
+			return rerr.Error()
+		}
+	}
+
+	// Get and update status.VIP
+	pip, rerr := r.PublicIPClient.Get(context.Background(),
+		r.AzureConfig.GlobalLoadBalancerResourceGroup,
+		serviceName,
+		"")
+	if rerr != nil {
+		log.Error(rerr.Error(), "unable to fetch VIP")
+		return rerr.Error()
+	}
+	vip := to.String(pip.IPAddress)
+	if err := r.reconcileGlobalVIP(globalService, vip); err != nil {
+		log.Error(err, "unable to reconcile global VIP")
+		return err
+	}
+
+	return nil
+}
+
+// reconcileGlobalVIP updates service annotations for all member clusters and then updates the VIP for globalService.
 func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1alpha1.GlobalService, vip string) error {
 	r.Log.Info("reconciling global VIP")
 	ctx := context.Background()
@@ -223,7 +234,11 @@ func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1
 			}
 
 			if service.Annotations["service.beta.kubernetes.io/azure-additional-public-ips"] != vip {
-				r.Log.Info("updating service annotation", serviceName.String(), "cluster", endpoint.Cluster)
+				r.Log.Info("updating service annotation", "service", serviceName.String(), "cluster", endpoint.Cluster)
+
+				if service.Annotations == nil {
+					service.Annotations = make(map[string]string)
+				}
 				service.Annotations["service.beta.kubernetes.io/azure-additional-public-ips"] = vip
 				if err := client.Update(ctx, &service); err != nil {
 					if apierrors.IsNotFound(err) {
@@ -246,6 +261,53 @@ func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1
 			r.Log.Error(err, "unable to update GlobalService VIP")
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (r *GlobalServiceReconciler) deleteGlobalVip(globalService *networkingv1alpha1.GlobalService, vipName string) error {
+	r.Log.Info("deleting global VIP")
+	ctx := context.Background()
+
+	// Remove the annotation for the services in member clusters
+	for _, endpoint := range globalService.Status.Endpoints {
+		clusterManager := r.AKSClusterReconciler.GetClusterManager(endpoint.Cluster)
+		if clusterManager != nil {
+			var service corev1.Service
+			client := clusterManager.GetClient()
+			serviceName := types.NamespacedName{Namespace: globalService.Namespace, Name: strings.Split(endpoint.Service, "/")[1]}
+			r.Log.Info("getting service", "service", serviceName.String(), "cluster", endpoint.Cluster)
+			if err := client.Get(ctx, serviceName, &service); err != nil {
+				if apierrors.IsNotFound(err) {
+					r.Log.Info("service not found", "service", serviceName.String(), "cluster", endpoint.Cluster)
+					continue
+				}
+
+				r.Log.Error(err, "unable to fetch Service", "service", serviceName.String())
+				return err
+			}
+
+			if service.Annotations["service.beta.kubernetes.io/azure-additional-public-ips"] != "" {
+				r.Log.Info("cleaning up service annotation", "service", serviceName.String(), "cluster", endpoint.Cluster)
+				delete(service.Annotations, "service.beta.kubernetes.io/azure-additional-public-ips")
+				if err := client.Update(ctx, &service); err != nil {
+					if apierrors.IsNotFound(err) {
+						r.Log.Info("skipping annotation updates since service not found", "service", serviceName.String(), "cluster", endpoint.Cluster)
+						continue
+					}
+					r.Log.Error(err, "unable to clean up Service", "service", serviceName.String())
+					return err
+				}
+			}
+		}
+	}
+
+	if rerr := r.PublicIPClient.Delete(
+		context.Background(),
+		r.AzureConfig.GlobalLoadBalancerResourceGroup,
+		vipName); rerr != nil {
+		return rerr.Error()
 	}
 
 	return nil
