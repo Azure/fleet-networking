@@ -1,10 +1,16 @@
 # Multi Cluster Networking (MCN) Operator for Azure
 
-A multi-cluster networking operator for Azure. The project is still under **DRAFT** status, and please do not use it in production.
+A multi-cluster networking operator for Kubernetes on Azure. The project is still under **DRAFT** status, and please do not use it in production.
 
 ## How to deploy the operator
 
-Create Azure service principal and then create the the following cloud-config file:
+### Pre-requisites
+
+- All member clusters should support service annotation `service.beta.kubernetes.io/azure-additional-public-ips` (requires out-of-tree cloud provider Azure v0.7.5+, v1.0.2+ or above).
+
+### Setup secrets
+
+Create Azure service principal, assign Contributor role to LoadBalancer and Public IP Address for all member clusters, and then create the the following cloud-config file:
 
 ```json
 {
@@ -24,6 +30,8 @@ Then create a secret based on this config file:
 ```sh
 kubectl create secret generic azure-mcn-config --from-file=cloud-config --namespace mcn-system
 ```
+
+### Deploy the operator
 
 After that, build the image and deploy the MCN operator in MCN cluster (it could be any Kubernetes cluster):
 
