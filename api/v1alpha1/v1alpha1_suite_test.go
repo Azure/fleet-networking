@@ -28,8 +28,8 @@ var _ = Describe("v1alpha1 API", func() {
 				},
 				Spec: AKSClusterSpec{
 					KubeConfigSecret: "secret",
-					ResourceID:       "resourceID",
-					ManagedCluster:   &ManagedCluster{},
+					// ResourceID:       "resourceID",
+					// ManagedCluster:   &ManagedCluster{},
 				},
 				Status: AKSClusterStatus{
 					State:  "Active",

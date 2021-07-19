@@ -12,19 +12,19 @@ import (
 // AKSClusterSpec defines the desired state of AKSCluster
 type AKSClusterSpec struct {
 	// ResourceID refers to an existing AKS cluster.
-	ResourceID string `json:"resourceId,omitempty"`
+	// ResourceID string `json:"resourceId,omitempty"`
 
 	// ManagedCluster refers to a new AKS cluster. If the cluster has already been there, existing cluster would be updated per the spec.
-	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
+	//ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 
 	// The secret name for kubeconfig which could be applied for any Kubernetes cluster running on Azure (the secret data key should be "kubeconfig").
 	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
 }
 
 // ManagedCluster defines the AKS cluster spec.
-type ManagedCluster struct {
-	// TODO: add managedCluster spec
-}
+// type ManagedCluster struct {
+// 	// TODO: add managedCluster spec
+// }
 
 // AKSClusterStatus defines the observed state of AKSCluster
 type AKSClusterStatus struct {
