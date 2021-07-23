@@ -25,7 +25,7 @@ Create Azure service principal, assign Contributor role to LoadBalancer and Publ
 }
 ```
 
-Then create a secret based on this config file:
+Finally, create a secret in MCN cluster (it could be any Kubernetes cluster) based on above config file:
 
 ```sh
 kubectl create secret generic azure-mcn-config --from-file=cloud-config --namespace mcn-system
@@ -33,7 +33,7 @@ kubectl create secret generic azure-mcn-config --from-file=cloud-config --namesp
 
 ### Deploy the operator
 
-After that, build the image and deploy the MCN operator in MCN cluster (it could be any Kubernetes cluster):
+After secret setup, build the image and deploy the MCN operator in the same MCN cluster:
 
 ```sh
 IMG=<your-image-registry/image-name> make docker-build docker-push
@@ -42,7 +42,7 @@ IMG=<your-image-registry/image-name> make deploy
 
 ## Cluster Management
 
-Create ClusterSet and AKSCluster from kubeconfig:
+Create AKSCluster from existing kubeconfig file and ClusterSet:
 
 ```sh
 kubectl create secret generic aks-cluster --from-file=kubeconfig
@@ -71,7 +71,7 @@ EOF
 
 ## GlobalService
 
-Create a GlobalService:
+Create a GlobalService and bound it to the above ClusterSet:
 
 ```sh
 cat <<EOF | kubectl apply -f -
@@ -90,7 +90,7 @@ spec:
 EOF
 ```
 
-Then deploy nginx service in member clusters (the MCN operator assumes the service names and namespaces are same by default in all member clusters):
+Then create nginx service in member clusters (the MCN operator assumes the service names and namespaces are same by default in all member clusters):
 
 ```sh
 kubectx aks-cluster
