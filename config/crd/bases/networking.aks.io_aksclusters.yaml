@@ -48,14 +48,6 @@ spec:
                   for any Kubernetes cluster running on Azure (the secret data key
                   should be "kubeconfig").
                 type: string
-              managedCluster:
-                description: ManagedCluster refers to a new AKS cluster. If the cluster
-                  has already been there, existing cluster would be updated per the
-                  spec.
-                type: object
-              resourceId:
-                description: ResourceID refers to an existing AKS cluster.
-                type: string
             type: object
           status:
             description: AKSClusterStatus defines the observed state of AKSCluster
