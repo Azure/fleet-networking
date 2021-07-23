@@ -10,7 +10,7 @@ A multi-cluster networking operator for Kubernetes on Azure. The project is stil
 
 ### Setup secrets
 
-Create Azure service principal, assign Contributor role to LoadBalancer and Public IP Address for all member clusters, and then create the the following cloud-config file:
+Create Azure service principal, assign Contributor role to LoadBalancer and Public IP Address for all member clusters, and then create the following cloud-config file:
 
 ```json
 {
