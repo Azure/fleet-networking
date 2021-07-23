@@ -6,7 +6,7 @@ A multi-cluster networking operator for Kubernetes on Azure. The project is stil
 
 ### Pre-requisites
 
-- All member clusters should support service annotation `service.beta.kubernetes.io/azure-additional-public-ips` (requires out-of-tree cloud provider Azure v0.7.5+, v1.0.2+ or above).
+- All member clusters should support service annotation `service.beta.kubernetes.io/azure-additional-public-ips` (requires [out-of-tree cloud provider Azure](https://github.com/kubernetes-sigs/cloud-provider-azure) v0.7.5+, v1.0.2+ or above).
 
 ### Setup secrets
 
