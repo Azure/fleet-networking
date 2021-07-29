@@ -1,5 +1,5 @@
 apiVersion: networking.aks.io/v1alpha1
-kind: GlobalService
+kind: MultiClusterService
 metadata:
   name: nginx
   namespace: default

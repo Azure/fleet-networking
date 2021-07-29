@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: globalservices.networking.aks.io
+  name: multiClusterServices.networking.aks.io
 spec:
   group: networking.aks.io
   names:
-    kind: GlobalService
-    listKind: GlobalServiceList
-    plural: globalservices
-    singular: globalservice
+    kind: MultiClusterService
+    listKind: MultiClusterServiceList
+    plural: multiClusterServices
+    singular: multiClusterService
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -29,7 +29,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: GlobalService is the Schema for the globalservices API
+        description: MultiClusterService is the Schema for the multiClusterServices API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -44,15 +44,15 @@ spec:
           metadata:
             type: object
           spec:
-            description: GlobalServiceSpec defines the desired state of GlobalService
+            description: MultiClusterServiceSpec defines the desired state of MultiClusterService
             properties:
               clusterSet:
-                description: ClusterSet for the global service.
+                description: ClusterSet for the multicluster service.
                 type: string
               ports:
-                description: Ports for the global service.
+                description: Ports for the multicluster service.
                 items:
-                  description: GlobalServicePort defines the spec for GlobalService
+                  description: MultiClusterServicePort defines the spec for MultiClusterService
                     port
                   properties:
                     name:
@@ -66,8 +66,8 @@ spec:
                   type: object
                 type: array
               selector:
-                description: LabelSelector for the global service. Services with the
-                  same name of GlobalService would be selected if the selector is
+                description: LabelSelector for the multicluster service. Services with the
+                  same name of MultiClusterService would be selected if the selector is
                   not set.
                 properties:
                   matchExpressions:
@@ -113,7 +113,7 @@ spec:
                 type: object
             type: object
           status:
-            description: GlobalServiceStatus defines the observed state of GlobalService
+            description: MultiClusterServiceStatus defines the observed state of MultiClusterService
             properties:
               endpoints:
                 description: Endpoints represents a list of endpoint for the global

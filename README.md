@@ -69,14 +69,14 @@ spec:
 EOF
 ```
 
-## GlobalService
+## MultiClusterService
 
-Create a GlobalService and bound it to the above ClusterSet:
+Create a MultiClusterService and bound it to the above ClusterSet:
 
 ```sh
 cat <<EOF | kubectl apply -f -
 apiVersion: networking.aks.io/v1alpha1
-kind: GlobalService
+kind: MultiClusterService
 metadata:
   name: nginx
   namespace: default
@@ -99,10 +99,10 @@ kubectl expose deploy nginx --port=80 --type=LoadBalancer
 kubectl get service nginx
 ```
 
-Switch kubeconfig back to MCN cluster and then verify the VIP for the global service:
+Switch kubeconfig back to MCN cluster and then verify the VIP for the multicluster service:
 
 ```sh
-$ kubectl get globalservice
+$ kubectl get multiClusterService
 NAME    PORTS   VIP            STATE
 nginx   80      x.x.x.x        ACTIVE
 ```

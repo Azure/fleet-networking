@@ -1,13 +1,13 @@
-# permissions for end users to edit globalservices.
+# permissions for end users to edit multiclusterservices.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: globalservice-editor-role
+  name: multiclusterservice-editor-role
 rules:
 - apiGroups:
   - networking.aks.io
   resources:
-  - globalservices
+  - multiclusterservices
   verbs:
   - create
   - delete
@@ -19,6 +19,6 @@ rules:
 - apiGroups:
   - networking.aks.io
   resources:
-  - globalservices/status
+  - multiclusterservices/status
   verbs:
   - get

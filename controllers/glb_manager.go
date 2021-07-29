@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func (r *GlobalServiceReconciler) initializeAzureClient() error {
+func (r *MultiClusterServiceReconciler) initializeAzureClient() error {
 	if r.AzureConfig != nil {
 		return nil
 	}
@@ -44,17 +44,17 @@ func (r *GlobalServiceReconciler) initializeAzureClient() error {
 }
 
 // StartReconcileLoop starts the reconciler loop for glb.
-func (r *GlobalServiceReconciler) StartReconcileLoop(ctx context.Context) error {
+func (r *MultiClusterServiceReconciler) StartReconcileLoop(ctx context.Context) error {
 	go wait.UntilWithContext(ctx, r.serviceEndpointsWorker, 0)
 	return nil
 }
 
-func (r *GlobalServiceReconciler) serviceEndpointsWorker(ctx context.Context) {
+func (r *MultiClusterServiceReconciler) serviceEndpointsWorker(ctx context.Context) {
 	for r.processNextServiceEndpoints(ctx) {
 	}
 }
 
-func (r *GlobalServiceReconciler) processNextServiceEndpoints(ctx context.Context) bool {
+func (r *MultiClusterServiceReconciler) processNextServiceEndpoints(ctx context.Context) bool {
 	log := log.FromContext(ctx)
 
 	if !r.Manager.GetCache().WaitForCacheSync(ctx) {
@@ -86,7 +86,7 @@ func (r *GlobalServiceReconciler) processNextServiceEndpoints(ctx context.Contex
 	return r.handleServiceEndpoints(ctx, obj)
 }
 
-func (r *GlobalServiceReconciler) handleServiceEndpoints(ctx context.Context, obj interface{}) bool {
+func (r *MultiClusterServiceReconciler) handleServiceEndpoints(ctx context.Context, obj interface{}) bool {
 	log := log.FromContext(ctx)
 
 	var req ServiceEndpoints
@@ -127,29 +127,29 @@ func (r *GlobalServiceReconciler) handleServiceEndpoints(ctx context.Context, ob
 	return true
 }
 
-func (r *GlobalServiceReconciler) reconcileServiceEndpoints(req ServiceEndpoints) (ctrl.Result, error) {
+func (r *MultiClusterServiceReconciler) reconcileServiceEndpoints(req ServiceEndpoints) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("serviceEndpoints", req.Service.String())
 	log.Info("reconciling service endpoints")
 
-	var globalService networkingv1alpha1.GlobalService
-	if err := r.Get(ctx, req.Service, &globalService); err != nil {
+	var multiClusterService networkingv1alpha1.MultiClusterService
+	if err := r.Get(ctx, req.Service, &multiClusterService); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 
-		r.Log.Error(err, "unable to fetch GlobalService")
+		r.Log.Error(err, "unable to fetch MultiClusterService")
 		return ctrl.Result{}, err
 	}
 
-	// Fetch the cluster set from globalService.Spec.
-	if len(globalService.Spec.ClusterSet) == 0 {
+	// Fetch the cluster set from multiClusterService.Spec.
+	if len(multiClusterService.Spec.ClusterSet) == 0 {
 		log.Info("skipping the reconciler since its ClusterSet is not set")
 		return ctrl.Result{}, nil
 	}
 	var clusterSet networkingv1alpha1.ClusterSet
-	if err := r.Get(ctx, types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Spec.ClusterSet}, &clusterSet); err != nil {
-		log.WithValues("ClusterSet", globalService.Spec.ClusterSet).Error(err, "uname to fetch ClusterSet")
+	if err := r.Get(ctx, types.NamespacedName{Namespace: multiClusterService.Namespace, Name: multiClusterService.Spec.ClusterSet}, &clusterSet); err != nil {
+		log.WithValues("ClusterSet", multiClusterService.Spec.ClusterSet).Error(err, "uname to fetch ClusterSet")
 		return ctrl.Result{}, err
 	}
 
@@ -163,19 +163,19 @@ func (r *GlobalServiceReconciler) reconcileServiceEndpoints(req ServiceEndpoints
 		}
 	}
 	if !clusterFound {
-		log.Info("skipping the reconciler since it's not part of  globalService.Spec.ClusterSet")
+		log.Info("skipping the reconciler since it's not part of  multiClusterService.Spec.ClusterSet")
 		return ctrl.Result{}, nil
 	}
 
-	// Endpoints don't need any further actions when deleting global service.
-	if !globalService.ObjectMeta.DeletionTimestamp.IsZero() {
+	// Endpoints don't need any further actions when deleting multicluster service.
+	if !multiClusterService.ObjectMeta.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
 
-	endpoints := globalService.Status.Endpoints
+	endpoints := multiClusterService.Status.Endpoints
 	needUpdateEndpoints := false
 	if req.LoadBalancerIP != "" {
-		// Add loadBalancerIP to global service endpoints
+		// Add loadBalancerIP to multicluster service endpoints
 		serviceFound := false
 		for i := range endpoints {
 			if endpoints[i].Cluster == req.Cluster {
@@ -198,7 +198,7 @@ func (r *GlobalServiceReconciler) reconcileServiceEndpoints(req ServiceEndpoints
 			needUpdateEndpoints = true
 		}
 	} else {
-		// Delete loadBalancerIP to global service endpoints
+		// Delete loadBalancerIP to multicluster service endpoints
 		for i := range endpoints {
 			if endpoints[i].Cluster == req.Cluster {
 				endpoints = append(endpoints[:i], endpoints[i+1:]...)
@@ -209,9 +209,9 @@ func (r *GlobalServiceReconciler) reconcileServiceEndpoints(req ServiceEndpoints
 	}
 
 	if needUpdateEndpoints {
-		globalService.Status.Endpoints = endpoints
-		if err := r.Status().Update(ctx, &globalService); err != nil {
-			r.Log.Error(err, "unable to update GlobalService status")
+		multiClusterService.Status.Endpoints = endpoints
+		if err := r.Status().Update(ctx, &multiClusterService); err != nil {
+			r.Log.Error(err, "unable to update MultiClusterService status")
 			return ctrl.Result{}, err
 		}
 	}

@@ -99,7 +99,7 @@ rules:
 - apiGroups:
   - networking.aks.io
   resources:
-  - globalservices
+  - multiclusterservices
   verbs:
   - create
   - delete
@@ -111,13 +111,13 @@ rules:
 - apiGroups:
   - networking.aks.io
   resources:
-  - globalservices/finalizers
+  - multiclusterservices/finalizers
   verbs:
   - update
 - apiGroups:
   - networking.aks.io
   resources:
-  - globalservices/status
+  - multiclusterservices/status
   verbs:
   - get
   - patch

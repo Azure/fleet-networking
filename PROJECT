@@ -10,7 +10,7 @@ resources:
   controller: true
   domain: aks.io
   group: networking
-  kind: GlobalService
+  kind: MultiClusterService
   path: github.com/Azure/multi-cluster-networking/api/v1alpha1
   version: v1alpha1
 - api:

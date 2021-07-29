@@ -29,8 +29,8 @@ const (
 	FinalizerName = "mcn.networking.aks.io"
 )
 
-// GlobalServiceReconciler reconciles a GlobalService object
-type GlobalServiceReconciler struct {
+// MultiClusterServiceReconciler reconciles a MultiClusterService object
+type MultiClusterServiceReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	Manager ctrl.Manager
@@ -47,9 +47,9 @@ type GlobalServiceReconciler struct {
 	WorkQueue    workqueue.RateLimitingInterface
 }
 
-//+kubebuilder:rbac:groups=networking.aks.io,resources=globalservices,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=networking.aks.io,resources=globalservices/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=networking.aks.io,resources=globalservices/finalizers,verbs=update
+//+kubebuilder:rbac:groups=networking.aks.io,resources=multiclusterservices,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.aks.io,resources=multiclusterservices/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.aks.io,resources=multiclusterservices/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=services/status,verbs=get
@@ -57,36 +57,36 @@ type GlobalServiceReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the GlobalService object against the actual cluster state, and then
+// the MultiClusterService object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
-func (r *GlobalServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx).WithValues("globalservice", req.NamespacedName)
+func (r *MultiClusterServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(ctx).WithValues("multiclusterservice", req.NamespacedName)
 
-	var globalService networkingv1alpha1.GlobalService
-	if err := r.Get(ctx, req.NamespacedName, &globalService); err != nil {
+	var multiClusterService networkingv1alpha1.MultiClusterService
+	if err := r.Get(ctx, req.NamespacedName, &multiClusterService); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("GlobalService not found")
+			log.Info("MultiClusterService not found")
 			return ctrl.Result{}, nil
 		}
 
-		log.Error(err, "unable to fetch GlobalService")
+		log.Error(err, "unable to fetch MultiClusterService")
 		return ctrl.Result{}, err
 	}
 
-	if !globalService.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !multiClusterService.ObjectMeta.DeletionTimestamp.IsZero() {
 		// Delete the global load balancer rule
-		log.Info("Deleting global load balancer rule because the global service is under deleting")
-		if err := r.reconcileGLB(&globalService, false); err != nil {
+		log.Info("Deleting global load balancer rule because the multicluster service is under deleting")
+		if err := r.reconcileGLB(&multiClusterService, false); err != nil {
 			log.Error(err, "unable to cleanup glb")
 			return ctrl.Result{}, err
 		}
 
-		globalService.ObjectMeta.Finalizers = RemoveItemFromSlice(globalService.Finalizers, FinalizerName)
-		if err := r.Update(ctx, &globalService); err != nil {
+		multiClusterService.ObjectMeta.Finalizers = RemoveItemFromSlice(multiClusterService.Finalizers, FinalizerName)
+		if err := r.Update(ctx, &multiClusterService); err != nil {
 			log.Error(err, "unable to update finalizer")
 			return ctrl.Result{}, err
 		}
@@ -94,51 +94,51 @@ func (r *GlobalServiceReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	if !ContainsString(globalService.ObjectMeta.Finalizers, FinalizerName) {
-		globalService.ObjectMeta.Finalizers = append(globalService.ObjectMeta.Finalizers, FinalizerName)
-		if err := r.Update(ctx, &globalService); err != nil {
+	if !ContainsString(multiClusterService.ObjectMeta.Finalizers, FinalizerName) {
+		multiClusterService.ObjectMeta.Finalizers = append(multiClusterService.ObjectMeta.Finalizers, FinalizerName)
+		if err := r.Update(ctx, &multiClusterService); err != nil {
 			log.Error(err, "unable to update finalizer")
 			return ctrl.Result{}, err
 		}
 	}
 
-	if ret, err := r.reconcileGlobalEndpoints(ctx, &globalService); err != nil {
+	if ret, err := r.reconcileGlobalEndpoints(ctx, &multiClusterService); err != nil {
 		return ret, err
 	}
 
-	if len(globalService.Status.Endpoints) == 0 {
+	if len(multiClusterService.Status.Endpoints) == 0 {
 		// Delete the global load balancer rule
-		log.Info("Deleting global load balancer rule because no endpints found for global service")
-		return ctrl.Result{}, r.reconcileGLB(&globalService, false)
+		log.Info("Deleting global load balancer rule because no endpints found for multicluster service")
+		return ctrl.Result{}, r.reconcileGLB(&multiClusterService, false)
 	}
 
-	if err := r.reconcileGLB(&globalService, true); err != nil {
+	if err := r.reconcileGLB(&multiClusterService, true); err != nil {
 		log.Error(err, "unable to reconcile global load balancer")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("reconciled global service")
+	log.Info("reconciled multicluster service")
 	return ctrl.Result{}, nil
 }
 
-func (r *GlobalServiceReconciler) reconcileGlobalEndpoints(ctx context.Context, globalService *networkingv1alpha1.GlobalService) (ctrl.Result, error) {
-	namespacedName := types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Name}
-	log := log.FromContext(ctx).WithValues("globalservice", namespacedName)
-	if len(globalService.Spec.ClusterSet) == 0 {
+func (r *MultiClusterServiceReconciler) reconcileGlobalEndpoints(ctx context.Context, multiClusterService *networkingv1alpha1.MultiClusterService) (ctrl.Result, error) {
+	namespacedName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: multiClusterService.Name}
+	log := log.FromContext(ctx).WithValues("multiclusterservice", namespacedName)
+	if len(multiClusterService.Spec.ClusterSet) == 0 {
 		log.Info("skipping the reconciler since its ClusterSet is not set")
 		return ctrl.Result{}, nil
 	}
 
 	var clusterSet networkingv1alpha1.ClusterSet
-	if err := r.Get(ctx, types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Spec.ClusterSet}, &clusterSet); err != nil {
-		log.WithValues("ClusterSet", globalService.Spec.ClusterSet).Error(err, "uname to fetch ClusterSet")
+	if err := r.Get(ctx, types.NamespacedName{Namespace: multiClusterService.Namespace, Name: multiClusterService.Spec.ClusterSet}, &clusterSet); err != nil {
+		log.WithValues("ClusterSet", multiClusterService.Spec.ClusterSet).Error(err, "uname to fetch ClusterSet")
 		return ctrl.Result{}, err
 	}
 
 	r.AKSClusterReconciler.Lock.Lock()
 	defer r.AKSClusterReconciler.Lock.Unlock()
 	for _, clusterName := range clusterSet.Spec.Clusters {
-		clusterNamespacedName := types.NamespacedName{Namespace: globalService.Namespace, Name: clusterName}
+		clusterNamespacedName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: clusterName}
 		if clusterManager, ok := r.AKSClusterReconciler.ClusterManagers[clusterNamespacedName.String()]; ok {
 			if !clusterManager.GetCache().WaitForCacheSync(context.Background()) {
 				log.Error(fmt.Errorf("unable to sync cache for cluster %s", clusterNamespacedName.String()), "cache not synced")
@@ -185,10 +185,10 @@ func (r *GlobalServiceReconciler) reconcileGlobalEndpoints(ctx context.Context, 
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GlobalServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *MultiClusterServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Manager = mgr
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkingv1alpha1.GlobalService{}).
+		For(&networkingv1alpha1.MultiClusterService{}).
 		Complete(r)
 }
 

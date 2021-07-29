@@ -33,7 +33,7 @@ type RegionalIPConfig struct {
 	ConfigID string
 }
 
-func (r *GlobalServiceReconciler) getGLB() (*network.LoadBalancer, error) {
+func (r *MultiClusterServiceReconciler) getGLB() (*network.LoadBalancer, error) {
 	lb, rerr := r.LoadBalancerClient.Get(
 		context.Background(),
 		r.AzureConfig.GlobalLoadBalancerResourceGroup,
@@ -50,10 +50,10 @@ func (r *GlobalServiceReconciler) getGLB() (*network.LoadBalancer, error) {
 	return &lb, nil
 }
 
-func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1.GlobalService, wantLB bool) error {
-	serviceName := fmt.Sprintf("%s-%s", globalService.Namespace, globalService.Name)
-	namespacedName := types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Name}
-	log := r.Log.WithValues("globalservice", namespacedName.String())
+func (r *MultiClusterServiceReconciler) reconcileGLB(multiClusterService *networkingv1alpha1.MultiClusterService, wantLB bool) error {
+	serviceName := fmt.Sprintf("%s-%s", multiClusterService.Namespace, multiClusterService.Name)
+	namespacedName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: multiClusterService.Name}
+	log := r.Log.WithValues("multiclusterservice", namespacedName.String())
 
 	glb, err := r.getGLB()
 	if err != nil {
@@ -89,7 +89,7 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 		r.AzureConfig.GlobalLoadBalancerName, serviceName)
 
 	log.Info("Reconciling GLB backend address pools")
-	changed, newBackendAddressPool, err := r.reconcileGLBBackendPools(glb, globalService, lbBackendPoolID, wantLB)
+	changed, newBackendAddressPool, err := r.reconcileGLBBackendPools(glb, multiClusterService, lbBackendPoolID, wantLB)
 	if err != nil {
 		log.Error(err, "uname to reconcile GLB backend pools")
 		return err
@@ -99,7 +99,7 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 	}
 
 	log.Info("Reconciling GLB frontend IP configurations")
-	changed, vipToDelete, err := r.reconcileGLBFrontendIPConfigs(glb, globalService, lbFrontendConfigID, wantLB)
+	changed, vipToDelete, err := r.reconcileGLBFrontendIPConfigs(glb, multiClusterService, lbFrontendConfigID, wantLB)
 	if err != nil {
 		log.Error(err, "uname to reconcile GLB frontend IP configurations")
 		return err
@@ -109,13 +109,13 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 	}
 
 	log.Info("Reconciling GLB load balancer rules")
-	expectedProbes, expectedRules, err := r.getExpectedGLBRulesProbes(glb, globalService, lbFrontendConfigID, lbBackendPoolID, wantLB)
+	expectedProbes, expectedRules, err := r.getExpectedGLBRulesProbes(glb, multiClusterService, lbFrontendConfigID, lbBackendPoolID, wantLB)
 	if err != nil {
 		log.Error(err, "uname to get expected GLB rules and probes")
 		return err
 	}
 
-	changed, err = r.reconcileGLBRules(glb, globalService, expectedRules, wantLB)
+	changed, err = r.reconcileGLBRules(glb, multiClusterService, expectedRules, wantLB)
 	if err != nil {
 		log.Error(err, "uname to reconcile GLB rules")
 		return err
@@ -125,7 +125,7 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 	}
 
 	log.Info("Reconciling GLB probes")
-	changed, err = r.reconcileGLBProbes(glb, globalService, expectedProbes, wantLB)
+	changed, err = r.reconcileGLBProbes(glb, multiClusterService, expectedProbes, wantLB)
 	if err != nil {
 		log.Error(err, "uname to reconcile GLB probes")
 		return err
@@ -144,7 +144,7 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 			}
 		} else {
 			// Update the GLB on rule/probe changes.
-			if err := r.updateGLB(glb, globalService, newBackendAddressPool, serviceName); err != nil {
+			if err := r.updateGLB(glb, multiClusterService, newBackendAddressPool, serviceName); err != nil {
 				return err
 			}
 		}
@@ -154,7 +154,7 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 	if vipToDelete != "" {
 		log.Info("Deleting the global VIP that is not referenced anymore")
 		vipName := getLastSegment(vipToDelete, "/")
-		if err := r.deleteGlobalVip(globalService, vipName); err != nil {
+		if err := r.deleteGlobalVip(multiClusterService, vipName); err != nil {
 			log.Error(err, "unable to delete global VIP")
 			return err
 		}
@@ -164,9 +164,9 @@ func (r *GlobalServiceReconciler) reconcileGLB(globalService *networkingv1alpha1
 }
 
 // updateGLB updates rules/probes/backendPools for the GLB.
-func (r *GlobalServiceReconciler) updateGLB(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, newBackendAddressPool *network.BackendAddressPool, serviceName string) error {
-	namespacedName := types.NamespacedName{Namespace: globalService.Namespace, Name: globalService.Name}
-	log := r.Log.WithValues("globalservice", namespacedName.String())
+func (r *MultiClusterServiceReconciler) updateGLB(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, newBackendAddressPool *network.BackendAddressPool, serviceName string) error {
+	namespacedName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: multiClusterService.Name}
+	log := r.Log.WithValues("multiclusterservice", namespacedName.String())
 
 	log.Info("Updating GLB")
 	if rerr := r.LoadBalancerClient.CreateOrUpdate(context.Background(),
@@ -202,7 +202,7 @@ func (r *GlobalServiceReconciler) updateGLB(glb *network.LoadBalancer, globalSer
 		return rerr.Error()
 	}
 	vip := to.String(pip.IPAddress)
-	if err := r.reconcileGlobalVIP(globalService, vip); err != nil {
+	if err := r.reconcileGlobalVIP(multiClusterService, vip); err != nil {
 		log.Error(err, "unable to reconcile global VIP")
 		return err
 	}
@@ -210,18 +210,18 @@ func (r *GlobalServiceReconciler) updateGLB(glb *network.LoadBalancer, globalSer
 	return nil
 }
 
-// reconcileGlobalVIP updates service annotations for all member clusters and then updates the VIP for globalService.
-func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1alpha1.GlobalService, vip string) error {
+// reconcileGlobalVIP updates service annotations for all member clusters and then updates the VIP for multiClusterService.
+func (r *MultiClusterServiceReconciler) reconcileGlobalVIP(multiClusterService *networkingv1alpha1.MultiClusterService, vip string) error {
 	r.Log.Info("reconciling global VIP")
 	ctx := context.Background()
 
 	// Update the annotation for the services in member clusters
-	for _, endpoint := range globalService.Status.Endpoints {
+	for _, endpoint := range multiClusterService.Status.Endpoints {
 		clusterManager := r.AKSClusterReconciler.GetClusterManager(endpoint.Cluster)
 		if clusterManager != nil {
 			var service corev1.Service
 			client := clusterManager.GetClient()
-			serviceName := types.NamespacedName{Namespace: globalService.Namespace, Name: strings.Split(endpoint.Service, "/")[1]}
+			serviceName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: strings.Split(endpoint.Service, "/")[1]}
 			r.Log.Info("getting service", "service", serviceName.String(), "cluster", endpoint.Cluster)
 			if err := client.Get(ctx, serviceName, &service); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -252,13 +252,13 @@ func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1
 		}
 	}
 
-	// Update the VIP for globalService.
-	if globalService.Status.VIP != vip {
-		globalService.Status.VIP = vip
-		globalService.Status.State = "ACTIVE"
-		r.Log.Info("updating globalservice's VIP")
-		if err := r.Status().Update(context.Background(), globalService); err != nil {
-			r.Log.Error(err, "unable to update GlobalService VIP")
+	// Update the VIP for multiClusterService.
+	if multiClusterService.Status.VIP != vip {
+		multiClusterService.Status.VIP = vip
+		multiClusterService.Status.State = "ACTIVE"
+		r.Log.Info("updating multiclusterservice's VIP")
+		if err := r.Status().Update(context.Background(), multiClusterService); err != nil {
+			r.Log.Error(err, "unable to update MultiClusterService VIP")
 			return err
 		}
 	}
@@ -266,17 +266,17 @@ func (r *GlobalServiceReconciler) reconcileGlobalVIP(globalService *networkingv1
 	return nil
 }
 
-func (r *GlobalServiceReconciler) deleteGlobalVip(globalService *networkingv1alpha1.GlobalService, vipName string) error {
+func (r *MultiClusterServiceReconciler) deleteGlobalVip(multiClusterService *networkingv1alpha1.MultiClusterService, vipName string) error {
 	r.Log.Info("deleting global VIP")
 	ctx := context.Background()
 
 	// Remove the annotation for the services in member clusters
-	for _, endpoint := range globalService.Status.Endpoints {
+	for _, endpoint := range multiClusterService.Status.Endpoints {
 		clusterManager := r.AKSClusterReconciler.GetClusterManager(endpoint.Cluster)
 		if clusterManager != nil {
 			var service corev1.Service
 			client := clusterManager.GetClient()
-			serviceName := types.NamespacedName{Namespace: globalService.Namespace, Name: strings.Split(endpoint.Service, "/")[1]}
+			serviceName := types.NamespacedName{Namespace: multiClusterService.Namespace, Name: strings.Split(endpoint.Service, "/")[1]}
 			r.Log.Info("getting service", "service", serviceName.String(), "cluster", endpoint.Cluster)
 			if err := client.Get(ctx, serviceName, &service); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -313,7 +313,7 @@ func (r *GlobalServiceReconciler) deleteGlobalVip(globalService *networkingv1alp
 	return nil
 }
 
-func (r *GlobalServiceReconciler) reconcileGLBProbes(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, expectedProbes []network.Probe, wantLB bool) (bool, error) {
+func (r *MultiClusterServiceReconciler) reconcileGLBProbes(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, expectedProbes []network.Probe, wantLB bool) (bool, error) {
 	dirtyProbes := false
 	var updatedProbes []network.Probe
 	if glb.Probes != nil {
@@ -323,7 +323,7 @@ func (r *GlobalServiceReconciler) reconcileGLBProbes(glb *network.LoadBalancer, 
 	// remove unwanted probes
 	for i := len(updatedProbes) - 1; i >= 0; i-- {
 		existingProbe := updatedProbes[i]
-		if r.serviceOwnsRule(globalService, *existingProbe.Name) {
+		if r.serviceOwnsRule(multiClusterService, *existingProbe.Name) {
 			keepProbe := false
 			if findProbe(expectedProbes, existingProbe) {
 				keepProbe = true
@@ -361,7 +361,7 @@ func findProbe(probes []network.Probe, probe network.Probe) bool {
 	return false
 }
 
-func (r *GlobalServiceReconciler) reconcileGLBRules(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, expectedRules []network.LoadBalancingRule, wantLB bool) (bool, error) {
+func (r *MultiClusterServiceReconciler) reconcileGLBRules(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, expectedRules []network.LoadBalancingRule, wantLB bool) (bool, error) {
 	var updatedRules []network.LoadBalancingRule
 	dirtyRules := false
 	if glb.LoadBalancingRules != nil {
@@ -371,7 +371,7 @@ func (r *GlobalServiceReconciler) reconcileGLBRules(glb *network.LoadBalancer, g
 	// update rules: remove unwanted
 	for i := len(updatedRules) - 1; i >= 0; i-- {
 		existingRule := updatedRules[i]
-		if r.serviceOwnsRule(globalService, *existingRule.Name) {
+		if r.serviceOwnsRule(multiClusterService, *existingRule.Name) {
 			keepRule := false
 			if findRule(expectedRules, existingRule, wantLB) {
 				keepRule = true
@@ -401,8 +401,8 @@ func (r *GlobalServiceReconciler) reconcileGLBRules(glb *network.LoadBalancer, g
 	return dirtyRules, nil
 }
 
-func (r *GlobalServiceReconciler) serviceOwnsRule(globalService *networkingv1alpha1.GlobalService, rule string) bool {
-	serviceName := fmt.Sprintf("%s-%s", globalService.Namespace, globalService.Name)
+func (r *MultiClusterServiceReconciler) serviceOwnsRule(multiClusterService *networkingv1alpha1.MultiClusterService, rule string) bool {
+	serviceName := fmt.Sprintf("%s-%s", multiClusterService.Namespace, multiClusterService.Name)
 	return strings.HasPrefix(strings.ToUpper(rule), strings.ToUpper(serviceName))
 }
 
@@ -434,13 +434,13 @@ func equalLoadBalancingRulePropertiesFormat(s *network.LoadBalancingRuleProperti
 	return properties
 }
 
-func (r *GlobalServiceReconciler) getExpectedGLBRulesProbes(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, lbFrontendConfigID string, lbBackendPoolID string, wantLB bool) ([]network.Probe, []network.LoadBalancingRule, error) {
+func (r *MultiClusterServiceReconciler) getExpectedGLBRulesProbes(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, lbFrontendConfigID string, lbBackendPoolID string, wantLB bool) ([]network.Probe, []network.LoadBalancingRule, error) {
 	serviceName := getLastSegment(lbFrontendConfigID, "/")
-	var ports []networkingv1alpha1.GlobalServicePort
+	var ports []networkingv1alpha1.MultiClusterServicePort
 	if wantLB {
-		ports = globalService.Spec.Ports
+		ports = multiClusterService.Spec.Ports
 	} else {
-		ports = []networkingv1alpha1.GlobalServicePort{}
+		ports = []networkingv1alpha1.MultiClusterServicePort{}
 	}
 
 	var expectedProbes []network.Probe
@@ -489,7 +489,7 @@ func (r *GlobalServiceReconciler) getExpectedGLBRulesProbes(glb *network.LoadBal
 	return expectedProbes, expectedRules, nil
 }
 
-func (r *GlobalServiceReconciler) reconcileGLBFrontendIPConfigs(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, lbFrontendConfigID string, wantLB bool) (bool, string, error) {
+func (r *MultiClusterServiceReconciler) reconcileGLBFrontendIPConfigs(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, lbFrontendConfigID string, wantLB bool) (bool, string, error) {
 	serviceName := getLastSegment(lbFrontendConfigID, "/")
 	var foundConfig int = -1
 	var newConfigs []network.FrontendIPConfiguration
@@ -538,7 +538,7 @@ func (r *GlobalServiceReconciler) reconcileGLBFrontendIPConfigs(glb *network.Loa
 	return true, "", nil
 }
 
-func (r *GlobalServiceReconciler) ensureGlobalPIP(pipName string) (*network.PublicIPAddress, error) {
+func (r *MultiClusterServiceReconciler) ensureGlobalPIP(pipName string) (*network.PublicIPAddress, error) {
 	pip, rerr := r.PublicIPClient.Get(
 		context.Background(),
 		r.AzureConfig.GlobalLoadBalancerResourceGroup,
@@ -582,7 +582,7 @@ func (r *GlobalServiceReconciler) ensureGlobalPIP(pipName string) (*network.Publ
 	return nil, rerr.Error()
 }
 
-func (r *GlobalServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, lbBackendPoolID string, wantLB bool) (bool, *network.BackendAddressPool, error) {
+func (r *MultiClusterServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBalancer, multiClusterService *networkingv1alpha1.MultiClusterService, lbBackendPoolID string, wantLB bool) (bool, *network.BackendAddressPool, error) {
 	var newBackendPools []network.BackendAddressPool
 	var foundBackendPool int = -1
 	if glb.BackendAddressPools != nil {
@@ -607,7 +607,7 @@ func (r *GlobalServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBala
 	}
 
 	// Query regional regional SLB configurations.
-	regionalSLBConfigurations, err := r.getRegionalSLBConfigurations(globalService)
+	regionalSLBConfigurations, err := r.getRegionalSLBConfigurations(multiClusterService)
 	if err != nil {
 		return false, nil, err
 	}
@@ -653,13 +653,13 @@ func (r *GlobalServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBala
 	return true, newBackendAddressPool, nil
 }
 
-func (r *GlobalServiceReconciler) getRegionalSLBConfigurations(globalService *networkingv1alpha1.GlobalService) ([]RegionalIPConfig, error) {
-	if len(globalService.Status.Endpoints) == 0 {
+func (r *MultiClusterServiceReconciler) getRegionalSLBConfigurations(multiClusterService *networkingv1alpha1.MultiClusterService) ([]RegionalIPConfig, error) {
+	if len(multiClusterService.Status.Endpoints) == 0 {
 		return nil, nil
 	}
 
-	regionalSLBConfigurations := make([]RegionalIPConfig, len(globalService.Status.Endpoints))
-	for i, ep := range globalService.Status.Endpoints {
+	regionalSLBConfigurations := make([]RegionalIPConfig, len(multiClusterService.Status.Endpoints))
+	for i, ep := range multiClusterService.Status.Endpoints {
 		// pipList, rerr := r.PublicIPClient.List(context.Background(), ep.ResourceGroup)
 		pipList, rerr := r.PublicIPClient.ListAll(context.Background())
 		if rerr != nil {

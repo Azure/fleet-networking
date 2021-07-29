@@ -9,36 +9,36 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// GlobalServiceSpec defines the desired state of GlobalService
-type GlobalServiceSpec struct {
-	// LabelSelector for the global service. Services with the same name of GlobalService would be selected if the selector is not set.
+// MultiClusterServiceSpec defines the desired state of MultiClusterService
+type MultiClusterServiceSpec struct {
+	// LabelSelector for the multicluster service. Services with the same name of MultiClusterService would be selected if the selector is not set.
 	Selector metav1.LabelSelector `json:"selector,omitempty"`
-	// Ports for the global service.
-	Ports []GlobalServicePort `json:"ports,omitempty"`
-	// ClusterSet for the global service.
+	// Ports for the multicluster service.
+	Ports []MultiClusterServicePort `json:"ports,omitempty"`
+	// ClusterSet for the multicluster service.
 	ClusterSet string `json:"clusterSet,omitempty"`
 }
 
-// GlobalServicePort defines the spec for GlobalService port
-type GlobalServicePort struct {
+// MultiClusterServicePort defines the spec for MultiClusterService port
+type MultiClusterServicePort struct {
 	Name       string `json:"name,omitempty"`
 	Protocol   string `json:"protocol,omitempty"`
 	Port       int    `json:"port,omitempty"`
 	TargetPort int    `json:"targetPort,omitempty"`
 }
 
-// GlobalServiceStatus defines the observed state of GlobalService
-type GlobalServiceStatus struct {
+// MultiClusterServiceStatus defines the observed state of MultiClusterService
+type MultiClusterServiceStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Endpoints represents a list of endpoint for the global service.
+	// Endpoints represents a list of endpoint for the multicluster service.
 	Endpoints []GlobalEndpoint `json:"endpoints,omitempty"`
 	VIP       string           `json:"vip,omitempty"`
 	State     string           `json:"state,omitempty"`
 }
 
-// GlobalEndpoint defines the endpoints for the global service.
+// GlobalEndpoint defines the endpoints for the multicluster service.
 type GlobalEndpoint struct {
 	Cluster   string   `json:"cluster,omitempty"`
 	Service   string   `json:"service,omitempty"`
@@ -52,24 +52,24 @@ type GlobalEndpoint struct {
 // +kubebuilder:printcolumn:name="VIP",type=string,JSONPath=`.status.vip`
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 
-// GlobalService is the Schema for the globalservices API
-type GlobalService struct {
+// MultiClusterService is the Schema for the multiClusterServices API
+type MultiClusterService struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   GlobalServiceSpec   `json:"spec,omitempty"`
-	Status GlobalServiceStatus `json:"status,omitempty"`
+	Spec   MultiClusterServiceSpec   `json:"spec,omitempty"`
+	Status MultiClusterServiceStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// GlobalServiceList contains a list of GlobalService
-type GlobalServiceList struct {
+// MultiClusterServiceList contains a list of MultiClusterService
+type MultiClusterServiceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []GlobalService `json:"items"`
+	Items           []MultiClusterService `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&GlobalService{}, &GlobalServiceList{})
+	SchemeBuilder.Register(&MultiClusterService{}, &MultiClusterServiceList{})
 }

@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("GlobalServiceReconciler", func() {
+var _ = Describe("MultiClusterServiceReconciler", func() {
 	Context("lifecycle", func() {
 		var globalSvcName = "web"
 		var clusterSetName = "clusterset"
@@ -37,19 +37,19 @@ var _ = Describe("GlobalServiceReconciler", func() {
 			})
 			Expect(client.IgnoreNotFound(err)).To(BeNil())
 
-			// delete GlobalService's finalizer after each test.
-			var globalService networkingv1alpha1.GlobalService
+			// delete MultiClusterService's finalizer after each test.
+			var multiClusterService networkingv1alpha1.MultiClusterService
 			if err = k8sClient.Get(context.TODO(), types.NamespacedName{
 				Name:      globalSvcName,
 				Namespace: namespace,
-			}, &globalService); err == nil {
-				globalService.ObjectMeta.Finalizers = RemoveItemFromSlice(globalService.Finalizers, FinalizerName)
-				err := k8sClient.Update(context.TODO(), &globalService)
+			}, &multiClusterService); err == nil {
+				multiClusterService.ObjectMeta.Finalizers = RemoveItemFromSlice(multiClusterService.Finalizers, FinalizerName)
+				err := k8sClient.Update(context.TODO(), &multiClusterService)
 				Expect(client.IgnoreNotFound(err)).To(BeNil())
 			}
 
-			// delete GlobalService after each test.
-			err = k8sClient.Delete(context.TODO(), &v1alpha1.GlobalService{
+			// delete MultiClusterService after each test.
+			err = k8sClient.Delete(context.TODO(), &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      globalSvcName,
 					Namespace: namespace,
@@ -59,8 +59,8 @@ var _ = Describe("GlobalServiceReconciler", func() {
 
 		})
 
-		It("Should succeed when the GlobalService doesn't exist", func() {
-			r := &GlobalServiceReconciler{
+		It("Should succeed when the MultiClusterService doesn't exist", func() {
+			r := &MultiClusterServiceReconciler{
 				Client: k8sClient,
 				Scheme: scheme.Scheme,
 			}
@@ -75,13 +75,13 @@ var _ = Describe("GlobalServiceReconciler", func() {
 		})
 
 		It("Should report an error when the clusterset doesn't exist", func() {
-			err := k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
+			err := k8sClient.Create(context.TODO(), &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      globalSvcName,
 					Namespace: namespace,
 				},
-				Spec: v1alpha1.GlobalServiceSpec{
-					Ports: []v1alpha1.GlobalServicePort{
+				Spec: v1alpha1.MultiClusterServiceSpec{
+					Ports: []v1alpha1.MultiClusterServicePort{
 						{
 							Name:     "http",
 							Port:     80,
@@ -93,7 +93,7 @@ var _ = Describe("GlobalServiceReconciler", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			r := &GlobalServiceReconciler{
+			r := &MultiClusterServiceReconciler{
 				Client: k8sClient,
 				Scheme: scheme.Scheme,
 			}
@@ -130,13 +130,13 @@ var _ = Describe("GlobalServiceReconciler", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			err = k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
+			err = k8sClient.Create(context.TODO(), &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      globalSvcName,
 					Namespace: namespace,
 				},
-				Spec: v1alpha1.GlobalServiceSpec{
-					Ports: []v1alpha1.GlobalServicePort{
+				Spec: v1alpha1.MultiClusterServiceSpec{
+					Ports: []v1alpha1.MultiClusterServicePort{
 						{
 							Name:     "http",
 							Port:     80,
@@ -148,7 +148,7 @@ var _ = Describe("GlobalServiceReconciler", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			r := &GlobalServiceReconciler{
+			r := &MultiClusterServiceReconciler{
 				Client: k8sClient,
 				Scheme: scheme.Scheme,
 			}

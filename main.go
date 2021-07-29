@@ -70,7 +70,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	rateLimitingWorkQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GlobalServiceReconciler")
+	rateLimitingWorkQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "MultiClusterServiceReconciler")
 	aksClusterReconciler := &controllers.AKSClusterReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -82,17 +82,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	globalServiceReconciler := &controllers.GlobalServiceReconciler{
+	multiClusterServiceReconciler := &controllers.MultiClusterServiceReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
-		Log:                  ctrl.Log.WithName("controllers").WithName("GlobalService"),
+		Log:                  ctrl.Log.WithName("controllers").WithName("MultiClusterService"),
 		AzureConfigSecret:    azureConfigSecret,
 		AzureConfigNamespace: azureConfigNamespace,
 		WorkQueue:            rateLimitingWorkQueue,
 		AKSClusterReconciler: aksClusterReconciler,
 	}
-	if err = globalServiceReconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GlobalService")
+	if err = multiClusterServiceReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "MultiClusterService")
 		os.Exit(1)
 	}
 	if err = (&controllers.ClusterSetReconciler{
@@ -116,7 +116,7 @@ func main() {
 
 	setupLog.Info("starting manager")
 	globalCtx := ctrl.SetupSignalHandler()
-	globalServiceReconciler.StartReconcileLoop(globalCtx)
+	multiClusterServiceReconciler.StartReconcileLoop(globalCtx)
 	if err := mgr.Start(globalCtx); err != nil {
 		setupLog.Error(err, "problem running multi-cluster-networking manager")
 		os.Exit(1)

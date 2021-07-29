@@ -87,19 +87,19 @@ var _ = Describe("v1alpha1 API", func() {
 
 	})
 
-	Context("GlobalService", func() {
+	Context("MultiClusterService", func() {
 
 		It("should be equal after DeepCopy", func() {
-			globalService := &GlobalService{
+			multiClusterService := &MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "ns",
 				},
-				Spec: GlobalServiceSpec{
+				Spec: MultiClusterServiceSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"service": "web"},
 					},
-					Ports: []GlobalServicePort{
+					Ports: []MultiClusterServicePort{
 						{
 							Name:       "web",
 							Protocol:   "TCP",
@@ -109,7 +109,7 @@ var _ = Describe("v1alpha1 API", func() {
 					},
 					ClusterSet: "clusterSet",
 				},
-				Status: GlobalServiceStatus{
+				Status: MultiClusterServiceStatus{
 					VIP:   "1.2.3.4",
 					State: "Succeeded",
 					Endpoints: []GlobalEndpoint{
@@ -123,14 +123,14 @@ var _ = Describe("v1alpha1 API", func() {
 				},
 			}
 
-			newGlobalService := globalService.DeepCopy()
-			Expect(globalService).To(Equal(newGlobalService))
-			Expect(globalService.Spec.DeepCopy()).To(Equal(&newGlobalService.Spec))
-			Expect(globalService.Status.DeepCopy()).To(Equal(&newGlobalService.Status))
-			Expect(globalService).To(Equal(newGlobalService.DeepCopyObject()))
-			globalServiceList := &GlobalServiceList{Items: []GlobalService{*globalService}}
-			Expect(globalServiceList).To(Equal(globalServiceList.DeepCopy()))
-			Expect(globalServiceList).To(Equal(globalServiceList.DeepCopyObject()))
+			newMultiClusterService := multiClusterService.DeepCopy()
+			Expect(multiClusterService).To(Equal(newMultiClusterService))
+			Expect(multiClusterService.Spec.DeepCopy()).To(Equal(&newMultiClusterService.Spec))
+			Expect(multiClusterService.Status.DeepCopy()).To(Equal(&newMultiClusterService.Status))
+			Expect(multiClusterService).To(Equal(newMultiClusterService.DeepCopyObject()))
+			multiClusterServiceList := &MultiClusterServiceList{Items: []MultiClusterService{*multiClusterService}}
+			Expect(multiClusterServiceList).To(Equal(multiClusterServiceList.DeepCopy()))
+			Expect(multiClusterServiceList).To(Equal(multiClusterServiceList.DeepCopyObject()))
 		})
 
 	})
