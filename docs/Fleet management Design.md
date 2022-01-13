@@ -39,6 +39,31 @@ is in the push model.
 However, in order to differentiate from the existing pull based model, we will implement a new controller to watch the `ManagedCluster` custom resources.
 In this way, we can start our project with a clean sheet but still keep compatible with most the existing OCM solutions. 
 
+### Architecture
+```
+        +----------------------------------------------------------+                                               
+        |  hub-cluster                                             |                                               
+        |                                                          |                                               
+        |   +------------+  +----------------+                     |
+        |   | kubeconfig |  | deployment:    |  +---------------+  |
+        |   | secrets    |  |                |  | member cluster|  | 
+        |   +------------+  | hubCluster     |  | namespaces    |  |
+        |                   | controller     |  +---------------+  |
+        |                   +--------|-------+                     |                                               
+        |                            |                             |                                               
+        +----------------------------|-----------------------------+                                               
+                                     |                                                                          
+                                     |                                                           
+                                     |watch,create,update,delete...                                                   
+                                     |                                                                                
+            +------------------------v-----------------------+                                               
+            |  member-cluster                                |       
+            |  +------------------+                          |   
+            |  | ClusterClaims    |    etc.                  |                                               
+            |  +------------------+                          |
+            +------------------------------------------------+
+```
+
 ### API Design
 Just to make this document more self-contained. Here I paste the golang definition of the `ManagedCluster` CRD spec.
 
