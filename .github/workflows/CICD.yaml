@@ -1,0 +1,57 @@
+name: CICD
+
+on:
+    pull_request: {}
+    push: {}
+
+jobs:
+
+  Test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.16
+      id: go
+
+    - name: Install Tools
+      run: |
+        curl -sSLo envtest-bins.tar.gz "https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.19.2-$(go env GOOS)-$(go env GOARCH).tar.gz"
+        sudo tar zxvf  envtest-bins.tar.gz -C /usr/local
+
+    - name: Checkout Codes
+      uses: actions/checkout@v2
+
+    - name: Go Vet
+      run: |
+        go vet ./...
+
+    - name: Build Binaries
+      run: |
+        make
+
+    - name: Run Unit Tests
+      run: go test -cover ./...
+
+  Build-Image:
+    name: Build Image
+    runs-on: ubuntu-latest
+    needs: Test
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: ACR build
+        id: acr
+        uses: azure/acr-build@v1
+        with:
+          service_principal: ${{ secrets.service_principal }}
+          service_principal_password: ${{ secrets.service_principal_password }}
+          tenant: ${{ secrets.tenant }}
+          registry: ${{ secrets.registry }}
+          repository: ${{ secrets.repository }}
+          image: image
+          git_access_token: ${{ secrets.git_access_token }}
+          folder: src/docker
+          dockerfile: ../../dockerfiles/Dockerfile
