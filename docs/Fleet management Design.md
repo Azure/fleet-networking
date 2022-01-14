@@ -82,7 +82,6 @@ type ManagedClusterSpec struct {
 
 // TODO: we can add the cert information here so we don't need a kubeconfig
 type ClientConfig struct {
-    // URL is the URL of apiserver endpoint of the managed cluster.
     // +required
     URL string `json:"url"`
 
@@ -126,24 +125,63 @@ type ResourceList map[ResourceName]resource.Quantity
 
 ```
 
-### Design details
+## Design details
 Here is how we handle the following functionalities in the OCM in our new controller. The overall idea is that 
 a `managedCluster` CR represents a member cluster. A cluster joins the fleet when a corresponding `managedCluster` CR is
 successfully applied to the hub cluster. Similarly, a member cluster leaves the hub cluster when its corresponding 
 `managedCluster` CR is removed from the cluster. 
 
-#### Join a member cluster to the fleet
+### Join a member cluster to the fleet
 The managedCluster will look for a secret named `name of the cluster`-`kubeconfig`. 
 For example, the controller that reconciles a `managedCluster` called "member-cluster-A" will look for
-a secret named `member-cluster-A-kubeconfig`. The secret contains the entire kubeconfig data. The controller will then 
-create a namespace of the same name if it does not already exist.
+a secret named `member-cluster-A-kubeconfig`. Initially, the secret can simply contain the entire kubeconfig data.
 
-There is another way to provide the credentials of member clusters to the hub cluster. There is a `ClientConfig`
-field in the `managedCluster` definition, described above, that is designed to contain the access info.
-However, the upstream OCM project currently is not utilizing it so that it does not contain the necessary fields to keep
-the certificate and key data. We may propose to add the credential data fields to the CRD in the future so that it saves
+The controller keeps an in-memory map that keys on the cluster name to track all the information belong to the cluster. 
+One of the information can be the kubeclient created from the secret. Here are a list of operations a controller will 
+perform in the member cluster joining process
 
-#### Collect the cluster status and claims
+1. The controller "claims" the member cluster by creating a "lease" configMap in the member cluster.
+   * The configMap's name is a well known name by convention.
+   * It contains the hub cluster's [unique ID](https://github.com/kubernetes/kubernetes/issues/77487) which is the UID of the namespace kube-system for now.
+   * The controller will reject the member cluster if the configMap already contains a cluster ID not the same as its ID.
+   * We could use a CR but that means we also need to apply a CRD there.
+2. The controller creates a namespace of the same name as the member cluster in the hub cluster.
+3. The controller starts a health check loop for each member cluster which
+   * Checks the health of the member cluster by updating the last health check time in the lease configMap
+   * Lists all the nodes in a member cluster and aggregates their `Capacity` and `Allocatable`
+   * Updating the `managedCluster` condition status
+
+### API definition change proposal
+There is actually a better way to provide the credentials of member clusters to the hub cluster than using a naming convention.
+There is a `ClientConfig` field in the `managedCluster` definition, described above, that is designed to contain the member cluster access info.
+However, the upstream OCM project currently is not utilizing it so that it does not contain the necessary fields to save
+the user credentials. We will propose to add a path to a file that contains the user credentials. The file will be
+on volume mounted to the secret described above. 
+
+Cert rotation is also another concern in the real production environment. In order to support member cluster api-server
+cert rotation, we will have to make the CABundle a list so that it can contain both the new and old server CA certificate.
+
+Here is the new ClientConfig we will propose
+
+```golang
+type ClientConfig struct {
+    // Server URL
+	// +required
+    URL string `json:"url"`
+
+    // CABundle is a list of ca bundle to connect to apiserver of the managed cluster.
+    // System certs are used if it is not set.
+    // +optional
+    CABundles [][]byte `json:"caBundles,omitempty"`
+	
+	// CredentialPath is the path to the file that contains the user credential
+	CredentialPath string `json:"credential"`
+}
+
+```
+
+### Cluster status and claims
+
 In the current OCM, the Klusterlet controller updates the status of a `managedCluster` which includes the following fields
 
 * Capacity
@@ -151,27 +189,58 @@ In the current OCM, the Klusterlet controller updates the status of a `managedCl
 * Version (ManagedClusterVersion)
 * ClusterClaims
 
-The first three fields contains information that one can get from kube client by querying all the nodes periodically.
-The last one has to be provided by the member cluster. There is already a customer object named `ClusterClaim` that contains
-the required information.  Therefore, we propose that the `managedCluster` controller to just list the `ClusterClaim` objects in the 
-member cluster to fill this part.
+The first three fields contains information that one can get from the member cluster. In our push version, the hub controller
+will update those fields in its periodical health check loop describe above. It also set the condition of the member cluster
+with types like below.
 
-#### Work with `work` API
+```
+Status:
+  Allocatable:
+    Cpu:     3800m
+    Memory:  9131Mi
+  Capacity:
+    Cpu:     4
+    Memory:  13907Mi
+  Conditions:
+    Last Transition Time:  2021-10-19T01:24:58Z
+    Message:               Managed cluster joined
+    Reason:                ManagedClusterJoined
+    Status:                True
+    Type:                  ManagedClusterJoined
+    Last Transition Time:  2021-12-26T08:11:38Z
+    Message:               Managed cluster is available
+    Reason:                ManagedClusterAvailable
+    Status:                True
+    Type:                  ManagedClusterConditionAvailable
+  Version:
+    Kubernetes:  v1.20.9
+```
+
+The last one has to be provided by the member cluster. There is already a customer object named `ClusterClaim` that contains
+the [required information] (https://github.com/open-cluster-management-io/enhancements/tree/main/enhancements/sig-architecture/4-cluster-claims). 
+Each claim contains just one of the required property. Therefore, the hub controller can just list the `ClusterClaim` objects in the
+member cluster and fill the `ClusterClaim` fields in the status.
+
+### Work with `work` API
 The `work` API is the way how OCM manage "applications". Its controller is running in the member cluster in the current pull
 model. To make it work with push model, we need to implement it with the `managedCluster` controller. Here is how it works
 
 * The `managedCluster` controller reconciler keeps an in-memory map of member cluster -> manifestwork controller
-* for each new member cluster, it creates a new manifestwork controller that watches all the `ManifestWork` objects in the 
-corresponding namespace and run it in separate go routine.
+* for each new member cluster, it creates a new manifestwork sub-controller that watches all the `ManifestWork` objects in the 
+corresponding namespace and run it in a separate go routine.
+* The manifestwork sub-controller functions pretty much like the existing worker controller groups in the member cluster which
+  * for each `ManifestWork` object in the namespace, it extracts the content of the objects and apply them to the corresponding member cluster
+  * it merges the status of the applied object in the member cluster back to the `ManifestWork` object in the hub cluster.
+  * It uses a finalizer to make sure that when a `ManifestWork` object is deleted from the hub cluster, all the resources used in the member cluster is also removed. 
 
 
-#### Remove a member cluster from the fleet
+### Remove a member cluster from the fleet
 We will add a finalizer in the `managedCluster` object to make sure that we will clean up the resources in the corresponding
 member cluster when one removes the object itself. Potential things to clean up
 
-1. Any in memory object associated with the member cluster such as the worker reconcile loop
-2. Fleet related Claims/Secrete/configMap in the member cluster
-3. Any metadata recording on the side (i.e a database)
+1. The lease configMap in the member cluster
+2. Any in memory object associated with the member cluster such as the worker reconcile loop
+3. Fleet related Claims/Secrete/configMap in the member cluster
 
 
 
