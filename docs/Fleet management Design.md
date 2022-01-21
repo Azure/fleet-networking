@@ -27,6 +27,7 @@ while the member clusters are running in the user space.
 ### Non-Goals
 
 * Support running managed controllers outside the hub/member cluster
+* Support private managed cluster unreachable from hub cluster
 * Authenticate managed cluster without using CSR(CertificateSigningRequest) in the original pull model.
 
 ## Proposal
@@ -58,9 +59,9 @@ In this way, we can start our project with a clean sheet but still keep compatib
                                      |                                                                                
             +------------------------v-----------------------+                                               
             |  member-cluster                                |       
-            |  +------------------+                          |   
-            |  | ClusterClaims    |    etc.                  |                                               
-            |  +------------------+                          |
+            |  +------------------+    +--------------+      |   
+            |  | ClusterClaims    |    | member lease | etc. |                                               
+            |  +------------------+    +--------------+      |
             +------------------------------------------------+
 ```
 
@@ -142,9 +143,10 @@ perform in the member cluster joining process
 
 1. The controller "claims" the member cluster by creating a "lease" configMap in the member cluster.
    * The configMap's name is a well known name by convention.
-   * It contains the hub cluster's [unique ID](https://github.com/kubernetes/kubernetes/issues/77487) which is the UID of the namespace kube-system for now.
-   * The controller will reject the member cluster if the configMap already contains a cluster ID not the same as its ID.
+   * It contains the fleet UID which can be reused if the hub is migrated to another cluster.
+   * The controller will reject the member cluster if the configMap already contains a fleet ID not the same as its ID.
    * We could use a CR but that means we also need to apply a CRD there.
+   * We can add more information to the configMap such as the join time, last health check result, last health check time, etc.
 2. The controller creates a namespace of the same name as the member cluster in the hub cluster.
 3. The controller starts a health check loop for each member cluster which
    * Checks the health of the member cluster by updating the last health check time in the lease configMap
@@ -171,8 +173,8 @@ type ClientConfig struct {
 
     // CABundle is a list of ca bundle to connect to apiserver of the managed cluster.
     // System certs are used if it is not set.
-    // +optional
-    CABundles [][]byte `json:"caBundles,omitempty"`
+    // +optional 
+	CABundles []byte `json:"caBundles,omitempty"`
 	
 	// CredentialPath is the path to the file that contains the user credential
 	CredentialPath string `json:"credential"`
@@ -238,9 +240,10 @@ corresponding namespace and run it in a separate go routine.
 We will add a finalizer in the `managedCluster` object to make sure that we will clean up the resources in the corresponding
 member cluster when one removes the object itself. Potential things to clean up
 
-1. The lease configMap in the member cluster
+1. Any member cluster related object in the hub cluster such as its kubeconfig secret, the corresponding namespace
 2. Any in memory object associated with the member cluster such as the worker reconcile loop
-3. Fleet related Claims/Secrete/configMap in the member cluster
+3. The lease configMap in the member cluster
+4. Fleet related Claims/Secrete/configMap in the member cluster
 
 
 
