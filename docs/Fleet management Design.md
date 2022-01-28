@@ -143,15 +143,40 @@ perform in the member cluster joining process
 
 1. The controller "claims" the member cluster by creating a "lease" configMap in the member cluster.
    * The configMap's name is a well known name by convention.
-   * It contains the fleet UID which can be reused if the hub is migrated to another cluster.
+   * It contains the fleet UID so that one cluster cannot join multiple fleet. We can use the UID of the hub cluster as the fleet UID for now.
    * The controller will reject the member cluster if the configMap already contains a fleet ID not the same as its ID.
-   * We could use a CR but that means we also need to apply a CRD there.
    * We can add more information to the configMap such as the join time, last health check result, last health check time, etc.
 2. The controller creates a namespace of the same name as the member cluster in the hub cluster.
 3. The controller starts a health check loop for each member cluster which
    * Checks the health of the member cluster by updating the last health check time in the lease configMap
    * Lists all the nodes in a member cluster and aggregates their `Capacity` and `Allocatable`
    * Updating the `managedCluster` condition status
+
+#### member cluster lease
+Since a configMAP has no schema, an alternative way is to create a CRD as the lease so that we can have a more defined
+lease object. The downside is that we have to install something on the member cluster, since claims are optional. 
+
+Here is the proposed lease spec. The hub controller will reconcile each managedCluster with an interval. 
+The reconciler logic does the following:
+
+* it fetches the corresponding MemberClusterLease object in the member cluster.
+  * it marks the member cluster as unhealthy/unreachable in the mangedCluster CR status if it cannot fetch the lease
+* it checks if the fleetID in the lease object matches its own. 
+* it updates the LastLeaseRenewTime in the lease
+* it updates the LastJoinTime in the lease if the member cluster is not healthy before
+
+```go
+type MemberClusterLeaseSpec struct {
+    // the unique ID of the fleet this member cluster belongs to
+    fleetID string `json:"fleetID"`
+
+    // LastLeaseRenewTime is the last time the hub cluster controller can reach the member cluster
+	LastLeaseRenewTime metav1.Time `json:"lastLeaseRenewTime"`
+
+    // LastJoinTime is the last time the hub cluster controller re-establish connection to the member cluster
+    LastJoinTime metav1.Time `json:"lastJoinTime"`
+}
+```
 
 ### API definition change proposal
 There is actually a better way to provide the credentials of member clusters to the hub cluster than using a naming convention.
@@ -168,15 +193,15 @@ Here is the new ClientConfig we will propose
 ```golang
 type ClientConfig struct {
     // Server URL
-	// +required
-    URL string `json:"url"`
+	// +required 
+	URL string `json:"url"`
 
     // CABundle is a list of ca bundle to connect to apiserver of the managed cluster.
     // System certs are used if it is not set.
     // +optional 
 	CABundles []byte `json:"caBundles,omitempty"`
 	
-	// CredentialPath is the path to the file that contains the user credential
+	// CredentialPath is the path to the file that contains the user credential 
 	CredentialPath string `json:"credential"`
 }
 
