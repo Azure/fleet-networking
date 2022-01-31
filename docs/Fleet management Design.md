@@ -186,7 +186,7 @@ the user credentials. We will propose to add a path to a file that contains the 
 on volume mounted to the secret described above. 
 
 Cert rotation is also another concern in the real production environment. In order to support member cluster api-server
-cert rotation, we will have to make the CABundle a list so that it can contain both the new and old server CA certificate.
+cert rotation, we will have to make the CABundle so that it can contain both the new and old server CA certificate.
 
 Here is the new ClientConfig we will propose
 
@@ -201,8 +201,10 @@ type ClientConfig struct {
     // +optional 
 	CABundles []byte `json:"caBundles,omitempty"`
 	
-	// CredentialPath is the path to the file that contains the user credential 
-	CredentialPath string `json:"credential"`
+	// SecretRef is the name of the secret that contains the user credential to operate on the member cluster
+	// it must have a "token" key or "tls.crt/tls.key" key pair
+	// +required
+	SecretRef string `json:"secretRef"`
 }
 
 ```
