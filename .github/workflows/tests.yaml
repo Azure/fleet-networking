@@ -4,6 +4,10 @@ on:
     pull_request: {}
     push: {}
 
+env:
+  # Common versions
+  GO_VERSION: '1.17'
+
 jobs:
 
   build:
@@ -11,27 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.x
+    - name: Set up Go ${{ env.GO_VERSION }}
       uses: actions/setup-go@v2
       with:
-        go-version: ^1.16
-      id: go
-
-    - name: Install Tools
-      run: |
-        curl -sSLo envtest-bins.tar.gz "https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.19.2-$(go env GOOS)-$(go env GOARCH).tar.gz"
-        sudo tar zxvf  envtest-bins.tar.gz -C /usr/local
-
-    - name: Checkout Codes
-      uses: actions/checkout@v2
-
-    - name: Go Vet
-      run: |
-        go vet ./...
+        go-version: ${{ env.GO_VERSION }}
 
     - name: Build Binaries
-      run: |
-        make
+      run: make build
 
     - name: Unit Tests
-      run: go test -cover ./...
+      run: make test
