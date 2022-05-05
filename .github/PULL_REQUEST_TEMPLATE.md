@@ -30,7 +30,7 @@ Fixes #
 
 I have:
 
-- [ ] Read and followed fleet's [Code of conduct](https://github.com/Azure/fleet/blob/main/CODE_OF_CONDUCT.md).
+- [ ] Read and followed fleet-networking's [Code of conduct](https://github.com/Azure/fleet-networking/blob/main/CODE_OF_CONDUCT.md).
 - [ ] Run `make reviewable` to ensure this PR is ready for review.
 
 ### How has this code been tested
