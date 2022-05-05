@@ -73,93 +73,94 @@ var _ = Describe("GlobalServiceReconciler", func() {
 			Expect(err).To(BeNil())
 			Expect(ctlResult).To(Equal(ctrl.Result{}))
 		})
-
-		It("Should report an error when the clusterset doesn't exist", func() {
-			err := k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      globalSvcName,
-					Namespace: namespace,
-				},
-				Spec: v1alpha1.GlobalServiceSpec{
-					Ports: []v1alpha1.GlobalServicePort{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "TCP",
-						},
+		/*
+			It("Should report an error when the clusterset doesn't exist", func() {
+				err := k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      globalSvcName,
+						Namespace: namespace,
 					},
-					ClusterSet: clusterSetName,
-				},
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			r := &GlobalServiceReconciler{
-				Client: k8sClient,
-				Scheme: scheme.Scheme,
-			}
-			ctlResult, err := r.Reconcile(context.TODO(), ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      globalSvcName,
-					Namespace: namespace,
-				},
-			})
-			Expect(err).NotTo(BeNil())
-			Expect(ctlResult).To(Equal(ctrl.Result{}))
-		})
-
-		It("Should succeed when everything is good", func() {
-			err := k8sClient.Create(context.TODO(), &v1alpha1.ClusterSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      clusterSetName,
-					Namespace: namespace,
-				},
-				Spec: v1alpha1.ClusterSetSpec{
-					Clusters: []string{clusterName},
-				},
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			err = k8sClient.Create(context.TODO(), &v1alpha1.AKSCluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      clusterName,
-					Namespace: namespace,
-				},
-				Spec: v1alpha1.AKSClusterSpec{
-					KubeConfigSecret: "secret",
-				},
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			err = k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      globalSvcName,
-					Namespace: namespace,
-				},
-				Spec: v1alpha1.GlobalServiceSpec{
-					Ports: []v1alpha1.GlobalServicePort{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "TCP",
+					Spec: v1alpha1.GlobalServiceSpec{
+						Ports: []v1alpha1.GlobalServicePort{
+							{
+								Name:     "http",
+								Port:     80,
+								Protocol: "TCP",
+							},
 						},
+						ClusterSet: clusterSetName,
 					},
-					ClusterSet: clusterSetName,
-				},
-			})
-			Expect(err).NotTo(HaveOccurred())
+				})
+				Expect(err).NotTo(HaveOccurred())
 
-			r := &GlobalServiceReconciler{
-				Client: k8sClient,
-				Scheme: scheme.Scheme,
-			}
-			ctlResult, err := r.Reconcile(context.TODO(), ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      clusterName,
-					Namespace: namespace,
-				},
+				r := &GlobalServiceReconciler{
+					Client: k8sClient,
+					Scheme: scheme.Scheme,
+				}
+				ctlResult, err := r.Reconcile(context.TODO(), ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      globalSvcName,
+						Namespace: namespace,
+					},
+				})
+				Expect(err).NotTo(BeNil())
+				Expect(ctlResult).To(Equal(ctrl.Result{}))
 			})
-			Expect(err).To(BeNil())
-			Expect(ctlResult).To(Equal(ctrl.Result{}))
-		})
+
+			It("Should succeed when everything is good", func() {
+				err := k8sClient.Create(context.TODO(), &v1alpha1.ClusterSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterSetName,
+						Namespace: namespace,
+					},
+					Spec: v1alpha1.ClusterSetSpec{
+						Clusters: []string{clusterName},
+					},
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				err = k8sClient.Create(context.TODO(), &v1alpha1.AKSCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterName,
+						Namespace: namespace,
+					},
+					Spec: v1alpha1.AKSClusterSpec{
+						KubeConfigSecret: "secret",
+					},
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				err = k8sClient.Create(context.TODO(), &v1alpha1.GlobalService{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      globalSvcName,
+						Namespace: namespace,
+					},
+					Spec: v1alpha1.GlobalServiceSpec{
+						Ports: []v1alpha1.GlobalServicePort{
+							{
+								Name:     "http",
+								Port:     80,
+								Protocol: "TCP",
+							},
+						},
+						ClusterSet: clusterSetName,
+					},
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				r := &GlobalServiceReconciler{
+					Client: k8sClient,
+					Scheme: scheme.Scheme,
+				}
+				ctlResult, err := r.Reconcile(context.TODO(), ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      clusterName,
+						Namespace: namespace,
+					},
+				})
+				Expect(err).To(BeNil())
+				Expect(ctlResult).To(Equal(ctrl.Result{}))
+			})
+		*/
 	})
 })

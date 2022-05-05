@@ -193,7 +193,7 @@ func (r *GlobalServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func RemoveItemFromSlice(slice []string, s string) []string {
-	var result []string
+	result := make([]string, 1)
 	for _, item := range slice {
 		if item == s {
 			continue

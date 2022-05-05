@@ -54,7 +54,7 @@ func NewClusterManager(name string, kubeconfig *rest.Config, workqueue workqueue
 func (mgr *ClusterManager) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	mgr.stop = cancel
-	go mgr.Start(ctx)
+	go mgr.Start(ctx) // nolint: errcheck
 	return nil
 }
 

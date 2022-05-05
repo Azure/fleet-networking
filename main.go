@@ -116,7 +116,7 @@ func main() {
 
 	setupLog.Info("starting manager")
 	globalCtx := ctrl.SetupSignalHandler()
-	globalServiceReconciler.StartReconcileLoop(globalCtx)
+	globalServiceReconciler.StartReconcileLoop(globalCtx) //nolint:errcheck
 	if err := mgr.Start(globalCtx); err != nil {
 		setupLog.Error(err, "problem running multi-cluster-networking manager")
 		os.Exit(1)

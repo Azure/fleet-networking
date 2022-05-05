@@ -71,7 +71,6 @@ func (r *GlobalServiceReconciler) processNextServiceEndpoints(ctx context.Contex
 
 	obj, shutdown := r.WorkQueue.Get()
 	if shutdown {
-
 		return false
 	}
 

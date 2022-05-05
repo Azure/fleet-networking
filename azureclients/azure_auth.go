@@ -28,7 +28,7 @@ type AzureConfig struct {
 func GetAzureConfigFromSecret(kubeClient client.Client, namespace, name string) (*AzureConfig, *azure.Environment, error) {
 	var secret corev1.Secret
 	if err := kubeClient.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
-		return nil, nil, fmt.Errorf("failed to get secret %s: %v", name, err)
+		return nil, nil, fmt.Errorf("failed to get secret %s: %w", name, err)
 	}
 	cloudConfigData, ok := secret.Data["cloud-config"]
 	if !ok {
@@ -37,7 +37,7 @@ func GetAzureConfigFromSecret(kubeClient client.Client, namespace, name string) 
 
 	var config AzureConfig
 	var env azure.Environment
-	err := yaml.Unmarshal([]byte(cloudConfigData), &config)
+	err := yaml.Unmarshal(cloudConfigData, &config)
 	if err != nil {
 		return nil, nil, err
 	}

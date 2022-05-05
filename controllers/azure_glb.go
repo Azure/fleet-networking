@@ -443,8 +443,8 @@ func (r *GlobalServiceReconciler) getExpectedGLBRulesProbes(glb *network.LoadBal
 		ports = []networkingv1alpha1.GlobalServicePort{}
 	}
 
-	var expectedProbes []network.Probe
-	var expectedRules []network.LoadBalancingRule
+	expectedProbes := make([]network.Probe, len(ports))
+	expectedRules := make([]network.LoadBalancingRule, len(ports))
 	for i := range ports {
 		port := ports[i]
 
@@ -491,7 +491,7 @@ func (r *GlobalServiceReconciler) getExpectedGLBRulesProbes(glb *network.LoadBal
 
 func (r *GlobalServiceReconciler) reconcileGLBFrontendIPConfigs(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, lbFrontendConfigID string, wantLB bool) (bool, string, error) {
 	serviceName := getLastSegment(lbFrontendConfigID, "/")
-	var foundConfig int = -1
+	foundConfig := -1
 	var newConfigs []network.FrontendIPConfiguration
 	if glb.FrontendIPConfigurations != nil {
 		newConfigs = *glb.FrontendIPConfigurations
@@ -584,7 +584,7 @@ func (r *GlobalServiceReconciler) ensureGlobalPIP(pipName string) (*network.Publ
 
 func (r *GlobalServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBalancer, globalService *networkingv1alpha1.GlobalService, lbBackendPoolID string, wantLB bool) (bool, *network.BackendAddressPool, error) {
 	var newBackendPools []network.BackendAddressPool
-	var foundBackendPool int = -1
+	foundBackendPool := -1
 	if glb.BackendAddressPools != nil {
 		newBackendPools = *glb.BackendAddressPools
 	}
@@ -618,7 +618,7 @@ func (r *GlobalServiceReconciler) reconcileGLBBackendPools(glb *network.LoadBala
 		Name:                               to.StringPtr(serviceName),
 		BackendAddressPoolPropertiesFormat: &network.BackendAddressPoolPropertiesFormat{},
 	}
-	var newLoadBalancerBackendAddresses []network.LoadBalancerBackendAddress
+	newLoadBalancerBackendAddresses := make([]network.LoadBalancerBackendAddress, len(regionalSLBConfigurations))
 	for i := range regionalSLBConfigurations {
 		rc := regionalSLBConfigurations[i]
 		newLoadBalancerBackendAddresses = append(newLoadBalancerBackendAddresses, network.LoadBalancerBackendAddress{
