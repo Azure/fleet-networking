@@ -1,14 +1,31 @@
 
-### Description of your changes
+**What type of PR is this?**
 
 <!--
+Add one of the following kinds:
+/kind bug
+/kind test
+/kind cleanup
+/kind documentation
+/kind feature
+/kind design
 
-Briefly describe what this pull request does. We love pull requests that have a clear purpose. If yours fix an issue,
-please uncomment the below line to indicate which issue your PR fixes, for example
-"Fixes #500":
-
+Optionally add one or more of the following kinds if applicable:
+/kind api-change
+/kind deprecation
+/kind failing-test
+/kind flake
+/kind regression
 -->
 
+**What this PR does / why we need it**:
+
+**Which issue(s) this PR fixes**:
+<!-- 
+*Automatically closes linked issue when PR is merged.
+Usage: `Fixes #<issue number>`, or `Fixes (paste link of issue)`.
+_If PR is about `failing-tests or flakes`, please post the related issues/tests in a comment and do not use `Fixes`_*
+-->
 Fixes #
 
 I have:
