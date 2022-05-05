@@ -1,11 +1,11 @@
 include makefiles/dependency.mk
 
 # Image URL to use all building/pushing image targets
-IMAGE_REGISTRY =? local
+IMAGE_REGISTRY ?= local
 ifndef TAG
-	IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)
+	TAG ?= $(shell git rev-parse --short=7 HEAD)
 else
-	IMAGE_TAG ?= $(TAG)
+	TAG ?= $(TAG)
 endif
 IMG=$(IMAGE_REGISTRY)/controller:$(TAG)
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)

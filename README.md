@@ -36,8 +36,8 @@ kubectl create secret generic azure-mcn-config --from-file=cloud-config --namesp
 After secret setup, build the image and deploy the MCN operator in the same MCN cluster:
 
 ```sh
-IMG=<your-image-registry/image-name> make docker-build docker-push
-IMG=<your-image-registry/image-name> make deploy
+IMAGE_REGISTRY=<your-image-registry> make docker-build docker-push
+IMAGE_REGISTRY=<your-image-registry> make deploy
 ```
 
 ## Cluster Management
