@@ -20,6 +20,9 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
     - name: Build Binaries
       run: make build
 
