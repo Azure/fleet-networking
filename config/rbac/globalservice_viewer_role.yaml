@@ -1,0 +1,20 @@
+# permissions for end users to view globalservices.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: globalservice-viewer-role
+rules:
+- apiGroups:
+  - networking.aks.io
+  resources:
+  - globalservices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.aks.io
+  resources:
+  - globalservices/status
+  verbs:
+  - get
