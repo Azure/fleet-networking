@@ -28,10 +28,25 @@ _If PR is about `failing-tests or flakes`, please post the related issues/tests 
 -->
 Fixes #
 
-I have:
+**Requirements**:
 
 - [ ] Read and followed fleet-networking's [Code of conduct](https://github.com/Azure/fleet-networking/blob/main/CODE_OF_CONDUCT.md).
-- [ ] Run `make reviewable` to ensure this PR is ready for review.
+- [ ] uses [conventional commit messages](https://www.conventionalcommits.org/)
+  <!-- Common commit types:
+        build: Build 🏭
+        chore: Maintenance 🔧
+        ci: Continuous Integration 💜
+        docs: Documentation 📘
+        feat: Features 🌈
+        fix: Bug Fixes 🐞
+        perf: Performance Improvements 🚀
+        refactor: Code Refactoring 💎
+        revert: Revert Change ◀️
+        style: Code Style 🎶
+        security: Security Fix 🛡️
+        test: Testing 💚 -->
+- [ ] includes documentation
+- [ ] adds unit tests
 
 ### How has this code been tested
 
@@ -39,7 +54,6 @@ I have:
 Before reviewers can be confident in the correctness of this pull request, it needs to tested and shown to be correct.
 Briefly describe the testing that has already been done or which is planned for this change.
 -->
-
 
 ### Special notes for your reviewer
 
