@@ -9,6 +9,7 @@ on:
   schedule:
    - cron: "0 2 * * 1-5"
 
+# NOTE(mainred): We can move to self-owned ACR for better control and management of the images
 env:
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
