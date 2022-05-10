@@ -1,0 +1,16 @@
+# Binaries for programs and plugins
+bin
+hack/tools/bin
+testbin
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.vscode
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
