@@ -18,6 +18,7 @@ import (
 )
 
 // TO-DO (chenyu1): Update the API information when the design is finalized
+// TO-DO (chenyu1): Refactor the GVR specifications when the API definition package becomes available
 const (
 	// ServiceExport GVR information
 	svcExportGroup    = "mcs.networking.fleet.azure.io"
@@ -78,14 +79,13 @@ type Controller struct {
 	eventRecorder    record.EventRecorder
 }
 
+// New returns a ServiceExport controller to sync Services and EndpointSlices between member clusters and
+// the hub cluster.
 func New(
 	memberClusterID string,
-	memberKubeClient clientset.Interface,
-	memberDynamicClient dynamic.Interface,
-	hubKubeClient clientset.Interface,
+	memberKubeClient clientset.Interface, memberDynamicClient dynamic.Interface,
 	hubDynamicClient dynamic.Interface,
-	memberSharedInformerFactory informers.SharedInformerFactory,
-	memberDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory,
+	memberSharedInformerFactory informers.SharedInformerFactory, memberDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory,
 	hubDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory,
 ) (*Controller, error) {
 	// Initialize informers
