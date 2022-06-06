@@ -31,8 +31,8 @@ const (
 	svcImportResource = "ServiceImport"
 
 	// Min. and max. delay for workqueue rate limiters
-	minRetryDelay = time.Second * 5
-	maxRetryDelay = time.Second * 30
+	minQueueRateLimiterRetryDelay = time.Second * 5
+	maxQueueRateLimiterRetryDelay = time.Second * 30
 )
 
 // ServiceExport GVR
@@ -96,15 +96,15 @@ func New(
 
 	// Initialize workqueues
 	memberSvcSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay),
+		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
 		"memberService",
 	)
 	hubSvcSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay),
+		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
 		"hubService",
 	)
 	memberEndpointSliceSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay),
+		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
 		"memberEndpointSlices",
 	)
 
