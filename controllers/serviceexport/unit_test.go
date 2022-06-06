@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+// TestNewController calls serviceexport.New() with fake Kubernetes clients, checking for an error.
 func TestNewController(t *testing.T) {
 	memberKubeClient := fakeclientset.NewSimpleClientset()
 	memberDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme)
