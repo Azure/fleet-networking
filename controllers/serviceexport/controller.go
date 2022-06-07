@@ -1,3 +1,5 @@
+// Package serviceexport features the ServiceExport controller for syncing Services and EndpointSlices
+// between member clusters and the hub cluster in a fleet.
 package serviceexport
 
 import (
@@ -35,19 +37,22 @@ const (
 	maxQueueRateLimiterRetryDelay = time.Second * 30
 )
 
-// ServiceExport GVR
+// ServiceExport and ServiceImport GVR
+// TO-DO (chenyu1): Refactor the GVR specifications when the API definition package becomes available
 var svcExportGVR schema.GroupVersionResource = schema.GroupVersionResource{
 	Group:    svcExportGroup,
 	Version:  svcExportVersion,
 	Resource: svcExportResource,
 }
-
-// ServiceImport GVR
 var svcImportGVR schema.GroupVersionResource = schema.GroupVersionResource{
 	Group:    svcImportGroup,
 	Version:  svcImportVersion,
 	Resource: svcImportResource,
 }
+
+// TO-DO (chenyu1): Refactor these two interfaces with generics when Go 1.18 becomes available
+type SvcSyncStatusTracker interface{}
+type EndpointSliceSyncStatusTracker interface{}
 
 // Controller (ServiceExport controller) runs on a member cluster and syncs Services
 // (via ServiceExport and ServiceImport objects) and endpointSlices (via EndpointSliceExport objects)
