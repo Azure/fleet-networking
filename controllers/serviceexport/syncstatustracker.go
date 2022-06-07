@@ -1,13 +1,13 @@
 package serviceexport
 
-type svcSyncStatusTrackerImpl struct{}
+type defaultSvcSyncStatusTracker struct{}
 
 func NewSvcSyncStatusTracker() SvcSyncStatusTracker {
-	return &svcSyncStatusTrackerImpl{}
+	return &defaultSvcSyncStatusTracker{}
 }
 
-type endpointSliceSyncStatusTrackerImpl struct{}
+type defaultEndpointSliceSyncStatusTracker struct{}
 
 func NewEndpointSliceSyncStatusTracker() EndpointSliceSyncStatusTracker {
-	return &endpointSliceSyncStatusTrackerImpl{}
+	return &defaultEndpointSliceSyncStatusTracker{}
 }
