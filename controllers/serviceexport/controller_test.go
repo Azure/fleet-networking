@@ -30,7 +30,7 @@ func TestNewController(t *testing.T) {
 		t.Errorf("failed to create a new serviceexport controller: %v", err)
 	}
 
-	if c.memberClusterID != "fake-cluster" {
+	if c.memberClusterID != fakeClusterID {
 		t.Errorf("member cluster id does not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
 	}
 	if c.memberKubeClient != memberKubeClient {
