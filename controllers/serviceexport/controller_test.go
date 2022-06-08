@@ -31,16 +31,15 @@ func TestNewController(t *testing.T) {
 	}
 
 	if c.memberClusterID != fakeClusterID {
-		t.Errorf("member cluster id does not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
+		t.Errorf("member cluster ids do not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
 	}
 	if c.memberKubeClient != memberKubeClient {
-		t.Errorf("member kube client does not match")
+		t.Errorf("member kube clients do not match")
 	}
 	if c.memberDynamicClient != memberDynamicClient {
-		t.Errorf("member dynamic client does not match")
+		t.Errorf("member dynamic clients do not match")
 	}
 	if c.hubDynamicClient != hubDynamicClient {
-		t.Errorf("hub dynamic client does not match")
+		t.Errorf("hub dynamic clients do not match")
 	}
-
 }
