@@ -1,70 +1,200 @@
-include makefiles/dependency.mk
+REGISTRY ?= ghcr.io/azure
+HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
+HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
+MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
+MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
+MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
+MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 
-IMAGE_REGISTRY ?= local
-ifndef TAG
-	TAG ?= $(shell git rev-parse --short=7 HEAD)
-else
-	TAG ?= $(TAG)
-endif
-IMG=$(IMAGE_REGISTRY)/controller:$(TAG)
+# Directories
+ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+TOOLS_DIR := hack/tools
+TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
 
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
+# Binaries
+# Note: Need to use abspath so we can invoke these from subdirectories
 
-all: build
+CONTROLLER_GEN_VER := v0.7.0
+CONTROLLER_GEN_BIN := controller-gen
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 
-##@ General
+STATICCHECK_VER := 2022.1
+STATICCHECK_BIN := staticcheck
+STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/$(STATICCHECK_BIN)-$(STATICCHECK_VER))
 
-# The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk commands is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
-# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
-# http://linuxcommand.org/lc3_adv_awk.php
+GOIMPORTS_VER := latest
+GOIMPORTS_BIN := goimports
+GOIMPORTS := $(abspath $(TOOLS_BIN_DIR)/$(GOIMPORTS_BIN)-$(GOIMPORTS_VER))
 
-help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+GOLANGCI_LINT_VER := v1.41.1
+GOLANGCI_LINT_BIN := golangci-lint
+GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
-##@ Test
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VER = v0.0.0-20211110210527-619e6b92dab9
+ENVTEST_K8S_BIN := setup-envtest
+ENVTEST :=  $(abspath $(TOOLS_BIN_DIR)/$(ENVTEST_K8S_BIN)-$(ENVTEST_K8S_VER))
+
+# Scripts
+GO_INSTALL := ./hack/go-install.sh
+
+## --------------------------------------
+## Tooling Binaries
+## --------------------------------------
+
+$(GOLANGCI_LINT):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
+
+$(CONTROLLER_GEN):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-tools/cmd/controller-gen $(CONTROLLER_GEN_BIN) $(CONTROLLER_GEN_VER)
+
+# Style checks
+$(STATICCHECK):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) honnef.co/go/tools/cmd/staticcheck $(STATICCHECK_BIN) $(STATICCHECK_VER)
+
+# GOIMPORTS
+$(GOIMPORTS):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) golang.org/x/tools/cmd/goimports $(GOIMPORTS_BIN) $(GOIMPORTS_VER)
+
+# ENVTEST
+$(ENVTEST):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-runtime/tools/setup-envtest $(ENVTEST_K8S_BIN) $(ENVTEST_K8S_VER)
+
+## --------------------------------------
+## Linting
+## --------------------------------------
 
 .PHONY: lint
-lint: golangci-lint # Run golang linters.
+lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v
 
-ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
-test: lint ## Run tests.
-	mkdir -p ${ENVTEST_ASSETS_DIR}
-	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.8.3/hack/setup-envtest.sh
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./... -coverprofile cover.out
+.PHONY: lint-full
+lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
+	$(GOLANGCI_LINT) run -v --fast=false
 
-##@ Build
+## --------------------------------------
+## Development
+## --------------------------------------
+
+staticcheck: $(STATICCHECK)
+	$(STATICCHECK) ./...
+
+.PHONY: fmt
+fmt:  $(GOIMPORTS) ## Run go fmt against code.
+	go fmt ./...
+	$(GOIMPORTS) -local go.goms.io/fleet -w $$(go list -f {{.Dir}} ./...)
+
+.PHONY: vet
+vet: ## Run go vet against code.
+	go vet ./...
+
+## --------------------------------------
+## test
+## --------------------------------------
+
+.PHONY: test
+test: manifests generate fmt vet $(ENVTEST) ## Run tests.
+	$(local-unit-test)
+
+local-unit-test: $(ENVTEST) ## Run tests.
+	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -race -coverprofile=coverage.xml -covermode=atomic -v
+
+.PHONY: e2e-tests
+e2e-tests:
+	go test -tags=e2e -v ./test/e2e
+
+
+reviewable: fmt vet lint staticcheck
+	go mod tidy
+
+## --------------------------------------
+## Code Generation
+## --------------------------------------
+
+# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
+CRD_OPTIONS ?= "crd:crdVersions=v1"
+
+# Generate manifests e.g. CRD, RBAC etc.
+.PHONY: manifests
+manifests: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) \
+		$(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+# Generate code
+generate: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) \
+		object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+## --------------------------------------
+## Build
+## --------------------------------------
 
 .PHONY: build
-build: ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+build: generate fmt vet ## Build binaries.
+	go build -o bin/hub-net-controller-manager cmd/hub-net-controller-manager/main.go
+	go build -o bin/member-net-controller-manager cmd/member-net-controller-manager/main.go
+	go build -o bin/mcs-controller-manager cmd/mcs-controller-manager/main.go
 
-.PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} .
+.PHONY: run-hub-net-controller-manager
+run-hub-net-controller-manager: manifests generate fmt vet ## Run a controllers from your host.
+	go run ./cmd/hub-net-controller-manager/main.go
 
-.PHONY: docker-push
-docker-push: ## Push docker image with the manager.
-	docker push ${IMG}
+.PHONY: run-member-net-controller-manager
+run-member-net-controller-manager: manifests generate fmt vet ## Run a controllers from your host.
+	go run ./cmd/member-net-controller-manager/main.go
 
-##@ Deployment
+.PHONY: run-mcs-controller-manager
+run-mcs-controller-manager: manifests generate fmt vet ## Run a controllers from your host.
+	go run ./cmd/mcs-controller-manager/main.go
 
-install: kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+## --------------------------------------
+## Images
+## --------------------------------------
 
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
+OUTPUT_TYPE ?= type=registry
+BUILDX_BUILDER_NAME ?= img-builder
+QEMU_VERSION ?= 5.2.0-2
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+.PHONY: docker-buildx-builder
+docker-buildx-builder:
+	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
+		docker run --rm --privileged multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
+		docker buildx create --name $(BUILDX_BUILDER_NAME) --use; \
+		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
+	fi
 
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
+.PHONY: docker-build-hub-net-controller-manager
+docker-build-hub-net-controller-manager: docker-buildx-builder
+	docker buildx build \
+		--file docker/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
+.PHONY: docker-build-member-net-controller-manager
+docker-build-member-net-controller-manager: docker-buildx-builder
+	docker buildx build \
+		--file docker/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
+
+.PHONY: docker-build-mcs-controller-manager
+docker-build-mcs-controller-manager: docker-buildx-builder
+	docker buildx build \
+		--file docker/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
+
+## -----------------------------------
+## Cleanup
+## -----------------------------------
+
+.PHONY: clean-bin
+clean-bin: ## Remove all generated binaries
+	rm -rf $(TOOLS_BIN_DIR)
+	rm -rf ./bin
