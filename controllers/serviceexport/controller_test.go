@@ -27,7 +27,7 @@ func TestNewController(t *testing.T) {
 		memberSharedInformerFactory, memberDynamicInformerFactory, hubDynamicInformerFactory)
 
 	if err != nil {
-		t.Errorf("failed to create a new serviceexport controller: %v", err)
+		t.Fatalf("failed to create a new serviceexport controller: %v", err)
 	}
 
 	if c.memberClusterID != fakeClusterID {

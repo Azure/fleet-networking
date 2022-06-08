@@ -51,7 +51,13 @@ var svcImportGVR schema.GroupVersionResource = schema.GroupVersionResource{
 }
 
 // TO-DO (chenyu1): Refactor these two interfaces with generics when Go 1.18 becomes available
+
+// SvcSyncStatusTracker helps track Service synchronization status, i.e. if a Service has been sync'd to the hub
+// cluster and its last sync'd spec.
 type SvcSyncStatusTracker interface{}
+
+// EndpointSliceSyncStatusTracker helps track EndpointSlice synchronization status, i.e. if an Endpointslice has
+// been sync'd to the hub cluster and its last sync'd spec.
 type EndpointSliceSyncStatusTracker interface{}
 
 // Controller (ServiceExport controller) runs on a member cluster and syncs Services
