@@ -26,6 +26,10 @@ func TestNewController(t *testing.T) {
 	c, err := New(fakeClusterID, memberKubeClient, memberDynamicClient, hubDynamicClient,
 		memberSharedInformerFactory, memberDynamicInformerFactory, hubDynamicInformerFactory)
 
+	if err != nil {
+		t.Errorf("failed to create a new serviceexport controller: %v", err)
+	}
+
 	if c.memberClusterID != "fake-cluster" {
 		t.Errorf("member cluster id does not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
 	}
@@ -38,7 +42,5 @@ func TestNewController(t *testing.T) {
 	if c.hubDynamicClient != hubDynamicClient {
 		t.Errorf("hub dynamic client does not match")
 	}
-	if err != nil {
-		t.Errorf("failed to create a new serviceexport controller: %v", err)
-	}
+
 }
