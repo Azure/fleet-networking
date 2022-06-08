@@ -1,10 +1,9 @@
-package serviceexport_test
+package serviceexport
 
 import (
 	"testing"
 	"time"
 
-	"go.goms.io/fleet-networking/controllers/serviceexport"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
@@ -22,9 +21,23 @@ func TestNewController(t *testing.T) {
 	memberDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(memberDynamicClient, time.Second*30)
 	hubDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(hubDynamicClient, time.Second*30)
 
-	_, err := serviceexport.New("fake-cluster", memberKubeClient, memberDynamicClient, hubDynamicClient,
+	fakeClusterID := "fake-cluster"
+
+	c, err := New(fakeClusterID, memberKubeClient, memberDynamicClient, hubDynamicClient,
 		memberSharedInformerFactory, memberDynamicInformerFactory, hubDynamicInformerFactory)
 
+	if c.memberClusterID != "fake-cluster" {
+		t.Errorf("member cluster id does not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
+	}
+	if c.memberKubeClient != memberKubeClient {
+		t.Errorf("member kube client does not match")
+	}
+	if c.memberDynamicClient != memberDynamicClient {
+		t.Errorf("member dynamic client does not match")
+	}
+	if c.hubDynamicClient != hubDynamicClient {
+		t.Errorf("hub dynamic client does not match")
+	}
 	if err != nil {
 		t.Errorf("failed to create a new serviceexport controller: %v", err)
 	}
