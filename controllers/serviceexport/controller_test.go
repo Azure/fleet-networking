@@ -23,23 +23,13 @@ func TestNewController(t *testing.T) {
 
 	fakeClusterID := "fake-cluster"
 
-	c, err := New(fakeClusterID, memberKubeClient, memberDynamicClient, hubDynamicClient,
+	_, err := New(
+		fakeClusterID,
+		memberKubeClient, memberDynamicClient,
+		hubDynamicClient,
 		memberSharedInformerFactory, memberDynamicInformerFactory, hubDynamicInformerFactory)
 
 	if err != nil {
 		t.Fatalf("failed to create a new serviceexport controller: %v", err)
-	}
-
-	if c.memberClusterID != fakeClusterID {
-		t.Errorf("member cluster ids do not match: got %s, expected %s", c.memberClusterID, fakeClusterID)
-	}
-	if c.memberKubeClient != memberKubeClient {
-		t.Errorf("member kube clients do not match")
-	}
-	if c.memberDynamicClient != memberDynamicClient {
-		t.Errorf("member dynamic clients do not match")
-	}
-	if c.hubDynamicClient != hubDynamicClient {
-		t.Errorf("hub dynamic clients do not match")
 	}
 }
