@@ -27,4 +27,3 @@ COPY --from=builder /workspace/mcs-controller-manager .
 USER 65532:65532
 
 ENTRYPOINT ["/mcs-controller-manager"]
-
