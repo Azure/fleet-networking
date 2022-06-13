@@ -1,3 +1,4 @@
+# Soure of reference: https://github.com/Azure/fleet/blob/main/.gitignore
 # Binaries for programs and plugins
 *.exe
 *.exe~

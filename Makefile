@@ -1,3 +1,4 @@
+# Source of reference: https://github.com/Azure/fleet/blob/main/Makefile
 REGISTRY ?= ghcr.io/azure
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
 HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0

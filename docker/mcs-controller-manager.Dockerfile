@@ -15,8 +15,9 @@ COPY api/ api/
 COPY pkg/ pkg/
 
 # Build
+ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -o mcs-controller-manager main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -o mcs-controller-manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -26,3 +27,4 @@ COPY --from=builder /workspace/mcs-controller-manager .
 USER 65532:65532
 
 ENTRYPOINT ["/mcs-controller-manager"]
+

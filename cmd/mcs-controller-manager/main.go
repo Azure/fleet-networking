@@ -67,7 +67,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "2bf2b407.azure.com",
+		LeaderElectionID:       "2bf2b407.mcs.networking.fleet.azure.com",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
