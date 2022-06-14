@@ -8,9 +8,10 @@ on:
     branches:
       - main
 
-  create:
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+# Need to create separate release and nightly workflow to build images.
+#  create:
+#    # Publish semver tags as releases.
+#    tags: [ 'v*.*.*' ]
 
 permissions:
   contents: read
@@ -18,6 +19,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  # TODO: to use the real tag/image version later
   HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME : hub-net-controller-manager
   HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: v0.1.0
   MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME: member-net-controller-manager
