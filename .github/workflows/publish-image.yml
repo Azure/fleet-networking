@@ -1,0 +1,71 @@
+name: publish_images
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+  create:
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME : hub-net-controller-manager
+  HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: v0.1.0
+  MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME: member-net-controller-manager
+  MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: v0.1.0
+  MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
+  MCS_CONTROLLER_MANAGER_IMAGE_VERSION: v0.1.0
+
+jobs:
+  export-registry:
+    runs-on: ubuntu-20.04
+    outputs:
+      registry: ${{ steps.export.outputs.registry }}
+    steps:
+      - id: export
+        run: |
+          # registry must be in lowercase
+          echo "::set-output name=registry::$(echo "${{ env.REGISTRY }}/${{ github.repository }}" | tr [:upper:] [:lower:])"
+  publish-images:
+    needs: export-registry
+    env:
+      REGISTRY: ${{ needs.export-registry.outputs.registry }}
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to ${{ env.REGISTRY }}
+        uses: docker/login-action@49ed152c8eca782a232dede0303416e8f356c37b
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
+        run: |
+          make docker-build-hub-net-controller-manager
+        env:
+          REGISTRY: ${{ env.REGISTRY}}
+          IMAGE_NAME: ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
+          IMAGE_VERSION: ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION }}
+      - name: Build ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
+        run: |
+          make docker-build-member-net-controller-manager
+        env:
+          REGISTRY: ${{ env.REGISTRY}}
+          IMAGE_NAME: ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
+          IMAGE_VERSION: ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION }}
+
+      - name: Build ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME}}
+        run: |
+          make docker-build-mcs-controller-manager
+        env:
+          IMAGE_NAME: ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME}}
+          IMAGE_VERSION: ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_VERSION }}

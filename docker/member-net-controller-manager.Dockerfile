@@ -11,7 +11,7 @@ RUN go mod download
 
 # Copy the go source
 COPY cmd/member-net-controller-manager/main.go main.go
-COPY api/ api/
+#COPY api/ api/
 COPY pkg/ pkg/
 
 # Build
@@ -23,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build 
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
-COPY --from=builder /workspace/hub-net-controller-manager .
+COPY --from=builder /workspace/member-net-controller-manager .
 USER 65532:65532
 
 ENTRYPOINT ["/member-net-controller-manager"]
