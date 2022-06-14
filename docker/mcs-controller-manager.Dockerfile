@@ -11,7 +11,7 @@ RUN go mod download
 
 # Copy the go source
 COPY cmd/mcs-controller-manager/main.go main.go
-#COPY api/ api/
+COPY api/ api/
 COPY pkg/ pkg/
 
 # Build
