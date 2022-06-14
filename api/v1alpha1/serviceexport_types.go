@@ -50,12 +50,12 @@ type ServiceExportStatus struct {
 	Conditions []ServiceExportCondition `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=svcexport
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportValid")].status`,name="IsValid",type=string
-//+kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportConflict")].status`,name="IsConflicted",type=string
-//+kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=svcexport
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportValid")].status`,name="IsValid",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportConflict")].status`,name="IsConflicted",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // ServiceExport declares that the associated service should be exported to other clusters.
 type ServiceExport struct {
@@ -67,7 +67,7 @@ type ServiceExport struct {
 	Status ServiceExportStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // ServiceExportList contains a list of ServiceExport.
 type ServiceExportList struct {
