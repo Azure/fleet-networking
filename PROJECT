@@ -1,0 +1,6 @@
+domain: azure.com
+layout:
+- go.kubebuilder.io/v3
+projectName: fleet-networking
+repo: go.goms.io/fleet-networking
+version: "3"
