@@ -6,7 +6,6 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
-	apicorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,22 +23,6 @@ const (
 	ServiceExportConflict ServiceExportConditionType = "Conflict"
 )
 
-// ServiceExportCondition contains details for the current condition of this service export.
-//
-// Once KEP-1623 (sig-api-machinery/1623-standardize-conditions) is implemented, this will be replaced by
-// metav1.Condition.
-type ServiceExportCondition struct {
-	Type ServiceExportConditionType `json:"type"`
-	// Status is one of {"True", "False", "Unknown"}
-	Status apicorev1.ConditionStatus `json:"status"`
-	// +optional
-	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
-	// +optional
-	Reason *string `json:"reason,omitempty"`
-	// +optional
-	Message *string `json:"message,omitempty"`
-}
-
 // ServiceExportStatus contains the current status of an export.
 type ServiceExportStatus struct {
 	// +optional
@@ -47,7 +30,7 @@ type ServiceExportStatus struct {
 	// +patchMergeKey=type
 	// +listType=map
 	// +listMapKey=type
-	Conditions []ServiceExportCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +kubebuilder:object:root=true
@@ -62,7 +45,6 @@ type ServiceExport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
 	// +optional
 	Status ServiceExportStatus `json:"status,omitempty"`
 }
@@ -72,8 +54,10 @@ type ServiceExport struct {
 // ServiceExportList contains a list of ServiceExport.
 type ServiceExportList struct {
 	metav1.TypeMeta `json:",inline"`
+	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ServiceExport `json:"items"`
+	// +listType=set
+	Items []ServiceExport `json:"items"`
 }
 
 func init() {
