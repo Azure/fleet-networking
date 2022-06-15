@@ -18,7 +18,7 @@ spec:
     shortNames:
     - mcs
     singular: multiclusterservice
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.serviceImport.name
@@ -60,7 +60,8 @@ spec:
                 properties:
                   name:
                     description: Name is the name of the referent.
-                    maxLength: 253
+                    maxLength: 63
+                    pattern: ^([a-z]([-a-z0-9]*[a-z0-9])?)$
                     type: string
                 required:
                 - name

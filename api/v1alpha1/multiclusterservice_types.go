@@ -22,7 +22,8 @@ type MultiClusterServiceSpec struct {
 type ServiceImportRef struct {
 	// Name is the name of the referent.
 	//
-	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z]([-a-z0-9]*[a-z0-9])?)$`
 	// +required
 	Name string `json:"name"`
 }
@@ -40,7 +41,7 @@ type MultiClusterServiceStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // MultiClusterServiceConditionType identifies a specific condition.
@@ -54,7 +55,7 @@ const (
 )
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster,categories={fleet-networking},shortName=mcs
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=mcs
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=`.spec.serviceImport.name`,name="Service-Import",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.loadBalancer.ingress.ip`,name="External-IP",type=string
@@ -63,10 +64,12 @@ const (
 
 // MultiClusterService is the Schema for creating north-south L4 load balancer to consume services across clusters.
 type MultiClusterService struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   MultiClusterServiceSpec   `json:"spec,omitempty"`
+	Spec MultiClusterServiceSpec `json:"spec,omitempty"`
+	// +optional
 	Status MultiClusterServiceStatus `json:"status,omitempty"`
 }
 
@@ -75,8 +78,10 @@ type MultiClusterService struct {
 // MultiClusterServiceList contains a list of MultiClusterService.
 type MultiClusterServiceList struct {
 	metav1.TypeMeta `json:",inline"`
+	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []MultiClusterService `json:"items"`
+	// +listType=set
+	Items []MultiClusterService `json:"items"`
 }
 
 func init() {
