@@ -1,0 +1,144 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.7.0
+  creationTimestamp: null
+  name: internalserviceexports.networking.fleet.azure.com
+spec:
+  group: networking.fleet.azure.com
+  names:
+    kind: InternalServiceExport
+    listKind: InternalServiceExportList
+    plural: internalserviceexports
+    singular: internalserviceexport
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: InternalServiceExport is a data transport type that member clusters
+          in the fleet use to upload the spec of exported Service to the hub cluster.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: InternalServiceExportSpec specifies the spec of an exported
+              Service.
+            properties:
+              externalIps:
+                description: A list of IP addresses where the Service accepts traffic,
+                  e.g. external load balancer IPs.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: atomic
+              ipFamilies:
+                default:
+                - IPv4
+                description: A list of IP families assigned to the exported Service;
+                  at this stage only IPv4 is supported.
+                items:
+                  description: supportedIPFamily is the type alias for supported IP
+                    family string values; the alias is defined specifically for the
+                    purpose of enforcing correct enums on the IPFamilies field of
+                    InternalServiceExportSpec struct. Note that at this stage only
+                    IPv4 addresses are accepted.
+                  enum:
+                  - IPv4
+                  type: string
+                type: array
+                uniqueItems: true
+                x-kubernetes-list-type: atomic
+              ports:
+                description: A list of ports exposed by the exported Service.
+                items:
+                  description: ServicePort specifies a list of ports a Service exposes.
+                  properties:
+                    appProtocol:
+                      description: The application protocol for this port; this field
+                        follows standard Kubernetes label syntax. Un-prefixed names
+                        are reserved for IANA standard service names (as per RFC-6335
+                        and http://www.iana.org/assignments/service-names). Non-standard
+                        protocols should use prefixed names such as example.com/protocol.
+                      type: string
+                    name:
+                      description: The name of the exported port in this Service.
+                      type: string
+                    port:
+                      description: The exported port.
+                      format: int32
+                      type: integer
+                    protocol:
+                      default: TCP
+                      description: The IP protocol for this exported port; its value
+                        must be one of TCP, UDP, or SCTP and it defaults to TCP.
+                      enum:
+                      - TCP
+                      - UDP
+                      - SCTP
+                      type: string
+                    targetPort:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: The number or name of the target port.
+                      x-kubernetes-int-or-string: true
+                  required:
+                  - port
+                  - targetPort
+                  type: object
+                type: array
+                x-kubernetes-list-type: atomic
+              sessionAffinity:
+                description: The session affinity setting for the Service; accepted
+                  values are ClientIP or None.
+                enum:
+                - ClientIP
+                - None
+                type: string
+              sessionAffinityConfig:
+                description: The configuration of session affinity.
+                properties:
+                  clientIP:
+                    description: clientIP contains the configurations of Client IP
+                      based session affinity.
+                    properties:
+                      timeoutSeconds:
+                        description: timeoutSeconds specifies the seconds of ClientIP
+                          type session sticky time. The value must be >0 && <=86400(for
+                          1 day) if ServiceAffinity == "ClientIP". Default value is
+                          10800(for 3 hours).
+                        format: int32
+                        type: integer
+                    type: object
+                type: object
+              type:
+                description: The type of the exposed Service; only ClusterIP, NodePort,
+                  and LoadBalancer typed Services can be exported.
+                type: string
+            required:
+            - ports
+            - type
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

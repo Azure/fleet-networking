@@ -1,0 +1,15 @@
+# permissions for end users to view internalserviceexports.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: internalserviceexport-viewer-role
+rules:
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports
+  verbs:
+  - get
+  - list
+  - watch
+
