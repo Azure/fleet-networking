@@ -29,13 +29,13 @@ type InternalServiceImport struct {
 
 // +kubebuilder:object:root=true
 
-// InternalServiceImportList represents a list of InternalServiceImport
+// InternalServiceImportList represents a list of InternalServiceImport.
 type InternalServiceImportList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	// List of InternalServiceImport
+	// List of InternalServiceImport.
 	// +listType=set
 	Items []InternalServiceImport `json:"items"`
 }

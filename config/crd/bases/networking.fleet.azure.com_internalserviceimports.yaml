@@ -88,7 +88,7 @@ spec:
                   this service was derived.
                 items:
                   description: ClusterStatus contains service configuration mapped
-                    to a specific source cluster
+                    to a specific source cluster.
                   properties:
                     cluster:
                       description: cluster is the name of the exporting cluster. Must

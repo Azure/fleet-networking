@@ -105,7 +105,7 @@ type ServiceImportStatus struct {
 	Clusters []ClusterStatus `json:"clusters,omitempty"`
 }
 
-// ClusterStatus contains service configuration mapped to a specific source cluster
+// ClusterStatus contains service configuration mapped to a specific source cluster.
 type ClusterStatus struct {
 	// cluster is the name of the exporting cluster. Must be a valid RFC-1123 DNS label.
 	Cluster string `json:"cluster"`
@@ -113,13 +113,13 @@ type ClusterStatus struct {
 
 // +kubebuilder:object:root=true
 
-// ServiceImportList represents a list of ServiceImport
+// ServiceImportList represents a list of ServiceImport.
 type ServiceImportList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	// List of ServiceImport
+	// List of ServiceImport.
 	// +listType=set
 	Items []ServiceImport `json:"items"`
 }
