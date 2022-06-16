@@ -62,6 +62,9 @@ spec:
                 type: array
                 uniqueItems: true
                 x-kubernetes-list-type: atomic
+              originClusterId:
+                description: The ID of the cluster where the Service is exported.
+                type: string
               ports:
                 description: A list of ports exposed by the exported Service.
                 items:
@@ -80,6 +83,8 @@ spec:
                     port:
                       description: The exported port.
                       format: int32
+                      maximum: 65535
+                      minimum: 0
                       type: integer
                     protocol:
                       default: TCP
@@ -130,6 +135,7 @@ spec:
                   and LoadBalancer typed Services can be exported.
                 type: string
             required:
+            - originClusterId
             - ports
             - type
             type: object

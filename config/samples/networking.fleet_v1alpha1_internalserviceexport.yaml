@@ -3,6 +3,7 @@ kind: InternalServiceExport
 metadata:
   name: example-svc
 spec:
+  originClusterId: example-cluster
   type: LoadBalancer
   ports:
   - port: 80

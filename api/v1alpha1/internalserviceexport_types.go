@@ -32,6 +32,8 @@ type ServicePort struct {
 	// +optional
 	AppProtocol string `json:"appProtocol,omitempty"`
 	// The exported port.
+	// +kubebuilder:validation:Minimum:=0
+	// +kubebuilder:validation:Maximum:=65535
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 	// The number or name of the target port.
@@ -47,6 +49,9 @@ type supportedIPFamily string
 
 // InternalServiceExportSpec specifies the spec of an exported Service.
 type InternalServiceExportSpec struct {
+	// The ID of the cluster where the Service is exported.
+	// +kubebuilder:validation:Required
+	OriginClusterID string `json:"originClusterId"`
 	// The type of the exposed Service; only ClusterIP, NodePort, and LoadBalancer typed Services can be exported.
 	// +kubebuilder:validation:Required
 	Type apicorev1.ServiceType `json:"type"`
