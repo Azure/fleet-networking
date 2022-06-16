@@ -8,6 +8,7 @@ package v1alpha1
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // +kubebuilder:object:root=true
@@ -38,8 +39,6 @@ const (
 
 // ServiceImportSpec describes an imported service and the information necessary to consume it.
 type ServiceImportSpec struct {
-	// +listType=atomic
-	Ports []ServicePort `json:"ports"`
 	// ip will be used as the VIP for this service when type is ClusterSetIP.
 	// +kubebuilder:validation:MaxItems:=1
 	// +optional
@@ -61,7 +60,7 @@ type ServiceImportSpec struct {
 	SessionAffinityConfig *v1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
 }
 
-// ServicePort represents the port on which the service is exposed
+// ServicePort represents the port on which the service is exposed.
 type ServicePort struct {
 	// The name of this port within the service. This must be a DNS_LABEL.
 	// All ports within a ServiceSpec must have unique names. When considering the endpoints for a Service,
@@ -87,10 +86,16 @@ type ServicePort struct {
 
 	// The port that will be exposed by this service.
 	Port int32 `json:"port"`
+
+	// The port to access on the pods targeted by the service.
+	TargetPort intstr.IntOrString `json:"targetPort,omitempty"`
 }
 
 // ServiceImportStatus describes derived state of an imported service.
 type ServiceImportStatus struct {
+	// +listType=atomic
+	Ports []ServicePort `json:"ports"`
+
 	// clusters is the list of exporting clusters from which this service was derived.
 	// +optional
 	// +patchStrategy=merge
@@ -108,13 +113,13 @@ type ClusterStatus struct {
 
 // +kubebuilder:object:root=true
 
-// ServiceImportList represents a list of endpoint slices
+// ServiceImportList represents a list of ServiceImport
 type ServiceImportList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	// List of endpoint slices
+	// List of ServiceImport
 	// +listType=set
 	Items []ServiceImport `json:"items"`
 }

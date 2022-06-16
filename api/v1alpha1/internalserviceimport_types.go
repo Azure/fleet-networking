@@ -11,10 +11,9 @@ import (
 
 // +kubebuilder:object:root=true
 
-// InternalServiceImport describes a service imported from clusters in a ClusterSet.
-// Different from ServiceImport, InternalServiceImport is used only to represent
-// the imported service from a single cluster, and will be merged to ServiceImport
-// carrying all exported services from namespace sameness.
+// InternalServiceImport is used by the MCS controller to import the Service to a single cluster manually,
+// while ServiceImport is logical identifiers for a Service that exists in another cluster or that stretches
+// across multiple clusters and it will be automatically created in the hub cluster when exporting service.
 type InternalServiceImport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -30,13 +29,13 @@ type InternalServiceImport struct {
 
 // +kubebuilder:object:root=true
 
-// InternalServiceImportList represents a list of endpoint slices
+// InternalServiceImportList represents a list of InternalServiceImport
 type InternalServiceImportList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	// List of endpoint slices
+	// List of InternalServiceImport
 	// +listType=set
 	Items []InternalServiceImport `json:"items"`
 }
