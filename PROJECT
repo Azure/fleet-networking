@@ -26,6 +26,7 @@ resources:
     namespaced: true
   domain: azure.com
   group: networking.fleet
+<<<<<<< HEAD
   kind: InternalServiceImport
   path: go.goms.io/fleet-networking/api/v1alpha1
   version: v1alpha1
@@ -35,6 +36,9 @@ resources:
   domain: azure.com
   group: networking.fleet
   kind: ServiceImport
+=======
+  kind: InternalServiceExport
+>>>>>>> Added status subresource + Minor fixes
   path: go.goms.io/fleet-networking/api/v1alpha1
   version: v1alpha1
 version: "3"

@@ -6,7 +6,6 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
-	apicorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -41,41 +40,23 @@ type ServicePort struct {
 	TargetPort intstr.IntOrString `json:"targetPort"`
 }
 
-// supportedIPFamily is the type alias for supported IP family string values; the alias is defined specifically for the
-// purpose of enforcing correct enums on the IPFamilies field of InternalServiceExportSpec struct. Note that at this
-// stage only IPv4 addresses are accepted.
-// +kubebuilder:validation:Enum="IPv4"
-type supportedIPFamily string
-
-// InternalServiceExportSpec specifies the spec of an exported Service.
+// InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an
+// exported Service are sync'd.
 type InternalServiceExportSpec struct {
-	// The ID of the cluster where the Service is exported.
-	// +kubebuilder:validation:Required
-	OriginClusterID string `json:"originClusterId"`
-	// The type of the exposed Service; only ClusterIP, NodePort, and LoadBalancer typed Services can be exported.
-	// +kubebuilder:validation:Required
-	Type apicorev1.ServiceType `json:"type"`
 	// A list of ports exposed by the exported Service.
 	// +listType=atomic
 	// +kubebuilder:validation:Required
 	Ports []ServicePort `json:"ports"`
-	// A list of IP addresses where the Service accepts traffic, e.g. external load balancer IPs.
-	// +listType=atomic
+}
+
+// InternalServiceExportStatus contains the current status of an InternalServiceExport.
+type InternalServiceExportStatus struct {
 	// +optional
-	ExternalIPs []string `json:"externalIps,omitempty"`
-	// A list of IP families assigned to the exported Service; at this stage only IPv4 is supported.
-	// +listType=atomic
-	// +kubebuilder:default:={"IPv4"}
-	// +kubebuilder:validation:UniqueItems:=true
-	// +optional
-	IPFamilies []supportedIPFamily `json:"ipFamilies,omitempty"`
-	// The session affinity setting for the Service; accepted values are ClientIP or None.
-	// +kubebuilder:validation:Enum="ClientIP";"None"
-	// +optional
-	SessionAffinity apicorev1.ServiceAffinity `json:"sessionAffinity"`
-	// The configuration of session affinity.
-	// +optional
-	SessionAffinityConfig *apicorev1.SessionAffinityConfig `json:"sessionAffinityConfig"`
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 //+kubebuilder:object:root=true
@@ -88,6 +69,8 @@ type InternalServiceExport struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// +kubebuilder:validation:Required
 	Spec InternalServiceExportSpec `json:"spec,omitempty"`
+	// +optional
+	Status InternalServiceExportStatus `json:"status,omitempty"`
 }
 
 // InternalServiceExportList contains a list of InternalServiceExports.

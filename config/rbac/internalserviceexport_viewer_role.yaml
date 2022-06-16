@@ -12,4 +12,9 @@ rules:
   - get
   - list
   - watch
-
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get

@@ -16,3 +16,9 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get
