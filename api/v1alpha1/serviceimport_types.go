@@ -39,25 +39,6 @@ const (
 
 // ServiceImportSpec describes an imported service and the information necessary to consume it.
 type ServiceImportSpec struct {
-	// ip will be used as the VIP for this service when type is ClusterSetIP.
-	// +kubebuilder:validation:MaxItems:=1
-	// +optional
-	IPs []string `json:"ips,omitempty"`
-	// type defines the type of this service.
-	// Must be ClusterSetIP or Headless.
-	// +kubebuilder:validation:Enum=ClusterSetIP;Headless
-	Type ServiceImportType `json:"type"`
-	// Supports "ClientIP" and "None". Used to maintain session affinity.
-	// Enable client IP based session affinity.
-	// Must be ClientIP or None.
-	// Defaults to None.
-	// Ignored when type is Headless
-	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
-	// +optional
-	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity,omitempty"`
-	// sessionAffinityConfig contains session affinity configuration.
-	// +optional
-	SessionAffinityConfig *v1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
 }
 
 // ServicePort represents the port on which the service is exposed.
@@ -93,6 +74,26 @@ type ServicePort struct {
 
 // ServiceImportStatus describes derived state of an imported service.
 type ServiceImportStatus struct {
+	// ip will be used as the VIP for this service when type is ClusterSetIP.
+	// +kubebuilder:validation:MaxItems:=1
+	// +optional
+	IPs []string `json:"ips,omitempty"`
+	// type defines the type of this service.
+	// Must be ClusterSetIP or Headless.
+	// +kubebuilder:validation:Enum=ClusterSetIP;Headless
+	Type ServiceImportType `json:"type"`
+	// Supports "ClientIP" and "None". Used to maintain session affinity.
+	// Enable client IP based session affinity.
+	// Must be ClientIP or None.
+	// Defaults to None.
+	// Ignored when type is Headless
+	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+	// +optional
+	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity,omitempty"`
+	// sessionAffinityConfig contains session affinity configuration.
+	// +optional
+	SessionAffinityConfig *v1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
+
 	// +listType=atomic
 	Ports []ServicePort `json:"ports"`
 

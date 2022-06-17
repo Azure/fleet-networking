@@ -36,45 +36,6 @@ spec:
             type: object
           spec:
             description: spec defines the behavior of a ServiceImport.
-            properties:
-              ips:
-                description: ip will be used as the VIP for this service when type
-                  is ClusterSetIP.
-                items:
-                  type: string
-                maxItems: 1
-                type: array
-              sessionAffinity:
-                description: 'Supports "ClientIP" and "None". Used to maintain session
-                  affinity. Enable client IP based session affinity. Must be ClientIP
-                  or None. Defaults to None. Ignored when type is Headless More info:
-                  https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies'
-                type: string
-              sessionAffinityConfig:
-                description: sessionAffinityConfig contains session affinity configuration.
-                properties:
-                  clientIP:
-                    description: clientIP contains the configurations of Client IP
-                      based session affinity.
-                    properties:
-                      timeoutSeconds:
-                        description: timeoutSeconds specifies the seconds of ClientIP
-                          type session sticky time. The value must be >0 && <=86400(for
-                          1 day) if ServiceAffinity == "ClientIP". Default value is
-                          10800(for 3 hours).
-                        format: int32
-                        type: integer
-                    type: object
-                type: object
-              type:
-                description: type defines the type of this service. Must be ClusterSetIP
-                  or Headless.
-                enum:
-                - ClusterSetIP
-                - Headless
-                type: string
-            required:
-            - type
             type: object
           status:
             description: status contains information about the exported services that
@@ -98,6 +59,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - cluster
                 x-kubernetes-list-type: map
+              ips:
+                description: ip will be used as the VIP for this service when type
+                  is ClusterSetIP.
+                items:
+                  type: string
+                maxItems: 1
+                type: array
               ports:
                 items:
                   description: ServicePort represents the port on which the service
@@ -139,8 +107,38 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
+              sessionAffinity:
+                description: 'Supports "ClientIP" and "None". Used to maintain session
+                  affinity. Enable client IP based session affinity. Must be ClientIP
+                  or None. Defaults to None. Ignored when type is Headless More info:
+                  https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies'
+                type: string
+              sessionAffinityConfig:
+                description: sessionAffinityConfig contains session affinity configuration.
+                properties:
+                  clientIP:
+                    description: clientIP contains the configurations of Client IP
+                      based session affinity.
+                    properties:
+                      timeoutSeconds:
+                        description: timeoutSeconds specifies the seconds of ClientIP
+                          type session sticky time. The value must be >0 && <=86400(for
+                          1 day) if ServiceAffinity == "ClientIP". Default value is
+                          10800(for 3 hours).
+                        format: int32
+                        type: integer
+                    type: object
+                type: object
+              type:
+                description: type defines the type of this service. Must be ClusterSetIP
+                  or Headless.
+                enum:
+                - ClusterSetIP
+                - Headless
+                type: string
             required:
             - ports
+            - type
             type: object
         type: object
     served: true
