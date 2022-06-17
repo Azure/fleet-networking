@@ -7,38 +7,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
-
-// supportedProtocol is the type alias for supported Protocol string values; the alias is defined specifically for the
-// purpose of enforcing correct enums on the Protocol field of ServicePort struct.
-// +kubebuilder:validation:Enum="TCP";"UDP";"SCTP"
-type supportedProtocol string
-
-// ServicePort specifies a list of ports a Service exposes.
-type ServicePort struct {
-	// The name of the exported port in this Service.
-	// +optional
-	Name string `json:"name,omitempty"`
-	// The IP protocol for this exported port; its value must be one of TCP, UDP, or SCTP and it defaults to TCP.
-	// +kubebuilder:default:="TCP"
-	// +optional
-	Protocol supportedProtocol `json:"protocol,omitempty"`
-	// The application protocol for this port; this field follows standard Kubernetes label syntax.
-	// Un-prefixed names are reserved for IANA standard service names (as per RFC-6335 and
-	// http://www.iana.org/assignments/service-names).
-	// Non-standard protocols should use prefixed names such as example.com/protocol.
-	// +optional
-	AppProtocol string `json:"appProtocol,omitempty"`
-	// The exported port.
-	// +kubebuilder:validation:Minimum:=0
-	// +kubebuilder:validation:Maximum:=65535
-	// +kubebuilder:validation:Required
-	Port int32 `json:"port"`
-	// The number or name of the target port.
-	// +kubebuilder:validation:Required
-	TargetPort intstr.IntOrString `json:"targetPort"`
-}
 
 // InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an
 // exported Service are sync'd.
