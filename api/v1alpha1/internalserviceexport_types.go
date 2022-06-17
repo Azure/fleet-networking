@@ -60,6 +60,8 @@ type InternalServiceExportStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=internalsvcexport
+// +kubebuilder:subresource:status
 
 // InternalServiceExport is a data transport type that member clusters in the fleet use to upload the spec of
 // exported Service to the hub cluster.

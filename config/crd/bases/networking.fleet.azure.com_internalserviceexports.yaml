@@ -10,9 +10,13 @@ metadata:
 spec:
   group: networking.fleet.azure.com
   names:
+    categories:
+    - fleet-networking
     kind: InternalServiceExport
     listKind: InternalServiceExportList
     plural: internalserviceexports
+    shortNames:
+    - internalsvcexport
     singular: internalserviceexport
   scope: Namespaced
   versions:
@@ -163,6 +167,8 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""
