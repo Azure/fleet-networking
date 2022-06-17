@@ -65,6 +65,8 @@ type ServicePort struct {
 	// +optional
 	AppProtocol *string `json:"appProtocol,omitempty"`
 
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	// The port that will be exposed by this service.
 	Port int32 `json:"port"`
 
