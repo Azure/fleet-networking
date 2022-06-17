@@ -1,0 +1,4 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: InternalServiceImport
+metadata:
+  name: internalserviceimport-sample
