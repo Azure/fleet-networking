@@ -113,7 +113,7 @@ type ClusterStatus struct {
 
 // +kubebuilder:object:root=true
 
-// ServiceImportList represents a list of ServiceImport.
+// ServiceImportList contains a list of ServiceImport.
 type ServiceImportList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.

@@ -1,17 +1,6 @@
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: ServiceImport
 metadata:
-  name: my-svc
-  namespace: my-ns
+  name: serviceimport-sample
 spec:
-  ips:
-  - 42.42.42.42
-  type: "ClusterSetIP"
-  ports:
-  - name: http
-    protocol: TCP
-    port: 80
-  sessionAffinity: None
-status:
-  clusters:
-  - cluster: us-west2-a-my-cluster
+  # TODO(user): Add fields here
