@@ -15,9 +15,10 @@ resources:
 - api:
     crdVersion: v1
     namespaced: true
+  controller: true
   domain: azure.com
   group: networking.fleet
-  kind: ServiceImport
+  kind: MultiClusterService
   path: go.goms.io/fleet-networking/api/v1alpha1
   version: v1alpha1
 - api:
@@ -26,6 +27,14 @@ resources:
   domain: azure.com
   group: networking.fleet
   kind: InternalServiceImport
+  path: go.goms.io/fleet-networking/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: azure.com
+  group: networking.fleet
+  kind: ServiceImport
   path: go.goms.io/fleet-networking/api/v1alpha1
   version: v1alpha1
 version: "3"
