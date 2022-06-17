@@ -59,7 +59,7 @@ type InternalServiceExportStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // InternalServiceExport is a data transport type that member clusters in the fleet use to upload the spec of
 // exported Service to the hub cluster.
@@ -72,6 +72,8 @@ type InternalServiceExport struct {
 	// +optional
 	Status InternalServiceExportStatus `json:"status,omitempty"`
 }
+
+// +kubebuilder:object:root=true
 
 // InternalServiceExportList contains a list of InternalServiceExports.
 type InternalServiceExportList struct {
