@@ -1,0 +1,24 @@
+# permissions for end users to edit internalserviceexports.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: internalserviceexport-editor-role
+rules:
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get

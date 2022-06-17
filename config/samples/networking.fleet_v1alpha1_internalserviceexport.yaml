@@ -1,0 +1,9 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: InternalServiceExport
+metadata:
+  name: example-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+
