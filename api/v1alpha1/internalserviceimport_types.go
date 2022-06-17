@@ -18,9 +18,7 @@ type InternalServiceImport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// spec defines the behavior of a ServiceImport.
-	// +optional
-	Spec ServiceImportSpec `json:"spec,omitempty"`
+
 	// status contains information about the exported services that form
 	// the multi-cluster service referenced by this ServiceImport.
 	// +optional

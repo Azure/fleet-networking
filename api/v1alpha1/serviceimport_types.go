@@ -18,9 +18,7 @@ type ServiceImport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// spec defines the behavior of a ServiceImport.
-	// +optional
-	Spec ServiceImportSpec `json:"spec,omitempty"`
+
 	// status contains information about the exported services that form
 	// the multi-cluster service referenced by this ServiceImport.
 	// +optional
@@ -36,10 +34,6 @@ const (
 	// Headless services allow backend pods to be addressed directly.
 	Headless ServiceImportType = "Headless"
 )
-
-// ServiceImportSpec describes an imported service and the information necessary to consume it.
-type ServiceImportSpec struct {
-}
 
 // ServicePort represents the port on which the service is exposed.
 type ServicePort struct {

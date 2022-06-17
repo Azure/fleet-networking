@@ -37,9 +37,6 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: spec defines the behavior of a ServiceImport.
-            type: object
           status:
             description: status contains information about the exported services that
               form the multi-cluster service referenced by this ServiceImport.
