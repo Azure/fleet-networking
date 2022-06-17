@@ -1,0 +1,7 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: MultiClusterService
+metadata:
+  name: example-svc
+spec:
+  serviceImport:
+    name: example-svc
