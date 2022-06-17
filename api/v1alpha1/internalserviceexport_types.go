@@ -14,7 +14,7 @@ import (
 type InternalServiceExportSpec struct {
 	// A list of ports exposed by the exported Service.
 	// +listType=atomic
-	// +kubebuilder:validation:Required
+	// +optional
 	Ports []ServicePort `json:"ports"`
 }
 
@@ -38,7 +38,7 @@ type InternalServiceExport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// +kubebuilder:validation:Required
+	// +optional
 	Spec InternalServiceExportSpec `json:"spec,omitempty"`
 	// +optional
 	Status InternalServiceExportStatus `json:"status,omitempty"`
