@@ -14,7 +14,8 @@ import (
 type Endpoint struct {
 	// Addresses of the Endpoint.
 	// Addresses should be interpreted per its owner EndpointSliceExport's addressType field. This field contains
-	// at least one address and at maximum 100.
+	// at least one address and at maximum 100; for more information about this constraint,
+	// see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#endpoint-v1beta1-discovery-k8s-io.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:1
 	// +kubebuilder:validation:MaxItems:100
@@ -28,7 +29,7 @@ type EndpointSliceExportSpec struct {
 	// At this stage only IPv4 addresses are supported.
 	// +kubebuilder:validation:Enum:="IPv4"
 	// +kubebuilder:default:="IPv4"
-	AddressType string `json:"addressType"`
+	AddressType discoveryv1.AddressType `json:"addressType"`
 	// A list of unique endpoints in the exported EndpointSlice.
 	// +kubebuilder:validation:Required
 	// +listType=atomic
