@@ -96,22 +96,16 @@ func (r *MultiClusterServiceReconciler) deleteDerivedService(ctx context.Context
 	if err := r.Client.Get(ctx, *serviceName, &service); err != nil {
 		return err
 	}
-	if err := r.Client.Delete(ctx, &service); err != nil {
-		return err
-	}
-	return nil
+	return r.Client.Delete(ctx, &service)
 }
 
 func (r *MultiClusterServiceReconciler) deleteServiceImport(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
-	serviceName := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Spec.ServiceImport.Name}
+	serviceImportName := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Spec.ServiceImport.Name}
 	serviceImport := fleetnetv1alpha1.ServiceImport{}
-	if err := r.Client.Get(ctx, serviceName, &serviceImport); err != nil {
+	if err := r.Client.Get(ctx, serviceImportName, &serviceImport); err != nil {
 		return err
 	}
-	if err := r.Client.Delete(ctx, &serviceImport); err != nil {
-		return err
-	}
-	return nil
+	return r.Client.Delete(ctx, &serviceImport)
 }
 
 // mcs-controller will record derived service name as the label to make sure the derived name is unique.
