@@ -217,15 +217,15 @@ func TestReconciler_Delete(t *testing.T) {
 				t.Errorf("Reconcile() = %+v, want %+v", got, want)
 			}
 			mcs := fleetnetv1alpha1.MultiClusterService{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); err == nil || !errors.IsNotFound(err) {
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); !errors.IsNotFound(err) {
 				t.Errorf("MultiClusterService Get() %+v, got error %v, want not found error", mcs, err)
 			}
 			service := corev1.Service{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: systemNamepspace, Name: testServiceName}, &service); err == nil || !errors.IsNotFound(err) {
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: systemNamepspace, Name: testServiceName}, &service); !errors.IsNotFound(err) {
 				t.Errorf("Service Get() = %+v, got error %v, want not found error", service, err)
 			}
 			serviceImport := fleetnetv1alpha1.ServiceImport{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &serviceImport); err == nil || !errors.IsNotFound(err) {
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &serviceImport); !errors.IsNotFound(err) {
 				t.Errorf("ServiceImport Get() = %+v, got error %v, want not found error", serviceImport, err)
 			}
 		})
