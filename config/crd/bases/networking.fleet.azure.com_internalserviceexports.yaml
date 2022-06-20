@@ -86,8 +86,6 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
-            required:
-            - ports
             type: object
           status:
             description: InternalServiceExportStatus contains the current status of
