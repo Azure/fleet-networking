@@ -46,8 +46,8 @@ func multiClusterServiceForTest() *fleetnetv1alpha1.MultiClusterService {
 	}
 }
 
-func multiClusterServiceReconciler(client client.Client) *MultiClusterServiceReconciler {
-	return &MultiClusterServiceReconciler{
+func multiClusterServiceReconciler(client client.Client) *Reconciler {
+	return &Reconciler{
 		Client:          client,
 		Scheme:          client.Scheme(),
 		SystemNamespace: systemNamepspace,

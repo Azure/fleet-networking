@@ -22,8 +22,8 @@ const (
 	multiClusterServiceLabelService = "service"
 )
 
-// MultiClusterServiceReconciler reconciles a MultiClusterService object.
-type MultiClusterServiceReconciler struct {
+// Reconciler reconciles a MultiClusterService object.
+type Reconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
 	SystemNamespace string
@@ -36,7 +36,7 @@ type MultiClusterServiceReconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimport,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile triggers a single reconcile round.
-func (r *MultiClusterServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	name := req.NamespacedName
 	mcs := fleetnetv1alpha1.MultiClusterService{}
 	if err := r.Client.Get(ctx, name, &mcs); err != nil {
@@ -61,7 +61,7 @@ func (r *MultiClusterServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 	return ctrl.Result{}, nil
 }
 
-func (r *MultiClusterServiceReconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) (ctrl.Result, error) {
+func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) (ctrl.Result, error) {
 	// The mcs is being deleted
 	if controllerutil.ContainsFinalizer(mcs, multiClusterServiceFinalizer) {
 		klog.InfoS("removing mcs", "namespace", mcs.Namespace, "name", mcs.Name)
@@ -86,7 +86,7 @@ func (r *MultiClusterServiceReconciler) handleDelete(ctx context.Context, mcs *f
 	return ctrl.Result{}, nil
 }
 
-func (r *MultiClusterServiceReconciler) deleteDerivedService(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
+func (r *Reconciler) deleteDerivedService(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
 		klog.Warningf("cannot find the derived service label %q from namespace %q mcs %q", multiClusterServiceLabelService, mcs.Namespace, mcs.Name)
@@ -99,7 +99,7 @@ func (r *MultiClusterServiceReconciler) deleteDerivedService(ctx context.Context
 	return r.Client.Delete(ctx, &service)
 }
 
-func (r *MultiClusterServiceReconciler) deleteServiceImport(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
+func (r *Reconciler) deleteServiceImport(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
 	serviceImportName := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Spec.ServiceImport.Name}
 	serviceImport := fleetnetv1alpha1.ServiceImport{}
 	if err := r.Client.Get(ctx, serviceImportName, &serviceImport); err != nil {
@@ -110,7 +110,7 @@ func (r *MultiClusterServiceReconciler) deleteServiceImport(ctx context.Context,
 
 // mcs-controller will record derived service name as the label to make sure the derived name is unique.
 // Key is `service`.
-func (r *MultiClusterServiceReconciler) derivedServiceFromLabel(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
+func (r *Reconciler) derivedServiceFromLabel(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
 	if val, ok := mcs.GetLabels()[multiClusterServiceLabelService]; ok {
 		return &types.NamespacedName{Namespace: r.SystemNamespace, Name: val}
 	}
