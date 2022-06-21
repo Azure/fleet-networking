@@ -1,5 +1,7 @@
 package v1alpha1
 
+import "k8s.io/apimachinery/pkg/types"
+
 // ExportedObjectReference helps operators identify the source of an exported object, e.g. an EndpointSliceExport.
 // +structType=atomic
 type ExportedObjectReference struct {
@@ -23,5 +25,5 @@ type ExportedObjectReference struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// The UID of the referred object.
 	// +kubebuilder:validation:Required
-	UID string `json:"uid"`
+	UID types.UID `json:"uid"`
 }
