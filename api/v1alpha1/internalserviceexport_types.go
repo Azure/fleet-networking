@@ -18,7 +18,7 @@ type InternalServiceExportSpec struct {
 	Ports []ServicePort `json:"ports"`
 	// The reference to the source Service.
 	// +kubebuilder:validation:Required
-	ServiceReference ExportedObjectReference `json:"serviceExportReference"`
+	ServiceReference ExportedObjectReference `json:"serviceReference"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.

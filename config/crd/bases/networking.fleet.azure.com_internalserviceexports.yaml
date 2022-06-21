@@ -86,7 +86,7 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
-              serviceExportReference:
+              serviceReference:
                 description: The reference to the source Service.
                 properties:
                   apiVersion:
@@ -119,7 +119,7 @@ spec:
                 - uid
                 type: object
             required:
-            - serviceExportReference
+            - serviceReference
             type: object
           status:
             description: InternalServiceExportStatus contains the current status of
