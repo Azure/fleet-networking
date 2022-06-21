@@ -114,36 +114,90 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 // SetupWithManager builds a controller with SvcExportReconciler and sets it up with a controller manager.
 func (r *SvcExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	svcExportHandlerFuncs := handler.Funcs{
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: e.Object.GetNamespace(),
+					Name:      e.Object.GetName(),
+				},
+			})
+		},
+		UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+			// Enqueue a ServiceExport for processing only when it is deleted; other changes can be ignored.
+			oldObj := e.ObjectOld
+			newObj := e.ObjectNew
+			_, oldOk := oldObj.(*fleetnetworkingapi.ServiceExport)
+			_, newOk := newObj.(*fleetnetworkingapi.ServiceExport)
+			if oldOk && newOk && newObj.GetDeletionTimestamp() != nil {
+				q.Add(reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: newObj.GetNamespace(),
+						Name:      newObj.GetName(),
+					},
+				})
+			}
+		},
+		GenericFunc: func(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: e.Object.GetNamespace(),
+					Name:      e.Object.GetName(),
+				},
+			})
+		},
+		// Delete events are ignored; deleted ServiceExports are reconciled already when the DeletionTimestamp is
+		// added.
+	}
+
+	svcHandlerFuncs := handler.Funcs{
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: e.Object.GetNamespace(),
+					Name:      e.Object.GetName(),
+				},
+			})
+		},
+		UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+			// Enqueue a Service for processing only when its spec has changed in a significant way or it has been
+			// deleted; this helps filter out some update events as many Service spec fields are not exported at all.
+			oldObj := e.ObjectOld
+			newObj := e.ObjectNew
+			oldSvc, oldOk := oldObj.(*corev1.Service)
+			newSvc, newOk := newObj.(*corev1.Service)
+			if oldOk && newOk && (isSvcChanged(oldSvc, newSvc) || isSvcDeleted(newSvc)) {
+				q.Add(reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: newObj.GetNamespace(),
+						Name:      newObj.GetName(),
+					},
+				})
+			}
+		},
+		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: e.Object.GetNamespace(),
+					Name:      e.Object.GetName(),
+				},
+			})
+		},
+		GenericFunc: func(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: e.Object.GetNamespace(),
+					Name:      e.Object.GetName(),
+				},
+			})
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		// The ServiceController should watch over ServiceExport objects.
-		Watches(
-			&source.Kind{Type: &fleetnetworkingapi.ServiceExport{}},
-			handler.Funcs{
-				CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-					q.Add(reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Namespace: e.Object.GetNamespace(),
-							Name:      e.Object.GetName(),
-						},
-					})
-				},
-				UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-					// Enqueue the ServiceExport for processing only when it is deleted; other changes can be ignored.
-					oldObj := e.ObjectOld
-					newObj := e.ObjectNew
-					_, oldOk := oldObj.(*fleetnetworkingapi.ServiceExport)
-					_, newOk := newObj.(*fleetnetworkingapi.ServiceExport)
-					if oldOk && newOk && newObj.GetDeletionTimestamp() != nil {
-						q.Add(reconcile.Request{
-							NamespacedName: types.NamespacedName{
-								Namespace: newObj.GetNamespace(),
-								Name:      newObj.GetName(),
-							},
-						})
-					}
-				},
-			},
-		).
+		// The ServiceExport controller should watch over ServiceExport objects.
+		Watches(&source.Kind{Type: &fleetnetworkingapi.ServiceExport{}}, svcExportHandlerFuncs).
+		// The ServiceExport controller should watch over Service objects.
+		Watches(&source.Kind{Type: &corev1.Service{}}, svcHandlerFuncs).
 		Complete(r)
 }
 
