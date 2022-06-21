@@ -6,4 +6,11 @@ spec:
   ports:
   - port: 80
     targetPort: 8080
+  serviceReference:
+    clusterId: example-cluster
+    kind: Service
+    namespace: example-ns
+    name: example-endpointslice
+    resourceVersion: 1
+    uid: example-uid
 
