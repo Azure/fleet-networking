@@ -87,7 +87,7 @@ spec:
                 type: array
                 x-kubernetes-list-type: atomic
               serviceExportReference:
-                description: The reference to the source EndpointSlice.
+                description: The reference to the source Service.
                 properties:
                   apiVersion:
                     description: The API version of the referred object.
