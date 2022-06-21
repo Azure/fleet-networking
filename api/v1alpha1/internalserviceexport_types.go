@@ -16,6 +16,9 @@ type InternalServiceExportSpec struct {
 	// +listType=atomic
 	// +optional
 	Ports []ServicePort `json:"ports"`
+	// The reference to the source EndpointSlice.
+	// +kubebuilder:validation:Required
+	ServiceExportReference ExportedObjectReference `json:"serviceExportReference"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.
