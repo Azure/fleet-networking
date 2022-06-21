@@ -1,0 +1,17 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: EndpointSliceExport
+metadata:
+  name: example-endpointsliceexport
+spec:
+  endpoints:
+  - addresses:
+    - 1.2.3.4
+  ports:
+  - port: 8080
+  endpointSliceReference:
+    clusterId: example-cluster
+    kind: EndpointSlice
+    namespace: example-ns
+    name: example-endpointslice
+    resourceVersion: 1
+    uid: example-uid
