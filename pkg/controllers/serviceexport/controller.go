@@ -11,26 +11,31 @@ import (
 	"context"
 	"fmt"
 
-	fleetnetworkingapi "go.goms.io/fleet-networking/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	fleetnetworkingapi "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 // ServiceExportReconciler reconciles the export of a Service.
 type SvcExportReconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
-	hubNS        string
+	memberClusterID string
+	memberClient    client.Client
+	hubClient       client.Client
+	hubNS           string
 }
 
 // TO-DO (chenyu1): Add RBAC markers.
@@ -63,7 +68,7 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isSvcDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		if hasSvcExportCleanupFinalizer(&svcExport) {
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -78,7 +83,7 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Check if the Service is eligible for export.
 	if !isSvcEligibleForExport(&svc) {
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
-		if hasSvcExportCleanupFinalizer(&svcExport) {
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -88,24 +93,35 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Add the cleanup finalizer; this must happen before the Service is actually exported.
-	if !hasSvcExportCleanupFinalizer(&svcExport) {
-		_, err = r.addCleanupFinalizer(ctx, &svcExport)
+	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+		err = r.addSvcExportCleanupFinalizer(ctx, &svcExport)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
+	// Mark the ServiceExport as valid + pending conflict resolution.
+	err = r.markSvcExportAsValid(ctx, &svcExport)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Export the Service or update the exported Service.
 
-	// Retrieve the InternalServiceExport object.
-	var internalSvcExport fleetnetworkingapi.InternalServiceExport
+	// Create or update the InternalServiceExport object.
+	internalSvcExport := fleetnetworkingapi.InternalServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.hubNS,
+			Name:      formatInternalSvcExportName(&svcExport),
+		},
+	}
 	internalSvcExportKey := client.ObjectKey{Namespace: r.hubNS, Name: formatInternalSvcExportName(&svcExport)}
 	err = r.hubClient.Get(ctx, internalSvcExportKey, &internalSvcExport)
-	updateInternalSvcExport(&svc, &svcExport)
+	updateInternalSvcExport(r.memberClusterID, &svc, &internalSvcExport)
 	if errors.IsNotFound(err) {
 		// Export the Service
 		err = r.hubClient.Create(ctx, &internalSvcExport)
-	} else {
+	} else if err == nil {
 		// Update the exported Service
 		err = r.hubClient.Update(ctx, &internalSvcExport)
 	}
@@ -114,40 +130,18 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 // SetupWithManager builds a controller with SvcExportReconciler and sets it up with a controller manager.
 func (r *SvcExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	svcExportHandlerFuncs := handler.Funcs{
-		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-			q.Add(reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: e.Object.GetNamespace(),
-					Name:      e.Object.GetName(),
-				},
-			})
-		},
-		UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	svcExportPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
 			// Enqueue a ServiceExport for processing only when it is deleted; other changes can be ignored.
 			oldObj := e.ObjectOld
 			newObj := e.ObjectNew
 			_, oldOk := oldObj.(*fleetnetworkingapi.ServiceExport)
 			_, newOk := newObj.(*fleetnetworkingapi.ServiceExport)
-			if oldOk && newOk && newObj.GetDeletionTimestamp() != nil {
-				q.Add(reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Namespace: newObj.GetNamespace(),
-						Name:      newObj.GetName(),
-					},
-				})
-			}
+			return oldOk && newOk && newObj.GetDeletionTimestamp() != nil
 		},
-		GenericFunc: func(e event.GenericEvent, q workqueue.RateLimitingInterface) {
-			q.Add(reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: e.Object.GetNamespace(),
-					Name:      e.Object.GetName(),
-				},
-			})
-		},
-		// Delete events are ignored; deleted ServiceExports are reconciled already when the DeletionTimestamp is
-		// added.
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return true },
 	}
 
 	svcHandlerFuncs := handler.Funcs{
@@ -166,7 +160,7 @@ func (r *SvcExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			newObj := e.ObjectNew
 			oldSvc, oldOk := oldObj.(*corev1.Service)
 			newSvc, newOk := newObj.(*corev1.Service)
-			if oldOk && newOk && (isSvcChanged(oldSvc, newSvc) || isSvcDeleted(newSvc)) {
+			if oldOk && newOk && isSvcChanged(oldSvc, newSvc) {
 				q.Add(reconcile.Request{
 					NamespacedName: types.NamespacedName{
 						Namespace: newObj.GetNamespace(),
@@ -194,9 +188,9 @@ func (r *SvcExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		// The ServiceExport controller should watch over ServiceExport objects.
-		Watches(&source.Kind{Type: &fleetnetworkingapi.ServiceExport{}}, svcExportHandlerFuncs).
-		// The ServiceExport controller should watch over Service objects.
+		// The ServiceExport controller watches over ServiceExport objects.
+		For(&fleetnetworkingapi.ServiceExport{}, builder.WithPredicates(svcExportPredicate)).
+		// The ServiceExport controller watches over Service objects.
 		Watches(&source.Kind{Type: &corev1.Service{}}, svcHandlerFuncs).
 		Complete(r)
 }
@@ -218,7 +212,7 @@ func (r *SvcExportReconciler) unexportSvc(ctx context.Context, svcExport *fleetn
 	if err := r.hubClient.Delete(ctx, internalSvcExport); err != nil {
 		// It is guaranteed that a finalizer is always added before the Service is actually exported; as a result,
 		// in some rare occasions it could happen that a ServiceExport has a finalizer present yet the corresponding
-		// Service has not actually been exported to the hub cluster. It is an expected behavior and no action
+		// Service has not  been exported to the hub cluster yet. It is an expected behavior and no action
 		// is needed on this controller's end.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -227,36 +221,61 @@ func (r *SvcExportReconciler) unexportSvc(ctx context.Context, svcExport *fleetn
 	return r.removeSvcExportCleanupFinalizer(ctx, svcExport)
 }
 
-// removeSvcExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
+func (r *SvcExportReconciler) addSvcExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) error {
+	controllerutil.AddFinalizer(svcExport, svcExportCleanupFinalizer)
+	err := r.memberClient.Update(ctx, svcExport)
+	return err
+}
+
 func (r *SvcExportReconciler) removeSvcExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
-	updatedFinalizers := []string{}
-	for _, finalizer := range svcExport.GetFinalizers() {
-		if finalizer != svcExportCleanupFinalizer {
-			updatedFinalizers = append(updatedFinalizers, finalizer)
-		}
-	}
-	svcExport.SetFinalizers(updatedFinalizers)
+	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
 	err := r.memberClient.Update(ctx, svcExport)
 	return ctrl.Result{}, err
+}
+
+// markSvcExportAsValid marks a ServiceExport as valid + pending conflict resolution.
+func (r *SvcExportReconciler) markSvcExportAsValid(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) error {
+	updatedConds := []metav1.Condition{}
+	for _, cond := range svcExport.Status.Conditions {
+		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) && cond.Type != string(fleetnetworkingapi.ServiceExportConflict) {
+			updatedConds = append(updatedConds, cond)
+		}
+	}
+	updatedConds = append(updatedConds, metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportValid),
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ServiceIsValid",
+		Message:            fmt.Sprintf("service %s/%s is valid for export", svcExport.Namespace, svcExport.Name),
+	})
+	updatedConds = append(updatedConds, metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportConflict),
+		Status:             metav1.ConditionUnknown,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "PendingConflictResolution",
+		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
+	})
+	svcExport.Status.Conditions = updatedConds
+	return r.memberClient.Status().Update(ctx, svcExport)
 }
 
 // markSvcExportAsInvalidNotFound marks a ServiceExport as invalid.
 func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
 	updatedConds := []metav1.Condition{}
 	for _, cond := range svcExport.Status.Conditions {
-		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) {
+		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) && cond.Type != string(fleetnetworkingapi.ServiceExportConflict) {
 			updatedConds = append(updatedConds, cond)
 		}
 	}
 	updatedConds = append(updatedConds, metav1.Condition{
 		Type:               string(fleetnetworkingapi.ServiceExportValid),
-		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ServiceNotFound",
 		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
 	})
 	svcExport.Status.Conditions = updatedConds
-	err := r.memberClient.Update(ctx, svcExport)
+	err := r.memberClient.Status().Update(ctx, svcExport)
 	return ctrl.Result{}, err
 }
 
@@ -264,7 +283,7 @@ func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Cont
 func (r *SvcExportReconciler) markSvcExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
 	updatedConds := []metav1.Condition{}
 	for _, cond := range svcExport.Status.Conditions {
-		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) {
+		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) && cond.Type != string(fleetnetworkingapi.ServiceExportConflict) {
 			updatedConds = append(updatedConds, cond)
 		}
 	}
@@ -276,15 +295,6 @@ func (r *SvcExportReconciler) markSvcExportAsInvalidSvcIneligible(ctx context.Co
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", svcExport.Namespace, svcExport.Name),
 	})
 	svcExport.Status.Conditions = updatedConds
-	err := r.memberClient.Update(ctx, svcExport)
-	return ctrl.Result{}, err
-}
-
-// addCleanupFinalizer adds the cleanup finalizer to a ServiceExport.
-func (r *SvcExportReconciler) addCleanupFinalizer(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
-	updatedFinalizers := svcExport.GetFinalizers()
-	updatedFinalizers = append(updatedFinalizers, svcExportCleanupFinalizer)
-	svcExport.SetFinalizers(updatedFinalizers)
-	err := r.memberClient.Update(ctx, svcExport)
+	err := r.memberClient.Status().Update(ctx, svcExport)
 	return ctrl.Result{}, err
 }

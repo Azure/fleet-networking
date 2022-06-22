@@ -1,11 +1,19 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
 package serviceexport
 
 import (
 	"fmt"
-	"sort"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetworkingapi "go.goms.io/fleet-networking/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -14,19 +22,9 @@ const (
 	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
 )
 
-// hasSvcExportCleanupFinalizer returns if a ServiceExport has the cleanup finalizer added.
-func hasSvcExportCleanupFinalizer(svcExport *fleetnetworkingapi.ServiceExport) bool {
-	for _, finalizer := range svcExport.ObjectMeta.Finalizers {
-		if finalizer == svcExportCleanupFinalizer {
-			return true
-		}
-	}
-	return false
-}
-
 // isSvcExportCleanupNeeded returns if a ServiceExport needs cleanup.
 func isSvcExportCleanupNeeded(svcExport *fleetnetworkingapi.ServiceExport) bool {
-	return hasSvcExportCleanupFinalizer(svcExport) && svcExport.DeletionTimestamp != nil
+	return controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) && svcExport.DeletionTimestamp != nil
 }
 
 // isSvcDeleted returns if a Service is deleted.
@@ -37,7 +35,7 @@ func isSvcDeleted(svc *corev1.Service) bool {
 // isSvcEligibleForExport returns if a Service is eligible for export; at this stage, headless Services,
 // Services of the ExternalName type, and Services using a non-IPv4 IP family cannot be exported.
 func isSvcEligibleForExport(svc *corev1.Service) bool {
-	if svc.Spec.Type == corev1.ServiceTypeExternalName || svc.Spec.ClusterIP == "" {
+	if svc.Spec.Type == corev1.ServiceTypeExternalName || svc.Spec.ClusterIP == "None" {
 		return false
 	}
 	return true
@@ -49,12 +47,26 @@ func formatInternalSvcExportName(svcExport *fleetnetworkingapi.ServiceExport) st
 }
 
 // updateInternalSvcExport updates a ServiceExport as the spec of a Service changes.
-func updateInternalSvcExport(svc *corev1.Service, svcExport *fleetnetworkingapi.ServiceExport) {
-}
-
-// areSvcPortsEqual returns if two ServicePorts are equal.
-func areSvcPortsEqual(oldPort, newPort *corev1.ServicePort) bool {
-	return true
+func updateInternalSvcExport(memberClusterID string, svc *corev1.Service, internalSvcExport *fleetnetworkingapi.InternalServiceExport) {
+	svcExportPorts := []fleetnetworkingapi.ServicePort{}
+	for _, svcPort := range svc.Spec.Ports {
+		svcExportPorts = append(svcExportPorts, fleetnetworkingapi.ServicePort{
+			Name:       svcPort.Name,
+			Protocol:   svcPort.Protocol,
+			Port:       svcPort.Port,
+			TargetPort: svcPort.TargetPort,
+		})
+	}
+	internalSvcExport.Spec.Ports = svcExportPorts
+	internalSvcExport.Spec.ServiceReference = fleetnetworkingapi.ExportedObjectReference{
+		ClusterID:       memberClusterID,
+		APIVersion:      svc.APIVersion,
+		Kind:            svc.Kind,
+		Namespace:       svc.Namespace,
+		Name:            svc.Name,
+		ResourceVersion: svc.ResourceVersion,
+		UID:             svc.UID,
+	}
 }
 
 // isSvcChange returns if the spec of Service has changed in a way significant enough to trigger a reconciliation
@@ -70,24 +82,17 @@ func isSvcChanged(oldSvc, newSvc *corev1.Service) bool {
 		return true
 	}
 
-	// Request a reconciliation when the Service ports change.
-	oldPorts := oldSvc.Spec.DeepCopy().Ports
-	newPorts := newSvc.Spec.DeepCopy().Ports
-	if len(oldPorts) != len(newPorts) {
+	// Request a reconciliation when the UIDs change.
+	if oldSvc.UID != newSvc.UID {
 		return true
 	}
 
-	sort.Slice(oldPorts, func(i, j int) bool {
-		return oldPorts[i].Port < oldPorts[j].Port
-	})
-	sort.Slice(newPorts, func(i, j int) bool {
-		return newPorts[i].Port < newPorts[j].Port
-	})
-	for idx := range oldPorts {
-		if !areSvcPortsEqual(&oldPorts[idx], &newPorts[idx]) {
-			return true
-		}
-	}
-
-	return false
+	// Request a reconciliation when the Service ports change.
+	oldPorts := oldSvc.Spec.DeepCopy().Ports
+	newPorts := newSvc.Spec.DeepCopy().Ports
+	portLessFunc := func(p, q corev1.ServicePort) bool { return p.Port < q.Port }
+	return !cmp.Equal(oldPorts,
+		newPorts,
+		cmpopts.SortSlices(portLessFunc),
+		cmpopts.IgnoreFields(corev1.ServicePort{}, "NodePort"))
 }
