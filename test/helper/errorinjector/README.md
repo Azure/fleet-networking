@@ -27,7 +27,7 @@ clientWithErrorInjection := New(fakeClient)
 ```
 
 The returned client also implements the `client.Client` interface, which one can use in the same way as a regular
-client.
+client. It will, by default, delegate all calls to the wrapped client.
 
 Next, register an action with the returned client. An action features a `Do` function, which the client calls
 before runnning a specific method; if the function returns an error, it will be returned by the method. The `Do`
