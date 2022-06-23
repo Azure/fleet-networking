@@ -26,9 +26,8 @@ const (
 
 func multiClusterServiceScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
-	scheme.AddKnownTypes(fleetnetv1alpha1.GroupVersion, &fleetnetv1alpha1.MultiClusterService{})
-	scheme.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.Service{})
-	scheme.AddKnownTypes(fleetnetv1alpha1.GroupVersion, &fleetnetv1alpha1.ServiceImport{})
+	fleetnetv1alpha1.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
 	return scheme
 }
 
@@ -80,60 +79,7 @@ func TestReconciler_NotFound(t *testing.T) {
 	}
 }
 
-func TestReconciler_AddFinalizer(t *testing.T) {
-	tests := []struct {
-		name       string
-		finalizers []string
-		want       []string
-	}{
-		{
-			name:       "having mcs finalizer",
-			finalizers: []string{multiClusterServiceFinalizer},
-			want:       []string{multiClusterServiceFinalizer},
-		},
-		{
-			name:       "having no mcs finalizer",
-			finalizers: []string{"other-finalizer"},
-			want:       []string{"other-finalizer", multiClusterServiceFinalizer},
-		},
-		{
-			name:       "empty finalizer list",
-			finalizers: []string{},
-			want:       []string{multiClusterServiceFinalizer},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			mcsObj := multiClusterServiceForTest()
-			mcsObj.Finalizers = tc.finalizers
-			fakeClient := fake.NewClientBuilder().
-				WithScheme(multiClusterServiceScheme()).
-				WithObjects(mcsObj).
-				Build()
-
-			r := multiClusterServiceReconciler(fakeClient)
-			got, err := r.Reconcile(ctx, multiClusterServiceRequest())
-			if err != nil {
-				t.Fatalf("failed to reconcile: %v", err)
-			}
-			want := ctrl.Result{}
-			if !cmp.Equal(got, want) {
-				t.Errorf("Reconcile() = %+v, want %+v", got, want)
-			}
-			mcs := fleetnetv1alpha1.MultiClusterService{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); err != nil {
-				t.Errorf("MultiClusterService Get() %+v, got error %v, want no error", mcs, err)
-			}
-			if got := mcs.Finalizers; !cmp.Equal(got, tc.want) {
-				t.Errorf("MultiClusterService got finalizers %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestReconciler_Delete(t *testing.T) {
+func TestHandleDelete(t *testing.T) {
 	tests := []struct {
 		name          string
 		labels        map[string]string
@@ -143,7 +89,8 @@ func TestReconciler_Delete(t *testing.T) {
 		{
 			name: "having derived service and service import",
 			labels: map[string]string{
-				multiClusterServiceLabelService: testServiceName,
+				multiClusterServiceLabelService:       testServiceName,
+				multiClusterServiceLabelServiceImport: testServiceName,
 			},
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
@@ -172,6 +119,9 @@ func TestReconciler_Delete(t *testing.T) {
 		},
 		{
 			name: "having service import",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport: testServiceName,
+			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testServiceName,
@@ -182,7 +132,8 @@ func TestReconciler_Delete(t *testing.T) {
 		{
 			name: "resources have been deleted",
 			labels: map[string]string{
-				multiClusterServiceLabelService: testServiceName,
+				multiClusterServiceLabelService:       testServiceName,
+				multiClusterServiceLabelServiceImport: testServiceName,
 			},
 		},
 	}
@@ -208,7 +159,7 @@ func TestReconciler_Delete(t *testing.T) {
 				Build()
 
 			r := multiClusterServiceReconciler(fakeClient)
-			got, err := r.Reconcile(ctx, multiClusterServiceRequest())
+			got, err := r.handleDelete(ctx, mcsObj)
 			if err != nil {
 				t.Fatalf("failed to reconcile: %v", err)
 			}
