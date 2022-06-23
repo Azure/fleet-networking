@@ -24,10 +24,14 @@ const (
 	systemNamepspace = "fleet-system"
 )
 
-func multiClusterServiceScheme() *runtime.Scheme {
+func multiClusterServiceScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
-	fleetnetv1alpha1.AddToScheme(scheme)
-	corev1.AddToScheme(scheme)
+	if err := fleetnetv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add scheme: %v", err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add scheme: %v", err)
+	}
 	return scheme
 }
 
@@ -65,7 +69,7 @@ func multiClusterServiceRequest() ctrl.Request {
 func TestReconciler_NotFound(t *testing.T) {
 	ctx := context.Background()
 	fakeClient := fake.NewClientBuilder().
-		WithScheme(multiClusterServiceScheme()).
+		WithScheme(multiClusterServiceScheme(t)).
 		Build()
 
 	r := multiClusterServiceReconciler(fakeClient)
@@ -154,7 +158,7 @@ func TestHandleDelete(t *testing.T) {
 				objects = append(objects, tc.serviceImport)
 			}
 			fakeClient := fake.NewClientBuilder().
-				WithScheme(multiClusterServiceScheme()).
+				WithScheme(multiClusterServiceScheme(t)).
 				WithObjects(objects...).
 				Build()
 
