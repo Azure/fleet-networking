@@ -42,7 +42,7 @@ getAction := GetAction{func(ctx context.Context, key client.ObjectKey, obj clien
     }
     return nil
 }}
-clientWithErrorInjection.AddGetAction(getAction)
+clientWithErrorInjection.AddGetAction("name of the action", getAction)
 
 svc := corev1.Service{}
 err := c.Get(ctx, types.NamespacedName{Namespace: defaultNS, Name: "app"}, &svc)
