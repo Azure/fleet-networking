@@ -50,7 +50,8 @@ err := c.Get(ctx, types.NamespacedName{Namespace: defaultNS, Name: "app"}, &svc)
 ```
 
 Note that getting other Services will not trigger the action. One can unregister an action at any time using its
-name.
+name; it is also possible to register multiple actions for the same method, which errorinjector will call one
+by one in some order.
 
 Available actions and their register/unregister methods are:
 
