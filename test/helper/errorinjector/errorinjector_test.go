@@ -27,6 +27,9 @@ var defaultNS string
 
 func TestMain(m *testing.M) {
 	// Setup
+	actionName = "example"
+	defaultNS = "default"
+
 	fakeClient = fake.NewClientBuilder().WithObjects(
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -55,9 +58,6 @@ func TestMain(m *testing.M) {
 			},
 		},
 	).Build()
-
-	actionName = "example"
-	defaultNS = "default"
 
 	// Run the tests.
 	os.Exit(m.Run())
