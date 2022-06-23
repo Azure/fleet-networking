@@ -19,22 +19,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	actionName = "example"
+	NS         = "default"
+	svcName    = "app"
+	altSvcName = "app2"
+)
+
 var fakeClient client.Client
 var clientWithErrorInjection *ClientWithErrorInjection
 var c client.Client
-var actionName string
-var defaultNS string
 
 func TestMain(m *testing.M) {
 	// Setup
-	actionName = "example"
-	defaultNS = "default"
-
 	fakeClient = fake.NewClientBuilder().WithObjects(
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: defaultNS,
-				Name:      "app",
+				Namespace: NS,
+				Name:      svcName,
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{
@@ -46,8 +48,8 @@ func TestMain(m *testing.M) {
 		},
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: defaultNS,
-				Name:      "app2",
+				Namespace: NS,
+				Name:      altSvcName,
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{
@@ -74,7 +76,7 @@ func TestGetWithAction(t *testing.T) {
 
 	t.Run("Should add the action", func(t *testing.T) {
 		getAction := GetAction{func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-			if key.Namespace == defaultNS && key.Name == "app" {
+			if key.Namespace == NS && key.Name == svcName {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -84,7 +86,7 @@ func TestGetWithAction(t *testing.T) {
 
 	t.Run("Should trigger the action", func(t *testing.T) {
 		svc := corev1.Service{}
-		err := c.Get(ctx, types.NamespacedName{Namespace: defaultNS, Name: "app"}, &svc)
+		err := c.Get(ctx, types.NamespacedName{Namespace: NS, Name: svcName}, &svc)
 		if !errors.IsInternalError(err) {
 			t.Fatalf("action did not run")
 		}
@@ -92,7 +94,7 @@ func TestGetWithAction(t *testing.T) {
 
 	t.Run("Should not trigger the action", func(t *testing.T) {
 		svc := corev1.Service{}
-		err := c.Get(ctx, types.NamespacedName{Namespace: defaultNS, Name: "app2"}, &svc)
+		err := c.Get(ctx, types.NamespacedName{Namespace: NS, Name: altSvcName}, &svc)
 		if err != nil {
 			t.Fatalf("failed to get service")
 		}
@@ -104,7 +106,7 @@ func TestGetWithAction(t *testing.T) {
 
 	t.Run("Should not trigger the action", func(t *testing.T) {
 		svc := corev1.Service{}
-		err := c.Get(ctx, types.NamespacedName{Namespace: defaultNS, Name: "app"}, &svc)
+		err := c.Get(ctx, types.NamespacedName{Namespace: NS, Name: svcName}, &svc)
 		if err != nil {
 			t.Fatalf("failed to get service")
 		}
@@ -125,7 +127,7 @@ func TestListWithAction(t *testing.T) {
 
 	t.Run("Should trigger the action", func(t *testing.T) {
 		svcList := corev1.ServiceList{}
-		err := c.List(ctx, &svcList, client.InNamespace(defaultNS))
+		err := c.List(ctx, &svcList, client.InNamespace(NS))
 		if !errors.IsInternalError(err) {
 			t.Fatalf("action did not run")
 		}
@@ -137,7 +139,7 @@ func TestListWithAction(t *testing.T) {
 
 	t.Run("Should not trigger the action", func(t *testing.T) {
 		svcList := corev1.ServiceList{}
-		err := c.List(ctx, &svcList, client.InNamespace(defaultNS))
+		err := c.List(ctx, &svcList, client.InNamespace(NS))
 		if err != nil {
 			t.Fatalf("failed to list services")
 		}
@@ -150,7 +152,7 @@ func TestCreateWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
+			Namespace: NS,
 			Name:      "app3",
 		},
 		Spec: corev1.ServiceSpec{
@@ -164,7 +166,7 @@ func TestCreateWithAction(t *testing.T) {
 
 	t.Run("Should add the action", func(t *testing.T) {
 		createAction := CreateAction{func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app3" {
+			if obj.GetNamespace() == NS && obj.GetName() == "app3" {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -197,14 +199,14 @@ func TestDeleteWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
+			Namespace: NS,
 			Name:      "app3",
 		},
 	}
 
 	t.Run("Should add the action", func(t *testing.T) {
 		deleteAction := DeleteAction{func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app3" {
+			if obj.GetNamespace() == NS && obj.GetName() == "app3" {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -237,8 +239,8 @@ func TestUpdateWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
-			Name:      "app",
+			Namespace: NS,
+			Name:      svcName,
 		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
@@ -251,7 +253,7 @@ func TestUpdateWithAction(t *testing.T) {
 
 	t.Run("Should add the action", func(t *testing.T) {
 		updateAction := UpdateAction{func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app" {
+			if obj.GetNamespace() == NS && obj.GetName() == svcName {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -284,15 +286,15 @@ func TestPatchWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
-			Name:      "app",
+			Namespace: NS,
+			Name:      svcName,
 		},
 	}
 	patch := []byte(`{"metadata":{"annotations":{"patched": "true"}}}`)
 
 	t.Run("Should add the action", func(t *testing.T) {
 		patchAction := PatchAction{func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app" {
+			if obj.GetNamespace() == NS && obj.GetName() == svcName {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -325,8 +327,8 @@ func TestStatusUpdateWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
-			Name:      "app",
+			Namespace: NS,
+			Name:      svcName,
 		},
 		Status: corev1.ServiceStatus{
 			LoadBalancer: corev1.LoadBalancerStatus{
@@ -341,7 +343,7 @@ func TestStatusUpdateWithAction(t *testing.T) {
 
 	t.Run("Should add the action", func(t *testing.T) {
 		statusUpdateAction := StatusUpdateAction{func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app" {
+			if obj.GetNamespace() == NS && obj.GetName() == svcName {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -374,15 +376,15 @@ func TestStatusPatchWithAction(t *testing.T) {
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: defaultNS,
-			Name:      "app",
+			Namespace: NS,
+			Name:      svcName,
 		},
 	}
 	patch := []byte(`{"status":{"loadBalancer":{"ingress": [{"ip": "1.2.3.4"}]}}}`)
 
 	t.Run("Should add the action", func(t *testing.T) {
 		statusPatchAction := StatusPatchAction{func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-			if obj.GetNamespace() == defaultNS && obj.GetName() == "app" {
+			if obj.GetNamespace() == NS && obj.GetName() == svcName {
 				return errors.NewInternalError(fmt.Errorf("injected error"))
 			}
 			return nil
@@ -422,7 +424,7 @@ func TestDeleteAllOfWithAction(t *testing.T) {
 	})
 
 	t.Run("Should trigger the action", func(t *testing.T) {
-		err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(defaultNS))
+		err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(NS))
 		if !errors.IsInternalError(err) {
 			t.Fatalf("action did not run")
 		}
@@ -433,7 +435,7 @@ func TestDeleteAllOfWithAction(t *testing.T) {
 	})
 
 	t.Run("Should not trigger the action", func(t *testing.T) {
-		err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(defaultNS))
+		err := c.DeleteAllOf(ctx, &corev1.Service{}, client.InNamespace(NS))
 		if err != nil {
 			t.Fatalf("failed to delete all services")
 		}
