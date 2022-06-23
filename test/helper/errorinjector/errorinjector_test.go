@@ -115,7 +115,6 @@ func TestGetWithAction(t *testing.T) {
 
 func TestListWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 
 	t.Run("Should add the action", func(t *testing.T) {
@@ -148,7 +147,6 @@ func TestListWithAction(t *testing.T) {
 
 func TestCreateWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -195,7 +193,6 @@ func TestCreateWithAction(t *testing.T) {
 
 func TestDeleteWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -235,7 +232,6 @@ func TestDeleteWithAction(t *testing.T) {
 
 func TestUpdateWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -282,7 +278,6 @@ func TestUpdateWithAction(t *testing.T) {
 
 func TestPatchWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -323,7 +318,6 @@ func TestPatchWithAction(t *testing.T) {
 
 func TestStatusUpdateWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -372,7 +366,6 @@ func TestStatusUpdateWithAction(t *testing.T) {
 
 func TestStatusPatchWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -413,7 +406,6 @@ func TestStatusPatchWithAction(t *testing.T) {
 
 func TestDeleteAllOfWithAction(t *testing.T) {
 	// Setup
-	actionName := "example"
 	ctx := context.Background()
 
 	t.Run("Should add the action", func(t *testing.T) {
