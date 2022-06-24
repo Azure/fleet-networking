@@ -7,9 +7,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - networking.fleet.azure.com
+  - ""
   resources:
-  - multiclusterservices
+  - services
   verbs:
   - create
   - delete
@@ -21,13 +21,37 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices/finalizers
+  - internalserviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports/finalizers
   verbs:
   - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices/status
+  - serviceexports/status
   verbs:
   - get
   - patch

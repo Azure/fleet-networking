@@ -29,9 +29,7 @@ const (
 	memberClusterID                   = "bravelion"
 	memberUserNS                      = "work"
 	hubNSForMember                    = "bravelion"
-	svcExportName                     = "app"
 	svcName                           = "app"
-	altSvcExportName                  = "app2"
 	altSvcName                        = "app2"
 	newSvcExportStatusCondType        = "New"
 	newSvcExportStatusCondDescription = "NewCond"
@@ -107,7 +105,7 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 			svcExport: &fleetnetworkingapi.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
-					Name:      svcExportName,
+					Name:      svcName,
 				},
 			},
 			want: false,
@@ -117,7 +115,7 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 			svcExport: &fleetnetworkingapi.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
-					Name:              svcExportName,
+					Name:              svcName,
 					DeletionTimestamp: &timestamp,
 				},
 			},
@@ -128,7 +126,7 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 			svcExport: &fleetnetworkingapi.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
-					Name:       svcExportName,
+					Name:       svcName,
 					Finalizers: []string{svcExportCleanupFinalizer},
 				},
 			},
@@ -139,7 +137,7 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 			svcExport: &fleetnetworkingapi.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
-					Name:              svcExportName,
+					Name:              svcName,
 					DeletionTimestamp: &timestamp,
 					Finalizers:        []string{svcExportCleanupFinalizer},
 				},
@@ -272,7 +270,7 @@ func TestFormatInternalSvcExportName(t *testing.T) {
 	svcExport := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcExportName,
+			Name:      svcName,
 		},
 	}
 	formattedName := formatInternalSvcExportName(svcExport)
@@ -694,13 +692,13 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	svcExportNew := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcExportName,
+			Name:      svcName,
 		},
 	}
 	svcExportValid := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      altSvcExportName,
+			Name:      altSvcName,
 		},
 		Status: fleetnetworkingapi.ServiceExportStatus{
 			Conditions: []metav1.Condition{
@@ -730,7 +728,7 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export")
 		}
@@ -748,14 +746,14 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export")
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
 			getSvcExportNewCond(),
-			getSvcExportInvalidCondIneligible(memberUserNS, altSvcExportName),
+			getSvcExportInvalidCondIneligible(memberUserNS, altSvcName),
 		}
 		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
@@ -781,13 +779,13 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export")
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			getSvcExportInvalidCondNotFound(memberUserNS, svcExportName),
+			getSvcExportInvalidCondNotFound(memberUserNS, svcName),
 		}
 		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
@@ -801,14 +799,14 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export")
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
 			getSvcExportNewCond(),
-			getSvcExportInvalidCondNotFound(memberUserNS, altSvcExportName),
+			getSvcExportInvalidCondNotFound(memberUserNS, altSvcName),
 		}
 		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
@@ -821,17 +819,17 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 	svcExportNew := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcExportName,
+			Name:      svcName,
 		},
 	}
 	svcExportInvalid := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      altSvcExportName,
+			Name:      altSvcName,
 		},
 		Status: fleetnetworkingapi.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				getSvcExportInvalidCondNotFound(memberUserNS, altSvcExportName),
+				getSvcExportInvalidCondNotFound(memberUserNS, altSvcName),
 				getSvcExportNewCond(),
 			},
 		},
@@ -857,14 +855,14 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export")
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			getSvcExportValidCond(memberUserNS, svcExportName),
-			getSvcExportConflictCond(memberUserNS, svcExportName),
+			getSvcExportValidCond(memberUserNS, svcName),
+			getSvcExportConflictCond(memberUserNS, svcName),
 		}
 		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
@@ -878,15 +876,15 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("faile to get updated svc export: %v", err)
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
 			getSvcExportNewCond(),
-			getSvcExportValidCond(memberUserNS, altSvcExportName),
-			getSvcExportConflictCond(memberUserNS, altSvcExportName),
+			getSvcExportValidCond(memberUserNS, altSvcName),
+			getSvcExportConflictCond(memberUserNS, altSvcName),
 		}
 		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
@@ -899,7 +897,7 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 	svcExportWithCleanupFinalizer := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:  memberUserNS,
-			Name:       svcExportName,
+			Name:       svcName,
 			Finalizers: []string{svcExportCleanupFinalizer},
 		},
 	}
@@ -923,7 +921,7 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 	}
 
 	var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-	err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+	err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 	if err != nil {
 		t.Errorf("failed to get updated svc export: %v", err)
 	}
@@ -938,7 +936,7 @@ func TestAddSvcExportCleanupFinalizer(t *testing.T) {
 	svcExportWithoutCleanupFinalizer := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcExportName,
+			Name:      svcName,
 		},
 	}
 
@@ -961,7 +959,7 @@ func TestAddSvcExportCleanupFinalizer(t *testing.T) {
 	}
 
 	var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-	err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+	err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 	if err != nil {
 		t.Errorf("failed to get updated svc export: %v", err)
 	}
@@ -973,18 +971,18 @@ func TestAddSvcExportCleanupFinalizer(t *testing.T) {
 
 // TestUnexportSvc tests the *SvcExportReconciler.unexportSvc method.
 func TestUnexportSvc(t *testing.T) {
-	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcExportName)
+	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcName)
 	svcExport := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:  memberUserNS,
-			Name:       svcExportName,
+			Name:       svcName,
 			Finalizers: []string{svcExportCleanupFinalizer},
 		},
 	}
 	altSvcExport := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:  memberUserNS,
-			Name:       altSvcExportName,
+			Name:       altSvcName,
 			Finalizers: []string{svcExportCleanupFinalizer},
 		},
 	}
@@ -1018,7 +1016,7 @@ func TestUnexportSvc(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("failed to get updated svc export: %v", err)
 		}
@@ -1040,7 +1038,7 @@ func TestUnexportSvc(t *testing.T) {
 		}
 
 		var updatedSvcExport = &fleetnetworkingapi.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcExportName}, updatedSvcExport)
+		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
 		if err != nil {
 			t.Errorf("failed to get updated svc export: %v", err)
 		}
