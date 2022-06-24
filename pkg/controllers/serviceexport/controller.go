@@ -209,24 +209,26 @@ func (r *SvcExportReconciler) unexportSvc(ctx context.Context, svcExport *fleetn
 	}
 
 	// Unexport the Service.
-	if err := r.hubClient.Delete(ctx, internalSvcExport); err != nil {
+	if err := r.hubClient.Delete(ctx, internalSvcExport); err != nil && !errors.IsNotFound(err) {
 		// It is guaranteed that a finalizer is always added before the Service is actually exported; as a result,
 		// in some rare occasions it could happen that a ServiceExport has a finalizer present yet the corresponding
-		// Service has not  been exported to the hub cluster yet. It is an expected behavior and no action
+		// Service has not been exported to the hub cluster yet. It is an expected behavior and no action
 		// is needed on this controller's end.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	// Remove the finalizer; it must happen after the Service has successfully been unexported.
 	return r.removeSvcExportCleanupFinalizer(ctx, svcExport)
 }
 
+// addSvcExportCleanupFinalizer adds the cleanup finalizer to a ServiceExport.
 func (r *SvcExportReconciler) addSvcExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) error {
 	controllerutil.AddFinalizer(svcExport, svcExportCleanupFinalizer)
 	err := r.memberClient.Update(ctx, svcExport)
 	return err
 }
 
+// removeSvcExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
 func (r *SvcExportReconciler) removeSvcExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
 	err := r.memberClient.Update(ctx, svcExport)

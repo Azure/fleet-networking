@@ -7,9 +7,8 @@ package serviceexport
 
 import (
 	"fmt"
+	"reflect"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -32,8 +31,8 @@ func isSvcDeleted(svc *corev1.Service) bool {
 	return svc.ObjectMeta.DeletionTimestamp != nil
 }
 
-// isSvcEligibleForExport returns if a Service is eligible for export; at this stage, headless Services,
-// Services of the ExternalName type, and Services using a non-IPv4 IP family cannot be exported.
+// isSvcEligibleForExport returns if a Service is eligible for export; at this stage, headless Services
+// and Services of the ExternalName type cannot be exported.
 func isSvcEligibleForExport(svc *corev1.Service) bool {
 	if svc.Spec.Type == corev1.ServiceTypeExternalName || svc.Spec.ClusterIP == "None" {
 		return false
@@ -51,10 +50,11 @@ func updateInternalSvcExport(memberClusterID string, svc *corev1.Service, intern
 	svcExportPorts := []fleetnetworkingapi.ServicePort{}
 	for _, svcPort := range svc.Spec.Ports {
 		svcExportPorts = append(svcExportPorts, fleetnetworkingapi.ServicePort{
-			Name:       svcPort.Name,
-			Protocol:   svcPort.Protocol,
-			Port:       svcPort.Port,
-			TargetPort: svcPort.TargetPort,
+			Name:        svcPort.Name,
+			Protocol:    svcPort.Protocol,
+			AppProtocol: svcPort.AppProtocol,
+			Port:        svcPort.Port,
+			TargetPort:  svcPort.TargetPort,
 		})
 	}
 	internalSvcExport.Spec.Ports = svcExportPorts
@@ -90,9 +90,12 @@ func isSvcChanged(oldSvc, newSvc *corev1.Service) bool {
 	// Request a reconciliation when the Service ports change.
 	oldPorts := oldSvc.Spec.DeepCopy().Ports
 	newPorts := newSvc.Spec.DeepCopy().Ports
-	portLessFunc := func(p, q corev1.ServicePort) bool { return p.Port < q.Port }
-	return !cmp.Equal(oldPorts,
-		newPorts,
-		cmpopts.SortSlices(portLessFunc),
-		cmpopts.IgnoreFields(corev1.ServicePort{}, "NodePort"))
+	// Clear NodePort field as this is not exported
+	for idx := range oldPorts {
+		oldPorts[idx].NodePort = 0
+	}
+	for idx := range newPorts {
+		newPorts[idx].NodePort = 0
+	}
+	return !reflect.DeepEqual(oldPorts, newPorts)
 }
