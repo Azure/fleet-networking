@@ -195,6 +195,7 @@ func (r *SvcExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// unexportSvc unexports a Service.
 func (r *SvcExportReconciler) unexportSvc(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
 	// Get the unique name assigned when the Service is exported. it is guaranteed that Services are
 	// always exported using the name format `ORIGINAL_NAMESPACE-ORIGINAL_NAME`; for example, a Service
