@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -118,7 +117,7 @@ func TestMain(m *testing.M) {
 	// in this test when tearing down the test environment.
 	ctrlMgrCtx, ctrlMgrCancelFunc := context.WithCancel(context.Background())
 	go func() {
-		err = ctrlMgr.Start(ctrlMgrCtx)
+		err := ctrlMgr.Start(ctrlMgrCtx)
 		if err != nil {
 			log.Fatalf("failed to start controller manager: %v", err)
 		}
@@ -175,11 +174,11 @@ func TestExportUnexportExistingService(t *testing.T) {
 	}
 	err := memberClient.Create(ctx, &svc)
 	if err != nil {
-		t.Fatalf("failed to create service %s: %v", svcName, err)
+		t.Fatalf("failed to create svc %s: %v", svcName, err)
 	}
 
 	// Subtests
-	t.Run("Should create a ServiceExport", func(t *testing.T) {
+	t.Run("should create a svc export", func(t *testing.T) {
 		ctx := context.Background()
 		svcExport := fleetnetworkingapi.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
@@ -189,18 +188,18 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}
 		err := memberClient.Create(ctx, &svcExport)
 		if err != nil {
-			t.Fatalf("failed to create service export %s: %v", svcName, err)
+			t.Fatalf("failed to create svc export %s: %v", svcName, err)
 		}
 	})
 
-	t.Run("Should add the cleanup finalizer", func(t *testing.T) {
+	t.Run("should add the cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			if !controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
 				return fmt.Errorf("cleanup finalizer is not present in service export %s", svcName)
@@ -209,43 +208,30 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add valid + pending conflict resolution conditions", func(t *testing.T) {
+	t.Run("should add valid + pending conflict resolution conditions", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceIsValid",
-			Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, svcName),
-		}
-		expectedConflictCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportConflict),
-			Status:             metav1.ConditionUnknown,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "PendingConflictResolution",
-			Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedValidCond := getSvcExportValidCond(memberUserNS, svcName)
+		expectedConflictCond := getSvcExportConflictCond(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			conflictCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedValidCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
 					}
 				} else if cond.Type == string(fleetnetworkingapi.ServiceExportConflict) {
 					conflictCondFound = true
-					if !cmp.Equal(cond, expectedConflictCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedConflictCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportconflict cond, got %+v, want %+v", cond, expectedConflictCond)
 					}
 				}
@@ -257,7 +243,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should export the Service", func(t *testing.T) {
+	t.Run("should export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -267,7 +253,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberUserNS, svcName, err)
 			}
 			expected := []fleetnetworkingapi.ServicePort{
 				{
@@ -290,7 +276,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should update the Service", func(t *testing.T) {
+	t.Run("should update the svc", func(t *testing.T) {
 		ctx := context.Background()
 		updatedSvc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -316,7 +302,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should update the exported Service", func(t *testing.T) {
+	t.Run("should update the exported svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -326,7 +312,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberClusterID, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberClusterID, svcName, err)
 			}
 			expected := []fleetnetworkingapi.ServicePort{
 				{
@@ -349,7 +335,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should delete the Service Export", func(t *testing.T) {
+	t.Run("should delete the svc export", func(t *testing.T) {
 		ctx := context.Background()
 		svcExport := fleetnetworkingapi.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
@@ -359,11 +345,11 @@ func TestExportUnexportExistingService(t *testing.T) {
 		}
 		err := memberClient.Delete(ctx, &svcExport)
 		if err != nil {
-			t.Fatalf("failed to delete service export %s", svcName)
+			t.Fatalf("failed to delete svc export %s", svcName)
 		}
 	})
 
-	t.Run("Should unexport the Service", func(t *testing.T) {
+	t.Run("should unexport the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -376,7 +362,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 			case errors.IsNotFound(err):
 				return nil
 			case err != nil:
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberClusterID, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberClusterID, svcName, err)
 			default:
 				return fmt.Errorf("internal svc export %s-%s is not deleted", memberUserNS, svcName)
 			}
@@ -386,7 +372,7 @@ func TestExportUnexportExistingService(t *testing.T) {
 	// Clean up
 	err = memberClient.Delete(ctx, &svc)
 	if err != nil {
-		t.Fatalf("failed to delete service %s: %v", svcName, err)
+		t.Fatalf("failed to delete svc %s: %v", svcName, err)
 	}
 }
 
@@ -399,7 +385,7 @@ func TestExportUnexportNewService(t *testing.T) {
 	svcName := "app2"
 
 	// Subtests
-	t.Run("Should create a ServiceExport", func(t *testing.T) {
+	t.Run("should create a svc export", func(t *testing.T) {
 		ctx := context.Background()
 		svcExport := fleetnetworkingapi.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
@@ -413,14 +399,14 @@ func TestExportUnexportNewService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not have cleanup finalizer", func(t *testing.T) {
+	t.Run("should not have cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get service export %s: %w", svcName, err)
 			}
 			if controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
 				return fmt.Errorf("cleanup finalizer is present in service export %s", svcName)
@@ -429,31 +415,24 @@ func TestExportUnexportNewService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add invalid condition", func(t *testing.T) {
+	t.Run("should add invalid condition", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceNotFound",
-			Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedInvalidCond := getSvcExportInvalidCondNotFound(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
-						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
+					if !cmp.Equal(cond, expectedInvalidCond, ignoredCondFields) {
+						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedInvalidCond)
 					}
 				}
 			}
@@ -464,7 +443,7 @@ func TestExportUnexportNewService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should not export the Service", func(t *testing.T) {
+	t.Run("should not export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -474,13 +453,13 @@ func TestExportUnexportNewService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err == nil {
-				return fmt.Errorf("internal service export %s-%s is present: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("internal svc export %s-%s is present", memberUserNS, svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should create a Service", func(t *testing.T) {
+	t.Run("should create a svc", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -497,63 +476,50 @@ func TestExportUnexportNewService(t *testing.T) {
 		}
 		err := memberClient.Create(ctx, &svc)
 		if err != nil {
-			t.Fatalf("failed to create service %s: %v", svcName, err)
+			t.Fatalf("failed to create svc %s: %v", svcName, err)
 		}
 	})
 
-	t.Run("Should add the cleanup finalizer", func(t *testing.T) {
+	t.Run("should add the cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			if !controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
-				return fmt.Errorf("cleanup finalizer is not present in service export %s", svcName)
+				return fmt.Errorf("cleanup finalizer is not present in svc export %s", svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add valid + pending conflict resolution conditions", func(t *testing.T) {
+	t.Run("should add valid + pending conflict resolution conditions", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceIsValid",
-			Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, svcName),
-		}
-		expectedConflictCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportConflict),
-			Status:             metav1.ConditionUnknown,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "PendingConflictResolution",
-			Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedValidCond := getSvcExportValidCond(memberUserNS, svcName)
+		expectedConflictCond := getSvcExportConflictCond(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			conflictCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedValidCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
 					}
 				} else if cond.Type == string(fleetnetworkingapi.ServiceExportConflict) {
 					conflictCondFound = true
-					if !cmp.Equal(cond, expectedConflictCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedConflictCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportconflict cond, got %+v, want %+v", cond, expectedConflictCond)
 					}
 				}
@@ -565,7 +531,7 @@ func TestExportUnexportNewService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should export the Service", func(t *testing.T) {
+	t.Run("should export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -575,7 +541,7 @@ func TestExportUnexportNewService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberUserNS, svcName, err)
 			}
 			expected := []fleetnetworkingapi.ServicePort{
 				{
@@ -591,7 +557,7 @@ func TestExportUnexportNewService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should delete the Service", func(t *testing.T) {
+	t.Run("should delete the svc", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -608,11 +574,11 @@ func TestExportUnexportNewService(t *testing.T) {
 		}
 		err := memberClient.Delete(ctx, &svc)
 		if err != nil {
-			t.Fatalf("failed to create service %s: %v", svcName, err)
+			t.Fatalf("failed to create svc %s: %v", svcName, err)
 		}
 	})
 
-	t.Run("Should unexport the Service", func(t *testing.T) {
+	t.Run("should unexport the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -625,38 +591,31 @@ func TestExportUnexportNewService(t *testing.T) {
 			case errors.IsNotFound(err):
 				return nil
 			case err != nil:
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberClusterID, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberClusterID, svcName, err)
 			default:
 				return fmt.Errorf("internal svc export %s-%s is not deleted", memberUserNS, svcName)
 			}
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add invalid condition", func(t *testing.T) {
+	t.Run("should add invalid condition", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceNotFound",
-			Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedInvalidCond := getSvcExportInvalidCondNotFound(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
-						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
+					if !cmp.Equal(cond, expectedInvalidCond, ignoredCondFields) {
+						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedInvalidCond)
 					}
 				}
 			}
@@ -677,22 +636,21 @@ func TestExportUnexportNewService(t *testing.T) {
 	}
 	err := memberClient.Delete(ctx, &svcExport)
 	if err != nil {
-		t.Fatalf("failed to delete service export %s: %v", svcName, err)
+		t.Fatalf("failed to delete svc export %s: %v", svcName, err)
 	}
 }
 
-// TestExportIneligibleService run a sequence of subtests that verify the workflow of
-// * exporting a Service ineligible for export
-// * exporting the Service which becomes eligible for export
-// * exporting the Service which becomes ineligible for export again
+// TestExportIneligibleServiceHeadless run a sequence of subtests that verify the workflow of
+// * exporting an ineligible Service
+// * deleting the ineligible Service
 // Note that Kubernetes imposes additional limit on how Services can switch types: once a headless Service is
 // created, its Cluster IP will remain "None".
-func TestExportIneligibleService(t *testing.T) {
+func TestExportIneligibleServiceHeadless(t *testing.T) {
 	// Define parameters used in this test
 	svcName := "app3"
 
 	// Subtests
-	t.Run("Should create a headless Service", func(t *testing.T) {
+	t.Run("should create a headless svc", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -711,11 +669,11 @@ func TestExportIneligibleService(t *testing.T) {
 		}
 		err := memberClient.Create(ctx, &svc)
 		if err != nil {
-			t.Fatalf("failed to create service %s: %v", svcName, err)
+			t.Fatalf("failed to create svc %s: %v", svcName, err)
 		}
 	})
 
-	t.Run("Should create a ServiceExport", func(t *testing.T) {
+	t.Run("should create a svc export", func(t *testing.T) {
 		ctx := context.Background()
 		svcExport := fleetnetworkingapi.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
@@ -729,14 +687,14 @@ func TestExportIneligibleService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not have cleanup finalizer", func(t *testing.T) {
+	t.Run("should not have cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get service export %s: %w", svcName, err)
 			}
 			if controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
 				return fmt.Errorf("cleanup finalizer is present in service export %s", svcName)
@@ -745,31 +703,24 @@ func TestExportIneligibleService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add invalid condition", func(t *testing.T) {
+	t.Run("should add invalid condition", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceIneligible",
-			Message:            fmt.Sprintf("service %s/%s is not eligible for export", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedInvalidCond := getSvcExportInvalidCondIneligible(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get service export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
-						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
+					if !cmp.Equal(cond, expectedInvalidCond, ignoredCondFields) {
+						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedInvalidCond)
 					}
 				}
 			}
@@ -780,7 +731,7 @@ func TestExportIneligibleService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should not export the Service", func(t *testing.T) {
+	t.Run("should not export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -790,13 +741,13 @@ func TestExportIneligibleService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err == nil {
-				return fmt.Errorf("internal service export %s-%s is present: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("internal svc export %s-%s is present", memberUserNS, svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should delete the Service", func(t *testing.T) {
+	t.Run("should delete the svc", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -810,31 +761,24 @@ func TestExportIneligibleService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should add invalid condition", func(t *testing.T) {
+	t.Run("should add invalid condition", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceNotFound",
-			Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedInvalidCond := getSvcExportInvalidCondNotFound(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
-						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
+					if !cmp.Equal(cond, expectedInvalidCond, ignoredCondFields) {
+						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedInvalidCond)
 					}
 				}
 			}
@@ -845,7 +789,36 @@ func TestExportIneligibleService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should create a Service of ExternalName type", func(t *testing.T) {
+	// Clean up
+	ctx := context.Background()
+	svc := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: memberUserNS,
+			Name:      svcName,
+		},
+	}
+	_ = memberClient.Delete(ctx, &svc)
+
+	svcExport := fleetnetworkingapi.ServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: memberUserNS,
+			Name:      svcName,
+		},
+	}
+	err := memberClient.Delete(ctx, &svcExport)
+	if err != nil {
+		t.Fatalf("failed to delete svc %s: %v", svcName, err)
+	}
+}
+
+// TestExportIneligibleServiceExternalName run a sequence of subtests that verify the workflow of
+// * exporting an ineligible Service
+// * exporting the Service which later becomes eligible
+func TestExportIneligibleServiceExternalName(t *testing.T) {
+	// Define parameters used in this test
+	svcName := "app4"
+
+	t.Run("should create a svc of externalname type", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -863,47 +836,54 @@ func TestExportIneligibleService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not have cleanup finalizer", func(t *testing.T) {
+	t.Run("should create a svc export", func(t *testing.T) {
+		ctx := context.Background()
+		svcExport := fleetnetworkingapi.ServiceExport{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: memberUserNS,
+				Name:      svcName,
+			},
+		}
+		err := memberClient.Create(ctx, &svcExport)
+		if err != nil {
+			t.Fatalf("failed to create svc export %s: %v", svcName, err)
+		}
+	})
+
+	t.Run("should not have cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			if controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
-				return fmt.Errorf("cleanup finalizer is present in service export %s", svcName)
+				return fmt.Errorf("cleanup finalizer is present in svc export %s", svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add invalid condition", func(t *testing.T) {
+	t.Run("should add invalid condition", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceIneligible",
-			Message:            fmt.Sprintf("service %s/%s is not eligible for export", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedInvalidCond := getSvcExportInvalidCondIneligible(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
-						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
+					if !cmp.Equal(cond, expectedInvalidCond, ignoredCondFields) {
+						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedInvalidCond)
 					}
 				}
 			}
@@ -914,7 +894,7 @@ func TestExportIneligibleService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should not export the Service", func(t *testing.T) {
+	t.Run("should not export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -924,13 +904,13 @@ func TestExportIneligibleService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err == nil {
-				return fmt.Errorf("internal service export %s-%s is present: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("internal svc export %s-%s is present", memberUserNS, svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should update the Service", func(t *testing.T) {
+	t.Run("should update the svc", func(t *testing.T) {
 		ctx := context.Background()
 		svc := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -948,63 +928,50 @@ func TestExportIneligibleService(t *testing.T) {
 		}
 		err := memberClient.Update(ctx, &svc)
 		if err != nil {
-			t.Fatalf("failed to update service %s: %v", svcName, err)
+			t.Fatalf("failed to update svc %s: %v", svcName, err)
 		}
 	})
 
-	t.Run("Should add the cleanup finalizer", func(t *testing.T) {
+	t.Run("should add the cleanup finalizer", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			if !controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) {
-				return fmt.Errorf("cleanup finalizer is not present in service export %s", svcName)
+				return fmt.Errorf("cleanup finalizer is not present in svc export %s", svcName)
 			}
 			return nil
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should add valid + pending conflict resolution conditions", func(t *testing.T) {
+	t.Run("should add valid + pending conflict resolution conditions", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 
-		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportValid),
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ServiceIsValid",
-			Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, svcName),
-		}
-		expectedConflictCond := metav1.Condition{
-			Type:               string(fleetnetworkingapi.ServiceExportConflict),
-			Status:             metav1.ConditionUnknown,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "PendingConflictResolution",
-			Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", memberUserNS, svcName),
-		}
-		ignoredFields := cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+		expectedValidCond := getSvcExportValidCond(memberUserNS, svcName)
+		expectedConflictCond := getSvcExportConflictCond(memberUserNS, svcName)
 
 		g.Eventually(func() error {
 			ctx := context.Background()
 			svcExport := &fleetnetworkingapi.ServiceExport{}
 			err := memberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, svcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get service export %s: %v", svcName, err)
+				return fmt.Errorf("failed to get svc export %s: %w", svcName, err)
 			}
 			validCondFound := false
 			conflictCondFound := false
 			for _, cond := range svcExport.Status.Conditions {
 				if cond.Type == string(fleetnetworkingapi.ServiceExportValid) {
 					validCondFound = true
-					if !cmp.Equal(cond, expectedValidCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedValidCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportvalid cond, got %+v, want %+v", cond, expectedValidCond)
 					}
 				} else if cond.Type == string(fleetnetworkingapi.ServiceExportConflict) {
 					conflictCondFound = true
-					if !cmp.Equal(cond, expectedConflictCond, ignoredFields) {
+					if !cmp.Equal(cond, expectedConflictCond, ignoredCondFields) {
 						return fmt.Errorf("serviceexportconflict cond, got %+v, want %+v", cond, expectedConflictCond)
 					}
 				}
@@ -1016,7 +983,7 @@ func TestExportIneligibleService(t *testing.T) {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.BeNil())
 	})
 
-	t.Run("Should export the Service", func(t *testing.T) {
+	t.Run("should export the svc", func(t *testing.T) {
 		g := gomega.NewGomegaWithT(t)
 		g.Eventually(func() error {
 			ctx := context.Background()
@@ -1026,7 +993,7 @@ func TestExportIneligibleService(t *testing.T) {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}, internalSvcExport)
 			if err != nil {
-				return fmt.Errorf("failed to get internal service export %s-%s: %v", memberUserNS, svcName, err)
+				return fmt.Errorf("failed to get internal svc export %s-%s: %w", memberUserNS, svcName, err)
 			}
 			expected := []fleetnetworkingapi.ServicePort{
 				{
@@ -1052,7 +1019,7 @@ func TestExportIneligibleService(t *testing.T) {
 	}
 	err := memberClient.Delete(ctx, &svc)
 	if err != nil {
-		t.Fatalf("failed to delete service %s: %v", svcName, err)
+		t.Fatalf("failed to delete svc %s: %v", svcName, err)
 	}
 
 	svcExport := fleetnetworkingapi.ServiceExport{
@@ -1063,6 +1030,6 @@ func TestExportIneligibleService(t *testing.T) {
 	}
 	err = memberClient.Delete(ctx, &svcExport)
 	if err != nil {
-		t.Fatalf("failed to delete service %s: %v", svcName, err)
+		t.Fatalf("failed to delete svc %s: %v", svcName, err)
 	}
 }

@@ -37,6 +37,64 @@ const (
 	newSvcExportStatusCondDescription = "NewCond"
 )
 
+// ignoredCondFields are fields that should be ignored when comparing conditions.
+var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+
+// getSvcExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
+func getSvcExportValidCond(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportValid),
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ServiceIsValid",
+		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
+	}
+}
+
+// getSvcExportConflictCond returns a ServiceExportConflict condition.
+func getSvcExportConflictCond(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportConflict),
+		Status:             metav1.ConditionUnknown,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "PendingConflictResolution",
+		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", userNS, svcName),
+	}
+}
+
+// getSvcExportInvalidCondNotFound returns a ServiceExportValid condition for exporting a Service that is not found.
+func getSvcExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportValid),
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ServiceNotFound",
+		Message:            fmt.Sprintf("service %s/%s is not found", userNS, svcName),
+	}
+}
+
+// getSvcExportInvalidCondIneligible returns a ServiceExportValid condition for exporting an ineligible Service.
+func getSvcExportInvalidCondIneligible(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetworkingapi.ServiceExportValid),
+		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ServiceIneligible",
+		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
+	}
+}
+
+// getSvcExportNewCond returns a ServiceCondition with a new type.
+func getSvcExportNewCond() metav1.Condition {
+	return metav1.Condition{
+		Type:               newSvcExportStatusCondType,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             newSvcExportStatusCondDescription,
+		Message:            newSvcExportStatusCondDescription,
+	}
+}
+
 // TestIsSvcExportCleanupNeeded tests the isSvcExportCleanupNeeded function.
 func TestIsSvcExportCleanupNeeded(t *testing.T) {
 	timestamp := metav1.Now()
@@ -646,20 +704,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		},
 		Status: fleetnetworkingapi.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				{
-					Type:               string(fleetnetworkingapi.ServiceExportValid),
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             "ServiceIsValid",
-					Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, altSvcName),
-				},
-				{
-					Type:               newSvcExportStatusCondType,
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             newSvcExportStatusCondDescription,
-					Message:            newSvcExportStatusCondDescription,
-				},
+				getSvcExportValidCond(memberUserNS, svcName),
+				getSvcExportNewCond(),
 			},
 		},
 	}
@@ -689,16 +735,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 			t.Errorf("faile to get updated svc export")
 		}
 		conds := updatedSvcExport.Status.Conditions
-		expectedConds := []metav1.Condition{
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceIneligible",
-				Message:            fmt.Sprintf("service %s/%s is not eligible for export", memberUserNS, svcExportName),
-			},
-		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		expectedConds := []metav1.Condition{getSvcExportInvalidCondIneligible(memberUserNS, svcName)}
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})
@@ -716,22 +754,10 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			{
-				Type:               newSvcExportStatusCondType,
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             newSvcExportStatusCondDescription,
-				Message:            newSvcExportStatusCondDescription,
-			},
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceIneligible",
-				Message:            fmt.Sprintf("service %s/%s is not eligible for export", memberUserNS, altSvcExportName),
-			},
+			getSvcExportNewCond(),
+			getSvcExportInvalidCondIneligible(memberUserNS, altSvcExportName),
 		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})
@@ -761,15 +787,9 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceNotFound",
-				Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, svcExportName),
-			},
+			getSvcExportInvalidCondNotFound(memberUserNS, svcExportName),
 		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})
@@ -787,22 +807,10 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			{
-				Type:               newSvcExportStatusCondType,
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             newSvcExportStatusCondDescription,
-				Message:            newSvcExportStatusCondDescription,
-			},
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceNotFound",
-				Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, altSvcExportName),
-			},
+			getSvcExportNewCond(),
+			getSvcExportInvalidCondNotFound(memberUserNS, altSvcExportName),
 		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})
@@ -823,20 +831,8 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 		},
 		Status: fleetnetworkingapi.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				{
-					Type:               string(fleetnetworkingapi.ServiceExportValid),
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             "ServiceNotFound",
-					Message:            fmt.Sprintf("service %s/%s is not found", memberUserNS, altSvcExportName),
-				},
-				{
-					Type:               newSvcExportStatusCondType,
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             newSvcExportStatusCondDescription,
-					Message:            newSvcExportStatusCondDescription,
-				},
+				getSvcExportInvalidCondNotFound(memberUserNS, altSvcExportName),
+				getSvcExportNewCond(),
 			},
 		},
 	}
@@ -867,22 +863,10 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceIsValid",
-				Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, svcExportName),
-			},
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportConflict),
-				Status:             metav1.ConditionUnknown,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "PendingConflictResolution",
-				Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", memberUserNS, svcExportName),
-			},
+			getSvcExportValidCond(memberUserNS, svcExportName),
+			getSvcExportConflictCond(memberUserNS, svcExportName),
 		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})
@@ -900,29 +884,11 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 		}
 		conds := updatedSvcExport.Status.Conditions
 		expectedConds := []metav1.Condition{
-			{
-				Type:               newSvcExportStatusCondType,
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             newSvcExportStatusCondDescription,
-				Message:            newSvcExportStatusCondDescription,
-			},
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportValid),
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "ServiceIsValid",
-				Message:            fmt.Sprintf("service %s/%s is valid for export", memberUserNS, altSvcExportName),
-			},
-			{
-				Type:               string(fleetnetworkingapi.ServiceExportConflict),
-				Status:             metav1.ConditionUnknown,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "PendingConflictResolution",
-				Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", memberUserNS, altSvcExportName),
-			},
+			getSvcExportNewCond(),
+			getSvcExportValidCond(memberUserNS, altSvcExportName),
+			getSvcExportConflictCond(memberUserNS, altSvcExportName),
 		}
-		if !cmp.Equal(conds, expectedConds, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
 			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
 		}
 	})

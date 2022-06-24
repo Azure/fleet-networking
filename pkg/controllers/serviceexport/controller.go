@@ -59,7 +59,7 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var svcExport fleetnetworkingapi.ServiceExport
 	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
 		log.Error(err, "failed to get service export", "req", req)
-		// Skip the reconcilation if the ServiceExport does not exist; this should only happen when a ServiceExport
+		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
 		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
 		// which requires no action to take on this controller's end.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -312,7 +312,7 @@ func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Cont
 	}
 	updatedConds = append(updatedConds, metav1.Condition{
 		Type:               string(fleetnetworkingapi.ServiceExportValid),
-		Status:             metav1.ConditionTrue,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ServiceNotFound",
 		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
