@@ -83,7 +83,7 @@ staticcheck: $(STATICCHECK)
 .PHONY: fmt
 fmt:  $(GOIMPORTS) ## Run go fmt against code.
 	go fmt ./...
-	$(GOIMPORTS) -local go.goms.io/fleet -w $$(go list -f {{.Dir}} ./...)
+	$(GOIMPORTS) -local go.goms.io/fleet-networking -w $$(go list -f {{.Dir}} ./...)
 
 .PHONY: vet
 vet: ## Run go vet against code.
