@@ -37,6 +37,7 @@ const (
 	newSvcExportStatusCondDescription = "NewCond"
 )
 
+// TestIsSvcExportCleanupNeeded tests the isSvcExportCleanupNeeded function.
 func TestIsSvcExportCleanupNeeded(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
@@ -99,6 +100,7 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 	}
 }
 
+// TestIsSvcDeleted tests the isSvcDeleted function.
 func TestIsSvcDeleted(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
@@ -138,6 +140,7 @@ func TestIsSvcDeleted(t *testing.T) {
 	}
 }
 
+// TestIsSvcEligibleForExport tests the isSvcEligibleForExport function.
 func TestIsSvcEligibleForExport(t *testing.T) {
 	testCases := []struct {
 		svc  *corev1.Service
@@ -206,6 +209,7 @@ func TestIsSvcEligibleForExport(t *testing.T) {
 	}
 }
 
+// TestFormatInternalSvcExportName tests the formatInternalSvcExportName function.
 func TestFormatInternalSvcExportName(t *testing.T) {
 	svcExport := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -220,6 +224,7 @@ func TestFormatInternalSvcExportName(t *testing.T) {
 	}
 }
 
+// TestUpdateInternalSvcExport tests the updateInternalSvcExport function.
 func TestUpdateInternalSvcExport(t *testing.T) {
 	APIVersion := "core/v1"
 	kind := "Service"
@@ -305,6 +310,7 @@ func TestUpdateInternalSvcExport(t *testing.T) {
 	}
 }
 
+// TestIsSvcChanged tests the isSvcChanged function.
 func TestIsSvcChanged(t *testing.T) {
 	timestamp := metav1.Now()
 	defaultPort := 80
@@ -624,6 +630,8 @@ func TestIsSvcChanged(t *testing.T) {
 	}
 }
 
+// TestMarkSvcExportAsInvalid tests the *SvcExportReconciler.markSvcExportAsInvalidIneligible and
+// *SvcExportReconciler.markSvcExportAsInvalidNotFound methods.
 func TestMarkSvcExportAsInvalid(t *testing.T) {
 	svcExportNew := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -670,8 +678,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should mark a new svc export as invalid (ineligible)", func(t *testing.T) {
-		res, err := reconciler.markSvcExportAsInvalidSvcIneligible(ctx, svcExportNew)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
+		err := reconciler.markSvcExportAsInvalidSvcIneligible(ctx, svcExportNew)
+		if err != nil {
 			t.Errorf("failed to mark svc export")
 		}
 
@@ -696,8 +704,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	})
 
 	t.Run("should mark a valid svc export as invalid (ineligible)", func(t *testing.T) {
-		res, err := reconciler.markSvcExportAsInvalidSvcIneligible(ctx, svcExportValid)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
+		err := reconciler.markSvcExportAsInvalidSvcIneligible(ctx, svcExportValid)
+		if err != nil {
 			t.Errorf("failed to mark svc export")
 		}
 
@@ -741,8 +749,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	}
 
 	t.Run("should mark a new svc export as invalid (not found)", func(t *testing.T) {
-		res, err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportNew)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
+		err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportNew)
+		if err != nil {
 			t.Errorf("failed to mark svc export")
 		}
 
@@ -767,8 +775,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	})
 
 	t.Run("should mark a valid svc export as invalid (not found)", func(t *testing.T) {
-		res, err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportValid)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
+		err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportValid)
+		if err != nil {
 			t.Errorf("failed to mark svc export")
 		}
 
@@ -800,6 +808,7 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 	})
 }
 
+// TestMarkSvcExportAsValid tests the *SvcExportReconciler.markSvcExportAsValid method.
 func TestMarkSvcExportAsValid(t *testing.T) {
 	svcExportNew := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -919,6 +928,7 @@ func TestMarkSvcExportAsValid(t *testing.T) {
 	})
 }
 
+// TestRemoveSvcExportCleanupFinalizer tests the *SvcExportReconciler.removeSvcExportCleanupFinalizer method.
 func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 	svcExportWithCleanupFinalizer := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -957,6 +967,7 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 	}
 }
 
+// TestAddSvcExportCleanupFinalizer tests the *SvcExportReconciler.addSvcExportCleanupFinalizer method.
 func TestAddSvcExportCleanupFinalizer(t *testing.T) {
 	svcExportWithoutCleanupFinalizer := &fleetnetworkingapi.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -994,6 +1005,7 @@ func TestAddSvcExportCleanupFinalizer(t *testing.T) {
 	}
 }
 
+// TestUnexportSvc tests the *SvcExportReconciler.unexportSvc method.
 func TestUnexportSvc(t *testing.T) {
 	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcExportName)
 	svcExport := &fleetnetworkingapi.ServiceExport{

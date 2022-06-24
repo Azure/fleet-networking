@@ -10,6 +10,7 @@ package serviceexport
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,16 +39,26 @@ type SvcExportReconciler struct {
 	hubNS           string
 }
 
-// TO-DO (chenyu1): Add RBAC markers.
-// TO-DO (chenyu1): Add logs, events, and metrics + check their message formats.
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/finalizers,verbs=update
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+
 // Reconcile exports a Service.
 func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
+	startTime := time.Now()
+	log.Info("reconciliation starts", "req", req)
+	defer func() {
+		timeSpent := time.Since(startTime).Seconds()
+		log.Info(fmt.Sprintf("reconciliation ends (%.2f)", timeSpent), "req", req)
+	}()
 
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetworkingapi.ServiceExport
 	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
-		log.Error(err, "failed to get service export")
+		log.Error(err, "failed to get service export", "req", req)
 		// Skip the reconcilation if the ServiceExport does not exist; this should only happen when a ServiceExport
 		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
 		// which requires no action to take on this controller's end.
@@ -58,7 +69,12 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
 	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
 	if isSvcExportCleanupNeeded(&svcExport) {
-		return r.unexportSvc(ctx, &svcExport)
+		log.Info("svc export is deleted; unexport the svc", "req", req)
+		res, err := r.unexportSvc(ctx, &svcExport)
+		if err != nil {
+			log.Error(err, "failed to unexport the svc", "req", req)
+		}
+		return res, err
 	}
 
 	// Check if the Service to export exists.
@@ -68,15 +84,23 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isSvcDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
+		log.Info("svc is deleted; unexport the svc", "req", req)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
+				log.Error(err, "failed to unexport the svc", "req", req)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		return r.markSvcExportAsInvalidSvcNotFound(ctx, &svcExport)
+		log.Info("mark svc export as invalid (svc not found)", "req", req)
+		err := r.markSvcExportAsInvalidSvcNotFound(ctx, &svcExport)
+		if err != nil {
+			log.Error(err, "failed to mark svc export as invalid (svc not found)", "req", req)
+		}
+		return ctrl.Result{}, err
 	// An unexpected error occurs when retrieving the Service.
 	case err != nil:
+		log.Error(err, "failed to get the svc", "req", req)
 		return ctrl.Result{}, err
 	}
 
@@ -84,25 +108,36 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !isSvcEligibleForExport(&svc) {
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+			log.Info("svc is ineligible; unexport the svc", "req", req)
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
+				log.Error(err, "failed to unexport the svc", "req", req)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		return r.markSvcExportAsInvalidSvcIneligible(ctx, &svcExport)
+		log.Info("mark svc export as invalid (svc ineligible)", "req", req)
+		err := r.markSvcExportAsInvalidSvcIneligible(ctx, &svcExport)
+		if err != nil {
+			log.Error(err, "failed to mark svc export as ivalid (svc ineligible)", "req", req)
+		}
+		return ctrl.Result{}, err
 	}
 
 	// Add the cleanup finalizer; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+		log.Info("add cleanup finalizer to svc export", "req", req)
 		err = r.addSvcExportCleanupFinalizer(ctx, &svcExport)
 		if err != nil {
+			log.Error(err, "failed to add cleanup finalizer to svc export", "req", req)
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Mark the ServiceExport as valid + pending conflict resolution.
+	log.Info("mark svc export as valid")
 	err = r.markSvcExportAsValid(ctx, &svcExport)
 	if err != nil {
+		log.Error(err, "failed to mark svc export as valid", "req", req)
 		return ctrl.Result{}, err
 	}
 
@@ -120,10 +155,15 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	updateInternalSvcExport(r.memberClusterID, &svc, &internalSvcExport)
 	if errors.IsNotFound(err) {
 		// Export the Service
+		log.Info("export the svc", "req", req)
 		err = r.hubClient.Create(ctx, &internalSvcExport)
 	} else if err == nil {
 		// Update the exported Service
+		log.Info("update the exported svc", "req", req)
 		err = r.hubClient.Update(ctx, &internalSvcExport)
+	}
+	if err != nil {
+		log.Error(err, "failed to export the svc or update the exported svc", "req", req)
 	}
 	return ctrl.Result{}, err
 }
@@ -263,7 +303,7 @@ func (r *SvcExportReconciler) markSvcExportAsValid(ctx context.Context, svcExpor
 }
 
 // markSvcExportAsInvalidNotFound marks a ServiceExport as invalid.
-func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
+func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) error {
 	updatedConds := []metav1.Condition{}
 	for _, cond := range svcExport.Status.Conditions {
 		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) && cond.Type != string(fleetnetworkingapi.ServiceExportConflict) {
@@ -278,12 +318,11 @@ func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Cont
 		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
 	})
 	svcExport.Status.Conditions = updatedConds
-	err := r.memberClient.Status().Update(ctx, svcExport)
-	return ctrl.Result{}, err
+	return r.memberClient.Status().Update(ctx, svcExport)
 }
 
 // markSvcExportAsInvalidSvcIneligible marks a ServiceExport as invalid.
-func (r *SvcExportReconciler) markSvcExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) (ctrl.Result, error) {
+func (r *SvcExportReconciler) markSvcExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetworkingapi.ServiceExport) error {
 	updatedConds := []metav1.Condition{}
 	for _, cond := range svcExport.Status.Conditions {
 		if cond.Type != string(fleetnetworkingapi.ServiceExportValid) && cond.Type != string(fleetnetworkingapi.ServiceExportConflict) {
@@ -298,6 +337,5 @@ func (r *SvcExportReconciler) markSvcExportAsInvalidSvcIneligible(ctx context.Co
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", svcExport.Namespace, svcExport.Name),
 	})
 	svcExport.Status.Conditions = updatedConds
-	err := r.memberClient.Status().Update(ctx, svcExport)
-	return ctrl.Result{}, err
+	return r.memberClient.Status().Update(ctx, svcExport)
 }
