@@ -83,7 +83,7 @@ staticcheck: $(STATICCHECK)
 .PHONY: fmt
 fmt:  $(GOIMPORTS) ## Run go fmt against code.
 	go fmt ./...
-	$(GOIMPORTS) -local go.goms.io/fleet -w $$(go list -f {{.Dir}} ./...)
+	$(GOIMPORTS) -local go.goms.io/fleet-networking -w $$(go list -f {{.Dir}} ./...)
 
 .PHONY: vet
 vet: ## Run go vet against code.
@@ -94,9 +94,9 @@ vet: ## Run go vet against code.
 ## --------------------------------------
 
 .PHONY: test
-test: manifests generate fmt vet $(ENVTEST) ## Run tests.
-	$(local-unit-test)
+test: manifests generate fmt vet local-unit-test
 
+.PHONY: local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -race -coverprofile=coverage.xml -covermode=atomic -v
 
