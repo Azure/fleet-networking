@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	memberClusterID                   = "bravelion"
 	memberUserNS                      = "work"
 	hubNSForMember                    = "bravelion"
 	svcName                           = "app"
