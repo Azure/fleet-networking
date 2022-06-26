@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	actionName = "example"
 	NS         = "default"
 	svcName    = "app"
 	altSvcName = "app2"
