@@ -17,13 +17,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -47,18 +47,18 @@ type SvcExportReconciler struct {
 
 // Reconcile exports a Service.
 func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+	reqName := req.NamespacedName
 	startTime := time.Now()
-	log.Info("reconciliation starts", "req", req)
+	klog.InfoS("reconciliation starts", "req", req)
 	defer func() {
 		timeSpent := time.Since(startTime).Seconds()
-		log.Info(fmt.Sprintf("reconciliation ends (%.2f)", timeSpent), "req", req)
+		klog.InfoS(fmt.Sprintf("reconciliation ends (%.2f)", timeSpent), "svc", reqName)
 	}()
 
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetworkingapi.ServiceExport
 	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
-		log.Error(err, "failed to get service export", "req", req)
+		klog.ErrorS(err, "failed to get service export", "svc", reqName)
 		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
 		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
 		// which requires no action to take on this controller's end.
@@ -69,10 +69,10 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
 	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
 	if isSvcExportCleanupNeeded(&svcExport) {
-		log.Info("svc export is deleted; unexport the svc", "req", req)
+		klog.InfoS("svc export is deleted; unexport the svc", "svc", reqName)
 		res, err := r.unexportSvc(ctx, &svcExport)
 		if err != nil {
-			log.Error(err, "failed to unexport the svc", "req", req)
+			klog.ErrorS(err, "failed to unexport the svc", "svc", reqName)
 		}
 		return res, err
 	}
@@ -84,23 +84,23 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isSvcDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		log.Info("svc is deleted; unexport the svc", "req", req)
+		klog.InfoS("svc is deleted; unexport the svc", "svc", reqName)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
-				log.Error(err, "failed to unexport the svc", "req", req)
+				klog.ErrorS(err, "failed to unexport the svc", "svc", reqName)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		log.Info("mark svc export as invalid (svc not found)", "req", req)
+		klog.InfoS("mark svc export as invalid (svc not found)", "svc", reqName)
 		err := r.markSvcExportAsInvalidSvcNotFound(ctx, &svcExport)
 		if err != nil {
-			log.Error(err, "failed to mark svc export as invalid (svc not found)", "req", req)
+			klog.ErrorS(err, "failed to mark svc export as invalid (svc not found)", "svc", reqName)
 		}
 		return ctrl.Result{}, err
 	// An unexpected error occurs when retrieving the Service.
 	case err != nil:
-		log.Error(err, "failed to get the svc", "req", req)
+		klog.ErrorS(err, "failed to get the svc", "svc", reqName)
 		return ctrl.Result{}, err
 	}
 
@@ -108,36 +108,36 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !isSvcEligibleForExport(&svc) {
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-			log.Info("svc is ineligible; unexport the svc", "req", req)
+			klog.InfoS("svc is ineligible; unexport the svc", "svc", reqName)
 			if _, err = r.unexportSvc(ctx, &svcExport); err != nil {
-				log.Error(err, "failed to unexport the svc", "req", req)
+				klog.ErrorS(err, "failed to unexport the svc", "svc", reqName)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		log.Info("mark svc export as invalid (svc ineligible)", "req", req)
+		klog.InfoS("mark svc export as invalid (svc ineligible)", "svc", reqName)
 		err := r.markSvcExportAsInvalidSvcIneligible(ctx, &svcExport)
 		if err != nil {
-			log.Error(err, "failed to mark svc export as ivalid (svc ineligible)", "req", req)
+			klog.ErrorS(err, "failed to mark svc export as ivalid (svc ineligible)", "svc", reqName)
 		}
 		return ctrl.Result{}, err
 	}
 
 	// Add the cleanup finalizer; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-		log.Info("add cleanup finalizer to svc export", "req", req)
+		klog.InfoS("add cleanup finalizer to svc export", "svc", reqName)
 		err = r.addSvcExportCleanupFinalizer(ctx, &svcExport)
 		if err != nil {
-			log.Error(err, "failed to add cleanup finalizer to svc export", "req", req)
+			klog.ErrorS(err, "failed to add cleanup finalizer to svc export", "svc", reqName)
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Mark the ServiceExport as valid + pending conflict resolution.
-	log.Info("mark svc export as valid")
+	klog.InfoS("mark svc export as valid", "svc", reqName)
 	err = r.markSvcExportAsValid(ctx, &svcExport)
 	if err != nil {
-		log.Error(err, "failed to mark svc export as valid", "req", req)
+		klog.ErrorS(err, "failed to mark svc export as valid", "svc", reqName)
 		return ctrl.Result{}, err
 	}
 
@@ -155,15 +155,15 @@ func (r *SvcExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	updateInternalSvcExport(r.memberClusterID, &svc, &internalSvcExport)
 	if errors.IsNotFound(err) {
 		// Export the Service
-		log.Info("export the svc", "req", req)
+		klog.InfoS("export the svc", "svc", reqName)
 		err = r.hubClient.Create(ctx, &internalSvcExport)
 	} else if err == nil {
 		// Update the exported Service
-		log.Info("update the exported svc", "req", req)
+		klog.InfoS("update the exported svc", "svc", reqName)
 		err = r.hubClient.Update(ctx, &internalSvcExport)
 	}
 	if err != nil {
-		log.Error(err, "failed to export the svc or update the exported svc", "req", req)
+		klog.ErrorS(err, "failed to export the svc or update the exported svc", "svc", reqName)
 	}
 	return ctrl.Result{}, err
 }
