@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,17 @@ const (
 	testServiceName  = "my-svc"
 	testNamespace    = "my-ns"
 	systemNamepspace = "fleet-system"
+)
+
+var (
+	multiClusterServiceType = metav1.TypeMeta{
+		Kind:       "MultiClusterService",
+		APIVersion: "networking.fleet.azure.com/v1alpha1",
+	}
+	serviceImportType = metav1.TypeMeta{
+		Kind:       "ServiceImport",
+		APIVersion: "networking.fleet.azure.com/v1alpha1",
+	}
 )
 
 func multiClusterServiceScheme(t *testing.T) *runtime.Scheme {
@@ -182,6 +194,187 @@ func TestHandleDelete(t *testing.T) {
 			serviceImport := fleetnetv1alpha1.ServiceImport{}
 			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &serviceImport); !errors.IsNotFound(err) {
 				t.Errorf("ServiceImport Get() = %+v, got error %v, want not found error", serviceImport, err)
+			}
+		})
+	}
+}
+
+func TestReconcileServiceImport(t *testing.T) {
+	controller := true
+	blockOwnerDeletion := true
+	ownerRef := metav1.OwnerReference{Name: testName, Controller: &controller, BlockOwnerDeletion: &blockOwnerDeletion}
+	tests := []struct {
+		name                string
+		labels              map[string]string
+		serviceImport       *fleetnetv1alpha1.ServiceImport
+		hasOldServiceImport bool
+		want                *fleetnetv1alpha1.ServiceImport
+		wantMCS             *fleetnetv1alpha1.MultiClusterService
+	}{
+		{
+			name:   "no service import and its label", // mcs is just created
+			labels: map[string]string{},
+			want: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+			},
+		},
+		{
+			name: "no updates on mcs",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport: testServiceName,
+			},
+			serviceImport: &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+				},
+			},
+			want: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+			},
+		},
+		{
+			name: "update service import spec on mcs",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport: "old-service",
+			},
+			serviceImport: &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "old-service",
+					Namespace: testNamespace,
+				},
+			},
+			hasOldServiceImport: true,
+			want: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+			},
+		},
+		{
+			name: "update service import on the mcs and no old service import resource",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport: "old-service",
+			},
+			want: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			mcsObj := multiClusterServiceForTest()
+			mcsObj.ObjectMeta.Labels = tc.labels
+			objects := []client.Object{mcsObj}
+			if tc.serviceImport != nil {
+				objects = append(objects, tc.serviceImport)
+			}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(multiClusterServiceScheme(t)).
+				WithObjects(objects...).
+				Build()
+
+			r := multiClusterServiceReconciler(fakeClient)
+			got, err := r.reconcileServiceImport(ctx, mcsObj)
+			if err != nil {
+				t.Fatalf("failed to reconcileServiceImport: %v", err)
+			}
+			options := cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")
+			if diff := cmp.Diff(tc.want, got, options); diff != "" {
+				t.Errorf("reconcileServiceImport() mismatch (-want, +got):\n%s", diff)
+			}
+			mcs := fleetnetv1alpha1.MultiClusterService{}
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); err != nil {
+				t.Fatalf("MultiClusterService Get() got error %v, want not error", err)
+			}
+			if diff := cmp.Diff(tc.wantMCS, &mcs, options); diff != "" {
+				t.Errorf("MultiClusterService() mismatch (-want, +got):\n%s", diff)
+			}
+			if !tc.hasOldServiceImport {
+				return
+			}
+			serviceImport := fleetnetv1alpha1.ServiceImport{}
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}, &serviceImport); !errors.IsNotFound(err) {
+				t.Errorf("Old ServiceImport Get() = %+v, got error %v, want not found error", serviceImport, err)
 			}
 		})
 	}
