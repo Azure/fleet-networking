@@ -36,8 +36,8 @@ const (
 // ignoredCondFields are fields that should be ignored when comparing conditions.
 var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
 
-// getSvcExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
-func getSvcExportValidCond(userNS, svcName string) metav1.Condition {
+// serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
+func serviceExportValidCond(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
@@ -47,8 +47,8 @@ func getSvcExportValidCond(userNS, svcName string) metav1.Condition {
 	}
 }
 
-// getSvcExportInvalidCondNotFound returns a ServiceExportValid condition for exporting a Service that is not found.
-func getSvcExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
+// serviceExportInvalidCondNotFound returns a ServiceExportValid condition for exporting a Service that is not found.
+func serviceExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
@@ -58,8 +58,8 @@ func getSvcExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
 	}
 }
 
-// getSvcExportNewCond returns a ServiceCondition with a new type.
-func getSvcExportNewCond() metav1.Condition {
+// serviceExportNewCond returns a ServiceCondition with a new type.
+func serviceExportNewCond() metav1.Condition {
 	return metav1.Condition{
 		Type:               newSvcExportStatusCondType,
 		Status:             metav1.ConditionTrue,
@@ -69,8 +69,8 @@ func getSvcExportNewCond() metav1.Condition {
 	}
 }
 
-// TestIsSvcExportCleanupNeeded tests the isSvcExportCleanupNeeded function.
-func TestIsSvcExportCleanupNeeded(t *testing.T) {
+// TestIsServiceExportCleanupNeeded tests the isServiceExportCleanupNeeded function.
+func TestIsServiceExportCleanupNeeded(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
 		svcExport *fleetnetv1alpha1.ServiceExport
@@ -78,16 +78,16 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 		name      string
 	}{
 		{
+			name: "should not clean up regular ServiceExport",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
 			},
-			want: false,
-			name: "should not clean up regular ServiceExport",
 		},
 		{
+			name: "should not clean up ServiceExport with only DeletionTimestamp set",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
@@ -95,10 +95,9 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 					DeletionTimestamp: &timestamp,
 				},
 			},
-			want: false,
-			name: "should not clean up ServiceExport with only DeletionTimestamp set",
 		},
 		{
+			name: "should not clean up ServiceExport with cleanup finalizer only",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
@@ -106,10 +105,9 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 					Finalizers: []string{svcExportCleanupFinalizer},
 				},
 			},
-			want: false,
-			name: "should not clean up ServiceExport with cleanup finalizer only",
 		},
 		{
+			name: "should clean up ServiceExport with both cleanup finalizer and DeletionTimestamp set",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
@@ -119,21 +117,20 @@ func TestIsSvcExportCleanupNeeded(t *testing.T) {
 				},
 			},
 			want: true,
-			name: "should clean up ServiceExport with both cleanup finalizer and DeletionTimestamp set",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := isSvcExportCleanupNeeded(tc.svcExport); got != tc.want {
-				t.Errorf("is svc export cleanup needed for svc export %+v, got %t, want %t", tc.svcExport, got, tc.want)
+			if got := isServiceExportCleanupNeeded(tc.svcExport); got != tc.want {
+				t.Errorf("isServiceExportCleanupNeeded(%+v) = %t, want %t", tc.svcExport, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestIsSvcDeleted tests the isSvcDeleted function.
-func TestIsSvcDeleted(t *testing.T) {
+// TestIsServiceDeleted tests the isServiceDeleted function.
+func TestIsServiceDeleted(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
 		svc  *corev1.Service
@@ -141,16 +138,16 @@ func TestIsSvcDeleted(t *testing.T) {
 		name string
 	}{
 		{
+			name: "should not delete Service with DeletionTimestamp set",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
 			},
-			want: false,
-			name: "should not delete Service with DeletionTimestamp set",
 		},
 		{
+			name: "should delete Service with DeletionTimestamp set",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
@@ -159,37 +156,36 @@ func TestIsSvcDeleted(t *testing.T) {
 				},
 			},
 			want: true,
-			name: "should delete Service with DeletionTimestamp set",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := isSvcDeleted(tc.svc); got != tc.want {
-				t.Errorf("is svc deleted for svc %+v, got %t, want %t", tc.svc, got, tc.want)
+			if got := isServiceDeleted(tc.svc); got != tc.want {
+				t.Errorf("isServiceDeleted(%+v) = %t, want %t", tc.svc, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestFormatInternalSvcExportName tests the formatInternalSvcExportName function.
-func TestFormatInternalSvcExportName(t *testing.T) {
+// TestFormatInternalServiceExportName tests the formatInternalServiceExportName function.
+func TestFormatInternalServiceExportName(t *testing.T) {
 	svcExport := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
 			Name:      svcName,
 		},
 	}
-	formattedName := formatInternalSvcExportName(svcExport)
-	expectedFormattedName := "work-app"
-	if formattedName != expectedFormattedName {
-		t.Fatalf("formatted internal svc export name, got %s, want %s", formattedName, expectedFormattedName)
+	got := formatInternalServiceExportName(svcExport)
+	want := "work-app"
+	if got != want {
+		t.Fatalf("formatInternalServiceExportName() = %s, want %s", got, want)
 	}
 }
 
-// TestMarkSvcExportAsInvalid tests the *SvcExportReconciler.markSvcExportAsInvalidIneligible and
-// *SvcExportReconciler.markSvcExportAsInvalidNotFound methods.
-func TestMarkSvcExportAsInvalid(t *testing.T) {
+// TestMarkServiceExportAsInvalid tests the *ServiceExportReconciler.markServiceExportAsInvalidNotFound method.
+func TestMarkServiceExportAsInvalid(t *testing.T) {
+	// Setup
 	svcExportNew := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
@@ -203,8 +199,8 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				getSvcExportValidCond(memberUserNS, svcName),
-				getSvcExportNewCond(),
+				serviceExportValidCond(memberUserNS, svcName),
+				serviceExportNewCond(),
 			},
 		},
 	}
@@ -214,53 +210,55 @@ func TestMarkSvcExportAsInvalid(t *testing.T) {
 		WithObjects(svcExportNew, svcExportValid).
 		Build()
 	fakeHubClient := fakeclient.NewClientBuilder().Build()
-	reconciler := SvcExportReconciler{
+	reconciler := ServiceExportReconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
-		hubNS:        hubNSForMember,
+		hubNamespace: hubNSForMember,
 	}
 	ctx := context.Background()
 
-	t.Run("should mark a new svc export as invalid (not found)", func(t *testing.T) {
-		err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportNew)
-		if err != nil {
-			t.Errorf("failed to mark svc export")
-		}
+	testCases := []struct {
+		name          string
+		svcExport     *fleetnetv1alpha1.ServiceExport
+		expectedConds []metav1.Condition
+	}{
+		{
+			name:      "should mark a new svc export as invalid (not found)",
+			svcExport: svcExportNew,
+			expectedConds: []metav1.Condition{
+				serviceExportInvalidCondNotFound(memberUserNS, svcName),
+			},
+		},
+		{
+			name:      "should mark a valid svc export as invalid (not found)",
+			svcExport: svcExportValid,
+			expectedConds: []metav1.Condition{
+				serviceExportNewCond(),
+				serviceExportInvalidCondNotFound(memberUserNS, altSvcName),
+			},
+		},
+	}
 
-		var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
-		if err != nil {
-			t.Errorf("faile to get updated svc export")
-		}
-		conds := updatedSvcExport.Status.Conditions
-		expectedConds := []metav1.Condition{
-			getSvcExportInvalidCondNotFound(memberUserNS, svcName),
-		}
-		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
-			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := reconciler.markServiceExportAsInvalidSvcNotFound(ctx, tc.svcExport)
+			if err != nil {
+				t.Errorf("failed to mark svc export: %v", err)
+			}
 
-	t.Run("should mark a valid svc export as invalid (not found)", func(t *testing.T) {
-		err := reconciler.markSvcExportAsInvalidSvcNotFound(ctx, svcExportValid)
-		if err != nil {
-			t.Errorf("failed to mark svc export")
-		}
-
-		var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
-		if err != nil {
-			t.Errorf("faile to get updated svc export")
-		}
-		conds := updatedSvcExport.Status.Conditions
-		expectedConds := []metav1.Condition{
-			getSvcExportNewCond(),
-			getSvcExportInvalidCondNotFound(memberUserNS, altSvcName),
-		}
-		if !cmp.Equal(conds, expectedConds, ignoredCondFields) {
-			t.Errorf("svc export conditions, got %+v, want %+v", conds, expectedConds)
-		}
-	})
+			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			err = fakeMemberClient.Get(ctx,
+				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
+				updatedSvcExport)
+			if err != nil {
+				t.Errorf("failed to get updated svc export: %v", err)
+			}
+			conds := updatedSvcExport.Status.Conditions
+			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
+				t.Errorf("svc export conditions, got %+v, want %+v", conds, tc.expectedConds)
+			}
+		})
+	}
 }
 
 // TestRemoveSvcExportCleanupFinalizer tests the *SvcExportReconciler.removeSvcExportCleanupFinalizer method.
@@ -278,21 +276,20 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 		WithObjects(svcExportWithCleanupFinalizer).
 		Build()
 	fakeHubClient := fakeclient.NewClientBuilder().Build()
-	reconciler := SvcExportReconciler{
+	reconciler := ServiceExportReconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
-		hubNS:        hubNSForMember,
+		hubNamespace: hubNSForMember,
 	}
 	ctx := context.Background()
 
-	res, err := reconciler.removeSvcExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer)
+	res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer)
 	if err != nil || !cmp.Equal(res, ctrl.Result{}) {
 		t.Errorf("failed to remove cleanup finalizer: %v; result: %v", err, res)
 	}
 
 	var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-	err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
-	if err != nil {
+	if err := fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport); err != nil {
 		t.Errorf("failed to get updated svc export: %v", err)
 	}
 
@@ -333,48 +330,56 @@ func TestUnexportSvc(t *testing.T) {
 		WithScheme(scheme.Scheme).
 		WithObjects(internalSvcExport).
 		Build()
-	reconciler := SvcExportReconciler{
+	reconciler := ServiceExportReconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
-		hubNS:        hubNSForMember,
+		hubNamespace: hubNSForMember,
 	}
 	ctx := context.Background()
 
-	t.Run("should unexport svc", func(t *testing.T) {
-		res, err := reconciler.unexportSvc(ctx, svcExport)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
-			t.Errorf("failed to unexport svc: %v; result: %v", err, res)
-		}
+	testCases := []struct {
+		name              string
+		svcExport         *fleetnetv1alpha1.ServiceExport
+		internalSvcExport *fleetnetv1alpha1.InternalServiceExport
+	}{
+		{
+			name:      "should unexport svc",
+			svcExport: svcExport,
+		},
+		{
+			name:              "should unexport partially exported svc",
+			svcExport:         altSvcExport,
+			internalSvcExport: internalSvcExport,
+		},
+	}
 
-		var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport)
-		if err != nil {
-			t.Errorf("failed to get updated svc export: %v", err)
-		}
-		if controllerutil.ContainsFinalizer(updatedSvcExport, svcExportCleanupFinalizer) {
-			t.Error("svc export cleanup finalizer is not removed")
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := reconciler.unexportService(ctx, svcExport)
+			if err != nil || !cmp.Equal(res, ctrl.Result{}) {
+				t.Fatalf("failed to unexport svc: %v; result: %v", err, res)
+			}
 
-		var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
-		err = fakeHubClient.Get(ctx, types.NamespacedName{Namespace: hubNSForMember, Name: internalSvcExportName}, deletedInternalSvcExport)
-		if !errors.IsNotFound(err) {
-			t.Error("internal svc export is not removed")
-		}
-	})
+			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			err = fakeMemberClient.Get(ctx,
+				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
+				updatedSvcExport)
+			if err != nil {
+				t.Fatalf("failed to get updated svc export: %v", err)
+			}
+			if !cmp.Equal(updatedSvcExport.ObjectMeta.Finalizers, []string{svcExportCleanupFinalizer}) {
+				t.Error("svc export cleanup finalizer is not removed")
+			}
 
-	t.Run("should unexport partially exported svc", func(t *testing.T) {
-		res, err := reconciler.unexportSvc(ctx, altSvcExport)
-		if err != nil || !cmp.Equal(res, ctrl.Result{}) {
-			t.Errorf("failed to unexport svc: %v; result: %v", err, res)
-		}
-
-		var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-		err = fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: altSvcName}, updatedSvcExport)
-		if err != nil {
-			t.Errorf("failed to get updated svc export: %v", err)
-		}
-		if controllerutil.ContainsFinalizer(updatedSvcExport, svcExportCleanupFinalizer) {
-			t.Error("svc export cleanup finalizer is not removed")
-		}
-	})
+			if tc.internalSvcExport != nil {
+				var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
+				err = fakeHubClient.Get(ctx,
+					types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName},
+					deletedInternalSvcExport)
+				if !errors.IsNotFound(err) {
+					t.Error("internal svc export is not removed")
+				}
+			}
+		})
+	}
 }

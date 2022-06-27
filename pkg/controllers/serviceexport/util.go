@@ -20,17 +20,17 @@ const (
 	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
 )
 
-// isSvcExportCleanupNeeded returns if a ServiceExport needs cleanup.
-func isSvcExportCleanupNeeded(svcExport *fleetnetv1alpha1.ServiceExport) bool {
+// isServiceExportCleanupNeeded returns if a ServiceExport needs cleanup.
+func isServiceExportCleanupNeeded(svcExport *fleetnetv1alpha1.ServiceExport) bool {
 	return controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) && svcExport.DeletionTimestamp != nil
 }
 
-// isSvcDeleted returns if a Service is deleted.
-func isSvcDeleted(svc *corev1.Service) bool {
+// isServiceDeleted returns if a Service is deleted.
+func isServiceDeleted(svc *corev1.Service) bool {
 	return svc.ObjectMeta.DeletionTimestamp != nil
 }
 
-// formatInternalSvcExportName returns the unique name assigned to an exported Service.
-func formatInternalSvcExportName(svcExport *fleetnetv1alpha1.ServiceExport) string {
+// formatInternalServiceExportName returns the unique name assigned to an exported Service.
+func formatInternalServiceExportName(svcExport *fleetnetv1alpha1.ServiceExport) string {
 	return fmt.Sprintf("%s-%s", svcExport.Namespace, svcExport.Name)
 }
