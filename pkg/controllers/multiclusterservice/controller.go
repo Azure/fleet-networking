@@ -70,7 +70,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		return ctrl.Result{}, nil
 	}
 
-	klog.V(1).InfoS("Removing mcs", "multiClusterService", klog.KObj(mcs))
+	klog.V(2).InfoS("Removing mcs", "multiClusterService", klog.KObj(mcs))
 
 	// delete derived service in the fleet-system namesapce
 	serviceName := r.derivedServiceFromLabel(mcs)
@@ -205,4 +205,13 @@ func (r *Reconciler) createAndGetServiceImport(ctx context.Context, mcs *fleetne
 		return nil, err
 	}
 	return &serviceImport, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleetnetv1alpha1.MultiClusterService{}).
+		Owns(&fleetnetv1alpha1.ServiceImport{}).
+		Owns(&corev1.Service{}).
+		Complete(r)
 }
