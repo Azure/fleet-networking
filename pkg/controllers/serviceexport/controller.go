@@ -144,7 +144,12 @@ func (r *SvcExportReconciler) removeSvcExportCleanupFinalizer(ctx context.Contex
 func (r *SvcExportReconciler) markSvcExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	updatedConds := []metav1.Condition{}
 	for _, cond := range svcExport.Status.Conditions {
-		if cond.Type != string(fleetnetv1alpha1.ServiceExportValid) && cond.Type != string(fleetnetv1alpha1.ServiceExportConflict) {
+		if cond.Type == string(fleetnetv1alpha1.ServiceExportValid) {
+			// A stable state has been reached; no further action is needed.
+			if cond.Status == metav1.ConditionFalse && cond.Reason == "ServiceNotFound" {
+				return nil
+			}
+		} else {
 			updatedConds = append(updatedConds, cond)
 		}
 	}
