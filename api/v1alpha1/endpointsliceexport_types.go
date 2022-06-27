@@ -19,7 +19,6 @@ type Endpoint struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:1
 	// +kubebuilder:validation:MaxItems:100
-	// +kubebuilder:validation:UniqueItems:=true
 	Addresses []string `json:"addresses"`
 }
 
