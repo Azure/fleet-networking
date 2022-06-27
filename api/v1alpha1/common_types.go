@@ -28,6 +28,9 @@ type ExportedObjectReference struct {
 	// The resource version of the referred object.
 	// +kubebuilder:validation:Required
 	ResourceVersion string `json:"resourceVersion"`
+	// The generation of the referred object.
+	// +kubebuilder:validation:Required
+	Generation int64 `json:"generation"`
 	// The UID of the referred object.
 	// +kubebuilder:validation:Required
 	UID types.UID `json:"uid"`
