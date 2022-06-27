@@ -95,6 +95,10 @@ spec:
                   clusterId:
                     description: The ID of the cluster where the object is exported.
                     type: string
+                  generation:
+                    description: The generation of the referred object.
+                    format: int64
+                    type: integer
                   kind:
                     description: The kind of the referred object.
                     type: string
@@ -112,6 +116,7 @@ spec:
                     type: string
                 required:
                 - clusterId
+                - generation
                 - kind
                 - name
                 - namespace

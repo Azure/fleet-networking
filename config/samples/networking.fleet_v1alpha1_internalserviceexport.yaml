@@ -13,4 +13,5 @@ spec:
     name: example-svc
     resourceVersion: 1
     uid: example-uid
+    generation: 1
 
