@@ -26,8 +26,8 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-// ServiceExportReconciler reconciles the export of a Service.
-type ServiceExportReconciler struct {
+// Reconciler reconciles the export of a Service.
+type Reconciler struct {
 	memberClient client.Client
 	hubClient    client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
@@ -41,7 +41,7 @@ type ServiceExportReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile exports a Service.
-func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
 	klog.V(2).InfoS("reconciliation starts", "req", req)
@@ -110,7 +110,7 @@ func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 // SetupWithManager builds a controller with SvcExportReconciler and sets it up with a controller manager.
-func (r *ServiceExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// The ServiceExport controller watches over ServiceExport objects.
 		// TO-DO (chenyu1): use predicates to filter out some events.
@@ -123,7 +123,7 @@ func (r *ServiceExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unexportSvc unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the
 // hub cluster and removes the cleanup finalizer.
-func (r *ServiceExportReconciler) unexportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
 	// Get the unique name assigned when the Service is exported. it is guaranteed that Services are
 	// always exported using the name format `ORIGINAL_NAMESPACE-ORIGINAL_NAME`; for example, a Service
 	// from namespace `default`` with the name `store`` will be exported with the name `default-store`.
@@ -150,14 +150,14 @@ func (r *ServiceExportReconciler) unexportService(ctx context.Context, svcExport
 }
 
 // removeSvcExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
-func (r *ServiceExportReconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
 	err := r.memberClient.Update(ctx, svcExport)
 	return ctrl.Result{}, err
 }
 
 // markSvcExportAsInvalidNotFound marks a ServiceExport as invalid.
-func (r *ServiceExportReconciler) markServiceExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) markServiceExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	if validCond != nil && validCond.Status == metav1.ConditionFalse && validCond.Reason == "ServiceNotFound" {
 		// A stable state has been reached; no further action is needed.

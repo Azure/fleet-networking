@@ -210,7 +210,7 @@ func TestMarkServiceExportAsInvalid(t *testing.T) {
 		WithObjects(svcExportNew, svcExportValid).
 		Build()
 	fakeHubClient := fakeclient.NewClientBuilder().Build()
-	reconciler := ServiceExportReconciler{
+	reconciler := Reconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
 		hubNamespace: hubNSForMember,
@@ -276,7 +276,7 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 		WithObjects(svcExportWithCleanupFinalizer).
 		Build()
 	fakeHubClient := fakeclient.NewClientBuilder().Build()
-	reconciler := ServiceExportReconciler{
+	reconciler := Reconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
 		hubNamespace: hubNSForMember,
@@ -330,7 +330,7 @@ func TestUnexportSvc(t *testing.T) {
 		WithScheme(scheme.Scheme).
 		WithObjects(internalSvcExport).
 		Build()
-	reconciler := ServiceExportReconciler{
+	reconciler := Reconciler{
 		memberClient: fakeMemberClient,
 		hubClient:    fakeHubClient,
 		hubNamespace: hubNSForMember,
