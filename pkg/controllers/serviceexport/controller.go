@@ -30,6 +30,7 @@ import (
 type ServiceExportReconciler struct {
 	memberClient client.Client
 	hubClient    client.Client
+	// The namespace reserved for the current member cluster in the hub cluster.
 	hubNamespace string
 }
 
