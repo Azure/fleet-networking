@@ -44,10 +44,10 @@ type ServiceExportReconciler struct {
 func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.InfoS("reconciliation starts", "req", req)
+	klog.V(2).InfoS("reconciliation starts", "req", req)
 	defer func() {
 		latency := time.Since(startTime).Seconds()
-		klog.InfoS("reconciliation ends", "svc", svcRef, "latency", latency)
+		klog.V(2).InfoS("reconciliation ends", "svc", svcRef, "latency", latency)
 	}()
 
 	// Retrieve the ServiceExport object.
@@ -64,7 +64,7 @@ func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
 	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
 	if isServiceExportCleanupNeeded(&svcExport) {
-		klog.InfoS("svc export is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("svc export is deleted; unexport the svc", "svc", svcRef)
 		res, err := r.unexportService(ctx, &svcExport)
 		if err != nil {
 			klog.ErrorS(err, "failed to unexport the svc", "svc", svcRef)
@@ -79,7 +79,7 @@ func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isServiceDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		klog.InfoS("svc is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("svc is deleted; unexport the svc", "svc", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
 				klog.ErrorS(err, "failed to unexport the svc", "svc", svcRef)
@@ -87,7 +87,7 @@ func (r *ServiceExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.InfoS("mark svc export as invalid (svc not found)", "svc", svcRef)
+		klog.V(2).InfoS("mark svc export as invalid (svc not found)", "svc", svcRef)
 		if err := r.markServiceExportAsInvalidSvcNotFound(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "failed to mark svc export as invalid (svc not found)", "svc", svcRef)
 		}
