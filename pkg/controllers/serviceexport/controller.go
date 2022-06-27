@@ -44,7 +44,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("reconciliation starts", "req", req)
+	klog.V(2).InfoS("reconciliation starts", "svc", svcRef)
 	defer func() {
 		latency := time.Since(startTime).Seconds()
 		klog.V(2).InfoS("reconciliation ends", "svc", svcRef, "latency", latency)
