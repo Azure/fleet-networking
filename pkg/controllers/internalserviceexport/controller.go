@@ -56,7 +56,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.memberClient.Get(ctx, types.NamespacedName{Namespace: svcNS, Name: svcName}, &svcExport)
 	switch {
 	case errors.IsNotFound(err):
-		// The absense of ServiceExport suggests that the Service should not be, yet has been, exported. Normally
+		// The absence of ServiceExport suggests that the Service should not be, yet has been, exported. Normally
 		// this situation will never happen as the ServiceExport controller guarantees, using the cleanup finalizer,
 		// that a ServiceExport will only be deleted after the Service has been unexported. In some corner cases,
 		// however, e.g. the user chooses to remove the finalizer explicitly, a Service can be left over in the hub
