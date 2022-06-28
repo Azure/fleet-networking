@@ -19,15 +19,15 @@ import (
 )
 
 const (
-	hubNSForMember       = "bravelion"
-	memberUserNS         = "work"
-	svcName              = "app"
-	svcNameConflicted    = "app2"
-	svcNameNotConflicted = "app3"
+	hubNSForMember      = "bravelion"
+	memberUserNS        = "work"
+	svcName             = "app"
+	conflictedSvcName   = "app2"
+	unconflictedSvcName = "app3"
 )
 
-// serviceExportConflictTrueCondition returns a true ServiceExportConflict condition.
-func serviceExportConflictTrueCondition(svcNamespace string, svcName string) metav1.Condition {
+// conflictedServiceExportConflictCondition returns a ServiceExportConflict condition that reports an export conflict.
+func conflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
@@ -38,8 +38,9 @@ func serviceExportConflictTrueCondition(svcNamespace string, svcName string) met
 	}
 }
 
-// serviceExportConflictFalseCondition returns a false ServiceExportConflict condition.
-func serviceExportConflictFalseCondition(svcNamespace string, svcName string) metav1.Condition {
+// unconflictedServiceExportConflictCondition returns a ServiceExportConflict condition that reports a successful
+// export (no conflict).
+func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
@@ -50,8 +51,9 @@ func serviceExportConflictFalseCondition(svcNamespace string, svcName string) me
 	}
 }
 
-// serviceExportConflictUnknownCondition returns an unknown ServiceExportConflict condition.
-func serviceExportConflictUnknownCondition(svcNamespace string, svcName string) metav1.Condition {
+// unknownServiceExportConflictCondition returns a ServiceExportConflict condition that reports an in-progress
+// conflict resolution session.
+func unknownServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
@@ -78,7 +80,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				serviceExportConflictUnknownCondition(memberUserNS, svcName),
+				unknownServiceExportConflictCondition(memberUserNS, svcName),
 			},
 		},
 	}
@@ -86,22 +88,22 @@ func TestReportBackConflictCondition(t *testing.T) {
 	internalSvcExportNotConflicted := &fleetnetv1alpha1.InternalServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: hubNSForMember,
-			Name:      fmt.Sprintf("%s-%s", memberUserNS, svcNameNotConflicted),
+			Name:      fmt.Sprintf("%s-%s", memberUserNS, unconflictedSvcName),
 		},
 		Status: fleetnetv1alpha1.InternalServiceExportStatus{
 			Conditions: []metav1.Condition{
-				serviceExportConflictFalseCondition(memberUserNS, svcNameNotConflicted),
+				unconflictedServiceExportConflictCondition(memberUserNS, unconflictedSvcName),
 			},
 		},
 	}
 	svcExportNotConflicted := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcNameNotConflicted,
+			Name:      unconflictedSvcName,
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				serviceExportConflictFalseCondition(memberUserNS, svcNameNotConflicted),
+				unconflictedServiceExportConflictCondition(memberUserNS, unconflictedSvcName),
 			},
 		},
 	}
@@ -109,18 +111,18 @@ func TestReportBackConflictCondition(t *testing.T) {
 	internalSvcExportConflicted := &fleetnetv1alpha1.InternalServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: hubNSForMember,
-			Name:      fmt.Sprintf("%s-%s", memberUserNS, svcNameConflicted),
+			Name:      fmt.Sprintf("%s-%s", memberUserNS, conflictedSvcName),
 		},
 		Status: fleetnetv1alpha1.InternalServiceExportStatus{
 			Conditions: []metav1.Condition{
-				serviceExportConflictTrueCondition(memberUserNS, svcNameConflicted),
+				conflictedServiceExportConflictCondition(memberUserNS, conflictedSvcName),
 			},
 		},
 	}
 	svcExportConflicted := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
-			Name:      svcNameConflicted,
+			Name:      conflictedSvcName,
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
 			Conditions: []metav1.Condition{},
@@ -149,7 +151,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			svcExport:         svcExportEmpty,
 			internalSvcExport: internalSvcExportEmpty,
 			expectedConds: []metav1.Condition{
-				serviceExportConflictUnknownCondition(memberUserNS, svcName),
+				unknownServiceExportConflictCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -157,7 +159,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			svcExport:         svcExportNotConflicted,
 			internalSvcExport: internalSvcExportNotConflicted,
 			expectedConds: []metav1.Condition{
-				serviceExportConflictFalseCondition(memberUserNS, svcNameNotConflicted),
+				unconflictedServiceExportConflictCondition(memberUserNS, unconflictedSvcName),
 			},
 		},
 		{
@@ -165,7 +167,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			svcExport:         svcExportConflicted,
 			internalSvcExport: internalSvcExportConflicted,
 			expectedConds: []metav1.Condition{
-				serviceExportConflictTrueCondition(memberUserNS, svcNameConflicted),
+				conflictedServiceExportConflictCondition(memberUserNS, conflictedSvcName),
 			},
 		},
 	}
