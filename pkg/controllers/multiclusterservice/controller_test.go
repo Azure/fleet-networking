@@ -19,20 +19,21 @@ import (
 )
 
 const (
-	testName         = "my-mcs"
-	testServiceName  = "my-svc"
-	testNamespace    = "my-ns"
-	systemNamepspace = "fleet-system"
+	testName                  = "my-mcs"
+	testServiceName           = "my-svc"
+	testNamespace             = "my-ns"
+	systemNamespace           = "fleet-system"
+	fleetNetworkingAPIVersion = "networking.fleet.azure.com/v1alpha1"
 )
 
 var (
 	multiClusterServiceType = metav1.TypeMeta{
 		Kind:       "MultiClusterService",
-		APIVersion: "networking.fleet.azure.com/v1alpha1",
+		APIVersion: fleetNetworkingAPIVersion,
 	}
 	serviceImportType = metav1.TypeMeta{
 		Kind:       "ServiceImport",
-		APIVersion: "networking.fleet.azure.com/v1alpha1",
+		APIVersion: fleetNetworkingAPIVersion,
 	}
 )
 
@@ -63,9 +64,9 @@ func multiClusterServiceForTest() *fleetnetv1alpha1.MultiClusterService {
 
 func multiClusterServiceReconciler(client client.Client) *Reconciler {
 	return &Reconciler{
-		Client:          client,
-		Scheme:          client.Scheme(),
-		SystemNamespace: systemNamepspace,
+		Client:               client,
+		Scheme:               client.Scheme(),
+		FleetSystemNamespace: systemNamespace,
 	}
 }
 
@@ -111,7 +112,7 @@ func TestHandleDelete(t *testing.T) {
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testServiceName,
-					Namespace: systemNamepspace,
+					Namespace: systemNamespace,
 				},
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
@@ -129,7 +130,7 @@ func TestHandleDelete(t *testing.T) {
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testServiceName,
-					Namespace: systemNamepspace,
+					Namespace: systemNamespace,
 				},
 			},
 		},
@@ -177,18 +178,18 @@ func TestHandleDelete(t *testing.T) {
 			r := multiClusterServiceReconciler(fakeClient)
 			got, err := r.handleDelete(ctx, mcsObj)
 			if err != nil {
-				t.Fatalf("failed to reconcile: %v", err)
+				t.Fatalf("failed to handle delete: %v", err)
 			}
 			want := ctrl.Result{}
 			if !cmp.Equal(got, want) {
-				t.Errorf("Reconcile() = %+v, want %+v", got, want)
+				t.Errorf("handleDelete() = %+v, want %+v", got, want)
 			}
 			mcs := fleetnetv1alpha1.MultiClusterService{}
 			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); !errors.IsNotFound(err) {
 				t.Errorf("MultiClusterService Get() %+v, got error %v, want not found error", mcs, err)
 			}
 			service := corev1.Service{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: systemNamepspace, Name: testServiceName}, &service); !errors.IsNotFound(err) {
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: systemNamespace, Name: testServiceName}, &service); !errors.IsNotFound(err) {
 				t.Errorf("Service Get() = %+v, got error %v, want not found error", service, err)
 			}
 			serviceImport := fleetnetv1alpha1.ServiceImport{}
@@ -199,22 +200,27 @@ func TestHandleDelete(t *testing.T) {
 	}
 }
 
-func TestReconcileServiceImport(t *testing.T) {
+func TestHandleUpdate(t *testing.T) {
 	controller := true
 	blockOwnerDeletion := true
-	ownerRef := metav1.OwnerReference{Name: testName, Controller: &controller, BlockOwnerDeletion: &blockOwnerDeletion}
+	ownerRef := metav1.OwnerReference{
+		APIVersion:         multiClusterServiceType.APIVersion,
+		Kind:               multiClusterServiceType.Kind,
+		Name:               testName,
+		Controller:         &controller,
+		BlockOwnerDeletion: &blockOwnerDeletion}
 	tests := []struct {
 		name                string
 		labels              map[string]string
 		serviceImport       *fleetnetv1alpha1.ServiceImport
 		hasOldServiceImport bool
-		want                *fleetnetv1alpha1.ServiceImport
+		wantServiceImport   *fleetnetv1alpha1.ServiceImport
 		wantMCS             *fleetnetv1alpha1.MultiClusterService
 	}{
 		{
 			name:   "no service import and its label", // mcs is just created
 			labels: map[string]string{},
-			want: &fleetnetv1alpha1.ServiceImport{
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
@@ -249,7 +255,7 @@ func TestReconcileServiceImport(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
-			want: &fleetnetv1alpha1.ServiceImport{
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testServiceName,
@@ -284,7 +290,7 @@ func TestReconcileServiceImport(t *testing.T) {
 				},
 			},
 			hasOldServiceImport: true,
-			want: &fleetnetv1alpha1.ServiceImport{
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
@@ -313,7 +319,36 @@ func TestReconcileServiceImport(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: "old-service",
 			},
-			want: &fleetnetv1alpha1.ServiceImport{
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+			},
+		},
+		{
+			name: "no update on service import on the mcs and no service import resource ",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport: testServiceName,
+			},
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
@@ -354,13 +389,22 @@ func TestReconcileServiceImport(t *testing.T) {
 				Build()
 
 			r := multiClusterServiceReconciler(fakeClient)
-			got, err := r.reconcileServiceImport(ctx, mcsObj)
+			got, err := r.handleUpdate(ctx, mcsObj)
 			if err != nil {
-				t.Fatalf("failed to reconcileServiceImport: %v", err)
+				t.Fatalf("failed to handle update: %v", err)
 			}
+			want := ctrl.Result{}
+			if !cmp.Equal(got, want) {
+				t.Errorf("handleUpdate() = %+v, want %+v", got, want)
+			}
+			serviceImport := fleetnetv1alpha1.ServiceImport{}
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &serviceImport); err != nil {
+				t.Fatalf("ServiceImport Get() = %+v, got error %v, want not error", serviceImport, err)
+			}
+
 			options := cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")
-			if diff := cmp.Diff(tc.want, got, options); diff != "" {
-				t.Errorf("reconcileServiceImport() mismatch (-want, +got):\n%s", diff)
+			if diff := cmp.Diff(tc.wantServiceImport, &serviceImport, options); diff != "" {
+				t.Errorf("serviceImport Get() mismatch (-want, +got):\n%s", diff)
 			}
 			mcs := fleetnetv1alpha1.MultiClusterService{}
 			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); err != nil {
@@ -372,9 +416,9 @@ func TestReconcileServiceImport(t *testing.T) {
 			if !tc.hasOldServiceImport {
 				return
 			}
-			serviceImport := fleetnetv1alpha1.ServiceImport{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}, &serviceImport); !errors.IsNotFound(err) {
-				t.Errorf("Old ServiceImport Get() = %+v, got error %v, want not found error", serviceImport, err)
+			oldServiceImport := fleetnetv1alpha1.ServiceImport{}
+			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}, &oldServiceImport); !errors.IsNotFound(err) {
+				t.Errorf("Old ServiceImport Get() = %+v, got error %v, want not found error", oldServiceImport, err)
 			}
 		})
 	}

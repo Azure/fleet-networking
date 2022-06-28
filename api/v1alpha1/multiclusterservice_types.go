@@ -68,7 +68,7 @@ type MultiClusterService struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec MultiClusterServiceSpec `json:"spec,omitempty"`
+	Spec MultiClusterServiceSpec `json:"spec"`
 	// +optional
 	Status MultiClusterServiceStatus `json:"status,omitempty"`
 }
