@@ -44,16 +44,16 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("reconciliation starts", "svc", svcRef)
+	klog.V(2).InfoS("Reconciliation starts", "svc", svcRef)
 	defer func() {
 		latency := time.Since(startTime).Seconds()
-		klog.V(2).InfoS("reconciliation ends", "svc", svcRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "svc", svcRef, "latency", latency)
 	}()
 
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetv1alpha1.ServiceExport
 	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
-		klog.ErrorS(err, "failed to get service export", "svc", svcRef)
+		klog.ErrorS(err, "Failed to get service export", "svc", svcRef)
 		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
 		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
 		// which requires no action to take on this controller's end.
@@ -64,10 +64,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
 	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
 	if isServiceExportCleanupNeeded(&svcExport) {
-		klog.V(2).InfoS("svc export is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("Svc export is deleted; unexport the svc", "svc", svcRef)
 		res, err := r.unexportService(ctx, &svcExport)
 		if err != nil {
-			klog.ErrorS(err, "failed to unexport the svc", "svc", svcRef)
+			klog.ErrorS(err, "Failed to unexport the svc", "svc", svcRef)
 		}
 		return res, err
 	}
@@ -79,22 +79,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isServiceDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		klog.V(2).InfoS("svc is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("Svc is deleted; unexport the svc", "svc", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
-				klog.ErrorS(err, "failed to unexport the svc", "svc", svcRef)
+				klog.ErrorS(err, "Failed to unexport the svc", "svc", svcRef)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(2).InfoS("mark svc export as invalid (svc not found)", "svc", svcRef)
+		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "svc", svcRef)
 		if err := r.markServiceExportAsInvalidSvcNotFound(ctx, &svcExport); err != nil {
-			klog.ErrorS(err, "failed to mark svc export as invalid (svc not found)", "svc", svcRef)
+			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "svc", svcRef)
 		}
 		return ctrl.Result{}, err
 	// An unexpected error occurs when retrieving the Service.
 	case err != nil:
-		klog.ErrorS(err, "failed to get the svc", "svc", svcRef)
+		klog.ErrorS(err, "Failed to get the svc", "svc", svcRef)
 		return ctrl.Result{}, err
 	}
 
