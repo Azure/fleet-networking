@@ -8,6 +8,8 @@ package serviceexport
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -19,7 +21,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
@@ -37,7 +38,7 @@ const (
 var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
 
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
-func serviceExportValidCond(userNS, svcName string) metav1.Condition {
+func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
@@ -47,8 +48,8 @@ func serviceExportValidCond(userNS, svcName string) metav1.Condition {
 	}
 }
 
-// serviceExportInvalidCondNotFound returns a ServiceExportValid condition for exporting a Service that is not found.
-func serviceExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
+// serviceExportInvalidNotFoundCond returns a ServiceExportValid condition for exporting a Service that is not found.
+func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
@@ -59,7 +60,7 @@ func serviceExportInvalidCondNotFound(userNS, svcName string) metav1.Condition {
 }
 
 // serviceExportNewCond returns a ServiceCondition with a new type.
-func serviceExportNewCond() metav1.Condition {
+func serviceExportNewCondition() metav1.Condition {
 	return metav1.Condition{
 		Type:               newSvcExportStatusCondType,
 		Status:             metav1.ConditionTrue,
@@ -69,13 +70,25 @@ func serviceExportNewCond() metav1.Condition {
 	}
 }
 
+// TestMain bootstraps the test environment.
+func TestMain(m *testing.M) {
+	// Add custom APIs to the runtime scheme
+	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
+	// Run the tests
+	os.Exit(m.Run())
+}
+
 // TestIsServiceExportCleanupNeeded tests the isServiceExportCleanupNeeded function.
 func TestIsServiceExportCleanupNeeded(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
+		name      string
 		svcExport *fleetnetv1alpha1.ServiceExport
 		want      bool
-		name      string
 	}{
 		{
 			name: "should not clean up regular ServiceExport",
@@ -123,7 +136,7 @@ func TestIsServiceExportCleanupNeeded(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isServiceExportCleanupNeeded(tc.svcExport); got != tc.want {
-				t.Errorf("isServiceExportCleanupNeeded(%+v) = %t, want %t", tc.svcExport, got, tc.want)
+				t.Fatalf("isServiceExportCleanupNeeded(%+v) = %t, want %t", tc.svcExport, got, tc.want)
 			}
 		})
 	}
@@ -133,9 +146,9 @@ func TestIsServiceExportCleanupNeeded(t *testing.T) {
 func TestIsServiceDeleted(t *testing.T) {
 	timestamp := metav1.Now()
 	testCases := []struct {
+		name string
 		svc  *corev1.Service
 		want bool
-		name string
 	}{
 		{
 			name: "should not delete Service with DeletionTimestamp set",
@@ -162,7 +175,7 @@ func TestIsServiceDeleted(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isServiceDeleted(tc.svc); got != tc.want {
-				t.Errorf("isServiceDeleted(%+v) = %t, want %t", tc.svc, got, tc.want)
+				t.Fatalf("isServiceDeleted(%+v) = %t, want %t", tc.svc, got, tc.want)
 			}
 		})
 	}
@@ -179,11 +192,11 @@ func TestFormatInternalServiceExportName(t *testing.T) {
 	got := formatInternalServiceExportName(svcExport)
 	want := "work-app"
 	if got != want {
-		t.Fatalf("formatInternalServiceExportName() = %s, want %s", got, want)
+		t.Fatalf("formatInternalServiceExportName(%+v) = %s, want %s", svcExport, got, want)
 	}
 }
 
-// TestMarkServiceExportAsInvalid tests the *ServiceExportReconciler.markServiceExportAsInvalidNotFound method.
+// TestMarkServiceExportAsInvalid tests the *Reconciler.markServiceExportAsInvalidNotFound method.
 func TestMarkServiceExportAsInvalid(t *testing.T) {
 	// Setup
 	svcExportNew := &fleetnetv1alpha1.ServiceExport{
@@ -199,8 +212,8 @@ func TestMarkServiceExportAsInvalid(t *testing.T) {
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
 			Conditions: []metav1.Condition{
-				serviceExportValidCond(memberUserNS, svcName),
-				serviceExportNewCond(),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportNewCondition(),
 			},
 		},
 	}
@@ -226,43 +239,40 @@ func TestMarkServiceExportAsInvalid(t *testing.T) {
 			name:      "should mark a new svc export as invalid (not found)",
 			svcExport: svcExportNew,
 			expectedConds: []metav1.Condition{
-				serviceExportInvalidCondNotFound(memberUserNS, svcName),
+				serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
 			},
 		},
 		{
 			name:      "should mark a valid svc export as invalid (not found)",
 			svcExport: svcExportValid,
 			expectedConds: []metav1.Condition{
-				serviceExportNewCond(),
-				serviceExportInvalidCondNotFound(memberUserNS, altSvcName),
+				serviceExportInvalidNotFoundCondition(memberUserNS, altSvcName),
+				serviceExportNewCondition(),
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := reconciler.markServiceExportAsInvalidSvcNotFound(ctx, tc.svcExport)
-			if err != nil {
-				t.Errorf("failed to mark svc export: %v", err)
+			if err := reconciler.markServiceExportAsInvalidNotFound(ctx, tc.svcExport); err != nil {
+				t.Fatalf("failed to mark svc export: %v", err)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			err = fakeMemberClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
-				updatedSvcExport)
-			if err != nil {
-				t.Errorf("failed to get updated svc export: %v", err)
+			svcKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, svcKey, updatedSvcExport); err != nil {
+				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			conds := updatedSvcExport.Status.Conditions
 			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
-				t.Errorf("svc export conditions, got %+v, want %+v", conds, tc.expectedConds)
+				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.expectedConds)
 			}
 		})
 	}
 }
 
-// TestRemoveSvcExportCleanupFinalizer tests the *SvcExportReconciler.removeSvcExportCleanupFinalizer method.
-func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
+// TestRemoveServiceExportCleanupFinalizer tests the *Reconciler.removeServiceExportCleanupFinalizer method.
+func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 	svcExportWithCleanupFinalizer := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:  memberUserNS,
@@ -283,23 +293,22 @@ func TestRemoveSvcExportCleanupFinalizer(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer)
-	if err != nil || !cmp.Equal(res, ctrl.Result{}) {
-		t.Errorf("failed to remove cleanup finalizer: %v; result: %v", err, res)
+	if res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer); err != nil || !cmp.Equal(res, ctrl.Result{}) {
+		t.Fatalf("removeServiceExportCleanupFinalizer() = %+v, %v, want %+v, %v", res, err, ctrl.Result{}, nil)
 	}
 
 	var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
 	if err := fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport); err != nil {
-		t.Errorf("failed to get updated svc export: %v", err)
+		t.Fatalf("failed to get updated svc export: %v", err)
 	}
 
-	if controllerutil.ContainsFinalizer(updatedSvcExport, svcExportCleanupFinalizer) {
-		t.Error("svc export cleanup finalizer is not removed")
+	if updatedSvcExport.ObjectMeta.Finalizers != nil {
+		t.Fatalf("svc export finalizer, got %+v, want %+v", updatedSvcExport.ObjectMeta.Finalizers, nil)
 	}
 }
 
-// TestUnexportSvc tests the *SvcExportReconciler.unexportSvc method.
-func TestUnexportSvc(t *testing.T) {
+// TestUnexportService tests the *Reconciler.unexportService method.
+func TestUnexportService(t *testing.T) {
 	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcName)
 	svcExport := &fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -355,30 +364,27 @@ func TestUnexportSvc(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := reconciler.unexportService(ctx, svcExport)
-			if err != nil || !cmp.Equal(res, ctrl.Result{}) {
-				t.Fatalf("failed to unexport svc: %v; result: %v", err, res)
+			if res, err := reconciler.unexportService(ctx, tc.svcExport); err != nil || !cmp.Equal(res, ctrl.Result{}) {
+				t.Fatalf("unexportService() = %+v, %v, want %+v, %v", res, err, ctrl.Result{}, err)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			err = fakeMemberClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
-				updatedSvcExport)
-			if err != nil {
+			svcKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, svcKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
-			if !cmp.Equal(updatedSvcExport.ObjectMeta.Finalizers, []string{svcExportCleanupFinalizer}) {
-				t.Error("svc export cleanup finalizer is not removed")
+			if updatedSvcExport.ObjectMeta.Finalizers != nil {
+				t.Fatalf("svc export finalizer, got %+v, want %+v", updatedSvcExport.ObjectMeta.Finalizers, nil)
 			}
 
-			if tc.internalSvcExport != nil {
-				var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
-				err = fakeHubClient.Get(ctx,
-					types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName},
-					deletedInternalSvcExport)
-				if !errors.IsNotFound(err) {
-					t.Error("internal svc export is not removed")
-				}
+			if tc.internalSvcExport == nil {
+				return
+			}
+
+			var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
+			internalSvcExportKey := types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName}
+			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !errors.IsNotFound(err) {
+				t.Fatalf("internalSvcExport Get(), got error %v, want not found error", err)
 			}
 		})
 	}

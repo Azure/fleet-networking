@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		// Mark the ServiceExport as invalid.
 		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "svc", svcRef)
-		if err := r.markServiceExportAsInvalidSvcNotFound(ctx, &svcExport); err != nil {
+		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "svc", svcRef)
 		}
 		return ctrl.Result{}, err
@@ -109,7 +109,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, err
 }
 
-// SetupWithManager builds a controller with SvcExportReconciler and sets it up with a controller manager.
+// SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// The ServiceExport controller watches over ServiceExport objects.
@@ -121,7 +121,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// unexportSvc unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the
+// unexportService unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the
 // hub cluster and removes the cleanup finalizer.
 func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
 	// Get the unique name assigned when the Service is exported. it is guaranteed that Services are
@@ -149,15 +149,15 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 	return r.removeServiceExportCleanupFinalizer(ctx, svcExport)
 }
 
-// removeSvcExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
+// removeServiceExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
 func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
 	err := r.memberClient.Update(ctx, svcExport)
 	return ctrl.Result{}, err
 }
 
-// markSvcExportAsInvalidNotFound marks a ServiceExport as invalid.
-func (r *Reconciler) markServiceExportAsInvalidSvcNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+// markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
+func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	if validCond != nil && validCond.Status == metav1.ConditionFalse && validCond.Reason == "ServiceNotFound" {
 		// A stable state has been reached; no further action is needed.
