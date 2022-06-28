@@ -259,8 +259,9 @@ func TestMarkServiceExportAsInvalid(t *testing.T) {
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			svcKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
-			if err := fakeMemberClient.Get(ctx, svcKey, updatedSvcExport); err != nil {
+			if err := fakeMemberClient.Get(ctx,
+				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
+				updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			conds := updatedSvcExport.Status.Conditions
@@ -293,12 +294,15 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer); err != nil || !cmp.Equal(res, ctrl.Result{}) {
+	res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, svcExportWithCleanupFinalizer)
+	if !cmp.Equal(res, ctrl.Result{}) || err != nil {
 		t.Fatalf("removeServiceExportCleanupFinalizer() = %+v, %v, want %+v, %v", res, err, ctrl.Result{}, nil)
 	}
 
 	var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-	if err := fakeMemberClient.Get(ctx, types.NamespacedName{Namespace: memberUserNS, Name: svcName}, updatedSvcExport); err != nil {
+	if err := fakeMemberClient.Get(ctx,
+		types.NamespacedName{Namespace: memberUserNS, Name: svcName},
+		updatedSvcExport); err != nil {
 		t.Fatalf("failed to get updated svc export: %v", err)
 	}
 
@@ -364,13 +368,15 @@ func TestUnexportService(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if res, err := reconciler.unexportService(ctx, tc.svcExport); err != nil || !cmp.Equal(res, ctrl.Result{}) {
+			res, err := reconciler.unexportService(ctx, tc.svcExport)
+			if !cmp.Equal(res, ctrl.Result{}) || err != nil {
 				t.Fatalf("unexportService() = %+v, %v, want %+v, %v", res, err, ctrl.Result{}, err)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			svcKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
-			if err := fakeMemberClient.Get(ctx, svcKey, updatedSvcExport); err != nil {
+			if err := fakeMemberClient.Get(ctx,
+				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
+				updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			if updatedSvcExport.ObjectMeta.Finalizers != nil {
@@ -382,8 +388,9 @@ func TestUnexportService(t *testing.T) {
 			}
 
 			var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
-			internalSvcExportKey := types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName}
-			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !errors.IsNotFound(err) {
+			if err := fakeHubClient.Get(ctx,
+				types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName},
+				deletedInternalSvcExport); !errors.IsNotFound(err) {
 				t.Fatalf("internalSvcExport Get(), got error %v, want not found error", err)
 			}
 		})
