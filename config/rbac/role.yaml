@@ -45,7 +45,7 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices
+  - internalserviceexports
   verbs:
   - create
   - delete
@@ -57,14 +57,27 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices/finalizers
+  - internalserviceexports/status
   verbs:
   - get
+  - patch
   - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices/status
+  - serviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports/status
   verbs:
   - get
   - patch
