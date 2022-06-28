@@ -147,8 +147,8 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	}
 	// check if mcs updates the service import. If so, need to delete the existing one and create new one.
 	mcsKObj := klog.KObj(mcs)
-	svcImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
-	if serviceImportName != nil && serviceImportName.Name != mcs.Spec.ServiceImport.Name {
+	svcImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name) //nolint serviceImportName cannot be nil
+	if serviceImportName.Name != mcs.Spec.ServiceImport.Name {                      //nolint serviceImportName cannot be nil
 		if err := r.deleteServiceImport(ctx, serviceImportName); err != nil {
 			klog.ErrorS(err, "Failed to remove service import of mcs", "multiClusterService", mcsKObj, "serviceImport", svcImportKRef)
 			if !errors.IsNotFound(err) {
