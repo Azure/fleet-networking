@@ -123,9 +123,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			Name:      svcNameConflicted,
 		},
 		Status: fleetnetv1alpha1.ServiceExportStatus{
-			Conditions: []metav1.Condition{
-				serviceExportConflictUnknownCondition(memberUserNS, svcName),
-			},
+			Conditions: []metav1.Condition{},
 		},
 	}
 
