@@ -19,6 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
+<<<<<<< HEAD
   - ""
   resources:
   - services
@@ -43,6 +44,8 @@ rules:
   - update
   - watch
 - apiGroups:
+=======
+>>>>>>> Rebased
   - networking.fleet.azure.com
   resources:
   - internalserviceexports
@@ -58,6 +61,33 @@ rules:
   - networking.fleet.azure.com
   resources:
   - internalserviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - multiclusterservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - multiclusterservices/finalizers
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - multiclusterservices/status
   verbs:
   - get
   - patch
@@ -85,6 +115,7 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+<<<<<<< HEAD
   - serviceexports
   verbs:
   - create
@@ -111,6 +142,8 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+=======
+>>>>>>> Rebased
   - serviceimport
   verbs:
   - create
