@@ -26,6 +26,11 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+const (
+	svcExportValidCondReason           = "ServiceIsValid"
+	svcExportInvalidNotFoundCondReason = "ServiceNotFound"
+)
+
 // Reconciler reconciles the export of a Service.
 type Reconciler struct {
 	memberClient client.Client
@@ -44,16 +49,16 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("Reconciliation starts", "svc", svcRef)
+	klog.V(2).InfoS("Reconciliation starts", "service", svcRef)
 	defer func() {
 		latency := time.Since(startTime).Seconds()
-		klog.V(2).InfoS("Reconciliation ends", "svc", svcRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "service", svcRef, "latency", latency)
 	}()
 
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetv1alpha1.ServiceExport
 	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
-		klog.ErrorS(err, "Failed to get service export", "svc", svcRef)
+		klog.ErrorS(err, "Failed to get service export", "service", svcRef)
 		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
 		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
 		// which requires no action to take on this controller's end.
@@ -64,10 +69,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
 	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
 	if isServiceExportCleanupNeeded(&svcExport) {
-		klog.V(2).InfoS("Svc export is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("Svc export is deleted; unexport the svc", "service", svcRef)
 		res, err := r.unexportService(ctx, &svcExport)
 		if err != nil {
-			klog.ErrorS(err, "Failed to unexport the svc", "svc", svcRef)
+			klog.ErrorS(err, "Failed to unexport the svc", "service", svcRef)
 		}
 		return res, err
 	}
@@ -79,22 +84,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || isServiceDeleted(&svc):
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		klog.V(2).InfoS("Svc is deleted; unexport the svc", "svc", svcRef)
+		klog.V(2).InfoS("Svc is deleted; unexport the svc", "service", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
-				klog.ErrorS(err, "Failed to unexport the svc", "svc", svcRef)
+				klog.ErrorS(err, "Failed to unexport the svc", "service", svcRef)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "svc", svcRef)
+		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "service", svcRef)
 		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
-			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "svc", svcRef)
+			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "service", svcRef)
 		}
 		return ctrl.Result{}, err
 	// An unexpected error occurs when retrieving the Service.
 	case err != nil:
-		klog.ErrorS(err, "Failed to get the svc", "svc", svcRef)
+		klog.ErrorS(err, "Failed to get the svc", "service", svcRef)
 		return ctrl.Result{}, err
 	}
 
@@ -159,7 +164,7 @@ func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, sv
 // markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
 func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-	if validCond != nil && validCond.Status == metav1.ConditionFalse && validCond.Reason == "ServiceNotFound" {
+	if validCond != nil && validCond.Status == metav1.ConditionFalse && validCond.Reason == svcExportInvalidNotFoundCondReason {
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
@@ -168,7 +173,7 @@ func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svc
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
-		Reason:             "ServiceNotFound",
+		Reason:             svcExportInvalidNotFoundCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
 	})
 	return r.memberClient.Status().Update(ctx, svcExport)
