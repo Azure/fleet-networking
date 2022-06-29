@@ -1,154 +1,180 @@
-// Package serviceexport features the ServiceExport controller for syncing Services and EndpointSlices
-// between member clusters and the hub cluster in a fleet.
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+// Package serviceexport features the ServiceExport controller for exporting a Service from a member cluster to
+// its fleet.
 package serviceexport
 
 import (
+	"context"
+	"fmt"
 	"time"
 
-	apicorev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
-	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/workqueue"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-// TO-DO (chenyu1): Update the API information when the design is finalized
-// TO-DO (chenyu1): Refactor the GVR specifications when the API definition package becomes available
 const (
-	// ServiceExport GVR information
-	svcExportGroup    = "mcs.networking.fleet.azure.io"
-	svcExportVersion  = "v1alpha1"
-	svcExportResource = "ServiceExport"
-
-	// ServiceImport GVR information
-	svcImportGroup    = "mcs.networking.fleet.azure.io"
-	svcImportVersion  = "v1alpha1"
-	svcImportResource = "ServiceImport"
-
-	// Min. and max. delay for workqueue rate limiters
-	minQueueRateLimiterRetryDelay = time.Second * 5
-	maxQueueRateLimiterRetryDelay = time.Second * 30
+	svcExportValidCondReason           = "ServiceIsValid"
+	svcExportInvalidNotFoundCondReason = "ServiceNotFound"
 )
 
-// ServiceExport and ServiceImport GVR
-// TO-DO (chenyu1): Refactor the GVR specifications when the API definition package becomes available
-var svcExportGVR schema.GroupVersionResource = schema.GroupVersionResource{
-	Group:    svcExportGroup,
-	Version:  svcExportVersion,
-	Resource: svcExportResource,
-}
-var svcImportGVR schema.GroupVersionResource = schema.GroupVersionResource{
-	Group:    svcImportGroup,
-	Version:  svcImportVersion,
-	Resource: svcImportResource,
+// Reconciler reconciles the export of a Service.
+type Reconciler struct {
+	memberClient client.Client
+	hubClient    client.Client
+	// The namespace reserved for the current member cluster in the hub cluster.
+	hubNamespace string
 }
 
-// TO-DO (chenyu1): Refactor these two interfaces with generics when Go 1.18 becomes available
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/finalizers,verbs=update
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
-// SvcSyncStatusTracker helps track Service synchronization status, i.e. if a Service has been sync'd to the hub
-// cluster and its last sync'd spec.
-type SvcSyncStatusTracker interface{}
+// Reconcile exports a Service.
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	svcRef := klog.KRef(req.Namespace, req.Name)
+	startTime := time.Now()
+	klog.V(2).InfoS("Reconciliation starts", "service", svcRef)
+	defer func() {
+		latency := time.Since(startTime).Seconds()
+		klog.V(2).InfoS("Reconciliation ends", "service", svcRef, "latency", latency)
+	}()
 
-// EndpointSliceSyncStatusTracker helps track EndpointSlice synchronization status, i.e. if an Endpointslice has
-// been sync'd to the hub cluster and its last sync'd spec.
-type EndpointSliceSyncStatusTracker interface{}
-
-// Controller (ServiceExport controller) runs on a member cluster and syncs Services
-// (via ServiceExport and ServiceImport objects) and endpointSlices (via EndpointSliceExport objects)
-// with the hub cluster.
-type Controller struct {
-	// Unique ID of the member cluster in the fleet
-	memberClusterID string
-	// Clients for operating on the built-in and dynamic resources in the member cluster
-	memberKubeClient    clientset.Interface
-	memberDynamicClient dynamic.Interface
-	// Client for operating on the dynamic resources in the hub cluster
-	hubDynamicClient dynamic.Interface
-	// Informers for ServiceExport, Service, and EndpointSlice resources in the member cluster
-	memberSvcExportInformer     informers.GenericInformer
-	memberSvcInformer           coreinformers.ServiceInformer
-	memberEndpointSliceInformer discoveryinformers.EndpointSliceInformer
-	// Informer for ServiceImport resources in the hub cluster
-	hubSvcImportInformer informers.GenericInformer
-	// Workqueues for syncing Services with the hub cluster
-	memberSvcSyncWorkqueue workqueue.RateLimitingInterface
-	hubSvcSyncWorkqueue    workqueue.RateLimitingInterface
-	// Workqueue for syncing EndpointSlices with the hub cluster
-	memberEndpointSliceSyncWorkqueue workqueue.RateLimitingInterface
-	// Trackers that track if a resource has been successfully sync'd before and its last sync'd spec
-	svcSyncStatusTracker           SvcSyncStatusTracker
-	endpointSliceSyncStatusTracker EndpointSliceSyncStatusTracker
-	// Broadcaster and recorder for handling events
-	eventBroadcaster record.EventBroadcaster
-	eventRecorder    record.EventRecorder
-}
-
-// New returns a ServiceExport controller to sync Services and EndpointSlices between member clusters and
-// the hub cluster.
-func New(
-	memberClusterID string,
-	memberKubeClient clientset.Interface, memberDynamicClient dynamic.Interface,
-	hubDynamicClient dynamic.Interface,
-	memberSharedInformerFactory informers.SharedInformerFactory, memberDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory,
-	hubDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory,
-) (*Controller, error) {
-	// Initialize informers
-	memberSvcExportInformer := memberDynamicInformerFactory.ForResource(svcExportGVR)
-	memberSvcInformer := memberSharedInformerFactory.Core().V1().Services()
-	memberEndpointSliceInformer := memberSharedInformerFactory.Discovery().V1().EndpointSlices()
-	hubSvcImportInformer := hubDynamicInformerFactory.ForResource(svcImportGVR)
-
-	// Initialize workqueues
-	memberSvcSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
-		"memberService",
-	)
-	hubSvcSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
-		"hubService",
-	)
-	memberEndpointSliceSyncWorkqueue := workqueue.NewNamedRateLimitingQueue(
-		workqueue.NewItemExponentialFailureRateLimiter(minQueueRateLimiterRetryDelay, maxQueueRateLimiterRetryDelay),
-		"memberEndpointSlices",
-	)
-
-	// Initializer status trackers
-	svcSyncStatusTracker := NewSvcSyncStatusTracker()
-	endpointSliceSyncStatusTracker := NewEndpointSliceSyncStatusTracker()
-
-	// Initialize event broadcaster and recorder
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartStructuredLogging(0)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: memberKubeClient.CoreV1().Events("")})
-	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme,
-		apicorev1.EventSource{Component: "serviceexport-controller"})
-
-	// TO-DO (chenyu1): metrics
-
-	c := Controller{
-		memberClusterID:                  memberClusterID,
-		memberKubeClient:                 memberKubeClient,
-		memberDynamicClient:              memberDynamicClient,
-		hubDynamicClient:                 hubDynamicClient,
-		memberSvcExportInformer:          memberSvcExportInformer,
-		memberSvcInformer:                memberSvcInformer,
-		memberEndpointSliceInformer:      memberEndpointSliceInformer,
-		hubSvcImportInformer:             hubSvcImportInformer,
-		memberSvcSyncWorkqueue:           memberSvcSyncWorkqueue,
-		hubSvcSyncWorkqueue:              hubSvcSyncWorkqueue,
-		memberEndpointSliceSyncWorkqueue: memberEndpointSliceSyncWorkqueue,
-		svcSyncStatusTracker:             svcSyncStatusTracker,
-		endpointSliceSyncStatusTracker:   endpointSliceSyncStatusTracker,
-		eventBroadcaster:                 eventBroadcaster,
-		eventRecorder:                    eventRecorder,
+	// Retrieve the ServiceExport object.
+	var svcExport fleetnetv1alpha1.ServiceExport
+	if err := r.memberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
+		klog.ErrorS(err, "Failed to get service export", "service", svcRef)
+		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
+		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
+		// which requires no action to take on this controller's end.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	return &c, nil
+	// Check if the ServiceExport has been deleted and needs cleanup (unexporting Service).
+	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
+	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
+	if isServiceExportCleanupNeeded(&svcExport) {
+		klog.V(2).InfoS("Svc export is deleted; unexport the svc", "service", svcRef)
+		res, err := r.unexportService(ctx, &svcExport)
+		if err != nil {
+			klog.ErrorS(err, "Failed to unexport the svc", "service", svcRef)
+		}
+		return res, err
+	}
+
+	// Check if the Service to export exists.
+	var svc corev1.Service
+	err := r.memberClient.Get(ctx, req.NamespacedName, &svc)
+	switch {
+	// The Service to export does not exist or has been deleted.
+	case errors.IsNotFound(err) || isServiceDeleted(&svc):
+		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
+		klog.V(2).InfoS("Svc is deleted; unexport the svc", "service", svcRef)
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+			if _, err = r.unexportService(ctx, &svcExport); err != nil {
+				klog.ErrorS(err, "Failed to unexport the svc", "service", svcRef)
+				return ctrl.Result{}, err
+			}
+		}
+		// Mark the ServiceExport as invalid.
+		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "service", svcRef)
+		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
+			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "service", svcRef)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	// An unexpected error occurs when retrieving the Service.
+	case err != nil:
+		klog.ErrorS(err, "Failed to get the svc", "service", svcRef)
+		return ctrl.Result{}, err
+	}
+
+	// Check if the Service is eligible for export.
+
+	// Add the cleanup finalizer; this must happen before the Service is actually exported.
+
+	// Mark the ServiceExport as valid + pending conflict resolution.
+
+	// Export the Service or update the exported Service.
+
+	return ctrl.Result{}, err
+}
+
+// SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		// The ServiceExport controller watches over ServiceExport objects.
+		// TO-DO (chenyu1): use predicates to filter out some events.
+		For(&fleetnetv1alpha1.ServiceExport{}).
+		// The ServiceExport controller watches over Service objects.
+		// TO-DO (chenyu1): use handler funcs to filter out some events.
+		Watches(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForObject{}).
+		Complete(r)
+}
+
+// unexportService unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the
+// hub cluster and removes the cleanup finalizer.
+func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+	// Get the unique name assigned when the Service is exported. it is guaranteed that Services are
+	// always exported using the name format `ORIGINAL_NAMESPACE-ORIGINAL_NAME`; for example, a Service
+	// from namespace `default`` with the name `store`` will be exported with the name `default-store`.
+	internalSvcExportName := formatInternalServiceExportName(svcExport)
+
+	internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.hubNamespace,
+			Name:      internalSvcExportName,
+		},
+	}
+
+	// Unexport the Service.
+	if err := r.hubClient.Delete(ctx, internalSvcExport); err != nil && !errors.IsNotFound(err) {
+		// It is guaranteed that a finalizer is always added before the Service is actually exported; as a result,
+		// in some rare occasions it could happen that a ServiceExport has a finalizer present yet the corresponding
+		// Service has not been exported to the hub cluster yet. It is an expected behavior and no action
+		// is needed on this controller's end.
+		return ctrl.Result{}, err
+	}
+
+	// Remove the finalizer; it must happen after the Service has successfully been unexported.
+	return r.removeServiceExportCleanupFinalizer(ctx, svcExport)
+}
+
+// removeServiceExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
+func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
+	return ctrl.Result{}, r.memberClient.Update(ctx, svcExport)
+}
+
+// markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
+func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+	if validCond != nil && validCond.Status == metav1.ConditionFalse && validCond.Reason == svcExportInvalidNotFoundCondReason {
+		// A stable state has been reached; no further action is needed.
+		return nil
+	}
+
+	meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
+		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             svcExportInvalidNotFoundCondReason,
+		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
+	})
+	return r.memberClient.Status().Update(ctx, svcExport)
 }
