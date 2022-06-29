@@ -157,8 +157,7 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 // removeServiceExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
 func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
-	err := r.memberClient.Update(ctx, svcExport)
-	return ctrl.Result{}, err
+	return ctrl.Result{}, r.memberClient.Update(ctx, svcExport)
 }
 
 // markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.

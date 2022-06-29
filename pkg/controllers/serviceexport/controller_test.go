@@ -8,6 +8,8 @@ package serviceexport
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -66,6 +68,17 @@ func serviceExportNewCondition() metav1.Condition {
 		Reason:             newSvcExportStatusCondDescription,
 		Message:            newSvcExportStatusCondDescription,
 	}
+}
+
+// TestMain bootstraps the test environment.
+func TestMain(m *testing.M) {
+	// Add custom APIs to the runtime scheme
+	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
+	os.Exit(m.Run())
 }
 
 // TestIsServiceExportCleanupNeeded tests the isServiceExportCleanupNeeded function.
@@ -245,9 +258,8 @@ func TestMarkServiceExportAsInvalid(t *testing.T) {
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			if err := fakeMemberClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
-				updatedSvcExport); err != nil {
+			svcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			conds := updatedSvcExport.Status.Conditions
@@ -360,9 +372,8 @@ func TestUnexportService(t *testing.T) {
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			if err := fakeMemberClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
-				updatedSvcExport); err != nil {
+			updatedSvcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			if updatedSvcExport.ObjectMeta.Finalizers != nil {
@@ -374,9 +385,8 @@ func TestUnexportService(t *testing.T) {
 			}
 
 			var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
-			if err := fakeHubClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName},
-				deletedInternalSvcExport); !errors.IsNotFound(err) {
+			internalSvcExportKey := types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName}
+			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !errors.IsNotFound(err) {
 				t.Fatalf("internalSvcExport Get(), got error %v, want not found error", err)
 			}
 		})
