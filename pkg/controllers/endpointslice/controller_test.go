@@ -37,7 +37,7 @@ func randomLengthString(n int) string {
 	alphabet := []rune("abcdefghijklmnopqrstuvwxyz")
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = alphabet[rand.Intn(len(alphabet))]
+		b[i] = alphabet[rand.Intn(len(alphabet))] //nolint:gosec
 	}
 	return string(b)
 }

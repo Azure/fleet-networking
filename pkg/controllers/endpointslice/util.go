@@ -30,16 +30,15 @@ func isEndpointSliceCleanupNeeded(endpointSlice *discoveryv1.EndpointSlice) bool
 func formatFleetUniqueName(clusterID string, endpointSlice *discoveryv1.EndpointSlice) string {
 	if len(clusterID)+len(endpointSlice.Namespace)+len(endpointSlice.Name) < 253 {
 		return fmt.Sprintf("%s-%s-%s", clusterID, endpointSlice.Namespace, endpointSlice.Name)
-	} else {
-		nameLimit := 253 - len(clusterID) - len(endpointSlice.Namespace) - 9
-		return fmt.Sprintf("%s-%s-%s-%s",
-			clusterID,
-			endpointSlice.Namespace,
-			endpointSlice.Name[:nameLimit],
-			uuid.NewUUID()[:5],
-		)
 	}
 
+	nameLimit := 253 - len(clusterID) - len(endpointSlice.Namespace) - 9
+	return fmt.Sprintf("%s-%s-%s-%s",
+		clusterID,
+		endpointSlice.Namespace,
+		endpointSlice.Name[:nameLimit],
+		uuid.NewUUID()[:5],
+	)
 }
 
 // extractEndpointsFromEndpointSlice extracts endpoints from an EndpointSlice.
