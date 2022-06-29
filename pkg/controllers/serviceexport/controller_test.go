@@ -8,8 +8,6 @@ package serviceexport
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,18 +66,6 @@ func serviceExportNewCondition() metav1.Condition {
 		Reason:             newSvcExportStatusCondDescription,
 		Message:            newSvcExportStatusCondDescription,
 	}
-}
-
-// TestMain bootstraps the test environment.
-func TestMain(m *testing.M) {
-	// Add custom APIs to the runtime scheme
-	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
-	}
-
-	// Run the tests
-	os.Exit(m.Run())
 }
 
 // TestIsServiceExportCleanupNeeded tests the isServiceExportCleanupNeeded function.
