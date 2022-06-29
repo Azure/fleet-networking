@@ -62,11 +62,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// however, e.g. the user chooses to remove the finalizer explicitly, a Service can be left over in the hub
 		// cluster, and it is up to this controller to remove it.
 		klog.V(2).InfoS("Svc export does not exist; delete the internal svc export", "service", svcRef)
-		err = r.hubClient.Delete(ctx, &internalSvcExport)
-		if err != nil {
+		if err = r.hubClient.Delete(ctx, &internalSvcExport); err != nil {
 			klog.ErrorS(err, "Failed to delete internal svc export", "internalServiceExport", internalSvcExportRef)
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	case err != nil:
 		// An unexpected error occurs.
 		klog.ErrorS(err, "Failed to get svc export", "service", svcRef)
