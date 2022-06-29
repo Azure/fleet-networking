@@ -398,7 +398,8 @@ func TestHandleUpdate(t *testing.T) {
 				t.Errorf("handleUpdate() = %+v, want %+v", got, want)
 			}
 			serviceImport := fleetnetv1alpha1.ServiceImport{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &serviceImport); err != nil {
+			name := types.NamespacedName{Namespace: testNamespace, Name: testServiceName}
+			if err := fakeClient.Get(ctx, name, &serviceImport); err != nil {
 				t.Fatalf("ServiceImport Get() = %+v, got error %v, want not error", serviceImport, err)
 			}
 
@@ -407,7 +408,8 @@ func TestHandleUpdate(t *testing.T) {
 				t.Errorf("serviceImport Get() mismatch (-want, +got):\n%s", diff)
 			}
 			mcs := fleetnetv1alpha1.MultiClusterService{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testName}, &mcs); err != nil {
+			name = types.NamespacedName{Namespace: testNamespace, Name: testName}
+			if err := fakeClient.Get(ctx, name, &mcs); err != nil {
 				t.Fatalf("MultiClusterService Get() got error %v, want not error", err)
 			}
 			if diff := cmp.Diff(tc.wantMCS, &mcs, options); diff != "" {
@@ -417,7 +419,8 @@ func TestHandleUpdate(t *testing.T) {
 				return
 			}
 			oldServiceImport := fleetnetv1alpha1.ServiceImport{}
-			if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}, &oldServiceImport); !errors.IsNotFound(err) {
+			name = types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}
+			if err := fakeClient.Get(ctx, name, &oldServiceImport); !errors.IsNotFound(err) {
 				t.Errorf("Old ServiceImport Get() = %+v, got error %v, want not found error", oldServiceImport, err)
 			}
 		})
