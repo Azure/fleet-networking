@@ -5,7 +5,7 @@ Licensed under the MIT license.
 
 // package internalsvcexport features the InternalServiceExport controller for reporting back conflict resolution
 // status from the fleet to a member cluster.
-package internalsvcexport
+package internalserviceexport
 
 import (
 	"context"
