@@ -75,8 +75,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Report back conflict resolution result.
 	klog.V(2).InfoS("Report back conflict resolution result", "internalServiceExport", internalSvcExportRef)
-	err = r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport)
-	if err != nil {
+	if err = r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport); err != nil {
 		klog.ErrorS(err, "Failed to report back conflict resolution result", "service", svcRef)
 	}
 	return ctrl.Result{}, err
