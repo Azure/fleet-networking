@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// package internalsvcexport features the InternalServiceExport controller for reporting back conflict resolution
+// package internalserviceexport features the InternalServiceExport controller for reporting back conflict resolution
 // status from the fleet to a member cluster.
 package internalserviceexport
 
@@ -12,13 +12,14 @@ import (
 	"reflect"
 	"time"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 type Reconciler struct {
@@ -51,7 +52,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Check if the exported Service exists.
 	svcNS := internalSvcExport.Spec.ServiceReference.Namespace
 	svcName := internalSvcExport.Spec.ServiceReference.Name
-	svcRef := klog.KRef(svcNS, svcName)
+	svcExportRef := klog.KRef(svcNS, svcName)
 	var svcExport fleetnetv1alpha1.ServiceExport
 	err := r.memberClient.Get(ctx, types.NamespacedName{Namespace: svcNS, Name: svcName}, &svcExport)
 	switch {
@@ -61,7 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// that a ServiceExport will only be deleted after the Service has been unexported. In some corner cases,
 		// however, e.g. the user chooses to remove the finalizer explicitly, a Service can be left over in the hub
 		// cluster, and it is up to this controller to remove it.
-		klog.V(2).InfoS("Svc export does not exist; delete the internal svc export", "service", svcRef)
+		klog.V(2).InfoS("Svc export does not exist; delete the internal svc export", "serviceExport", svcExportRef)
 		if err = r.hubClient.Delete(ctx, &internalSvcExport); err != nil {
 			klog.ErrorS(err, "Failed to delete internal svc export", "internalServiceExport", internalSvcExportRef)
 			return ctrl.Result{}, err
@@ -69,16 +70,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	case err != nil:
 		// An unexpected error occurs.
-		klog.ErrorS(err, "Failed to get svc export", "service", svcRef)
+		klog.ErrorS(err, "Failed to get svc export", "serviceExport", svcExportRef)
 		return ctrl.Result{}, err
 	}
 
 	// Report back conflict resolution result.
 	klog.V(2).InfoS("Report back conflict resolution result", "internalServiceExport", internalSvcExportRef)
 	if err = r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport); err != nil {
-		klog.ErrorS(err, "Failed to report back conflict resolution result", "service", svcRef)
+		klog.ErrorS(err, "Failed to report back conflict resolution result", "serviceExport", svcExportRef)
+		return ctrl.Result{}, err
 	}
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager builds a controller with InternalSvcExportReconciler and sets it up with a
@@ -102,8 +104,7 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 		return nil
 	}
 
-	svcExportConflictCond := meta.FindStatusCondition(internalSvcExport.Status.Conditions,
-		string(fleetnetv1alpha1.ServiceExportConflict))
+	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 	if reflect.DeepEqual(internalSvcExportConflictCond, svcExportConflictCond) {
 		// The conflict condition has not changed and there is no need to report back; this is also an expected
 		// behavior.

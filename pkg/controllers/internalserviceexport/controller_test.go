@@ -8,14 +8,18 @@ package internalserviceexport
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 const (
@@ -25,6 +29,9 @@ const (
 	conflictedSvcName   = "app2"
 	unconflictedSvcName = "app3"
 )
+
+// ignoredCondFields are fields that should be ignored when comparing conditions.
+var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
 
 // conflictedServiceExportConflictCondition returns a ServiceExportConflict condition that reports an export conflict.
 func conflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
@@ -62,6 +69,17 @@ func unknownServiceExportConflictCondition(svcNamespace string, svcName string) 
 		Reason:             "PendingConflictResolution",
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcNamespace, svcName),
 	}
+}
+
+// Bootstrap the test environment.
+func TestMain(m *testing.M) {
+	// Add custom APIs to the runtime scheme
+	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
+	os.Exit(m.Run())
 }
 
 // TestReportBackConflictCondition tests the *Reconciler.reportBackConflictCondition method.
@@ -173,20 +191,17 @@ func TestReportBackConflictCondition(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport)
-			if err != nil {
+			if err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport); err != nil {
 				t.Fatalf("failed to report back conflict cond: %v", err)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			err = fakeMemberClient.Get(ctx,
-				types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name},
-				updatedSvcExport)
-			if err != nil {
+			updatedSvcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			conds := updatedSvcExport.Status.Conditions
-			if !cmp.Equal(conds, tc.expectedConds) {
+			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
 				t.Fatalf("conds are not correctly updated, got %+v, want %+v", conds, tc.expectedConds)
 			}
 		})
