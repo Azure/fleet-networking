@@ -95,8 +95,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(2).InfoS("Mark svc export as invalid (svc not found)", "service", svcRef)
 		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to mark svc export as invalid (svc not found)", "service", svcRef)
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	// An unexpected error occurs when retrieving the Service.
 	case err != nil:
 		klog.ErrorS(err, "Failed to get the svc", "service", svcRef)
