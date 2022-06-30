@@ -110,6 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	fleetUniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
 	if !ok {
 		var err error
+		// Unique name label must be added before an EndpointSlice is exported.
 		fleetUniqueName, err = r.assignUniqueNameAsLabel(ctx, &endpointSlice)
 		if err != nil {
 			klog.ErrorS(err, "Failed to assign unique name as a label", "endpointSlice", endpointSliceRef)
@@ -283,18 +284,26 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 // unexportEndpointSlice unexports an EndpointSlice by deleting its corresponding EndpointSliceExport.
 func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
 	fleetUniqueName := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+
 	endpointSliceExport := fleetnetv1alpha1.EndpointSliceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.hubNamespace,
 			Name:      fleetUniqueName,
 		},
 	}
-	err := r.hubClient.Delete(ctx, &endpointSliceExport)
 	// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
 	// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
 	// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
 	// end.
-	return client.IgnoreNotFound(err)
+	if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+		// An unexpected error has occurred.
+		return err
+	}
+
+	// Remove the unique name label; this must happen after the EndpointSliceExport has been deleted.
+	endpointSliceCopy := endpointSlice.DeepCopy()
+	delete(endpointSliceCopy.Labels, endpointSliceUniqueNameLabel)
+	return r.memberClient.Update(ctx, endpointSliceCopy)
 }
 
 // assignUniqueNameAsLabel assigns a new unique name as a label.

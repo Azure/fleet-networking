@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -279,7 +280,7 @@ func TestUnexportEndpointSlice(t *testing.T) {
 			Name:      altEndpointSliceName,
 			Labels: map[string]string{
 				endpointSliceUniqueNameLabel: fmt.Sprintf("%s-%s-%s-%s",
-					memberClusterID, memberUserNS, endpointSliceName, randomLengthString(5)),
+					memberClusterID, memberUserNS, altEndpointSliceName, randomLengthString(5)),
 			},
 		},
 	}
@@ -290,16 +291,18 @@ func TestUnexportEndpointSlice(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name          string
-		endpointSlice *discoveryv1.EndpointSlice
+		name                string
+		endpointSlice       *discoveryv1.EndpointSlice
+		endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
 	}{
 		{
-			name:          "should delete endpoint slice export",
-			endpointSlice: endpointSlice,
+			name:                "should delete endpoint slice export",
+			endpointSlice:       endpointSlice,
+			endpointSliceExport: endpointSliceExport,
 		},
 		{
 			name:          "should ignore not found endpoint slice export",
-			endpointSlice: endpointSlice,
+			endpointSlice: unexportedEndpointSlice,
 		},
 	}
 
@@ -320,8 +323,31 @@ func TestUnexportEndpointSlice(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := reconciler.unexportEndpointSlice(ctx, endpointSlice); err != nil {
+			if err := reconciler.unexportEndpointSlice(ctx, tc.endpointSlice); err != nil {
 				t.Fatalf("unexportEndpointSlice(%+v), got %v, want no error", endpointSlice, err)
+			}
+
+			updatedEndpointSlice := &discoveryv1.EndpointSlice{}
+			updatedEndpointSliceKey := types.NamespacedName{
+				Namespace: tc.endpointSlice.Namespace,
+				Name:      tc.endpointSlice.Name,
+			}
+			if err := reconciler.memberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
+				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
+			}
+			if _, ok := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
+				t.Fatalf("endpointSlice labels, got %+v, want no %s label", updatedEndpointSlice.Labels, endpointSliceUniqueNameLabel)
+			}
+
+			if tc.endpointSliceExport == nil {
+				return
+			}
+			endpointSliceExportKey := types.NamespacedName{
+				Namespace: tc.endpointSliceExport.Namespace,
+				Name:      tc.endpointSliceExport.Name,
+			}
+			if err := reconciler.hubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); !errors.IsNotFound(err) {
+				t.Fatalf("Get(%+v), got %v, want not found error", tc.endpointSliceExport, err)
 			}
 		})
 	}
