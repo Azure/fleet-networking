@@ -299,8 +299,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 			},
 			wantMCS: &fleetnetv1alpha1.MultiClusterService{
@@ -428,8 +429,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 			},
 			wantMCS: &fleetnetv1alpha1.MultiClusterService{
@@ -469,8 +471,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 			},
 			wantMCS: &fleetnetv1alpha1.MultiClusterService{
@@ -509,8 +512,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
@@ -568,8 +572,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
@@ -646,8 +651,9 @@ func TestHandleUpdate(t *testing.T) {
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testServiceName,
-					Namespace: testNamespace,
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
 				},
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
