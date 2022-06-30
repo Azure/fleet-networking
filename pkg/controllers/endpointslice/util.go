@@ -11,19 +11,13 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
-	fleetnetworkingapi "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-// isEndpointSliceExportable returns if an EndpointSlice is exportable; at this moment only IPv4 addresses are
-// supported.
-func isEndpointSliceExportable(endpointSlice *discoveryv1.EndpointSlice) bool {
-	return endpointSlice.AddressType == discoveryv1.AddressTypeIPv4
-}
-
-// isEndpointSliceCleanupNeeded returns if an EndpointSlice needs cleanup.
-func isEndpointSliceCleanupNeeded(endpointSlice *discoveryv1.EndpointSlice) bool {
-	_, hasUniqueNameLabel := endpointSlice.Labels[endpointSliceUniqueNameLabel]
-	return hasUniqueNameLabel && endpointSlice.DeletionTimestamp != nil
+// isEndpointSlicePermanentlyUnexportable returns if an EndpointSlice is permanently unexportable.
+func isEndpointSlicePermanentlyUnexportable(endpointSlice *discoveryv1.EndpointSlice) bool {
+	// At this moment only IPv4 endpointslices can be exported; note that AddressType is an immutable field.
+	return endpointSlice.AddressType != discoveryv1.AddressTypeIPv4
 }
 
 // formatFleetUniqueName formats a unique name for an EndpointSlice.
@@ -42,8 +36,8 @@ func formatFleetUniqueName(clusterID string, endpointSlice *discoveryv1.Endpoint
 }
 
 // extractEndpointsFromEndpointSlice extracts endpoints from an EndpointSlice.
-func extractEndpointsFromEndpointSlice(endpointSlice *discoveryv1.EndpointSlice) []fleetnetworkingapi.Endpoint {
-	extractedEndpoints := []fleetnetworkingapi.Endpoint{}
+func extractEndpointsFromEndpointSlice(endpointSlice *discoveryv1.EndpointSlice) []fleetnetv1alpha1.Endpoint {
+	extractedEndpoints := []fleetnetv1alpha1.Endpoint{}
 	for _, endpoint := range endpointSlice.Endpoints {
 		// Only ready endpoints can be exported; EndpointSlice API dictates that consumers should interpret
 		// unknown ready state, represented by a nil value, as true ready state.
@@ -51,7 +45,7 @@ func extractEndpointsFromEndpointSlice(endpointSlice *discoveryv1.EndpointSlice)
 		// allows a backend to serve traffic even if it is already terminating (EndpointSliceTerminationCondition
 		// feature gate).
 		if endpoint.Conditions.Ready == nil || *(endpoint.Conditions.Ready) {
-			extractedEndpoints = append(extractedEndpoints, fleetnetworkingapi.Endpoint{
+			extractedEndpoints = append(extractedEndpoints, fleetnetv1alpha1.Endpoint{
 				Addresses: endpoint.Addresses,
 			})
 		}
