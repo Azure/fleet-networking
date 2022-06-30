@@ -633,6 +633,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 // TestShouldSkipOrUnexportEndpointSlice_ExportedService tests the *Reconciler.shouldSkipOrUnexportEndpointSlice
 // method.
 func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
+	deletedTimestamp := metav1.Now()
 	exportedEndpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
@@ -650,6 +651,18 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 			Name:      unexportedEndpointSliceName,
 			Labels: map[string]string{
 				discoveryv1.LabelServiceName: exportedSvcName,
+			},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+	}
+	deletedEndpointSliceName := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         memberUserNS,
+			Name:              deletedEndpointSliceName,
+			DeletionTimestamp: &deletedTimestamp,
+			Labels: map[string]string{
+				discoveryv1.LabelServiceName: exportedSvcName,
+				endpointSliceUniqueNameLabel: fmt.Sprintf("%s-%s-%s", memberClusterID, memberUserNS, deletedEndpointSliceName),
 			},
 		},
 		AddressType: discoveryv1.AddressTypeIPv4,
@@ -699,6 +712,11 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 			name:          "should export endpoint slice (create)",
 			endpointSlice: unexportedEndpointSice,
 			want:          noSkipOrUnexportNeededOp,
+		},
+		{
+			name:          "should unexport endpoint slice (deleted)",
+			endpointSlice: deletedEndpointSliceName,
+			want:          shouldUnexportEndpointSliceOp,
 		},
 	}
 

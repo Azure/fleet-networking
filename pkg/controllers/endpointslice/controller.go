@@ -272,7 +272,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 		// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice has a unique
 		// name label (i.e. it might have been exported), but it has been deleted; as a result,
 		// the EndpointSlice should be unexported.
-		return shouldSkipEndpointSliceOp, nil
+		return shouldUnexportEndpointSliceOp, nil
 	}
 
 	// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice is not marked
