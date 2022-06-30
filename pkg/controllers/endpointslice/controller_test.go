@@ -28,15 +28,11 @@ import (
 )
 
 const (
-	memberClusterID                    = "bravelion"
-	memberUserNS                       = "work"
-	hubNSForMember                     = "bravelion"
-	svcName                            = "app"
-	endpointSliceName                  = "app-endpointslice"
-	svcExportValidCondReason           = "ServiceIsValid"
-	svcExportInvalidNotFoundCondReason = "ServiceNotFound"
-	svcExportNoConflictCondReason      = "ServiceHasNoConflict"
-	svcExportConflictedCondReason      = "ServiceIsConflicted"
+	memberClusterID   = "bravelion"
+	memberUserNS      = "work"
+	hubNSForMember    = "bravelion"
+	svcName           = "app"
+	endpointSliceName = "app-endpointslice"
 )
 
 // randomLowerCaseAlphabeticString returns a string of lower case alphabetic charactersonly.
@@ -60,7 +56,7 @@ func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
-		Reason:             svcExportValidCondReason,
+		Reason:             "ServiceIsValid",
 		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
 	}
 }
@@ -71,7 +67,7 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
-		Reason:             svcExportInvalidNotFoundCondReason,
+		Reason:             "ServiceNotFound",
 		Message:            fmt.Sprintf("service %s/%s is not found", userNS, svcName),
 	}
 }
@@ -83,7 +79,7 @@ func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
-		Reason:             svcExportNoConflictCondReason,
+		Reason:             "ServiceHasNoConflict",
 		Message:            fmt.Sprintf("service %s/%s has no conflict with other exported Services", userNS, svcName),
 	}
 }
@@ -95,7 +91,7 @@ func serviceExportConflictedCondition(userNS, svcName string) metav1.Condition {
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
-		Reason:             svcExportConflictedCondReason,
+		Reason:             "ServiceIsConflicted",
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported Services", userNS, svcName),
 	}
 }
