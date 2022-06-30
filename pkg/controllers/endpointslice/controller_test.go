@@ -52,7 +52,6 @@ func randomLengthString(n int) string {
 // setupFakeClient returns a populated fake client.
 func setupFakeClient(objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().WithScheme(scheme.Scheme).WithObjects(objs...).Build()
-
 }
 
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
