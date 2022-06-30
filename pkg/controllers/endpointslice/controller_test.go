@@ -496,7 +496,6 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 // TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport tests the
