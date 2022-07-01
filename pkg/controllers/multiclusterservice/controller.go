@@ -5,24 +5,40 @@ package multiclusterservice
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/condition"
 )
 
 const (
+	// multiClusterService label
 	multiClusterServiceFinalizer          = "networking.fleet.azure.com/service-resources-cleanup"
 	multiClusterServiceLabelService       = "networking.fleet.azure.com/derived-service"
 	multiClusterServiceLabelServiceImport = "networking.fleet.azure.com/service-import"
+
+	// service label
+	serviceLabelMultiClusterService = "networking.fleet.azure.com/multi-cluster-service-name"
+
+	eventReasonUnknownServiceImport = "UnknownServiceImport"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -178,7 +194,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		// Since there is no services exported in the clusters, delete derived service if exists.
 		// When service import is still in the processing state and there is no derived service attached to the MCS,
 		// it will do nothing.
-		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs)
+		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs, serviceImport)
 	}
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
@@ -200,12 +216,14 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	// OR 2) Update a service if the desired state does not match with current state.
 	// OR 3) Get a service when Service status change triggers the MCS reconcile.
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
-		return r.ensureDerivedService(service, serviceImport)
+		return r.ensureDerivedService(mcs, serviceImport, service)
 	}); err != nil {
 		klog.ErrorS(err, "Failed to create or update derived service of mcs", "multiClusterService", mcsKObj, "service", klog.KObj(service))
 		return ctrl.Result{}, err
 	}
-	// update mcs status
+	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service); err != nil {
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -214,14 +232,18 @@ func (r *Reconciler) ensureServiceImport(serviceImport *fleetnetv1alpha1.Service
 }
 
 // handleInvalidServiceImport deletes derived service and updates its label when the service import is no longer valid.
-func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService) error {
+func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) error {
+	// If serviceImport is invalid or in the processing state, the existing mcs load balancer status should be reset.
+	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, &corev1.Service{}); err != nil {
+		return err
+	}
+
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
 		return nil // do nothing
 	}
 	mcsKObj := klog.KObj(mcs)
 	svcKRef := klog.KRef(serviceName.Namespace, serviceName.Name)
-	// TODO update mcs status to reset the load balancer status
 	if err := r.deleteDerivedService(ctx, serviceName); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj, "service", svcKRef)
 		return err
@@ -241,7 +263,11 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 		// no need to update the mcs
 		return nil
 	}
-	labels[key] = value
+	if labels == nil { // in case labels map is nil and causes the panic
+		mcs.Labels = map[string]string{key: value}
+	} else {
+		labels[key] = value
+	}
 	if err := r.Client.Update(ctx, mcs); err != nil {
 		klog.ErrorS(err, "Failed to add label to mcs", "multiClusterService", klog.KObj(mcs), "key", key, "value", value)
 		return err
@@ -249,7 +275,7 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 	return nil
 }
 
-func (r *Reconciler) ensureDerivedService(service *corev1.Service, serviceImport *fleetnetv1alpha1.ServiceImport) error {
+func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport, service *corev1.Service) error {
 	svcPorts := make([]corev1.ServicePort, len(serviceImport.Status.Ports))
 	for i, importPort := range serviceImport.Status.Ports {
 		svcPorts[i] = importPort.ToServicePort()
@@ -258,7 +284,13 @@ func (r *Reconciler) ensureDerivedService(service *corev1.Service, serviceImport
 		Type:  corev1.ServiceTypeLoadBalancer,
 		Ports: svcPorts,
 	}
-	// TODO add mcs label to be watched by mcs controller
+	key := serviceLabelMultiClusterService
+	value := generateServiceLabel(mcs.Namespace, mcs.Name)
+	if service.GetLabels() == nil { // in case labels map is nil and causes the panic
+		service.Labels = map[string]string{key: value}
+	} else {
+		service.Labels[key] = value
+	}
 	return nil
 }
 
@@ -270,13 +302,102 @@ func (r *Reconciler) generateDerivedServiceName(mcs *fleetnetv1alpha1.MultiClust
 	return &types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: fmt.Sprintf("%v-%v", mcs.Namespace, mcs.Name)}
 }
 
+// updateMultiClusterServiceStatus updates mcs condition and status based on the service import and service status.
+func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport, service *corev1.Service) error {
+	currentCond := meta.FindStatusCondition(mcs.Status.Conditions, string(fleetnetv1alpha1.MultiClusterServiceValid))
+	desiredCond := &metav1.Condition{
+		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: mcs.GetGeneration(),
+	}
+	if len(serviceImport.Status.Clusters) == 0 {
+		desiredCond = &metav1.Condition{
+			Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+			Status:             metav1.ConditionUnknown,
+			Reason:             eventReasonUnknownServiceImport,
+			Message:            "unable to find valid service import",
+			ObservedGeneration: mcs.GetGeneration(),
+		}
+	}
+
+	if equality.Semantic.DeepEqual(mcs.Status.LoadBalancer, service.Status.LoadBalancer) &&
+		condition.EqualCondition(currentCond, desiredCond) {
+		return nil
+	}
+	mcsKObj := klog.KObj(mcs)
+	oldStatus := mcs.Status
+	mcs.Status.LoadBalancer = service.Status.LoadBalancer
+	meta.SetStatusCondition(&mcs.Status.Conditions, *desiredCond)
+
+	klog.V(2).InfoS("Updating mcs status", "multiClusterService", mcsKObj, "status", mcs.Status, "oldStatus", oldStatus)
+	if err := r.Status().Update(ctx, mcs); err != nil {
+		klog.ErrorS(err, "Failed to update mcs status", "multiClusterService", mcsKObj, "status", mcs.Status, "oldStatus", oldStatus)
+		return err
+	}
+	return nil
+}
+
+func generateServiceLabel(namespace, name string) string {
+	return fmt.Sprintf("%v/%v", namespace, name)
+}
+
+func parseFromServiceLabel(label string) types.NamespacedName {
+	s := strings.Split(label, "/")
+	if len(s) != 2 {
+		return types.NamespacedName{}
+	}
+	return types.NamespacedName{
+		Namespace: s[0],
+		Name:      s[1],
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.MultiClusterService{}).
 		Owns(&fleetnetv1alpha1.ServiceImport{}).
-		// cannot add cross-namespace owner reference
-		// TODO watch the service
-		// Owns(&corev1.Service{}).
+		// cannot add cross-namespace owner reference on service object
+		// watch for the changes to the service object
+		// This object is bound to be updated when Service in the fleet system namespace is updated. There is also a
+		// filtering logic to enqueue those service event.
+		Watches(
+			&source.Kind{Type: &corev1.Service{}},
+			handler.EnqueueRequestsFromMapFunc(r.serviceEventHandler()),
+			builder.WithPredicates(r.serviceFilter()),
+		).
 		Complete(r)
+}
+
+func (r *Reconciler) serviceEventHandler() handler.MapFunc {
+	return func(object client.Object) []reconcile.Request {
+		mcs := object.GetLabels()[serviceLabelMultiClusterService]
+		return []reconcile.Request{
+			{
+				NamespacedName: parseFromServiceLabel(mcs),
+			},
+		}
+	}
+}
+
+func (r *Reconciler) serviceFilter() predicate.Funcs {
+	return predicate.Funcs{
+		GenericFunc: func(e event.GenericEvent) bool {
+			return r.DoesServiceHaveMultiClusterService(e.Object)
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			return r.DoesServiceHaveMultiClusterService(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return r.DoesServiceHaveMultiClusterService(e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return r.DoesServiceHaveMultiClusterService(e.Object)
+		},
+	}
+}
+
+func (r *Reconciler) DoesServiceHaveMultiClusterService(object client.Object) bool {
+	// If the service is created in the fleet system, it's owned by the MCS.
+	return object.GetNamespace() == r.FleetSystemNamespace
 }

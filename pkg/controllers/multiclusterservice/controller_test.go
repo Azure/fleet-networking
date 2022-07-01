@@ -250,10 +250,38 @@ func TestHandleUpdate(t *testing.T) {
 			NodePort: 0,
 		},
 	}
+	loadBalancerStatus := corev1.LoadBalancerStatus{
+		Ingress: []corev1.LoadBalancerIngress{
+			{
+				IP: "10.0.0.1",
+				Ports: []corev1.PortStatus{
+					{
+						Port:     8080,
+						Protocol: corev1.ProtocolTCP,
+					},
+				},
+			},
+		},
+	}
+	unknownCondition := metav1.Condition{
+		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+		Status:             metav1.ConditionUnknown,
+		Reason:             eventReasonUnknownServiceImport,
+		LastTransitionTime: metav1.Now(),
+	}
+	validCondition := metav1.Condition{
+		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	}
+	serviceLabel := map[string]string{
+		serviceLabelMultiClusterService: fmt.Sprintf("%v/%v", testNamespace, testName),
+	}
 
 	tests := []struct {
 		name                string
 		labels              map[string]string
+		status              *fleetnetv1alpha1.MultiClusterServiceStatus
 		serviceImport       *fleetnetv1alpha1.ServiceImport
 		hasOldServiceImport bool
 		service             *corev1.Service
@@ -262,8 +290,7 @@ func TestHandleUpdate(t *testing.T) {
 		wantMCS             *fleetnetv1alpha1.MultiClusterService
 	}{
 		{
-			name:   "no service import and its label", // mcs is just created
-			labels: map[string]string{},
+			name: "no service import and its label", // mcs is just created
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -284,6 +311,12 @@ func TestHandleUpdate(t *testing.T) {
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
 					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
 						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
 					},
 				},
 			},
@@ -321,12 +354,24 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
 			},
 		},
 		{
 			name: "update service import spec on mcs",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: "old-service",
+			},
+			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
+				LoadBalancer: loadBalancerStatus,
+				Conditions: []metav1.Condition{
+					validCondition,
+				},
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -355,6 +400,12 @@ func TestHandleUpdate(t *testing.T) {
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
 					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
 						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
 					},
 				},
 			},
@@ -386,6 +437,12 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
 			},
 		},
 		{
@@ -415,6 +472,12 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
 			},
 		},
 		{
@@ -422,6 +485,12 @@ func TestHandleUpdate(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
 				multiClusterServiceLabelService:       derivedServiceName,
+			},
+			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
+				LoadBalancer: corev1.LoadBalancerStatus{},
+				Conditions: []metav1.Condition{
+					unknownCondition,
+				},
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -451,6 +520,12 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
 			},
 		},
 		{
@@ -458,6 +533,12 @@ func TestHandleUpdate(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
 				multiClusterServiceLabelService:       derivedServiceName,
+			},
+			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
+				LoadBalancer: loadBalancerStatus,
+				Conditions: []metav1.Condition{
+					validCondition,
+				},
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -470,6 +551,9 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
 				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: loadBalancerStatus,
+				},
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
@@ -493,10 +577,16 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
 			},
 		},
 		{
-			name: "no updates on the mcs (valid service import) without derived service resource",
+			name: "no updates on the mcs (valid service import) without derived service label",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
 			},
@@ -531,6 +621,7 @@ func TestHandleUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
+					Labels:    serviceLabel,
 				},
 				Spec: corev1.ServiceSpec{
 					Ports: servicePorts,
@@ -550,6 +641,15 @@ func TestHandleUpdate(t *testing.T) {
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
 					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
 						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Status: metav1.ConditionTrue,
+						},
 					},
 				},
 			},
@@ -591,6 +691,7 @@ func TestHandleUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
+					Labels:    serviceLabel,
 				},
 				Spec: corev1.ServiceSpec{
 					Ports: servicePorts,
@@ -610,6 +711,12 @@ func TestHandleUpdate(t *testing.T) {
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
 					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
 						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						validCondition,
 					},
 				},
 			},
@@ -619,6 +726,24 @@ func TestHandleUpdate(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
 				multiClusterServiceLabelService:       derivedServiceName,
+			},
+			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
+				LoadBalancer: corev1.LoadBalancerStatus{
+					Ingress: []corev1.LoadBalancerIngress{
+						{
+							IP: "10.0.0.0",
+							Ports: []corev1.PortStatus{
+								{
+									Port:     8080,
+									Protocol: corev1.ProtocolTCP,
+								},
+							},
+						},
+					},
+				},
+				Conditions: []metav1.Condition{
+					validCondition,
+				},
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -650,6 +775,9 @@ func TestHandleUpdate(t *testing.T) {
 					},
 					Type: corev1.ServiceTypeNodePort,
 				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: loadBalancerStatus,
+				},
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
@@ -670,10 +798,14 @@ func TestHandleUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
+					Labels:    serviceLabel,
 				},
 				Spec: corev1.ServiceSpec{
 					Ports: servicePorts,
 					Type:  corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: loadBalancerStatus,
 				},
 			},
 			wantMCS: &fleetnetv1alpha1.MultiClusterService{
@@ -691,6 +823,15 @@ func TestHandleUpdate(t *testing.T) {
 						Name: testServiceName,
 					},
 				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: loadBalancerStatus,
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -700,6 +841,9 @@ func TestHandleUpdate(t *testing.T) {
 
 			mcsObj := multiClusterServiceForTest()
 			mcsObj.ObjectMeta.Labels = tc.labels
+			if tc.status != nil {
+				mcsObj.Status = *tc.status
+			}
 			objects := []client.Object{mcsObj}
 			if tc.serviceImport != nil {
 				objects = append(objects, tc.serviceImport)
@@ -726,8 +870,11 @@ func TestHandleUpdate(t *testing.T) {
 			if err := fakeClient.Get(ctx, name, &serviceImport); err != nil {
 				t.Fatalf("ServiceImport Get() got error %v, want no error", err)
 			}
-			options := cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")
-			if diff := cmp.Diff(tc.wantServiceImport, &serviceImport, options); diff != "" {
+			options := []cmp.Option{
+				cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
+				cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
+			}
+			if diff := cmp.Diff(tc.wantServiceImport, &serviceImport, options...); diff != "" {
 				t.Errorf("serviceImport Get() mismatch (-want, +got):\n%s", diff)
 			}
 
@@ -739,7 +886,7 @@ func TestHandleUpdate(t *testing.T) {
 				}
 			}
 			if tc.wantDerivedService != nil {
-				if diff := cmp.Diff(tc.wantDerivedService, &service, options); diff != "" {
+				if diff := cmp.Diff(tc.wantDerivedService, &service, options...); diff != "" {
 					t.Errorf("Service() mismatch (-want, +got):\n%s", diff)
 				}
 			}
@@ -749,7 +896,7 @@ func TestHandleUpdate(t *testing.T) {
 			if err := fakeClient.Get(ctx, name, &mcs); err != nil {
 				t.Fatalf("MultiClusterService Get() got error %v, want no error", err)
 			}
-			if diff := cmp.Diff(tc.wantMCS, &mcs, options); diff != "" {
+			if diff := cmp.Diff(tc.wantMCS, &mcs, options...); diff != "" {
 				t.Errorf("MultiClusterService() mismatch (-want, +got):\n%s", diff)
 			}
 			if !tc.hasOldServiceImport {
