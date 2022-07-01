@@ -69,8 +69,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the EndpointSlice object.
 	var endpointSlice discoveryv1.EndpointSlice
-	endpointSliceKey := types.NamespacedName{Namespace: req.Namespace, Name: req.Name}
-	if err := r.memberClient.Get(ctx, endpointSliceKey, &endpointSlice); err != nil {
+	if err := r.memberClient.Get(ctx, req.NamespacedName, &endpointSlice); err != nil {
 		// Skip the reconciliation if the EndpointSlice does not exist; this should only happen when an EndpointSlice
 		// is deleted right before the controller gets a chance to reconcile it. If the EndpointSlice has never
 		// been exported to the fleet, no action is required on this controller's end; on the other hand, if the
