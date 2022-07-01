@@ -209,6 +209,7 @@ func TestHandleDelete(t *testing.T) {
 func TestHandleUpdate(t *testing.T) {
 	controller := true
 	blockOwnerDeletion := true
+	appProtocol := "app-protocol"
 	ownerRef := metav1.OwnerReference{
 		APIVersion:         multiClusterServiceType.APIVersion,
 		Kind:               multiClusterServiceType.Kind,
@@ -218,9 +219,10 @@ func TestHandleUpdate(t *testing.T) {
 
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
-			Name:     "portA",
-			Protocol: "TCP",
-			Port:     8080,
+			Name:        "portA",
+			Protocol:    "TCP",
+			Port:        8080,
+			AppProtocol: &appProtocol,
 			//TargetPort: intstr.IntOrString{StrVal: "8080"},
 		},
 		{
@@ -237,7 +239,8 @@ func TestHandleUpdate(t *testing.T) {
 			Protocol: "TCP",
 			Port:     8080,
 			//TargetPort: intstr.IntOrString{StrVal: "8080"},
-			NodePort: 0,
+			NodePort:    0,
+			AppProtocol: &appProtocol,
 		},
 		{
 			Name:     "portB",

@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/port"
 )
 
 const (
@@ -75,7 +74,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 
 	klog.V(2).InfoS("Removing mcs", "multiClusterService", mcsKObj)
 
-	// delete derived service in the fleet-system namesapce
+	// delete derived service in the fleet-system namespace
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if err := r.deleteDerivedService(ctx, serviceName); err != nil {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj)
@@ -164,6 +163,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			Name:      desiredServiceImportName.Name,
 		},
 	}
+	// CreateOrUpdate will
+	// 1) Create a serviceImport if not exists.
+	// OR 2) Update a serviceImport if the desired state does not match with current state.
+	// OR 3) Get a serviceImport when ServiceImport status change triggers the MCS reconcile.
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, serviceImport, func() error {
 		return r.ensureServiceImport(serviceImport, mcs)
 	}); err != nil {
@@ -172,7 +175,9 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	}
 
 	if len(serviceImport.Status.Clusters) == 0 {
-		// since there is no services exported in the clusters, delete derived service if exists
+		// Since there is no services exported in the clusters, delete derived service if exists.
+		// When service import is still in the processing state and there is no derived service attached to the MCS,
+		// it will do nothing.
 		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs)
 	}
 	serviceName := r.derivedServiceFromLabel(mcs)
@@ -190,6 +195,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			Name:      serviceName.Name,
 		},
 	}
+	// CreateOrUpdate will
+	// 1) Create a service if not exists.
+	// OR 2) Update a service if the desired state does not match with current state.
+	// OR 3) Get a service when Service status change triggers the MCS reconcile.
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		return r.ensureDerivedService(service, serviceImport)
 	}); err != nil {
@@ -201,11 +210,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 }
 
 func (r *Reconciler) ensureServiceImport(serviceImport *fleetnetv1alpha1.ServiceImport, mcs *fleetnetv1alpha1.MultiClusterService) error {
-	if err := controllerutil.SetControllerReference(mcs, serviceImport, r.Scheme); err != nil {
-		klog.ErrorS(err, "Failed to set the owner reference on service import", "multiClusterService", klog.KObj(mcs), "serviceImport", klog.KObj(serviceImport))
-		return err
-	}
-	return nil
+	return controllerutil.SetControllerReference(mcs, serviceImport, r.Scheme)
 }
 
 // handleInvalidServiceImport deletes derived service and updates its label when the service import is no longer valid.
@@ -216,6 +221,7 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 	}
 	mcsKObj := klog.KObj(mcs)
 	svcKRef := klog.KRef(serviceName.Namespace, serviceName.Name)
+	// TODO update mcs status to reset the load balancer status
 	if err := r.deleteDerivedService(ctx, serviceName); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj, "service", svcKRef)
 		return err
@@ -226,7 +232,6 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 		klog.ErrorS(err, "Failed to update the derived service label of mcs", "multiClusterService", mcsKObj)
 		return err
 	}
-	// TODO update mcs status to reset the load balancer status
 	return nil
 }
 
@@ -247,20 +252,21 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 func (r *Reconciler) ensureDerivedService(service *corev1.Service, serviceImport *fleetnetv1alpha1.ServiceImport) error {
 	svcPorts := make([]corev1.ServicePort, len(serviceImport.Status.Ports))
 	for i, importPort := range serviceImport.Status.Ports {
-		svcPorts[i] = port.ToServicePort(importPort)
+		svcPorts[i] = importPort.ToServicePort()
 	}
 	service.Spec = corev1.ServiceSpec{
 		Type:  corev1.ServiceTypeLoadBalancer,
 		Ports: svcPorts,
 	}
+	// TODO add mcs label to be watched by mcs controller
 	return nil
 }
 
 // generateDerivedServiceName appends multiclusterservice name and namespace as the derived service name since a service
 // import may be exported by the multiple MCSs.
-// It makes sure the service name is unique and less than 64 characters.
+// It makes sure the service name is unique and less than 63 characters.
 func (r *Reconciler) generateDerivedServiceName(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
-	// TODO make sure the service name is unique and less than 64 characters.
+	// TODO make sure the service name is unique and less than 63 characters.
 	return &types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: fmt.Sprintf("%v-%v", mcs.Namespace, mcs.Name)}
 }
 
