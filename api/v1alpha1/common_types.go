@@ -5,7 +5,10 @@ Licensed under the MIT license.
 
 package v1alpha1
 
-import "k8s.io/apimachinery/pkg/types"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+)
 
 // ExportedObjectReference helps operators identify the source of an exported object, e.g. an EndpointSliceExport.
 // +structType=atomic
@@ -34,4 +37,16 @@ type ExportedObjectReference struct {
 	// The UID of the referred object.
 	// +kubebuilder:validation:Required
 	UID types.UID `json:"uid"`
+}
+
+// FromMetaObjects updates a ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
+func (e *ExportedObjectReference) FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta) {
+	e.ClusterID = clusterID
+	e.APIVersion = typeMeta.APIVersion
+	e.Kind = typeMeta.Kind
+	e.Namespace = objMeta.Namespace
+	e.Name = objMeta.Name
+	e.ResourceVersion = objMeta.ResourceVersion
+	e.Generation = objMeta.Generation
+	e.UID = objMeta.UID
 }
