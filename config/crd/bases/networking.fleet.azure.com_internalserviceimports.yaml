@@ -139,6 +139,10 @@ spec:
                       default: TCP
                       description: The IP protocol for this port. Supports "TCP",
                         "UDP", and "SCTP". Default is TCP.
+                      enum:
+                      - TCP
+                      - UDP
+                      - SCTP
                       type: string
                     targetPort:
                       anyOf:
@@ -181,9 +185,6 @@ spec:
                 - ClusterSetIP
                 - Headless
                 type: string
-            required:
-            - ports
-            - type
             type: object
         type: object
     served: true
