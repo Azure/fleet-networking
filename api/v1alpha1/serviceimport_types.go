@@ -6,7 +6,7 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -47,7 +47,7 @@ type ServicePort struct {
 	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
 	// Default is TCP.
 	// +optional
-	Protocol v1.Protocol `json:"protocol,omitempty"`
+	Protocol corev1.Protocol `json:"protocol,omitempty"`
 
 	// The application protocol for this port.
 	// This field follows standard Kubernetes label syntax.
@@ -70,6 +70,17 @@ type ServicePort struct {
 	TargetPort intstr.IntOrString `json:"targetPort,omitempty"`
 }
 
+// ToServicePort converts ServicePort to a K8 ServicePort.
+func (in *ServicePort) ToServicePort() corev1.ServicePort {
+	return corev1.ServicePort{
+		Name:        in.Name,
+		Protocol:    in.Protocol,
+		AppProtocol: in.AppProtocol,
+		Port:        in.Port,
+		TargetPort:  in.TargetPort,
+	}
+}
+
 // ServiceImportStatus describes derived state of an imported service.
 type ServiceImportStatus struct {
 	// ip will be used as the VIP for this service when type is ClusterSetIP.
@@ -87,10 +98,10 @@ type ServiceImportStatus struct {
 	// Ignored when type is Headless
 	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// +optional
-	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity,omitempty"`
+	SessionAffinity corev1.ServiceAffinity `json:"sessionAffinity,omitempty"`
 	// sessionAffinityConfig contains session affinity configuration.
 	// +optional
-	SessionAffinityConfig *v1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
+	SessionAffinityConfig *corev1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
 
 	// +listType=atomic
 	Ports []ServicePort `json:"ports"`
