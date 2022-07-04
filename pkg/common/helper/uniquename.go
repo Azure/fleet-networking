@@ -188,7 +188,10 @@ func FleetScopedUniqueName(format UniqueNameFormat, clusterID string, namespace 
 	return "", fmt.Errorf("not a valid name format: %d", format)
 }
 
-// RandomLowerCaseAlphabeticString returns a string of lower case alphabetic characters only.
+// RandomLowerCaseAlphabeticString returns a string of lower case alphabetic characters only. This function
+// is best used for fallback cases where one cannot format a unique name as expected, as a lower case
+// alphabetic string of proper length is always a valid Kubernetes object name, regardless of the required name
+// format for the object (RFC 1123 DNS subdomain, RFC 1123 DNS label, or RFC 1035 DNS label).
 func RandomLowerCaseAlphabeticString(n int) string {
 	alphabet := []rune("abcdefghijklmnopqrstuvwxyz")
 	b := make([]rune, n)
