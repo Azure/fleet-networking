@@ -111,6 +111,7 @@ func TestIsEndpointSlicePermanentlyUnexportable(t *testing.T) {
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
+			want: false,
 		},
 		{
 			name: "should not be exportable",
@@ -657,15 +658,167 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 
 // TestIsServiceExportValidWithNoConflict tests the isServiceExportValidWithNoConflict function.
 func TestIsServiceExportValidWithNoConflict(t *testing.T) {
+	testCases := []struct {
+		name      string
+		svcExport *fleetnetv1alpha1.ServiceExport
+		want      bool
+	}{
+		{
+			name: "svc export is valid with no conflicts",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "svc export is invalid",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "svc export is valid but with conflicts",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportConflictedCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "svc export has no conditions set yet",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+			},
+			want: false,
+		},
+	}
 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if res := isServiceExportValidWithNoConflict(tc.svcExport); res != tc.want {
+				t.Fatalf("isServiceExportValidWithNoConflict(%+v) = %t, want %t", tc.svcExport, res, tc.want)
+			}
+		})
+	}
 }
 
 // TestIsUniqueNameValid tests the isUniqueNameValid function.
 func TestIsUniqueNameValid(t *testing.T) {
+	testCases := []struct {
+		name       string
+		uniqueName string
+		want       bool
+	}{
+		{
+			name:       "is a valid unique name",
+			uniqueName: fmt.Sprintf("%s-%s-%s-%s", memberClusterID, memberUserNS, endpointSliceName, "1x2yz"),
+			want:       true,
+		},
+		{
+			name:       "is not a valid unique name",
+			uniqueName: "-*",
+			want:       false,
+		},
+	}
 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if res := isUniqueNameValid(tc.uniqueName); res != tc.want {
+				t.Fatalf("isUniqueNameValid(%s) = %t, want %t", tc.uniqueName, res, tc.want)
+			}
+		})
+	}
 }
 
 // TestIsEndpointSliceExportLinkedWithEndpointSlice tests the isEndpointSliceExportLinkedWithEndpointSlice function.
 func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
+	testCases := []struct {
+		name                string
+		endpointSlice       *discoveryv1.EndpointSlice
+		endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+		want                bool
+	}{
+		{
+			name: "endpoint slice is linked with endpoint slice export",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+					UID:       "1",
+				},
+			},
+			endpointSliceExport: &fleetnetv1alpha1.EndpointSliceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      endpointSliceName,
+				},
+				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
+					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
+						UID: "1",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "endpoint slice is not linked with endpoint slice export",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+					UID:       "2",
+				},
+			},
+			endpointSliceExport: &fleetnetv1alpha1.EndpointSliceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      endpointSliceName,
+				},
+				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
+					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
+						UID: "3",
+					},
+				},
+			},
+			want: false,
+		},
+	}
 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if res := isEndpointSliceExportLinkedWithEndpointSlice(tc.endpointSliceExport, tc.endpointSlice); res != tc.want {
+				t.Fatalf("isEndpointSliceExportLinkedWithEndpointSlice(%+v, %+v) = %t, want %t",
+					tc.endpointSliceExport, tc.endpointSlice, res, tc.want)
+			}
+		})
+	}
 }
