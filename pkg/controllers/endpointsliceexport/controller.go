@@ -80,13 +80,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// * A user tampers with the unique name for export assigned to an EndpointSlice,
 	//   which leads to the same EndpointSlice being exported for multiple times with different names.
 	// * An EndpointSlice is deleted and immediately re-created with the same name, and the EndpointSlice
-	//   controller fails to unexport the EndpointSlice when it is deleted in time
-	if !IsEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport, endpointSlice) {
+	//   controller fails to unexport the EndpointSlice in time when it is deleted.
+	if !isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport, endpointSlice) {
 		return r.deleteEndpointSliceExport(ctx, endpointSliceExport)
 	}
 	return ctrl.Result{}, nil
 }
 
+// deleteEndpointSliceExport deletes an EndpointSliceExport from the hub cluster.
 func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context,
 	endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) (ctrl.Result, error) {
 	if err := r.hubClient.Delete(ctx, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
