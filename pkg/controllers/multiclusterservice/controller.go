@@ -5,7 +5,6 @@ package multiclusterservice
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -36,9 +35,11 @@ const (
 	multiClusterServiceLabelServiceImport = "networking.fleet.azure.com/service-import"
 
 	// service label
-	serviceLabelMultiClusterService = "networking.fleet.azure.com/multi-cluster-service-name"
+	serviceLabelMCSName      = "networking.fleet.azure.com/multi-cluster-service-name"
+	serviceLabelMCSNamespace = "networking.fleet.azure.com/multi-cluster-service-namespace"
 
 	eventReasonUnknownServiceImport = "UnknownServiceImport"
+	eventReasonFoundServiceImport   = "FoundServiceImport"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -65,18 +66,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if mcs.ObjectMeta.DeletionTimestamp != nil {
-		// register finalizer
-		if !controllerutil.ContainsFinalizer(&mcs, multiClusterServiceFinalizer) {
-			controllerutil.AddFinalizer(&mcs, multiClusterServiceFinalizer)
-			if err := r.Update(ctx, &mcs); err != nil {
-				klog.ErrorS(err, "Failed to add mcs finalizer", "multiClusterService", mcsKRef)
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
 		return r.handleDelete(ctx, &mcs)
 	}
 
+	// register finalizer
+	if !controllerutil.ContainsFinalizer(&mcs, multiClusterServiceFinalizer) {
+		controllerutil.AddFinalizer(&mcs, multiClusterServiceFinalizer)
+		if err := r.Update(ctx, &mcs); err != nil {
+			klog.ErrorS(err, "Failed to add mcs finalizer", "multiClusterService", mcsKRef)
+			return ctrl.Result{}, err
+		}
+	}
 	// handle update
 	return r.handleUpdate(ctx, &mcs)
 }
@@ -284,13 +284,16 @@ func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterServ
 		Type:  corev1.ServiceTypeLoadBalancer,
 		Ports: svcPorts,
 	}
-	key := serviceLabelMultiClusterService
-	value := generateServiceLabel(mcs.Namespace, mcs.Name)
 	if service.GetLabels() == nil { // in case labels map is nil and causes the panic
-		service.Labels = map[string]string{key: value}
-	} else {
-		service.Labels[key] = value
+		service.Labels = map[string]string{
+			serviceLabelMCSName:      mcs.Name,
+			serviceLabelMCSNamespace: mcs.Namespace,
+		}
+		return nil
 	}
+
+	service.Labels[serviceLabelMCSName] = mcs.Name
+	service.Labels[serviceLabelMCSNamespace] = mcs.Namespace
 	return nil
 }
 
@@ -308,6 +311,7 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 	desiredCond := &metav1.Condition{
 		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 		Status:             metav1.ConditionTrue,
+		Reason:             eventReasonFoundServiceImport,
 		ObservedGeneration: mcs.GetGeneration(),
 	}
 	if len(serviceImport.Status.Clusters) == 0 {
@@ -337,21 +341,6 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 	return nil
 }
 
-func generateServiceLabel(namespace, name string) string {
-	return fmt.Sprintf("%v/%v", namespace, name)
-}
-
-func parseFromServiceLabel(label string) types.NamespacedName {
-	s := strings.Split(label, "/")
-	if len(s) != 2 {
-		return types.NamespacedName{}
-	}
-	return types.NamespacedName{
-		Namespace: s[0],
-		Name:      s[1],
-	}
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -371,10 +360,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *Reconciler) serviceEventHandler() handler.MapFunc {
 	return func(object client.Object) []reconcile.Request {
-		mcs := object.GetLabels()[serviceLabelMultiClusterService]
+		namespace := object.GetLabels()[serviceLabelMCSNamespace]
+		name := object.GetLabels()[serviceLabelMCSName]
 		return []reconcile.Request{
 			{
-				NamespacedName: parseFromServiceLabel(mcs),
+				NamespacedName: types.NamespacedName{Namespace: namespace, Name: name},
 			},
 		}
 	}

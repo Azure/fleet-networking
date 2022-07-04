@@ -273,9 +273,11 @@ func TestHandleUpdate(t *testing.T) {
 		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		Reason:             eventReasonFoundServiceImport,
 	}
 	serviceLabel := map[string]string{
-		serviceLabelMultiClusterService: fmt.Sprintf("%v/%v", testNamespace, testName),
+		serviceLabelMCSName:      testName,
+		serviceLabelMCSNamespace: testNamespace,
 	}
 
 	tests := []struct {
@@ -646,10 +648,7 @@ func TestHandleUpdate(t *testing.T) {
 				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
 					LoadBalancer: corev1.LoadBalancerStatus{},
 					Conditions: []metav1.Condition{
-						{
-							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
-							Status: metav1.ConditionTrue,
-						},
+						validCondition,
 					},
 				},
 			},
@@ -826,10 +825,7 @@ func TestHandleUpdate(t *testing.T) {
 				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
 					LoadBalancer: loadBalancerStatus,
 					Conditions: []metav1.Condition{
-						{
-							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
-							Status: metav1.ConditionTrue,
-						},
+						validCondition,
 					},
 				},
 			},
