@@ -13,9 +13,9 @@ import (
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/helper"
 )
 
 const (
@@ -82,6 +83,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if the EndpointSlice should be skipped for reconciliation or unexported.
 	skipOrUnexportOp, err := r.shouldSkipOrUnexportEndpointSlice(ctx, &endpointSlice)
+	if err != nil {
+		// An unexpected error occurs.
+		klog.ErrorS(err,
+			"Failed to determine whether an endpoint slice should be skipped for reconciliation or unexported",
+			"endpointSlice", endpointSliceRef)
+		return ctrl.Result{}, err
+	}
+
 	switch skipOrUnexportOp {
 	case shouldSkipEndpointSliceOp:
 		// Skip reconciling the EndpointSlice.
@@ -95,19 +104,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
-	case noSkipOrUnexportNeededOp:
-		if err != nil {
-			// An unexpected error occurs.
-			klog.ErrorS(err,
-				"Failed to determine whether an endpoint slice should be skipped for reconciliation or unexported",
-				"endpointSlice", endpointSliceRef)
-			return ctrl.Result{}, err
-		}
 	}
 
-	// Retrieve the unique name assigned (if any), or format a new one and assign it.
+	// Retrieve the unique name assigned; if none has been assigned, or the one assigned is not valid, possibly due
+	// to user tampering with the label, assign a new unique name.
 	fleetUniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
-	if !ok {
+	if !ok || !isUniqueNameValid(fleetUniqueName) {
+		klog.V(4).InfoS("The endpoint slice does not have a unique name assigned or the one assigned is not valid; a new one will be assigned",
+			"endpointSlice", endpointSliceRef)
 		var err error
 		// Unique name label must be added before an EndpointSlice is exported.
 		fleetUniqueName, err = r.assignUniqueNameAsLabel(ctx, &endpointSlice)
@@ -126,26 +130,45 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Name:      fleetUniqueName,
 		},
 	}
+	klog.V(4).InfoS("Endpoint slice will be exported",
+		"endpointSlice", endpointSliceRef,
+		"endpointSliceExport", klog.KObj(&endpointSliceExport))
 	createOrUpdateOp, err := controllerutil.CreateOrUpdate(ctx, r.hubClient, &endpointSliceExport, func() error {
-		endpointSliceExport.Spec = fleetnetv1alpha1.EndpointSliceExportSpec{
-			AddressType: discoveryv1.AddressTypeIPv4,
-			Endpoints:   extractedEndpoints,
-			Ports:       endpointSlice.Ports,
-			EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-				ClusterID:       r.memberClusterID,
-				APIVersion:      endpointSlice.APIVersion,
-				Kind:            endpointSlice.Kind,
-				Namespace:       endpointSlice.Namespace,
-				Name:            endpointSlice.Name,
-				ResourceVersion: endpointSlice.ResourceVersion,
-				Generation:      endpointSlice.Generation,
-				UID:             endpointSlice.UID,
-			},
+		// Set up an EndpointSliceReference only when an EndpointSliceExport is first created; this is because
+		// most fields in EndpointSliceReference should be immutable after creation.
+		if endpointSliceExport.CreationTimestamp.IsZero() {
+			endpointSliceReference := fleetnetv1alpha1.FromMetaObjects(r.memberClusterID, endpointSlice.TypeMeta, endpointSlice.ObjectMeta)
+			endpointSliceExport.Spec.EndpointSliceReference = endpointSliceReference
 		}
+
+		// Return an error if an attempt is made to update an EndpointSliceExport that references a different
+		// EndpointSlice from the one that is being reconciled. This usually happens when one unique name is assigned
+		// to multiple EndpointSliceExports, either by chance or through direct manipulation.
+		if !isEndpointSliceExportLinkedWithEndpointSlice(&endpointSliceExport, &endpointSlice) {
+			return errors.NewAlreadyExists(
+				schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "EndpointSliceExport"},
+				fleetUniqueName,
+			)
+		}
+
+		endpointSliceExport.Spec.AddressType = discoveryv1.AddressTypeIPv4
+		endpointSliceExport.Spec.Endpoints = extractedEndpoints
+		endpointSliceExport.Spec.Ports = endpointSlice.Ports
+		endpointSliceExport.Spec.EndpointSliceReference.UpdateFromMetaObject(endpointSlice.ObjectMeta)
 
 		return nil
 	})
-	if err != nil {
+	switch {
+	case errors.IsAlreadyExists(err):
+		// Remove the unique name label; a new one will be assigned in future reciliation attempts.
+		klog.V(4).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
+		delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
+		if err := r.memberClient.Update(ctx, &endpointSlice); err != nil {
+			klog.ErrorS(err, "Failed to update endpoint slice", "endpointSlice", endpointSliceRef)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	case err != nil:
 		klog.ErrorS(err,
 			"Failed to create/update endpointslice export",
 			"endpointSlice", endpointSliceRef,
@@ -153,12 +176,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"op", createOrUpdateOp)
 		return ctrl.Result{}, err
 	}
+
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ctx := context.Background()
-
+func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	// Enqueue EndpointSlices for processing when a ServiceExport changes.
 	eventHandlers := handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 		endpointSliceList := &discoveryv1.EndpointSliceList{}
@@ -250,12 +272,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	}
 
 	// Check if the ServiceExport is valid with no conflicts.
-	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	isValid := (validCond != nil && validCond.Status == metav1.ConditionTrue)
-	hasNoConflict := (conflictCond != nil && conflictCond.Status == metav1.ConditionFalse)
-	isValidWithNoConflict := (isValid && hasNoConflict)
-	if !isValidWithNoConflict {
+	if !isServiceExportValidWithNoConflict(svcExport) {
 		if hasUniqueNameLabel {
 			// The Service using the EndpointSlice is not valid for export or has conflicts with other exported
 			// Services, but the EndpointSlice has a unique name label present (i.e. it might have been
@@ -290,30 +307,42 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 			Name:      fleetUniqueName,
 		},
 	}
-	// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
-	// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
-	// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
-	// end.
-	if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
-		// An unexpected error has occurred.
-		return err
+
+	// Skip the deletion if the unique name assigned as a label is not a valid DNS subdomain name; this
+	// helps guard against user tampering with the label.
+	if isUniqueNameValid(fleetUniqueName) {
+		// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
+		// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
+		// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
+		// end.
+		if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+			// An unexpected error has occurred.
+			return err
+		}
 	}
 
 	// Remove the unique name label; this must happen after the EndpointSliceExport has been deleted.
-	endpointSliceCopy := endpointSlice.DeepCopy()
-	delete(endpointSliceCopy.Labels, endpointSliceUniqueNameLabel)
-	return r.memberClient.Update(ctx, endpointSliceCopy)
+	delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
+	return r.memberClient.Update(ctx, endpointSlice)
 }
 
 // assignUniqueNameAsLabel assigns a new unique name as a label.
 func (r *Reconciler) assignUniqueNameAsLabel(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) (string, error) {
-	fleetUniqueName := formatFleetUniqueName(r.memberClusterID, endpointSlice)
+	fleetUniqueName, err := helper.FleetScopedUniqueName(helper.DNS1123Subdomain,
+		r.memberClusterID,
+		endpointSlice.Namespace,
+		endpointSlice.Name)
+	if err != nil {
+		// Fall back to use a random lower case alphabetic string as the unique name. Normally this branch should
+		// never run.
+		fleetUniqueName = helper.RandomLowerCaseAlphabeticString(25)
+	}
 	updatedEndpointSlice := endpointSlice.DeepCopy()
 	// Initialize the labels field if no labels are present.
 	if updatedEndpointSlice.Labels == nil {
 		updatedEndpointSlice.Labels = map[string]string{}
 	}
 	updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel] = fleetUniqueName
-	err := r.memberClient.Update(ctx, updatedEndpointSlice)
+	err = r.memberClient.Update(ctx, updatedEndpointSlice)
 	return fleetUniqueName, err
 }
