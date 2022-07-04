@@ -383,21 +383,21 @@ func (r *Reconciler) serviceEventHandler() handler.MapFunc {
 func (r *Reconciler) serviceFilter() predicate.Funcs {
 	return predicate.Funcs{
 		GenericFunc: func(e event.GenericEvent) bool {
-			return r.DoesServiceHaveMultiClusterService(e.Object)
+			return r.doesServiceHaveMultiClusterService(e.Object)
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			return r.DoesServiceHaveMultiClusterService(e.Object)
+			return r.doesServiceHaveMultiClusterService(e.Object)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return r.DoesServiceHaveMultiClusterService(e.ObjectNew)
+			return r.doesServiceHaveMultiClusterService(e.ObjectNew)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			return r.DoesServiceHaveMultiClusterService(e.Object)
+			return r.doesServiceHaveMultiClusterService(e.Object)
 		},
 	}
 }
 
-func (r *Reconciler) DoesServiceHaveMultiClusterService(object client.Object) bool {
+func (r *Reconciler) doesServiceHaveMultiClusterService(object client.Object) bool {
 	// If the service is created in the fleet system, it's owned by the MCS.
 	return object.GetNamespace() == r.FleetSystemNamespace
 }
