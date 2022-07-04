@@ -40,7 +40,7 @@ func startsWithNumericCharacter(s string) bool {
 	return false
 }
 
-// removeDots removes all dot (".") occurences in a string.
+// removeDots removes all dot (".") occurrences in a string.
 func removeDots(s string) string {
 	return strings.ReplaceAll(s, ".", "")
 }
