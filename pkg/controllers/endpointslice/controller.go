@@ -64,7 +64,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	startTime := time.Now()
 	klog.V(2).InfoS("Reconciliation starts", "endpointSlice", endpointSliceRef)
 	defer func() {
-		latency := time.Since(startTime).Seconds()
+		latency := time.Since(startTime).Milliseconds()
 		klog.V(2).InfoS("Reconciliation ends", "endpointSlice", endpointSliceRef, "latency", latency)
 	}()
 
