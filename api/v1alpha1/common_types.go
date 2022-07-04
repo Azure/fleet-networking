@@ -6,7 +6,7 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -39,14 +39,24 @@ type ExportedObjectReference struct {
 	UID types.UID `json:"uid"`
 }
 
-// FromMetaObjects updates a ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
-func (e *ExportedObjectReference) FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta) {
-	e.ClusterID = clusterID
-	e.APIVersion = typeMeta.APIVersion
-	e.Kind = typeMeta.Kind
-	e.Namespace = objMeta.Namespace
-	e.Name = objMeta.Name
+// FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
+func FromMetaObjects(clusterID string, typeMeta v1.TypeMeta, objMeta v1.ObjectMeta) ExportedObjectReference {
+	return ExportedObjectReference{
+		ClusterID:       clusterID,
+		APIVersion:      typeMeta.APIVersion,
+		Kind:            typeMeta.Kind,
+		Namespace:       objMeta.Namespace,
+		Name:            objMeta.Name,
+		ResourceVersion: objMeta.ResourceVersion,
+		Generation:      objMeta.Generation,
+		UID:             objMeta.UID,
+	}
+}
+
+// UpdateFromMetaObject updates an existing ExportedObjectReference using ObjectMeta fields from the
+// referenced object. Note that most fields in an ExportedObjectReference should be immutable after creation,
+// and this method updates only the mutable fields.
+func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta v1.ObjectMeta) {
 	e.ResourceVersion = objMeta.ResourceVersion
 	e.Generation = objMeta.Generation
-	e.UID = objMeta.UID
 }
