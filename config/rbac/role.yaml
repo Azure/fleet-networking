@@ -45,6 +45,14 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+  - internalserviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
   - multiclusterservices
   verbs:
   - create
