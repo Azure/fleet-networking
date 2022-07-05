@@ -22,6 +22,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+// Reconciler reconciles the update of an InternalServiceExport.
 type Reconciler struct {
 	memberClient client.Client
 	hubClient    client.Client
@@ -32,6 +33,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/status,verbs=get;update;patch
 
+// Reconcile reports back whether an export of a Service has been accepted with no conflict detected.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	internalSvcExportRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
@@ -62,8 +64,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// that a ServiceExport will only be deleted after the Service has been unexported. In some corner cases,
 		// however, e.g. the user chooses to remove the finalizer explicitly, a Service can be left over in the hub
 		// cluster, and it is up to this controller to remove it.
-		klog.V(2).InfoS("Svc export does not exist; delete the internal svc export", "serviceExport", svcExportRef)
-		if err = r.hubClient.Delete(ctx, &internalSvcExport); err != nil {
+		klog.V(2).InfoS("Svc export does not exist; delete the internal svc export",
+			"serviceExport", svcExportRef,
+			"internalServiceExport", internalSvcExportRef,
+		)
+		if err := r.hubClient.Delete(ctx, &internalSvcExport); err != nil {
 			klog.ErrorS(err, "Failed to delete internal svc export", "internalServiceExport", internalSvcExportRef)
 			return ctrl.Result{}, err
 		}
@@ -76,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Report back conflict resolution result.
 	klog.V(2).InfoS("Report back conflict resolution result", "internalServiceExport", internalSvcExportRef)
-	if err = r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport); err != nil {
+	if err := r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport); err != nil {
 		klog.ErrorS(err, "Failed to report back conflict resolution result", "serviceExport", svcExportRef)
 		return ctrl.Result{}, err
 	}
