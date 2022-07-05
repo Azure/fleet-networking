@@ -87,6 +87,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		// The EndpointSliceExport controller watches over EndpointSliceExport objects.
+		// TO-DO (chenyu1): use predicates to filter out some events.
+		For(&fleetnetv1alpha1.EndpointSliceExport{}).
+		Complete(r)
+}
+
 // deleteEndpointSliceExport deletes an EndpointSliceExport from the hub cluster.
 func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context,
 	endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) (ctrl.Result, error) {
