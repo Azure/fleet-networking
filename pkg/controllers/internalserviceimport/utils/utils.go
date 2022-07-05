@@ -3,6 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package utils provides util functions to handle common internalserviceimport logic
 package utils
 
 import (

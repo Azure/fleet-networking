@@ -3,6 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package consts provides shared consts for handling internalserviceimport
 package consts
 
 const (

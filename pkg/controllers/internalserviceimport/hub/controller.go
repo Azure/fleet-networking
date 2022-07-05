@@ -3,6 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package hub features the internalserviceimport controller deployed in hub cluster to keep serviceimport
+// synced with internalserviceimport.
 package hub
 
 import (

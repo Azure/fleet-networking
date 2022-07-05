@@ -3,6 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package member features the internalserviceimport controller deployed in member cluster to managed
+// internalserviceimport according to its corresponding serviceimport.
 package member
 
 import (
