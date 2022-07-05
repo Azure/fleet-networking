@@ -3,8 +3,9 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package helper features some utility functions used by fleet networking controllers.
-package helper
+// Package uniquename features utility functions that help format unique names for exporting and importing
+// cluster-scoped and fleet-scoped resources.
+package uniquename
 
 import (
 	"fmt"
@@ -127,7 +128,7 @@ func ClusterScopedUniqueName(format UniqueNameFormat, namespace, name string) (s
 // * the input object namespace is a valid RFC 1123 DNS label; and
 // * the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
 // 	 RFC 1123 DNS label, RFC 1035 DNS label).
-func FleetScopedUniqueName(format UniqueNameFormat, clusterID string, namespace, name string) (string, error) {
+func FleetScopedUniqueName(format UniqueNameFormat, clusterID, namespace, name string) (string, error) {
 	reservedSlots := 3 + uuidLength // 3 dashes + 5 character UUID string
 
 	switch format {
