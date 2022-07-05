@@ -27,7 +27,7 @@ const (
 func TestClusterScopedUniqueName(t *testing.T) {
 	testCases := []struct {
 		name       string
-		format     UniqueNameFormat
+		format     Format
 		objectNS   string
 		objectName string
 		wantPrefix string
@@ -132,7 +132,7 @@ func TestClusterScopedUniqueName(t *testing.T) {
 func TestFleetScopedUniqueName(t *testing.T) {
 	testCases := []struct {
 		name       string
-		format     UniqueNameFormat
+		format     Format
 		clusterID  string
 		objectNS   string
 		objectName string

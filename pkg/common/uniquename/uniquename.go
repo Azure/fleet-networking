@@ -17,15 +17,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-type UniqueNameFormat int
+type Format int
 
 const (
 	// DNS1123Subdomain dictates that the unique name should be a valid RFC 1123 DNS subdomain.
-	DNS1123Subdomain UniqueNameFormat = 1
+	DNS1123Subdomain Format = 1
 	// DNS1123Label dictates that the unique name should be a valid RFC 1123 DNS label.
-	DNS1123Label UniqueNameFormat = 2
+	DNS1123Label Format = 2
 	// DNS1035Label dictates that the unique name should be a valid RFC 1035 DNS label.
-	DNS1035Label UniqueNameFormat = 3
+	DNS1035Label Format = 3
 
 	uuidLength = 5
 )
@@ -56,7 +56,7 @@ func removeDots(s string) string {
 // * the input object namespace is a valid RFC 1123 DNS label; and
 // * the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
 // 	 RFC 1123 DNS label, RFC 1035 DNS label).
-func ClusterScopedUniqueName(format UniqueNameFormat, namespace, name string) (string, error) {
+func ClusterScopedUniqueName(format Format, namespace, name string) (string, error) {
 	reservedSlots := 2 + uuidLength // 2 dashes + 5 character UUID string
 
 	switch format {
@@ -128,7 +128,7 @@ func ClusterScopedUniqueName(format UniqueNameFormat, namespace, name string) (s
 // * the input object namespace is a valid RFC 1123 DNS label; and
 // * the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
 // 	 RFC 1123 DNS label, RFC 1035 DNS label).
-func FleetScopedUniqueName(format UniqueNameFormat, clusterID, namespace, name string) (string, error) {
+func FleetScopedUniqueName(format Format, clusterID, namespace, name string) (string, error) {
 	reservedSlots := 3 + uuidLength // 3 dashes + 5 character UUID string
 
 	switch format {
