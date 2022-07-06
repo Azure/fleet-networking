@@ -76,7 +76,6 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-
 		fakeHubClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme.Scheme).
 			WithObjects(client.Object(tc.internalSvcImport)).

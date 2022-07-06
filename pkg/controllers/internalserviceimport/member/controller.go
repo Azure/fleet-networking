@@ -23,11 +23,6 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
 )
 
-const (
-	multiClusterServiceExportCluster = "networking.fleet.azure.com/service-resources-cleanup"
-	multiClusterServiceLabelService  = "networking.fleet.azure.com/derived-service"
-)
-
 // Reconciler reconciles a MultiClusterService object.
 type Reconciler struct {
 	memberClient client.Client

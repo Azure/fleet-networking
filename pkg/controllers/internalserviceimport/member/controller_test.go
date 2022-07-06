@@ -73,7 +73,6 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-
 		fakeMemberClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme.Scheme).
 			WithObjects(client.Object(tc.serviceImport)).
@@ -113,7 +112,10 @@ func TestReconcile(t *testing.T) {
 		// check labels are correctly set
 		obtainedInternalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
 		namespacedName := types.NamespacedName{Namespace: tc.expectedInternalSvcImport.Namespace, Name: tc.expectedInternalSvcImport.Name}
-		reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedInternalSvcImport)
+		if err := reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedInternalSvcImport); err != nil {
+			t.Errorf("Expected no error when getting internal service import, got %v", err)
+		}
+
 		for _, labelKey := range []string{consts.LabelExposedClusterName, consts.LabelTargetNamespace} {
 			expectedLabelValue := tc.expectedInternalSvcImport.Labels[labelKey]
 			actualLabelValue := obtainedInternalSvcImport.Labels[labelKey]
