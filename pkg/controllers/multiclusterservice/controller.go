@@ -263,7 +263,7 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 	if labels == nil { // in case labels map is nil and causes the panic
 		mcs.Labels = map[string]string{}
 	}
-	labels[key] = value
+	mcs.Labels[key] = value
 	if err := r.Client.Update(ctx, mcs); err != nil {
 		klog.ErrorS(err, "Failed to add label to mcs", "multiClusterService", klog.KObj(mcs), "key", key, "value", value)
 		return err
