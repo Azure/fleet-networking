@@ -218,10 +218,8 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		klog.ErrorS(err, "Failed to create or update derived service of mcs", "multiClusterService", mcsKObj, "service", klog.KObj(service))
 		return ctrl.Result{}, err
 	}
-	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service); err != nil {
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+
+	return ctrl.Result{}, r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service)
 }
 
 func (r *Reconciler) ensureServiceImport(serviceImport *fleetnetv1alpha1.ServiceImport, mcs *fleetnetv1alpha1.MultiClusterService) error {
@@ -312,8 +310,8 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 			Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 			Status:             metav1.ConditionUnknown,
 			Reason:             conditionReasonUnknownServiceImport,
-			Message:            "waiting for processing service import or unable to find valid service import",
 			ObservedGeneration: mcs.GetGeneration(),
+			Message:            "importing service; if the condition remains for a while, please verify that service has been exported",
 		}
 	}
 
