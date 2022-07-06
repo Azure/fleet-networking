@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -29,8 +31,7 @@ const (
 // TestMain bootstraps the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
-	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
+	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -147,6 +148,12 @@ func TestDeleteEndpointSliceExport(t *testing.T) {
 
 			if _, err := reconciler.deleteEndpointSliceExport(ctx, tc.endpointSliceExport); err != nil {
 				t.Fatalf("deleteEndpointSliceExport(%+v), got %v, want no error", tc.endpointSliceExport, err)
+			}
+
+			endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
+			endpointSliceExportKey := types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceExportName}
+			if err := fakeHubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+				t.Fatalf("endpoint slice export Get(%+v), got %v, want not found error", endpointSliceExportKey, err)
 			}
 		})
 	}

@@ -72,6 +72,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.deleteEndpointSliceExport(ctx, endpointSliceExport)
 	case err != nil:
 		// An unexpected error has occurred.
+		klog.ErrorS(err, "Failed to get endpoint slice", "endpointSlice", endpointSliceRef)
 		return ctrl.Result{}, err
 	}
 
@@ -97,11 +98,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // deleteEndpointSliceExport deletes an EndpointSliceExport from the hub cluster.
-func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context,
-	endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) (ctrl.Result, error) {
+func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) (ctrl.Result, error) {
 	if err := r.hubClient.Delete(ctx, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to delete endpoint slice export", "endpointSliceExport", klog.KObj(endpointSliceExport))
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// isEndpointSliceExportLinkedWithEndpointSlice returns if an EndpointSliceExport's name matches with the
+// unique name for export assigned to an exported EndpointSlice.
+func isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport, endpointSlice *discoveryv1.EndpointSlice) bool {
+	uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+	if !ok || uniqueName != endpointSliceExport.Name {
+		return false
+	}
+	return true
 }
