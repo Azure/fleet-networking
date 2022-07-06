@@ -71,8 +71,7 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 // TestMain bootstraps the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
-	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
+	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -421,9 +420,9 @@ func TestExtractServicePorts(t *testing.T) {
 // TestMarkServiceExportAsInvalidNotFound tests the *Reconciler.markServiceExportAsInvalidNotFound method.
 func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 	testCases := []struct {
-		name          string
-		svcExport     *fleetnetv1alpha1.ServiceExport
-		expectedConds []metav1.Condition
+		name      string
+		svcExport *fleetnetv1alpha1.ServiceExport
+		wantConds []metav1.Condition
 	}{
 		{
 			name: "should mark a new svc export as invalid (not found)",
@@ -433,7 +432,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 					Name:      svcName,
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantConds: []metav1.Condition{
 				serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
 			},
 		},
@@ -450,7 +449,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 					},
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantConds: []metav1.Condition{
 				serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
 			},
 		},
@@ -481,8 +480,8 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				t.Fatalf("svc export Get(%+v): %v", svcExportKey, err)
 			}
 			conds := updatedSvcExport.Status.Conditions
-			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
-				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.expectedConds)
+			if !cmp.Equal(conds, tc.wantConds, ignoredCondFields) {
+				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.wantConds)
 			}
 		})
 	}
@@ -491,9 +490,9 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 // TestMarkServiceExportAsInvalidIneligible tests the *Reconciler.markServiceExportAsInvalidIneligible method.
 func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 	testCases := []struct {
-		name          string
-		svcExport     *fleetnetv1alpha1.ServiceExport
-		expectedConds []metav1.Condition
+		name      string
+		svcExport *fleetnetv1alpha1.ServiceExport
+		wantConds []metav1.Condition
 	}{
 		{
 			name: "should mark a new svc export as invalid (ineligible)",
@@ -503,7 +502,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 					Name:      svcName,
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantConds: []metav1.Condition{
 				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
 			},
 		},
@@ -520,7 +519,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 					},
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantConds: []metav1.Condition{
 				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
 			},
 		},
@@ -551,8 +550,8 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", svcExportKey, err)
 			}
 			conds := updatedSvcExport.Status.Conditions
-			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
-				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.expectedConds)
+			if !cmp.Equal(conds, tc.wantConds, ignoredCondFields) {
+				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.wantConds)
 			}
 		})
 	}
