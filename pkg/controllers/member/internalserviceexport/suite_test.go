@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -36,7 +36,7 @@ var (
 
 // setUpResources help set up resources in the test environment.
 func setUpResources() {
-	// Add the namespaces
+	// Add the namespaces.
 	memberNS := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: memberUserNS,
@@ -61,7 +61,7 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
@@ -87,7 +87,7 @@ var _ = BeforeSuite(func() {
 	// Add custom APIs to the runtime scheme.
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
-	// Set up clients for member and hub clusters
+	// Set up clients for member and hub clusters.
 	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(memberClient).NotTo(BeNil())
