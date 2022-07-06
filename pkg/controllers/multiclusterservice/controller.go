@@ -15,12 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -38,8 +35,8 @@ const (
 	serviceLabelMCSName      = "networking.fleet.azure.com/multi-cluster-service-name"
 	serviceLabelMCSNamespace = "networking.fleet.azure.com/multi-cluster-service-namespace"
 
-	eventReasonUnknownServiceImport = "UnknownServiceImport"
-	eventReasonFoundServiceImport   = "FoundServiceImport"
+	conditionReasonUnknownServiceImport = "UnknownServiceImport"
+	conditionReasonFoundServiceImport   = "FoundServiceImport"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -264,10 +261,9 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 		return nil
 	}
 	if labels == nil { // in case labels map is nil and causes the panic
-		mcs.Labels = map[string]string{key: value}
-	} else {
-		labels[key] = value
+		mcs.Labels = map[string]string{}
 	}
+	labels[key] = value
 	if err := r.Client.Update(ctx, mcs); err != nil {
 		klog.ErrorS(err, "Failed to add label to mcs", "multiClusterService", klog.KObj(mcs), "key", key, "value", value)
 		return err
@@ -285,11 +281,7 @@ func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterServ
 		Ports: svcPorts,
 	}
 	if service.GetLabels() == nil { // in case labels map is nil and causes the panic
-		service.Labels = map[string]string{
-			serviceLabelMCSName:      mcs.Name,
-			serviceLabelMCSNamespace: mcs.Namespace,
-		}
-		return nil
+		service.Labels = map[string]string{}
 	}
 
 	service.Labels[serviceLabelMCSName] = mcs.Name
@@ -311,15 +303,16 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 	desiredCond := &metav1.Condition{
 		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 		Status:             metav1.ConditionTrue,
-		Reason:             eventReasonFoundServiceImport,
+		Reason:             conditionReasonFoundServiceImport,
 		ObservedGeneration: mcs.GetGeneration(),
+		Message:            "found valid service import",
 	}
 	if len(serviceImport.Status.Clusters) == 0 {
 		desiredCond = &metav1.Condition{
 			Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 			Status:             metav1.ConditionUnknown,
-			Reason:             eventReasonUnknownServiceImport,
-			Message:            "unable to find valid service import",
+			Reason:             conditionReasonUnknownServiceImport,
+			Message:            "waiting for processing service import or unable to find valid service import",
 			ObservedGeneration: mcs.GetGeneration(),
 		}
 	}
@@ -329,7 +322,7 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 		return nil
 	}
 	mcsKObj := klog.KObj(mcs)
-	oldStatus := mcs.Status
+	oldStatus := mcs.Status.DeepCopy()
 	mcs.Status.LoadBalancer = service.Status.LoadBalancer
 	meta.SetStatusCondition(&mcs.Status.Conditions, *desiredCond)
 
@@ -353,7 +346,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
 			handler.EnqueueRequestsFromMapFunc(r.serviceEventHandler()),
-			builder.WithPredicates(r.serviceFilter()),
 		).
 		Complete(r)
 }
@@ -362,32 +354,15 @@ func (r *Reconciler) serviceEventHandler() handler.MapFunc {
 	return func(object client.Object) []reconcile.Request {
 		namespace := object.GetLabels()[serviceLabelMCSNamespace]
 		name := object.GetLabels()[serviceLabelMCSName]
+
+		// ignore any service which is not in the fleet system namespace and does not have two labels
+		if object.GetNamespace() != r.FleetSystemNamespace || namespace == "" || name == "" {
+			return []reconcile.Request{}
+		}
 		return []reconcile.Request{
 			{
 				NamespacedName: types.NamespacedName{Namespace: namespace, Name: name},
 			},
 		}
 	}
-}
-
-func (r *Reconciler) serviceFilter() predicate.Funcs {
-	return predicate.Funcs{
-		GenericFunc: func(e event.GenericEvent) bool {
-			return r.doesServiceHaveMultiClusterService(e.Object)
-		},
-		CreateFunc: func(e event.CreateEvent) bool {
-			return r.doesServiceHaveMultiClusterService(e.Object)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return r.doesServiceHaveMultiClusterService(e.ObjectNew)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return r.doesServiceHaveMultiClusterService(e.Object)
-		},
-	}
-}
-
-func (r *Reconciler) doesServiceHaveMultiClusterService(object client.Object) bool {
-	// If the service is created in the fleet system, it's owned by the MCS.
-	return object.GetNamespace() == r.FleetSystemNamespace
 }

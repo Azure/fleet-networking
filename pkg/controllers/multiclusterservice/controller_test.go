@@ -266,14 +266,14 @@ func TestHandleUpdate(t *testing.T) {
 	unknownCondition := metav1.Condition{
 		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 		Status:             metav1.ConditionUnknown,
-		Reason:             eventReasonUnknownServiceImport,
+		Reason:             conditionReasonUnknownServiceImport,
 		LastTransitionTime: metav1.Now(),
 	}
 	validCondition := metav1.Condition{
 		Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
-		Reason:             eventReasonFoundServiceImport,
+		Reason:             conditionReasonFoundServiceImport,
 	}
 	serviceLabel := map[string]string{
 		serviceLabelMCSName:      testName,
