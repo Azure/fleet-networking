@@ -3,9 +3,9 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package hub features the internalserviceimport controller deployed in hub cluster to keep serviceimport
+// Package internalserviceimport features the internalserviceimport controller deployed in hub cluster to keep serviceimport
 // synced with internalserviceimport.
-package hub
+package internalserviceimport
 
 import (
 	"context"
@@ -21,13 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/utils"
-)
-
-const (
-	InternalServiceImportFinalizer = "networking.fleet.azure.com/internalserviceimport-cleanup"
-	exposedClusterNotFound         = "exposedClusterNotFound"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -56,7 +49,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Update service import in target namespace in hub cluster to carry the exposed cluster info.
-	targetNamespace := utils.GetTargetNamespace(internalServiceImport)
+	targetNamespace := GetTargetNamespace(internalServiceImport)
 	serviceImport := &fleetnetv1alpha1.ServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      internalServiceImport.Name,
@@ -81,7 +74,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// Remove exposed cluster name label from service import
 			// TODO(mainred): not idea how to delete a lable from a k8s resource, through API, we achieved this by setting
 			// the label value to null.
-			serviceImport.SetLabels(map[string]string{consts.LabelExposedClusterName: ""})
+			serviceImport.SetLabels(map[string]string{LabelExposedClusterName: ""})
 			objPatch := client.MergeFrom(serviceImport.DeepCopyObject().(client.Object))
 			if err := r.hubClient.Patch(ctx, serviceImport, objPatch); err != nil {
 				klog.ErrorS(err, "Failed to delete internalserviceimport as requried by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", internalServiceImport, "finalizer", InternalServiceImportFinalizer)
@@ -99,7 +92,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	exposedCluster := utils.GetExposedClusterName(internalServiceImport)
+	exposedCluster := GetExposedClusterName(internalServiceImport)
 	if len(exposedCluster) == 0 {
 		// TODO(mainred): InternalServiceImport in current design is to indicate a cluster will be exposed to provision
 		// a load balancer for N-S multi-networking traffic, and in case the indicator cannot be found in this
@@ -110,7 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	serviceImport.SetLabels(map[string]string{consts.LabelExposedClusterName: exposedCluster})
+	serviceImport.SetLabels(map[string]string{LabelExposedClusterName: exposedCluster})
 	if _, err := controllerutil.CreateOrPatch(ctx, r.hubClient, serviceImport, func() error {
 		return nil
 	}); err != nil {
@@ -120,6 +113,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
+// TODO(mainred): we need to watch service import controller status and sync service status info back to internal service import
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.InternalServiceImport{}).

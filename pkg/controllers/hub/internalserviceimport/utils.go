@@ -3,8 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package utils provides util functions to handle common internalserviceimport logic
-package utils
+package internalserviceimport
 
 import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"

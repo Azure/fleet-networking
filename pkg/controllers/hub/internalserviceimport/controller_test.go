@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package hub
+package internalserviceimport
 
 import (
 	"context"
@@ -14,8 +14,6 @@ import (
 	"testing"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/utils"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -69,7 +67,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "serviceimport",
 					Namespace: "member-x-in-hub-to-be-changed",
-					Labels:    map[string]string{consts.LabelExposedClusterName: "clustername-to-be-changed"},
+					Labels:    map[string]string{LabelExposedClusterName: "clustername-to-be-changed"},
 				},
 			},
 		},
@@ -111,15 +109,15 @@ func TestReconcile(t *testing.T) {
 			}
 
 			obtainedServiceImport := &fleetnetv1alpha1.ServiceImport{}
-			targetNamespace := utils.GetTargetNamespace(tc.internalSvcImport)
+			targetNamespace := GetTargetNamespace(tc.internalSvcImport)
 			namespacedName := types.NamespacedName{Namespace: targetNamespace, Name: tc.expectedServiceImport.Name}
 			err := reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedServiceImport)
 			if apiErrors.IsNotFound(err) {
 				t.Errorf("internal service import is not found by namespaced name %s ", namespacedName.String())
 			}
 
-			actualExposedCluster := obtainedServiceImport.Labels[consts.LabelExposedClusterName]
-			expectedExposedCluster := tc.expectedServiceImport.Labels[consts.LabelExposedClusterName]
+			actualExposedCluster := obtainedServiceImport.Labels[LabelExposedClusterName]
+			expectedExposedCluster := tc.expectedServiceImport.Labels[LabelExposedClusterName]
 			if actualExposedCluster != expectedExposedCluster {
 				t.Errorf("Expected exposed cluster %s, got %s", expectedExposedCluster, actualExposedCluster)
 			}

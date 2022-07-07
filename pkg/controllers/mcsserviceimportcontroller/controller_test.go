@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package member
+package mcsserviceimportcontroller
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -116,13 +115,13 @@ func TestReconcile(t *testing.T) {
 				t.Errorf("Expected no error when getting internal service import, got %v", err)
 			}
 
-			for _, labelKey := range []string{consts.LabelExposedClusterName, consts.LabelTargetNamespace} {
-				expectedLabelValue := tc.expectedInternalSvcImport.Labels[labelKey]
-				actualLabelValue := obtainedInternalSvcImport.Labels[labelKey]
-				if expectedLabelValue != actualLabelValue {
-					t.Errorf("Expected label value of key %s is %s, got %s", labelKey, expectedLabelValue, actualLabelValue)
-				}
+			if obtainedInternalSvcImport.Spec.TargetNamespace != tc.expectedInternalSvcImport.Spec.TargetNamespace {
+				t.Errorf("ExpectedTargetNamespace %s, got %s", tc.expectedInternalSvcImport.Spec.TargetNamespace, obtainedInternalSvcImport.Spec.TargetNamespace)
 			}
+			if obtainedInternalSvcImport.Spec.ExposedCluster != tc.expectedInternalSvcImport.Spec.ExposedCluster {
+				t.Errorf("Expected ExposedCluster %s, got %s", tc.expectedInternalSvcImport.Spec.ExposedCluster, obtainedInternalSvcImport.Spec.ExposedCluster)
+			}
+
 		})
 	}
 }
