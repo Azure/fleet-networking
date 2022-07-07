@@ -23,6 +23,13 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+const (
+	labelExposedClusterName = "networking.fleet.azure.com/exposed-cluster"
+
+	internalServiceImportFinalizer = "networking.fleet.azure.com/internalserviceimport-cleanup"
+	exposedClusterNotFound         = "exposedClusterNotFound"
+)
+
 // Reconciler reconciles a MultiClusterService object.
 type Reconciler struct {
 	hubClient client.Client
@@ -49,7 +56,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Update service import in target namespace in hub cluster to carry the exposed cluster info.
-	targetNamespace := GetTargetNamespace(internalServiceImport)
+	targetNamespace := getTargetNamespace(internalServiceImport)
 	serviceImport := &fleetnetv1alpha1.ServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      internalServiceImport.Name,
@@ -60,30 +67,29 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Examine DeletionTimestamp to determine if service import is under deletion.
 	if internalServiceImport.ObjectMeta.DeletionTimestamp.IsZero() {
 		// Add finalizer when it's in internal service import when not being deleted
-		if !controllerutil.ContainsFinalizer(internalServiceImport, InternalServiceImportFinalizer) {
-			controllerutil.AddFinalizer(internalServiceImport, InternalServiceImportFinalizer)
+		if !controllerutil.ContainsFinalizer(internalServiceImport, internalServiceImportFinalizer) {
+			controllerutil.AddFinalizer(internalServiceImport, internalServiceImportFinalizer)
 			if err := r.hubClient.Update(ctx, internalServiceImport); err != nil {
-				klog.ErrorS(err, "Failed to add serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "finalizer", InternalServiceImportFinalizer)
+				klog.ErrorS(err, "Failed to add serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "finalizer", internalServiceImportFinalizer)
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
 		// Delete internal service import dependency when the finalizer is expected then remove the finalizer from internal service import.
-		if controllerutil.ContainsFinalizer(internalServiceImport, InternalServiceImportFinalizer) {
-
+		if controllerutil.ContainsFinalizer(internalServiceImport, internalServiceImportFinalizer) {
 			// Remove exposed cluster name label from service import
 			// TODO(mainred): not idea how to delete a lable from a k8s resource, through API, we achieved this by setting
 			// the label value to null.
-			serviceImport.SetLabels(map[string]string{LabelExposedClusterName: ""})
+			serviceImport.SetLabels(map[string]string{labelExposedClusterName: ""})
 			objPatch := client.MergeFrom(serviceImport.DeepCopyObject().(client.Object))
 			if err := r.hubClient.Patch(ctx, serviceImport, objPatch); err != nil {
-				klog.ErrorS(err, "Failed to delete internalserviceimport as requried by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", internalServiceImport, "finalizer", InternalServiceImportFinalizer)
+				klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", internalServiceImport, "finalizer", internalServiceImportFinalizer)
 				return ctrl.Result{}, err
 			}
 
-			controllerutil.RemoveFinalizer(internalServiceImport, InternalServiceImportFinalizer)
+			controllerutil.RemoveFinalizer(internalServiceImport, internalServiceImportFinalizer)
 			if err := r.hubClient.Update(ctx, internalServiceImport); err != nil {
-				klog.ErrorS(err, "Failed to remove serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "finalizer", InternalServiceImportFinalizer)
+				klog.ErrorS(err, "Failed to remove serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "finalizer", internalServiceImportFinalizer)
 				return ctrl.Result{}, err
 			}
 
@@ -92,7 +98,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	exposedCluster := GetExposedClusterName(internalServiceImport)
+	exposedCluster := getExposedClusterName(internalServiceImport)
 	if len(exposedCluster) == 0 {
 		// TODO(mainred): InternalServiceImport in current design is to indicate a cluster will be exposed to provision
 		// a load balancer for N-S multi-networking traffic, and in case the indicator cannot be found in this
@@ -103,7 +109,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	serviceImport.SetLabels(map[string]string{LabelExposedClusterName: exposedCluster})
+	serviceImport.SetLabels(map[string]string{labelExposedClusterName: exposedCluster})
 	if _, err := controllerutil.CreateOrPatch(ctx, r.hubClient, serviceImport, func() error {
 		return nil
 	}); err != nil {
@@ -118,4 +124,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.InternalServiceImport{}).
 		Complete(r)
+}
+
+// getExposedClusterName returns the name of the cluster which exposes the service import and on which multi-cluster
+// networking loadbalancer will be provisioned
+func getExposedClusterName(internalServiceImport *fleetnetv1alpha1.InternalServiceImport) string {
+	if internalServiceImport != nil {
+		return internalServiceImport.Spec.ExposedCluster
+	}
+	return ""
+}
+
+func getTargetNamespace(internalServiceImport *fleetnetv1alpha1.InternalServiceImport) string {
+	if internalServiceImport != nil {
+		return internalServiceImport.Spec.TargetNamespace
+	}
+	return ""
 }

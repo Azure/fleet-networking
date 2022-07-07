@@ -74,7 +74,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
 		if controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
 			if err := r.hubClient.Delete(ctx, internalServiceImport); err != nil {
-				klog.ErrorS(err, "Failed to delete internalserviceimport as requried by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
 				return ctrl.Result{}, err
 			}
 

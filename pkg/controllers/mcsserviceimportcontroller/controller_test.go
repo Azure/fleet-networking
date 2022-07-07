@@ -121,7 +121,6 @@ func TestReconcile(t *testing.T) {
 			if obtainedInternalSvcImport.Spec.ExposedCluster != tc.expectedInternalSvcImport.Spec.ExposedCluster {
 				t.Errorf("Expected ExposedCluster %s, got %s", tc.expectedInternalSvcImport.Spec.ExposedCluster, obtainedInternalSvcImport.Spec.ExposedCluster)
 			}
-
 		})
 	}
 }

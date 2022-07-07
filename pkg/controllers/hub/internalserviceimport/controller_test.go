@@ -67,7 +67,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "serviceimport",
 					Namespace: "member-x-in-hub-to-be-changed",
-					Labels:    map[string]string{LabelExposedClusterName: "clustername-to-be-changed"},
+					Labels:    map[string]string{labelExposedClusterName: "clustername-to-be-changed"},
 				},
 			},
 		},
@@ -109,15 +109,15 @@ func TestReconcile(t *testing.T) {
 			}
 
 			obtainedServiceImport := &fleetnetv1alpha1.ServiceImport{}
-			targetNamespace := GetTargetNamespace(tc.internalSvcImport)
+			targetNamespace := getTargetNamespace(tc.internalSvcImport)
 			namespacedName := types.NamespacedName{Namespace: targetNamespace, Name: tc.expectedServiceImport.Name}
 			err := reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedServiceImport)
 			if apiErrors.IsNotFound(err) {
 				t.Errorf("internal service import is not found by namespaced name %s ", namespacedName.String())
 			}
 
-			actualExposedCluster := obtainedServiceImport.Labels[LabelExposedClusterName]
-			expectedExposedCluster := tc.expectedServiceImport.Labels[LabelExposedClusterName]
+			actualExposedCluster := obtainedServiceImport.Labels[labelExposedClusterName]
+			expectedExposedCluster := tc.expectedServiceImport.Labels[labelExposedClusterName]
 			if actualExposedCluster != expectedExposedCluster {
 				t.Errorf("Expected exposed cluster %s, got %s", expectedExposedCluster, actualExposedCluster)
 			}
