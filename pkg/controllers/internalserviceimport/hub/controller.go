@@ -42,11 +42,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	internalServiceImportRef := klog.KRef(req.Namespace, req.Name)
 	err := r.hubClient.Get(ctx, req.NamespacedName, internalServiceImport)
 	if errors.IsNotFound(err) {
-		klog.ErrorS(err, "Could not find ServiceImport in member cluser", "ServiceImport", internalServiceImportRef)
+		klog.ErrorS(err, "Could not find InternalServiceImport in member cluser", "InternalServiceImport", internalServiceImportRef)
 		return reconcile.Result{}, nil
 	}
 	if err != nil {
-		klog.ErrorS(err, "Failed to get ServiceImport", "ServiceImport", internalServiceImportRef)
+		klog.ErrorS(err, "Failed to get InternalServiceImport", "InternalServiceImport", internalServiceImportRef)
 		return reconcile.Result{}, err
 	}
 
