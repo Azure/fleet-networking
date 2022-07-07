@@ -22,6 +22,10 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+const (
+	ServiceImportFinalizer = "networking.fleet.azure.com/serviceimport-cleanup"
+)
+
 // Reconciler reconciles a InternalServceImport object.
 type Reconciler struct {
 	memberClient client.Client
@@ -49,13 +53,43 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return reconcile.Result{}, err
 	}
 
-	// create or update internalserviceimport in member cluster namespace in hub cluster.
 	internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceImport.Name,
 			Namespace: getMemberNamespaceInHub(serviceImport),
 		},
 	}
+
+	// Examine DeletionTimestamp to determine if service import is under deletion.
+	if serviceImport.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Add finalizer when it's in service import when not being deleted
+		if !controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
+			controllerutil.AddFinalizer(serviceImport, ServiceImportFinalizer)
+			if err := r.memberClient.Update(ctx, serviceImport); err != nil {
+				klog.ErrorS(err, "Failed to add serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
+		if controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
+			if err := r.hubClient.Delete(ctx, internalServiceImport); err != nil {
+				klog.ErrorS(err, "Failed to delete internalserviceimport as requried by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				return ctrl.Result{}, err
+			}
+
+			controllerutil.RemoveFinalizer(serviceImport, ServiceImportFinalizer)
+			if err := r.memberClient.Update(ctx, serviceImport); err != nil {
+				klog.ErrorS(err, "Failed to remove serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				return ctrl.Result{}, err
+			}
+
+			// Stop reconciliation as the item is being deleted
+			return ctrl.Result{}, nil
+		}
+	}
+
+	// create or update internalserviceimport in member cluster namespace in hub cluster.
 
 	// NOTE(mainred): As a service import can be exposed by other cluster, we don't override the exposed cluster when
 	// it's specified.
