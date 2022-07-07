@@ -37,6 +37,18 @@ spec:
             type: string
           metadata:
             type: object
+          spec:
+            description: InternalServiceImportSpec indicates the spec of an InternalServiceImport.
+            properties:
+              exposedcluster:
+                description: ExposedCluster is the cluster exposing exported service,
+                  on wchich the load balancer will be deployed.
+                type: string
+              targetnamespace:
+                description: TargetNamespace is the namespace exposing the service,
+                  but for the hub cluster
+                type: string
+            type: object
           status:
             description: status contains information about the exported services that
               form the multi-cluster service referenced by this ServiceImport.
@@ -142,6 +154,8 @@ spec:
             - ports
             - type
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

@@ -20,10 +20,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
 )
 
-// Reconciler reconciles a MultiClusterService object.
+// Reconciler reconciles a InternalServceImport object.
 type Reconciler struct {
 	memberClient client.Client
 	hubClient    client.Client
@@ -31,6 +30,8 @@ type Reconciler struct {
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile in member cluster creates hub cluster internal service import out of member cluster service import.
@@ -55,10 +56,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Namespace: getMemberNamespaceInHub(serviceImport),
 		},
 	}
-	internalServiceImport.SetLabels(map[string]string{
-		consts.LabelTargetNamespace:    serviceImport.Namespace,
-		consts.LabelExposedClusterName: getExposedClusterName(serviceImport),
-	})
+
+	// NOTE(mainred): As a service import can be exposed by other cluster, we don't override the exposed cluster when
+	// it's specified.
+	// Targetnamespace must be the same one as service import, so we update targetnamespace anyway.
+	if len(internalServiceImport.Spec.ExposedCluster) != 0 {
+		klog.V(2).InfoS("Don't update exposed cluster of InternalServiceImport as it has been set", "InternalServiceImport", klog.KObj(internalServiceImport), "exposed cluster", internalServiceImport.Spec.ExposedCluster)
+		return reconcile.Result{}, nil
+	}
+	internalServiceImport.Spec.ExposedCluster = getExposedClusterName(serviceImport)
+	internalServiceImport.Spec.TargetNamespace = serviceImport.Namespace
 	if _, err := controllerutil.CreateOrPatch(ctx, r.hubClient, internalServiceImport, func() error {
 		return nil
 	}); err != nil {

@@ -35,6 +35,8 @@ type Reconciler struct {
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports/finalizers,verbs=get;update
 
 // Reconcile in hub cluster updates service import with exposed cluster according the corresponding internal service import.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -50,7 +52,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return reconcile.Result{}, err
 	}
 
-	exposedCluster := utils.GetExposedClusterName(internalServiceImport.GetLabels())
+	exposedCluster := utils.GetExposedClusterName(internalServiceImport)
 	if len(exposedCluster) == 0 {
 		// TODO(mainred): InternalServiceImport in current design is to indicate a cluster will be exposed to provision
 		// a load balancer for N-S multi-networking traffic, and in case the indicator cannot be found in this
@@ -62,18 +64,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// update service import in target namespace in hub cluster to carry the exposed cluster info.
-	targetNamespace := utils.GetTargetNamespace(internalServiceImport.GetLabels())
+	targetNamespace := utils.GetTargetNamespace(internalServiceImport)
 	serviceImport := &fleetnetv1alpha1.ServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      internalServiceImport.Name,
 			Namespace: targetNamespace,
 		},
 	}
+
 	serviceImport.SetLabels(map[string]string{consts.LabelExposedClusterName: exposedCluster})
 	if _, err := controllerutil.CreateOrPatch(ctx, r.hubClient, serviceImport, func() error {
 		return nil
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", klog.KObj(serviceImport))
+		klog.ErrorS(err, "Failed to create or update ServiceImport from InternalServiceImport", "ServiceImport", klog.KObj(serviceImport), "InternalServiceImport", klog.KObj(internalServiceImport))
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil

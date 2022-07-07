@@ -7,15 +7,21 @@ Licensed under the MIT license.
 package utils
 
 import (
-	"go.goms.io/fleet-networking/pkg/controllers/internalserviceimport/consts"
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 // GetExposedClusterName returns the name of the cluster which exposes the service import and on which multi-cluster
 // networking loadbalancer will be provisioned
-func GetExposedClusterName(labels map[string]string) string {
-	return labels[consts.LabelExposedClusterName]
+func GetExposedClusterName(internalServiceImport *fleetnetv1alpha1.InternalServiceImport) string {
+	if internalServiceImport != nil {
+		return internalServiceImport.Spec.ExposedCluster
+	}
+	return ""
 }
 
-func GetTargetNamespace(labels map[string]string) string {
-	return labels[consts.LabelTargetNamespace]
+func GetTargetNamespace(internalServiceImport *fleetnetv1alpha1.InternalServiceImport) string {
+	if internalServiceImport != nil {
+		return internalServiceImport.Spec.TargetNamespace
+	}
+	return ""
 }

@@ -19,10 +19,24 @@ type InternalServiceImport struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
+	Spec InternalServiceImportSpec `json:"spec"`
+
 	// status contains information about the exported services that form
 	// the multi-cluster service referenced by this ServiceImport.
 	// +optional
 	Status ServiceImportStatus `json:"status,omitempty"`
+}
+
+// InternalServiceImportSpec indicates the spec of an InternalServiceImport.
+type InternalServiceImportSpec struct {
+	// TargetNamespace is the namespace exposing the service, but for the hub cluster
+	// +kubebuilder:validation:Required
+	TargetNamespace string `json:"targetnamespace,omitempty"`
+
+	// ExposedCluster is the cluster exposing exported service, on wchich the load balancer will be deployed.
+	// +kubebuilder:validation:Required
+	ExposedCluster string `json:"exposedcluster,omitempty"`
 }
 
 // +kubebuilder:object:root=true

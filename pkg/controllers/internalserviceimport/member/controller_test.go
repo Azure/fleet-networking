@@ -27,8 +27,7 @@ import (
 // TestMain bootstraps the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
-	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
+	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -64,64 +63,66 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "serviceimport",
 					Namespace: "member-x-in-hub-to-be-changed",
-					Labels: map[string]string{
-						consts.LabelTargetNamespace:    "serviceimportnamespace",
-						consts.LabelExposedClusterName: "clustername-to-be-changed",
-					},
+				},
+				Spec: fleetnetv1alpha1.InternalServiceImportSpec{
+					TargetNamespace: "serviceimportnamespace",
+					ExposedCluster:  "clustername-to-be-changed",
 				},
 			},
 		},
 	}
 	for _, tc := range cases {
-		fakeMemberClient := fakeclient.NewClientBuilder().
-			WithScheme(scheme.Scheme).
-			WithObjects(client.Object(tc.serviceImport)).
-			Build()
-		if len(tc.serviceImport.Name) == 0 {
-			fakeMemberClient = fakeclient.NewClientBuilder().
+		t.Run(tc.desc, func(t *testing.T) {
+			fakeMemberClient := fakeclient.NewClientBuilder().
 				WithScheme(scheme.Scheme).
-				WithObjects().
+				WithObjects(client.Object(tc.serviceImport)).
 				Build()
-		}
-
-		fakeHubClient := fakeclient.NewClientBuilder().Build()
-		reconciler := Reconciler{
-			memberClient: fakeMemberClient,
-			hubClient:    fakeHubClient,
-			Scheme:       scheme.Scheme,
-		}
-
-		req := ctrl.Request{
-			NamespacedName: types.NamespacedName{
-				Name:      tc.serviceImport.Name,
-				Namespace: tc.serviceImport.Namespace,
-			},
-		}
-		actualResult, actualErr := reconciler.Reconcile(context.TODO(), req)
-		if !reflect.DeepEqual(actualResult, tc.expectedResult) {
-			t.Errorf("Expected result %v, got %v", tc.expectedResult, actualResult)
-		}
-		if !errors.Is(actualErr, tc.expectedErr) {
-			t.Errorf("Expected result error %v, got %v", tc.expectedErr, actualErr)
-		}
-
-		if len(tc.serviceImport.Name) == 0 {
-			continue
-		}
-
-		// check labels are correctly set
-		obtainedInternalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
-		namespacedName := types.NamespacedName{Namespace: tc.expectedInternalSvcImport.Namespace, Name: tc.expectedInternalSvcImport.Name}
-		if err := reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedInternalSvcImport); err != nil {
-			t.Errorf("Expected no error when getting internal service import, got %v", err)
-		}
-
-		for _, labelKey := range []string{consts.LabelExposedClusterName, consts.LabelTargetNamespace} {
-			expectedLabelValue := tc.expectedInternalSvcImport.Labels[labelKey]
-			actualLabelValue := obtainedInternalSvcImport.Labels[labelKey]
-			if expectedLabelValue != actualLabelValue {
-				t.Errorf("Expected label value of key %s is %s, got %s", labelKey, expectedLabelValue, actualLabelValue)
+			if len(tc.serviceImport.Name) == 0 {
+				fakeMemberClient = fakeclient.NewClientBuilder().
+					WithScheme(scheme.Scheme).
+					WithObjects().
+					Build()
 			}
-		}
+
+			fakeHubClient := fakeclient.NewClientBuilder().Build()
+			reconciler := Reconciler{
+				memberClient: fakeMemberClient,
+				hubClient:    fakeHubClient,
+				Scheme:       scheme.Scheme,
+			}
+
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      tc.serviceImport.Name,
+					Namespace: tc.serviceImport.Namespace,
+				},
+			}
+			actualResult, actualErr := reconciler.Reconcile(context.TODO(), req)
+			if !reflect.DeepEqual(actualResult, tc.expectedResult) {
+				t.Errorf("Expected result %v, got %v", tc.expectedResult, actualResult)
+			}
+			if !errors.Is(actualErr, tc.expectedErr) {
+				t.Errorf("Expected result error %v, got %v", tc.expectedErr, actualErr)
+			}
+
+			if len(tc.serviceImport.Name) == 0 {
+				return
+			}
+
+			// check labels are correctly set
+			obtainedInternalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+			namespacedName := types.NamespacedName{Namespace: tc.expectedInternalSvcImport.Namespace, Name: tc.expectedInternalSvcImport.Name}
+			if err := reconciler.hubClient.Get(context.TODO(), namespacedName, obtainedInternalSvcImport); err != nil {
+				t.Errorf("Expected no error when getting internal service import, got %v", err)
+			}
+
+			for _, labelKey := range []string{consts.LabelExposedClusterName, consts.LabelTargetNamespace} {
+				expectedLabelValue := tc.expectedInternalSvcImport.Labels[labelKey]
+				actualLabelValue := obtainedInternalSvcImport.Labels[labelKey]
+				if expectedLabelValue != actualLabelValue {
+					t.Errorf("Expected label value of key %s is %s, got %s", labelKey, expectedLabelValue, actualLabelValue)
+				}
+			}
+		})
 	}
 }
