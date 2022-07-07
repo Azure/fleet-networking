@@ -40,6 +40,7 @@ func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
+		ObservedGeneration: 0,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportValidCondReason,
 		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
@@ -51,6 +52,7 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
+		ObservedGeneration: 1,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidNotFoundCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not found", userNS, svcName),
@@ -62,6 +64,7 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
+		ObservedGeneration: 2,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ServiceIneligible",
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
