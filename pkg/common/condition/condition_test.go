@@ -53,7 +53,7 @@ func TestEqualCondition(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "observedGenerations are different",
+			name: "observedGenerations are different (current is larger)",
 			current: &metav1.Condition{
 				Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
 				Status:             metav1.ConditionUnknown,
@@ -68,6 +68,24 @@ func TestEqualCondition(t *testing.T) {
 				Message:            "unable to find valid service import",
 				ObservedGeneration: 1,
 			},
+			want: true,
+		},
+		{
+			name: "observedGenerations are different (current is smaller)",
+			current: &metav1.Condition{
+				Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+				Status:             metav1.ConditionUnknown,
+				Reason:             "abc",
+				Message:            "unable to find service import",
+				ObservedGeneration: 3,
+			},
+			desired: &metav1.Condition{
+				Type:               string(fleetnetv1alpha1.MultiClusterServiceValid),
+				Status:             metav1.ConditionUnknown,
+				Reason:             "abc",
+				Message:            "unable to find valid service import",
+				ObservedGeneration: 4,
+			},
 			want: false,
 		},
 	}
@@ -81,100 +99,125 @@ func TestEqualCondition(t *testing.T) {
 	}
 }
 
-// TestIsConditionSeen tests the isConditionSeen function.
-func TestIsConditionSeen(t *testing.T) {
-	trueReason := "CondIsTrue"
-	falseReason := "CondIsFalse"
-	unknownReason := "CondIsUnknown"
-	emptyReason := ""
+// TestEqualConditionIgnoreReason tests the EqualConditionIgnoreReason function.
+func TestEqualConditionIgnoreReason(t *testing.T) {
+	condType := "sometype"
 
 	testCases := []struct {
-		name           string
-		cond           *metav1.Condition
-		expectedStatus metav1.ConditionStatus
-		expectedReason string
-		minGeneration  int64
-		want           bool
+		name    string
+		current *metav1.Condition
+		desired *metav1.Condition
+		want    bool
 	}{
 		{
-			name: "the condition is seen (has expected status + reason and same generation)",
-			cond: &metav1.Condition{
+			name:    "nil conditions",
+			current: nil,
+			desired: nil,
+			want:    true,
+		},
+		{
+			name:    "current is nil",
+			current: nil,
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionUnknown,
+				ObservedGeneration: 7,
+			},
+			want: false,
+		},
+		{
+			name: "conditions are equal",
+			current: &metav1.Condition{
+				Type:               condType,
 				Status:             metav1.ConditionTrue,
-				Reason:             trueReason,
 				ObservedGeneration: 0,
 			},
-			expectedStatus: metav1.ConditionTrue,
-			expectedReason: trueReason,
-			minGeneration:  0,
-			want:           true,
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 0,
+			},
+			want: true,
 		},
 		{
-			name: "the condition is seen (has expected status and same generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionFalse,
-				Reason:             falseReason,
+			name: "conditions are equal (different reasons)",
+			current: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionTrue,
+				Reason:             "some reason",
+				ObservedGeneration: 0,
+			},
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionTrue,
+				Reason:             "another reason",
+				ObservedGeneration: 0,
+			},
+			want: true,
+		},
+		{
+			name: "conditions are not equal (different type)",
+			current: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionUnknown,
 				ObservedGeneration: 1,
 			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: emptyReason,
-			minGeneration:  1,
-			want:           true,
-		},
-		{
-			name: "the condition is seen (has expected status and newer generation)",
-			cond: &metav1.Condition{
+			desired: &metav1.Condition{
+				Type:               "differentype",
 				Status:             metav1.ConditionUnknown,
-				Reason:             unknownReason,
-				ObservedGeneration: 3,
+				ObservedGeneration: 1,
 			},
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: emptyReason,
-			minGeneration:  2,
-			want:           true,
+			want: false,
 		},
 		{
-			name: "the condition is not seen (different status)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Reason:             trueReason,
+			name: "conditions are not equal (different status)",
+			current: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionFalse,
 				ObservedGeneration: 4,
 			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: emptyReason,
-			minGeneration:  4,
-			want:           false,
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 4,
+			},
+			want: false,
 		},
 		{
-			name: "the condition is not seen (different reason)",
-			cond: &metav1.Condition{
+			name: "conditions are equal (current condition is newer)",
+			current: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionUnknown,
+				ObservedGeneration: 3,
+			},
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionUnknown,
+				ObservedGeneration: 2,
+			},
+			want: true,
+		},
+		{
+			name: "conditions are not equal (current condition is older)",
+			current: &metav1.Condition{
+				Type:               condType,
 				Status:             metav1.ConditionFalse,
-				Reason:             falseReason,
 				ObservedGeneration: 5,
 			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: trueReason,
-			minGeneration:  5,
-			want:           false,
-		},
-		{
-			name: "the condition is not seen (older generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionUnknown,
-				Reason:             unknownReason,
+			desired: &metav1.Condition{
+				Type:               condType,
+				Status:             metav1.ConditionFalse,
 				ObservedGeneration: 6,
 			},
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: unknownReason,
-			minGeneration:  7,
-			want:           false,
+			want: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := IsConditionSeen(tc.cond, tc.expectedStatus, tc.expectedReason, tc.minGeneration); got != tc.want {
-				t.Fatalf("isConditionSeen(%+v, %s, %s, %d) = %t, want %t",
-					tc.cond, tc.expectedStatus, tc.expectedReason, tc.minGeneration, got, tc.want)
+			if got := EqualConditionIgnoreReason(tc.current, tc.desired); got != tc.want {
+				t.Fatalf("EqualConditionIgnoreReason(%+v, %+v) = %t, want %t",
+					tc.current, tc.desired, got, tc.want)
 			}
 		})
 	}
