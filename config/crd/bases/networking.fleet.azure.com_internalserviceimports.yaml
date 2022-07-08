@@ -37,6 +37,49 @@ spec:
             type: string
           metadata:
             type: object
+          spec:
+            description: InternalServiceImportSpec specifies the spec of InternalServiceImport.
+            properties:
+              serviceReference:
+                description: The reference to the source Service.
+                properties:
+                  apiVersion:
+                    description: The API version of the referred object.
+                    type: string
+                  clusterId:
+                    description: The ID of the cluster where the object is exported.
+                    type: string
+                  generation:
+                    description: The generation of the referred object.
+                    format: int64
+                    type: integer
+                  kind:
+                    description: The kind of the referred object.
+                    type: string
+                  name:
+                    description: The name of the referred object.
+                    type: string
+                  namespace:
+                    description: The namespace of the referred object.
+                    type: string
+                  resourceVersion:
+                    description: The resource version of the referred object.
+                    type: string
+                  uid:
+                    description: The UID of the referred object.
+                    type: string
+                required:
+                - clusterId
+                - generation
+                - kind
+                - name
+                - namespace
+                - resourceVersion
+                - uid
+                type: object
+            required:
+            - serviceReference
+            type: object
           status:
             description: status contains information about the exported services that
               form the multi-cluster service referenced by this ServiceImport.
