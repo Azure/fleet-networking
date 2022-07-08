@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -43,26 +42,6 @@ func isServiceEligibleForExport(svc *corev1.Service) bool {
 		return false
 	}
 	return true
-}
-
-// isConditionSeen returns if a condition has been seen before and requires no further action.
-// If any reason will do, pass an empty string as the expected reason.
-func isConditionSeen(cond *metav1.Condition, expectedStatus metav1.ConditionStatus, expectedReason string, minGeneration int64) bool {
-	if cond == nil {
-		return false
-	}
-
-	statusAsExpected := (cond.Status == expectedStatus)
-	reasonAsExpected := (cond.Reason == expectedReason)
-	if expectedReason == "" {
-		reasonAsExpected = true
-	}
-	sameOrNewerGeneration := (cond.ObservedGeneration >= minGeneration)
-
-	if statusAsExpected && reasonAsExpected && sameOrNewerGeneration {
-		return true
-	}
-	return false
 }
 
 // extractServicePorts extracts ports in use from Service.

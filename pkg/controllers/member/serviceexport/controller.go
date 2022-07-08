@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	condition "go.goms.io/fleet-networking/pkg/common/condition"
 )
 
 const (
@@ -135,8 +136,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	// Mark the ServiceExport as valid + pending conflict resolution.
-	klog.V(2).InfoS("Mark service export as valid + pending conflict resolution", "service", svcRef)
+	// Mark the ServiceExport as valid.
+	klog.V(2).InfoS("Mark service export as valid", "service", svcRef)
 	if err := r.markServiceExportAsValid(ctx, &svcExport); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
@@ -224,7 +225,7 @@ func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, sv
 // markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
 func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-	if isConditionSeen(validCond, metav1.ConditionFalse, svcExportInvalidNotFoundCondReason, svcExport.Generation) {
+	if condition.IsConditionSeen(validCond, metav1.ConditionFalse, svcExportInvalidNotFoundCondReason, svcExport.Generation) {
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
@@ -242,7 +243,7 @@ func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svc
 // markServiceExportAsInvalidSvcIneligible marks a ServiceExport as invalid.
 func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if isConditionSeen(validCond, metav1.ConditionFalse, svcExportInvalidIneligibleCondReason, svcExport.Generation) {
+	if condition.IsConditionSeen(validCond, metav1.ConditionFalse, svcExportInvalidIneligibleCondReason, svcExport.Generation) {
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
@@ -263,12 +264,13 @@ func (r *Reconciler) addServiceExportCleanupFinalizer(ctx context.Context, svcEx
 	return r.memberClient.Update(ctx, svcExport)
 }
 
-// markServiceExportAsValid marks a ServiceExport as valid + pending conflict resolution.
+// markServiceExportAsValid marks a ServiceExport as valid; if no conflict condition has been added, the
+// ServiceExport will be marked as pending conflict resolution as well.
 func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if isConditionSeen(validCond, metav1.ConditionTrue, svcExportValidCondReason, svcExport.Generation) &&
-		isConditionSeen(conflictCond, metav1.ConditionUnknown, svcExportPendingConflictResolutionReason, svcExport.Generation) {
+	if condition.IsConditionSeen(validCond, metav1.ConditionTrue, svcExportValidCondReason, svcExport.Generation) &&
+		conflictCond != nil {
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}

@@ -279,105 +279,6 @@ func TestFormatInternalServiceExportName(t *testing.T) {
 	}
 }
 
-// TestIsConditionSeen tests the isConditionSeen function.
-func TestIsConditionSeen(t *testing.T) {
-	trueReason := "CondIsTrue"
-	falseReason := "CondIsFalse"
-	unknownReason := "CondIsUnknown"
-	emptyReason := ""
-
-	testCases := []struct {
-		name           string
-		cond           *metav1.Condition
-		expectedStatus metav1.ConditionStatus
-		expectedReason string
-		minGeneration  int64
-		want           bool
-	}{
-		{
-			name: "the condition is seen (has expected status + reason and same generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Reason:             trueReason,
-				ObservedGeneration: 0,
-			},
-			expectedStatus: metav1.ConditionTrue,
-			expectedReason: trueReason,
-			minGeneration:  0,
-			want:           true,
-		},
-		{
-			name: "the condition is seen (has expected status and same generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionFalse,
-				Reason:             falseReason,
-				ObservedGeneration: 1,
-			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: emptyReason,
-			minGeneration:  1,
-			want:           true,
-		},
-		{
-			name: "the condition is seen (has expected status and newer generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionUnknown,
-				Reason:             unknownReason,
-				ObservedGeneration: 3,
-			},
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: emptyReason,
-			minGeneration:  2,
-			want:           true,
-		},
-		{
-			name: "the condition is not seen (different status)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Reason:             trueReason,
-				ObservedGeneration: 4,
-			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: emptyReason,
-			minGeneration:  4,
-			want:           false,
-		},
-		{
-			name: "the condition is not seen (different reason)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionFalse,
-				Reason:             falseReason,
-				ObservedGeneration: 5,
-			},
-			expectedStatus: metav1.ConditionFalse,
-			expectedReason: trueReason,
-			minGeneration:  5,
-			want:           false,
-		},
-		{
-			name: "the condition is not seen (older generation)",
-			cond: &metav1.Condition{
-				Status:             metav1.ConditionUnknown,
-				Reason:             unknownReason,
-				ObservedGeneration: 6,
-			},
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: unknownReason,
-			minGeneration:  7,
-			want:           false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isConditionSeen(tc.cond, tc.expectedStatus, tc.expectedReason, tc.minGeneration); got != tc.want {
-				t.Fatalf("isConditionSeen(%+v, %s, %s, %d) = %t, want %t",
-					tc.cond, tc.expectedStatus, tc.expectedReason, tc.minGeneration, got, tc.want)
-			}
-		})
-	}
-}
-
 // TestExtractServicePorts tests the extractServicePorts function.
 func TestExtractServicePorts(t *testing.T) {
 	testCases := []struct {
@@ -690,7 +591,7 @@ func TestUnexportService(t *testing.T) {
 			},
 		},
 		{
-			name: "should unexport partially exported svc",
+			name: "should unexport partially exported svc (internal svc export not yet created)",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
