@@ -12,6 +12,8 @@ import (
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=svcimport
+// +kubebuilder:subresource:status
 
 // ServiceImport describes a service imported from clusters in a ClusterSet.
 type ServiceImport struct {
@@ -46,7 +48,7 @@ type ServicePort struct {
 
 	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
 	// Default is TCP.
-	// +optional
+	// +kubebuilder:validation:Enum:=TCP;UDP;SCTP
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
 
 	// The application protocol for this port.
@@ -90,7 +92,8 @@ type ServiceImportStatus struct {
 	// type defines the type of this service.
 	// Must be ClusterSetIP or Headless.
 	// +kubebuilder:validation:Enum=ClusterSetIP;Headless
-	Type ServiceImportType `json:"type"`
+	// +optional
+	Type ServiceImportType `json:"type,omitempty"`
 	// Supports "ClientIP" and "None". Used to maintain session affinity.
 	// Enable client IP based session affinity.
 	// Must be ClientIP or None.
@@ -104,7 +107,8 @@ type ServiceImportStatus struct {
 	SessionAffinityConfig *corev1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
 
 	// +listType=atomic
-	Ports []ServicePort `json:"ports"`
+	// +optional
+	Ports []ServicePort `json:"ports,omitempty"`
 
 	// clusters is the list of exporting clusters from which this service was derived.
 	// +optional

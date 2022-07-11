@@ -10,9 +10,13 @@ metadata:
 spec:
   group: networking.fleet.azure.com
   names:
+    categories:
+    - fleet-networking
     kind: ServiceImport
     listKind: ServiceImportList
     plural: serviceimports
+    shortNames:
+    - svcimport
     singular: serviceimport
   scope: Namespaced
   versions:
@@ -93,6 +97,10 @@ spec:
                       default: TCP
                       description: The IP protocol for this port. Supports "TCP",
                         "UDP", and "SCTP". Default is TCP.
+                      enum:
+                      - TCP
+                      - UDP
+                      - SCTP
                       type: string
                     targetPort:
                       anyOf:
@@ -135,13 +143,12 @@ spec:
                 - ClusterSetIP
                 - Headless
                 type: string
-            required:
-            - ports
-            - type
             type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

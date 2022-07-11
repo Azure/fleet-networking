@@ -95,7 +95,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			return ctrl.Result{}, err
 		}
 	}
-	// delete service import in the same namesapce as the multi-cluster service
+	// delete service import in the same namespace as the multi-cluster service
 	serviceImportName := r.serviceImportFromLabel(mcs)
 	if err := r.deleteServiceImport(ctx, serviceImportName); err != nil {
 		klog.ErrorS(err, "Failed to remove service import of mcs", "multiClusterService", mcsKObj)
@@ -274,10 +274,9 @@ func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterServ
 	for i, importPort := range serviceImport.Status.Ports {
 		svcPorts[i] = importPort.ToServicePort()
 	}
-	service.Spec = corev1.ServiceSpec{
-		Type:  corev1.ServiceTypeLoadBalancer,
-		Ports: svcPorts,
-	}
+	service.Spec.Ports = svcPorts
+	service.Spec.Type = corev1.ServiceTypeLoadBalancer
+
 	if service.GetLabels() == nil { // in case labels map is nil and causes the panic
 		service.Labels = map[string]string{}
 	}
