@@ -113,6 +113,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	defer klog.Flush()
 	cancel()
 
 	By("tearing down the test environment")
