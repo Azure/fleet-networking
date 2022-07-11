@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	ipV4Addr = "1.2.3.4"
-	ipV6Addr = "2001:db8:1::ab9:C0A8:102"
+	ipv4Addr    = "1.2.3.4"
+	altIPv4Addr = "2.3.4.5"
+	ipv6Addr    = "2001:db8:1::ab9:C0A8:102"
 
 	eventuallyTimeout    = time.Second * 10
 	eventuallyInterval   = time.Millisecond * 250
@@ -47,7 +48,7 @@ func managedIPv4EndpointSliceWithoutUniqueNameLabel() *discoveryv1.EndpointSlice
 		AddressType: discoveryv1.AddressTypeIPv4,
 		Endpoints: []discoveryv1.Endpoint{
 			{
-				Addresses: []string{ipV4Addr},
+				Addresses: []string{ipv4Addr},
 			},
 		},
 		Ports: []discoveryv1.EndpointPort{
@@ -105,7 +106,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 				AddressType: discoveryv1.AddressTypeIPv6,
 				Endpoints: []discoveryv1.Endpoint{
 					{
-						Addresses: []string{ipV6Addr},
+						Addresses: []string{ipv6Addr},
 					},
 				},
 				Ports: []discoveryv1.EndpointPort{
@@ -159,7 +160,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 				AddressType: discoveryv1.AddressTypeIPv4,
 				Endpoints: []discoveryv1.Endpoint{
 					{
-						Addresses: []string{ipV4Addr},
+						Addresses: []string{ipv4Addr},
 					},
 				},
 				Ports: []discoveryv1.EndpointPort{
@@ -311,7 +312,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			AddressType: discoveryv1.AddressTypeIPv4,
 			Endpoints: []fleetnetv1alpha1.Endpoint{
 				{
-					Addresses: []string{ipV4Addr},
+					Addresses: []string{ipv4Addr},
 				},
 			},
 			Ports: []discoveryv1.EndpointPort{
@@ -345,7 +346,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				AddressType: discoveryv1.AddressTypeIPv4,
 				Endpoints: []discoveryv1.Endpoint{
 					{
-						Addresses: []string{ipV4Addr},
+						Addresses: []string{ipv4Addr},
 					},
 				},
 				Ports: []discoveryv1.EndpointPort{
@@ -682,7 +683,6 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	Context("updated exported endpointslice", func() {
 		var endpointSlice *discoveryv1.EndpointSlice
 		var svcExport *fleetnetv1alpha1.ServiceExport
-		newIPv4Addr := "2.3.4.5"
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledSvcExport()
@@ -740,7 +740,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 
 			// Update the EndpointSlice.
 			endpointSlice.Endpoints = append(endpointSlice.Endpoints, discoveryv1.Endpoint{
-				Addresses: []string{newIPv4Addr},
+				Addresses: []string{altIPv4Addr},
 			})
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
@@ -756,10 +756,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 
 				expectedEndpoints := []fleetnetv1alpha1.Endpoint{
 					{
-						Addresses: []string{ipV4Addr},
+						Addresses: []string{ipv4Addr},
 					},
 					{
-						Addresses: []string{newIPv4Addr},
+						Addresses: []string{altIPv4Addr},
 					},
 				}
 				return cmp.Equal(endpointSliceExport.Spec.Endpoints, expectedEndpoints)
@@ -863,7 +863,6 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		var endpointSlice *discoveryv1.EndpointSlice
 		var svcExport *fleetnetv1alpha1.ServiceExport
 		altEndpointSliceName := "app-endpointslice-2"
-		newIPv4Addr := "2.3.4.5"
 		altEndpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: hubNSForMember,
@@ -873,7 +872,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				AddressType: discoveryv1.AddressTypeIPv4,
 				Endpoints: []fleetnetv1alpha1.Endpoint{
 					{
-						Addresses: []string{newIPv4Addr},
+						Addresses: []string{altIPv4Addr},
 					},
 				},
 				Ports: []discoveryv1.EndpointPort{
@@ -945,9 +944,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				for _, endpointSliceExport := range endpointSliceExportList.Items {
-					endpointSliceRef := endpointSliceExport.Spec.EndpointSliceReference
-					if endpointSliceRef.Name == endpointSliceName && endpointSliceRef.UID == endpointSlice.UID {
+				for idx := range endpointSliceExportList.Items {
+					endpointSliceExport := endpointSliceExportList.Items[idx]
+					endpointSliceExportRef := endpointSliceExport.Spec.EndpointSliceReference
+					if endpointSliceExportRef.Name == endpointSliceName && endpointSliceExportRef.UID == endpointSlice.UID {
 						originalEndpointSliceExport = &endpointSliceExport
 						break
 					}
