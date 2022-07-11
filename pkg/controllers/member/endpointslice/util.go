@@ -20,24 +20,6 @@ func isEndpointSlicePermanentlyUnexportable(endpointSlice *discoveryv1.EndpointS
 	return endpointSlice.AddressType != discoveryv1.AddressTypeIPv4
 }
 
-// extractEndpointsFromEndpointSlice extracts endpoints from an EndpointSlice.
-func extractEndpointsFromEndpointSlice(endpointSlice *discoveryv1.EndpointSlice) []fleetnetv1alpha1.Endpoint {
-	extractedEndpoints := []fleetnetv1alpha1.Endpoint{}
-	for _, endpoint := range endpointSlice.Endpoints {
-		// Only ready endpoints can be exported; EndpointSlice API dictates that consumers should interpret
-		// unknown ready state, represented by a nil value, as true ready state.
-		// TO-DO (chenyu1): In newer API versions the EndpointConditions API (V1) introduces a serving state, which
-		// allows a backend to serve traffic even if it is already terminating (EndpointSliceTerminationCondition
-		// feature gate).
-		if endpoint.Conditions.Ready == nil || *(endpoint.Conditions.Ready) {
-			extractedEndpoints = append(extractedEndpoints, fleetnetv1alpha1.Endpoint{
-				Addresses: endpoint.Addresses,
-			})
-		}
-	}
-	return extractedEndpoints
-}
-
 // isServiceExportValidWithNoConflict returns if a Service Export is valid and is in no conflict
 // with other service exports.
 func isServiceExportValidWithNoConflict(svcExport *fleetnetv1alpha1.ServiceExport) bool {
