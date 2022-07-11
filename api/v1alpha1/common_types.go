@@ -40,11 +40,7 @@ type ExportedObjectReference struct {
 }
 
 // FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
-<<<<<<< HEAD
-func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta) ExportedObjectReference {
-=======
 func FromMetaObjects(clusterID string, typeMeta v1.TypeMeta, objMeta v1.ObjectMeta) ExportedObjectReference {
->>>>>>> eed58ab (Updated EndpointSlice controller)
 	return ExportedObjectReference{
 		ClusterID:       clusterID,
 		APIVersion:      typeMeta.APIVersion,
@@ -58,15 +54,9 @@ func FromMetaObjects(clusterID string, typeMeta v1.TypeMeta, objMeta v1.ObjectMe
 }
 
 // UpdateFromMetaObject updates an existing ExportedObjectReference using ObjectMeta fields from the
-<<<<<<< HEAD
-// referenced object. Note that most fields in an ExportedObjectReference should be immutable after creation,
-// and this method updates only the mutable fields.
-func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta) {
-=======
 // referenced object.
 // Note that most fields in an ExportedObjectReference should be immutable after creation.
 func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta v1.ObjectMeta) {
->>>>>>> eed58ab (Updated EndpointSlice controller)
 	e.ResourceVersion = objMeta.ResourceVersion
 	e.Generation = objMeta.Generation
 }
