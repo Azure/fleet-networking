@@ -173,6 +173,32 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 					cmp.Equal(createdMultiClusterService.Status.Conditions[0], expected, option)
 			}, timeout, interval).Should(BeTrue())
 
+			By("By updating service status")
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, derivedServiceLookupKey, createdService); err != nil {
+					return false
+				}
+				createdService.Status = corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "10.0.0.1",
+								Ports: []corev1.PortStatus{
+									{
+										Port:     8080,
+										Protocol: corev1.ProtocolTCP,
+									},
+								},
+							},
+						},
+					},
+				}
+				if err := k8sClient.Status().Update(ctx, createdService); err != nil {
+					return false
+				}
+				return true
+			}, timeout, interval).Should(BeTrue())
+
 			By("By checking mcs load balancer status")
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mcsLookupKey, createdMultiClusterService); err != nil {
