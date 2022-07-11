@@ -376,7 +376,6 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 // TestAssignUniqueNameAsLabel tests the *Reconciler.assignUniqueNameAsLabel method.
