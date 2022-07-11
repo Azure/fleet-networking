@@ -19,7 +19,7 @@ type InternalServiceImport struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// +optional
+	// +kubebuilder:validation:Required
 	Spec InternalServiceImportSpec `json:"spec,omitempty"`
 
 	// status contains information about the exported services that form
@@ -30,9 +30,9 @@ type InternalServiceImport struct {
 
 // InternalServiceImportSpec specifies the spec of InternalServiceImport.
 type InternalServiceImportSpec struct {
-	// The reference to the source Service.
+	// The reference to the source ServiceImport.
 	// +kubebuilder:validation:Required
-	ServiceReference ExportedObjectReference `json:"serviceReference"`
+	ServiceImportReference ExportedObjectReference `json:"serviceImportReference"`
 }
 
 // +kubebuilder:object:root=true

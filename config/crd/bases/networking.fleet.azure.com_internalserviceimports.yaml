@@ -40,8 +40,8 @@ spec:
           spec:
             description: InternalServiceImportSpec specifies the spec of InternalServiceImport.
             properties:
-              serviceReference:
-                description: The reference to the source Service.
+              serviceImportReference:
+                description: The reference to the source ServiceImport.
                 properties:
                   apiVersion:
                     description: The API version of the referred object.
@@ -78,7 +78,7 @@ spec:
                 - uid
                 type: object
             required:
-            - serviceReference
+            - serviceImportReference
             type: object
           status:
             description: status contains information about the exported services that
