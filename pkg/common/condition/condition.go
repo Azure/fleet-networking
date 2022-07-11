@@ -3,7 +3,9 @@ package condition
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// EqualCondition compares current with desired and ignores the LastTransitionTime and Message.
+// EqualCondition compares one condition with another; it ignores the LastTransitionTime and Message fields,
+// and will consider the ObservedGeneration values from the two conditions a match if the current
+// condition is newer.
 func EqualCondition(current, desired *metav1.Condition) bool {
 	if current == nil && desired == nil {
 		return true
@@ -16,8 +18,9 @@ func EqualCondition(current, desired *metav1.Condition) bool {
 		current.ObservedGeneration >= desired.ObservedGeneration
 }
 
-// EqualConditionIgnoreReason compares one condition with another but ignores the Reason, LastTransitionTime, and
-// Message fields.
+// EqualConditionIgnoreReason compares one condition with another; it ignores the Reason, LastTransitionTime, and
+// Message fields, and will consider the ObservedGeneration values from the two conditions a match if the current
+// condition is newer.
 func EqualConditionIgnoreReason(current, desired *metav1.Condition) bool {
 	if current == nil && desired == nil {
 		return true
