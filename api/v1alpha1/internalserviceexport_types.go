@@ -14,7 +14,6 @@ import (
 type InternalServiceExportSpec struct {
 	// A list of ports exposed by the exported Service.
 	// +listType=atomic
-	// +optional
 	Ports []ServicePort `json:"ports"`
 	// The reference to the source Service.
 	// +kubebuilder:validation:Required
