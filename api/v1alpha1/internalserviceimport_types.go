@@ -20,7 +20,7 @@ type InternalServiceImport struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Spec InternalServiceImportSpec `json:"spec,omitempty"`
+	Spec InternalServiceImportSpec `json:"spec"`
 
 	// status contains information about the exported services that form
 	// the multi-cluster service referenced by this ServiceImport.

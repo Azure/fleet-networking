@@ -1,0 +1,116 @@
+package mcsserviceimportcontroller
+
+import (
+	"context"
+	"flag"
+	"path/filepath"
+	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	// +kubebuilder:scaffold:imports
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+)
+
+// These tests use Ginkgo (BDD-style Go testing framework). Refer to
+// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
+
+var (
+	memberTestEnv *envtest.Environment
+	hubTestEnv    *envtest.Environment
+	memberClient  client.Client
+	hubClient     client.Client
+	ctx           context.Context
+	cancel        context.CancelFunc
+
+	memberClusterID string
+	hubNamespace    string
+)
+
+func TestInterServiceImportAPIs(t *testing.T) {
+	RegisterFailHandler(Fail)
+
+	RunSpecs(t, "InternalServiceImport Controller Suite")
+}
+
+var _ = BeforeSuite(func() {
+	klog.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
+	ctx, cancel = context.WithCancel(context.TODO())
+
+	By("bootstrapping test environment")
+
+	// Start the clusters.
+	memberTestEnv = &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
+	}
+	memberCfg, err := memberTestEnv.Start()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(memberCfg).NotTo(BeNil())
+
+	hubTestEnv = &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
+	}
+	hubCfg, err := hubTestEnv.Start()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(hubCfg).NotTo(BeNil())
+
+	// Add custom APIs to the runtime scheme.
+	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
+
+	// Set up clients for member and hub clusters.
+	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(memberClient).NotTo(BeNil())
+	hubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(hubClient).NotTo(BeNil())
+
+	By("starting the controller manager")
+	klog.InitFlags(flag.CommandLine)
+	flag.Parse()
+
+	mgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: ":9999",
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	memberClusterID = "fake-member-cluster-id"
+	hubNamespace = "fake-namespace"
+
+	err = (&Reconciler{
+		memberClusterID: memberClusterID,
+		hubNamespace:    hubNamespace,
+		memberClient:    memberClient,
+		hubClient:       hubClient,
+		Scheme:          mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+
+	ctx, cancel = context.WithCancel(context.TODO())
+	go func() {
+		defer GinkgoRecover()
+		err = mgr.Start(ctx)
+		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+	}()
+})
+
+var _ = AfterSuite(func() {
+	defer klog.Flush()
+	cancel()
+
+	By("tearing down the test environment")
+	Expect(memberTestEnv.Stop()).Should(Succeed())
+	Expect(hubTestEnv.Stop()).Should(Succeed())
+})
