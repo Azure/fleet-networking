@@ -665,8 +665,8 @@ func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 	}
 }
 
-// TestUnexportService_ServiceHasBeenRetrieved tests the *Reconciler.unexportService method.
-func TestUnexportService_ServiceHasBeenRetrieved(t *testing.T) {
+// TestUnexportService tests the *Reconciler.unexportService method.
+func TestUnexportService(t *testing.T) {
 	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcName)
 
 	testCases := []struct {

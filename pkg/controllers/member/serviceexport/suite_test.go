@@ -96,7 +96,10 @@ var _ = BeforeSuite(func() {
 	setUpResources()
 
 	// Start up the InternalServiceExport controller.
-	ctrlMgr, err := ctrl.NewManager(memberCfg, ctrl.Options{Scheme: scheme.Scheme})
+	ctrlMgr, err := ctrl.NewManager(memberCfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+		Port:   8082,
+	})
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{

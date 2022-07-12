@@ -136,8 +136,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// Add the cleanup finalizer to the ServiceExport; this must happen before the cleanup finalizer has been
-	// added to the Service and before the Service is actually exported.
+	// Add the cleanup finalizer to the ServiceExport; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 		klog.V(2).InfoS("Add cleanup finalizer to service export", "service", svcRef)
 		if err := r.addServiceExportCleanupFinalizer(ctx, &svcExport); err != nil {
