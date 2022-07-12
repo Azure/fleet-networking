@@ -35,8 +35,8 @@ type Reconciler struct {
 	// The namespace reserved for the current member cluster in the hub cluster.
 	hubNamespace string
 
-	memberClient client.Client
 	hubClient    client.Client
+	memberClient client.Client
 
 	Scheme *runtime.Scheme
 }

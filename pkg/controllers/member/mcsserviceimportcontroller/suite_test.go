@@ -5,9 +5,12 @@ import (
 	"flag"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,9 +33,15 @@ var (
 	hubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
+)
 
-	memberClusterID string
-	hubNamespace    string
+const (
+	memberClusterID     = "fake-member-cluster-id"
+	hubNamespace        = "fake-hub-namespace"
+	testNamespacePrefix = "fake-test-namespace"
+	timeout             = time.Second * 10
+	duration            = time.Second * 10
+	interval            = time.Millisecond * 250
 )
 
 func TestInterServiceImportAPIs(t *testing.T) {
@@ -82,12 +91,9 @@ var _ = BeforeSuite(func() {
 
 	mgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
 		Scheme:             scheme.Scheme,
-		MetricsBindAddress: ":9999",
+		MetricsBindAddress: "0",
 	})
 	Expect(err).NotTo(HaveOccurred())
-
-	memberClusterID = "fake-member-cluster-id"
-	hubNamespace = "fake-namespace"
 
 	err = (&Reconciler{
 		memberClusterID: memberClusterID,
@@ -98,6 +104,8 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
+	setupResources()
+
 	ctx, cancel = context.WithCancel(context.TODO())
 	go func() {
 		defer GinkgoRecover()
@@ -105,6 +113,17 @@ var _ = BeforeSuite(func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
 })
+
+func setupResources() {
+	// member hub namespace is bound to
+	By("Create member hub namespace")
+	hubNS := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: hubNamespace,
+		},
+	}
+	Expect(hubClient.Create(ctx, &hubNS)).Should(Succeed())
+}
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()

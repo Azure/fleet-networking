@@ -7,49 +7,47 @@ package mcsserviceimportcontroller
 
 import (
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-const (
-	timeout  = time.Second * 10
-	duration = time.Second * 10
-	interval = time.Millisecond * 250
-
-	testNamespace = "fake-namespace"
+var (
+	testNamespace string
 )
 
 var _ = Describe("Create or update a service import", func() {
 
 	BeforeEach(func() {
-		By("Create multiClusterService namespace")
-		ns := corev1.Namespace{
+		// Unique name is used to make sure tests don't influence one another
+		testNamespace = fmt.Sprintf("%s-%s", testNamespacePrefix, uuid.NewUUID()[:5])
+		By("Create test namespace")
+		testNS := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: testNamespace,
 			},
 		}
-		Expect(memberClient.Create(ctx, &ns)).Should(Succeed())
+		Expect(memberClient.Create(ctx, &testNS)).Should(Succeed())
 	})
 
 	AfterEach(func() {
-		By("delete multiClusterService namespace")
-		ns := corev1.Namespace{
+		By("Delete test namespace")
+		testNS := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: testNamespace,
 			},
 		}
-		Expect(memberClient.Delete(ctx, &ns)).Should(Succeed())
+		Expect(memberClient.Delete(ctx, &testNS)).Should(Succeed())
 	})
 
 	When("Exposed cluster ID is found", func() {
-		It("should not return early", func() {
+		It("should return early", func() {
 			serviceImport := &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "serivce-import-name",
@@ -70,12 +68,12 @@ var _ = Describe("Create or update a service import", func() {
 					},
 				},
 			}
-			Expect(memberClient.Create(ctx, internalServiceImport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, internalServiceImport)).Should(Succeed())
 			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImport.Name, Namespace: internalServiceImport.Namespace}
 			createdInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			// We'll need to retry getting this newly created InternalServiceImport, given that creation may not immediately happen.
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
+				if err := hubClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return false
 				}
 				return true
@@ -96,7 +94,7 @@ var _ = Describe("Create or update a service import", func() {
 
 			By("By checking the cluster ID of the internal service import ServiceImportReference does not change")
 			Consistently(func() (string, error) {
-				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
+				if err := hubClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return "", err
 				}
 				return createdInternalServiceImport.Spec.ServiceImportReference.ClusterID, nil
@@ -105,10 +103,10 @@ var _ = Describe("Create or update a service import", func() {
 	})
 
 	When("InternalServiceImport is not found", func() {
-		It("should not return early", func() {
+		It("should update internal service import", func() {
 			serviceImport := &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "serivce-import-name",
+					Name:      "service-import-name",
 					Namespace: testNamespace,
 				},
 			}
@@ -125,20 +123,17 @@ var _ = Describe("Create or update a service import", func() {
 				return true
 			}, timeout, interval).Should(BeTrue())
 
-			expectedClusterID := memberClusterID
-			expectedNamespace := hubNamespace
-
+			By("By checking the cluster ID and namespace of the internal service import ServiceImportReference are updated")
 			internalServiceImportName := formatInternalServiceImportName(serviceImport)
 			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: hubNamespace}
 			createdInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
-			By("By checking the cluster ID and namespace of the internal service import ServiceImportReference is updated")
+
 			Consistently(func() ([]string, error) {
-				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
+				if err := hubClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return []string{}, err
 				}
 				return []string{createdInternalServiceImport.Spec.ServiceImportReference.ClusterID, createdInternalServiceImport.Spec.ServiceImportReference.Namespace}, nil
-			}, duration, interval).Should(Equal([]string{expectedClusterID, expectedNamespace}))
+			}, duration, interval).Should(Equal([]string{memberClusterID, hubNamespace}))
 		})
 	})
-
 })
