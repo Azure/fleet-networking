@@ -75,8 +75,7 @@ var _ = Describe("Create or update a service import", func() {
 			createdInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			// We'll need to retry getting this newly created InternalServiceImport, given that creation may not immediately happen.
 			Eventually(func() bool {
-				err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport)
-				if err != nil {
+				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return false
 				}
 				return true
@@ -89,8 +88,7 @@ var _ = Describe("Create or update a service import", func() {
 			createdServiceImport := &fleetnetv1alpha1.ServiceImport{}
 			// We'll need to retry getting this newly created ServiceImport, given that creation may not immediately happen.
 			Eventually(func() bool {
-				err := memberClient.Get(ctx, serviceImportLookupKey, createdServiceImport)
-				if err != nil {
+				if err := memberClient.Get(ctx, serviceImportLookupKey, createdServiceImport); err != nil {
 					return false
 				}
 				return true
@@ -98,8 +96,7 @@ var _ = Describe("Create or update a service import", func() {
 
 			By("By checking the cluster ID of the internal service import ServiceImportReference does not change")
 			Consistently(func() (string, error) {
-				err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport)
-				if err != nil {
+				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return "", err
 				}
 				return createdInternalServiceImport.Spec.ServiceImportReference.ClusterID, nil
@@ -122,8 +119,7 @@ var _ = Describe("Create or update a service import", func() {
 			createdServiceImport := &fleetnetv1alpha1.ServiceImport{}
 			// We'll need to retry getting this newly created ServiceImport, given that creation may not immediately happen.
 			Eventually(func() bool {
-				err := memberClient.Get(ctx, serviceImportLookupKey, createdServiceImport)
-				if err != nil {
+				if err := memberClient.Get(ctx, serviceImportLookupKey, createdServiceImport); err != nil {
 					return false
 				}
 				return true
@@ -135,11 +131,9 @@ var _ = Describe("Create or update a service import", func() {
 			internalServiceImportName := formatInternalServiceImportName(serviceImport)
 			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: hubNamespace}
 			createdInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
-
 			By("By checking the cluster ID and namespace of the internal service import ServiceImportReference is updated")
 			Consistently(func() ([]string, error) {
-				err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport)
-				if err != nil {
+				if err := memberClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
 					return []string{}, err
 				}
 				return []string{createdInternalServiceImport.Spec.ServiceImportReference.ClusterID, createdInternalServiceImport.Spec.ServiceImportReference.Namespace}, nil
