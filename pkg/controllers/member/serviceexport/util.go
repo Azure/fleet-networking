@@ -14,12 +14,6 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-const (
-	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that a ServiceExport can
-	// only be deleted after its corresponding Service has been unexported from the hub cluster.
-	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
-)
-
 // isServiceExportCleanupNeeded returns if a ServiceExport needs cleanup.
 func isServiceExportCleanupNeeded(svcExport *fleetnetv1alpha1.ServiceExport) bool {
 	return controllerutil.ContainsFinalizer(svcExport, svcExportCleanupFinalizer) && svcExport.DeletionTimestamp != nil

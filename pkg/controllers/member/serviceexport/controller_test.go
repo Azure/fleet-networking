@@ -66,8 +66,18 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
 		ObservedGeneration: 2,
 		LastTransitionTime: metav1.Now(),
-		Reason:             "ServiceIneligible",
+		Reason:             svcExportInvalidIneligibleCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
+	}
+}
+
+func serviceExportPendingConflictResolutionCondition(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Status:             metav1.ConditionUnknown,
+		ObservedGeneration: 3,
+		Reason:             svcExportPendingConflictResolutionReason,
+		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", userNS, svcName),
 	}
 }
 
@@ -461,6 +471,97 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 	}
 }
 
+// TestMarkServiceExportAsValid tests the *Reconciler.markServiceExportAsValid method.
+func TestMarkServiceExportAsValid(t *testing.T) {
+	testCases := []struct {
+		name      string
+		svcExport *fleetnetv1alpha1.ServiceExport
+		wantConds []metav1.Condition
+	}{
+		{
+			name: "should mark a new svc export as valid",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+			},
+		},
+		{
+			name: "should mark an invalid svc export as valid",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+			},
+		},
+		{
+			name: "should not mark a svc export that is valid already and conflict resolved",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svcExport).
+				Build()
+			fakeHubClient := fake.NewClientBuilder().Build()
+			reconciler := Reconciler{
+				memberClient: fakeMemberClient,
+				hubClient:    fakeHubClient,
+				hubNamespace: hubNSForMember,
+			}
+
+			if err := reconciler.markServiceExportAsValid(ctx, tc.svcExport); err != nil {
+				t.Fatalf("failed to mark svc export: %v", err)
+			}
+
+			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			svcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
+			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
+				t.Fatalf("svc export Get(%+v), got %v, want no error", svcExportKey, err)
+			}
+			conds := updatedSvcExport.Status.Conditions
+			if !cmp.Equal(conds, tc.wantConds, ignoredCondFields) {
+				t.Fatalf("svc export conditions, got %+v, want %+v", conds, tc.wantConds)
+			}
+		})
+	}
+}
+
 // TestRemoveServiceExportCleanupFinalizer tests the *Reconciler.removeServiceExportCleanupFinalizer method.
 func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 	testCases := []struct {
@@ -496,9 +597,8 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 				hubNamespace: hubNSForMember,
 			}
 
-			res, err := reconciler.removeServiceExportCleanupFinalizer(ctx, tc.svcExport)
-			if !cmp.Equal(res, ctrl.Result{}) || err != nil {
-				t.Fatalf("removeServiceExportCleanupFinalizer(%+v) = %+v, %v, want %+v, %v", tc.svcExport, res, err, ctrl.Result{}, nil)
+			if err := reconciler.removeServiceExportCleanupFinalizer(ctx, tc.svcExport); err != nil {
+				t.Fatalf("removeServiceExportCleanupFinalizer(%+v) = %v, want no error", tc.svcExport, err)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
@@ -565,8 +665,8 @@ func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 	}
 }
 
-// TestUnexportService tests the *Reconciler.unexportService method.
-func TestUnexportService(t *testing.T) {
+// TestUnexportService_ServiceHasBeenRetrieved tests the *Reconciler.unexportService method.
+func TestUnexportService_ServiceHasBeenRetrieved(t *testing.T) {
 	internalSvcExportName := fmt.Sprintf("%s-%s", memberUserNS, svcName)
 
 	testCases := []struct {
