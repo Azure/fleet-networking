@@ -2,7 +2,6 @@ package mcsserviceimportcontroller
 
 import (
 	"context"
-	"flag"
 	"path/filepath"
 	"testing"
 	"time"
@@ -86,10 +85,8 @@ var _ = BeforeSuite(func() {
 	Expect(hubClient).NotTo(BeNil())
 
 	By("starting the controller manager")
-	klog.InitFlags(flag.CommandLine)
-	flag.Parse()
 
-	mgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
+	mgr, err := ctrl.NewManager(memberCfg, ctrl.Options{
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
 	})

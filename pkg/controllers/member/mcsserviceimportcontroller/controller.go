@@ -10,11 +10,10 @@ package mcsserviceimportcontroller
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,12 +50,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// fetch serviceimport in member cluster
 	serviceImport := &fleetnetv1alpha1.ServiceImport{}
 	serviceImportRef := klog.KRef(req.Namespace, req.Name)
+	startTime := time.Now()
+	klog.V(2).InfoS("Reconciliation starts", "service", serviceImportRef)
+	defer func() {
+		latency := time.Since(startTime).Milliseconds()
+		klog.V(2).InfoS("Reconciliation ends", "service", serviceImportRef, "latency", latency)
+	}()
+
 	err := r.memberClient.Get(ctx, req.NamespacedName, serviceImport)
 	if err != nil {
 		klog.ErrorS(err, "Failed to get ServiceImport", "ServiceImport", serviceImportRef)
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-
 	serviceImportName := formatInternalServiceImportName(serviceImport)
 	internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -94,21 +99,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	// create or update internalserviceimport in member cluster namespace in hub cluster.
-
-	// NOTE(mainred): As a service import can be exposed by other cluster, we don't override the exposed cluster when it's specified.
-	if err := r.memberClient.Get(ctx, types.NamespacedName{Namespace: internalServiceImport.Namespace, Name: internalServiceImport.Name}, internalServiceImport); err != nil && !errors.IsNotFound(err) {
-		klog.ErrorS(err, "Failed to get internal service import", "InternalServiceImport", klog.KObj(internalServiceImport))
-		return reconcile.Result{}, err
-	}
-	exposedClusterID := internalServiceImport.Spec.ServiceImportReference.ClusterID
-	if len(exposedClusterID) != 0 {
-		klog.V(2).InfoS("Don't update exposed cluster of InternalServiceImport as it has been set", "InternalServiceImport", klog.KObj(internalServiceImport), "exposed cluster", exposedClusterID)
-		return reconcile.Result{}, nil
-	}
-	internalServiceImport.Spec.ServiceImportReference.ClusterID = r.memberClusterID
-	internalServiceImport.Spec.ServiceImportReference.Namespace = serviceImport.Namespace
-	if _, err := controllerutil.CreateOrPatch(ctx, r.hubClient, internalServiceImport, func() error {
+	klog.V(2).InfoS("Create or update internal service import", "InternalServiceImport", klog.KObj(internalServiceImport))
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.hubClient, internalServiceImport, func() error {
+		if internalServiceImport.CreationTimestamp.IsZero() {
+			// Set the ServiceReference only when the InternalServiceImport is created; most of the fields in
+			// an ExportedObjectReference should be immutable.
+			internalServiceImport.Spec.ServiceImportReference = fleetnetv1alpha1.FromMetaObjects(r.memberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta)
+		}
+		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta)
 		return nil
 	}); err != nil {
 		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", klog.KObj(serviceImport))
