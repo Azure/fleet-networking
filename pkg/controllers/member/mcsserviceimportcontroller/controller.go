@@ -62,10 +62,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to get ServiceImport", "ServiceImport", serviceImportRef)
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	serviceImportName := formatInternalServiceImportName(serviceImport)
+	internalServiceImportName := formatInternalServiceImportName(serviceImport)
 	internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceImportName,
+			Name:      internalServiceImportName,
 			Namespace: r.hubNamespace,
 		},
 	}

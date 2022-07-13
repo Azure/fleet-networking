@@ -69,15 +69,26 @@ var _ = Describe("Create or update a service import", func() {
 
 			internalServiceImportName := formatInternalServiceImportName(serviceImport)
 			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: hubNamespace}
-
+			expectedServiceImportRef := fleetnetv1alpha1.ExportedObjectReference{
+				ClusterID: memberClusterID,
+				Name:      serviceImport.Name,
+				Namespace: testNamespace,
+			}
 			createdInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			By("By checking the cluster ID of the internal service import ServiceImportReference does not change")
-			Consistently(func() (fleetnetv1alpha1.ExportedObjectReference, error) {
+			Eventually(func() (bool, error) {
 				if err := hubClient.Get(ctx, internalServiceImportLookupKey, createdInternalServiceImport); err != nil {
-					return fleetnetv1alpha1.ExportedObjectReference{}, err
+					return false, err
 				}
-				return createdInternalServiceImport.Spec.ServiceImportReference, nil
-			}, duration, interval).Should(Equal(1))
+				return exportedObjectReferenceEqual(expectedServiceImportRef, createdInternalServiceImport.Spec.ServiceImportReference), nil
+			}, duration, interval).Should(BeTrue())
 		})
 	})
 })
+
+func exportedObjectReferenceEqual(a, b fleetnetv1alpha1.ExportedObjectReference) bool {
+	if a.ClusterID == b.ClusterID && a.Name == b.Name && a.Namespace == b.Namespace {
+		return true
+	}
+	return false
+}
