@@ -103,6 +103,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				},
 			}
 			Expect(hubClient.Create(ctx, internalServiceImport)).Should(Succeed())
+			Expect(hubClient.Status().Update(ctx, internalServiceImport)).Should(Succeed())
 		})
 		AfterEach(func() {
 			By("Deleting internalServiceImport")

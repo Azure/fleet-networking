@@ -66,10 +66,10 @@ var _ = BeforeSuite(func() {
 	Expect(memberConfig).NotTo(BeNil())
 
 	hubTestEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("../../../", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("../../../../", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
-	hubConfig, err = memberTestEnv.Start()
+	hubConfig, err = hubTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hubConfig).NotTo(BeNil())
 
@@ -83,7 +83,7 @@ var _ = BeforeSuite(func() {
 	Expect(memberClient).NotTo(BeNil())
 
 	By("construct the hub k8s client")
-	hubClient, err = client.New(memberConfig, client.Options{Scheme: scheme.Scheme})
+	hubClient, err = client.New(hubConfig, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hubClient).NotTo(BeNil())
 
@@ -107,7 +107,7 @@ var _ = BeforeSuite(func() {
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
 
-	mgr, err = ctrl.NewManager(memberConfig, ctrl.Options{
+	mgr, err = ctrl.NewManager(hubConfig, ctrl.Options{
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
 		Logger:             klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)),

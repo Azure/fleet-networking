@@ -72,21 +72,10 @@ rules:
   resources:
   - internalserviceimports
   verbs:
-  - create
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalserviceimports/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:

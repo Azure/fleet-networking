@@ -29,9 +29,8 @@ type Reconciler struct {
 	Scheme       *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/status,verbs=get;update;patch
 
 // Reconcile reports back ServiceImport status from the fleet to a member cluster.
