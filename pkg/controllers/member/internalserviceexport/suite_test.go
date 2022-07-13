@@ -96,7 +96,10 @@ var _ = BeforeSuite(func() {
 	setUpResources()
 
 	// Start up the InternalServiceExport controller.
-	ctrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{Scheme: scheme.Scheme})
+	ctrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: "0",
+	})
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
