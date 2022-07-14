@@ -84,8 +84,7 @@ func serviceExportConflictedCondition(userNS, svcName string) metav1.Condition {
 
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
-	err := fleetnetv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
+	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -100,7 +99,7 @@ func TestIsEndpointSlicePermanentlyUnexportable(t *testing.T) {
 		want          bool
 	}{
 		{
-			name: "should be exportable",
+			name: "should be exportable (IPv4 endpointslice)",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -111,7 +110,7 @@ func TestIsEndpointSlicePermanentlyUnexportable(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "should not be exportable",
+			name: "should not be exportable (IPv6 endpointslice)",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -141,7 +140,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 		endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
 	}{
 		{
-			name: "should delete endpoint slice export",
+			name: "should delete endpoint slice export (endpointslice has been exported)",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -171,7 +170,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 			},
 		},
 		{
-			name: "should ignore not found endpoint slice export",
+			name: "should ignore not found endpoint slice export (endpointslice has not been exported yet)",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -592,7 +591,7 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			want: noSkipOrUnexportNeededOp,
+			want: continueReconcileOp,
 		},
 		{
 			name: "should export endpoint slice (create)",
@@ -606,7 +605,7 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			want: noSkipOrUnexportNeededOp,
+			want: continueReconcileOp,
 		},
 		{
 			name: "should unexport endpoint slice (deleted)",

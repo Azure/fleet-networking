@@ -6,7 +6,7 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -40,7 +40,7 @@ type ExportedObjectReference struct {
 }
 
 // FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
-func FromMetaObjects(clusterID string, typeMeta v1.TypeMeta, objMeta v1.ObjectMeta) ExportedObjectReference {
+func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta) ExportedObjectReference {
 	return ExportedObjectReference{
 		ClusterID:       clusterID,
 		APIVersion:      typeMeta.APIVersion,
@@ -56,7 +56,7 @@ func FromMetaObjects(clusterID string, typeMeta v1.TypeMeta, objMeta v1.ObjectMe
 // UpdateFromMetaObject updates an existing ExportedObjectReference using ObjectMeta fields from the
 // referenced object.
 // Note that most fields in an ExportedObjectReference should be immutable after creation.
-func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta v1.ObjectMeta) {
+func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta) {
 	e.ResourceVersion = objMeta.ResourceVersion
 	e.Generation = objMeta.Generation
 }

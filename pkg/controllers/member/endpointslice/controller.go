@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// package endpointslice features the EndpointSlice controller for exporting an EndpointSlice from a member cluster
+// Package endpointslice features the EndpointSlice controller for exporting an EndpointSlice from a member cluster
 // to its fleet.
 package endpointslice
 
@@ -40,7 +40,7 @@ const (
 	// shouldUnexportEndpointSliceOp notes that an EndpointSlice should be unexported.
 	shouldUnexportEndpointSliceOp skipOrUnexportEndpointSliceOp = 1
 	// noSkipOrUnexportNeededOp notes that an EndpointSlice should not be skipped or unexported.
-	noSkipOrUnexportNeededOp skipOrUnexportEndpointSliceOp = 2
+	continueReconcileOp skipOrUnexportEndpointSliceOp = 2
 )
 
 // Reconciler reconciles the export of an EndpointSlice.
@@ -199,7 +199,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 		return shouldSkipEndpointSliceOp, nil
 	case err != nil:
 		// An unexpected error has occurred.
-		return noSkipOrUnexportNeededOp, err
+		return continueReconcileOp, err
 	}
 
 	// Check if the ServiceExport is valid with no conflicts.
@@ -225,7 +225,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 
 	// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice is not marked
 	// for deletion; the EndpointSlice should be further processed.
-	return noSkipOrUnexportNeededOp, nil
+	return continueReconcileOp, nil
 }
 
 // unexportEndpointSlice unexports an EndpointSlice by deleting its corresponding EndpointSliceExport.
@@ -243,6 +243,15 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
 	fleetUniqueName := endpointSlice.Labels[endpointSliceUniqueNameLabel]
 
+	// Skip the deletion if the unique name assigned as a label is not a valid DNS subdomain name; this
+	// helps guard against user tampering with the label.
+	if !isUniqueNameValid(fleetUniqueName) {
+		klog.V(2).InfoS("The unique name label for exporting the EndpointSlice is not valid; unexport is skipped",
+			"endpointSlice", klog.KObj(endpointSlice),
+			"uniqueName", fleetUniqueName)
+		return nil
+	}
+
 	endpointSliceExport := fleetnetv1alpha1.EndpointSliceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.hubNamespace,
@@ -250,36 +259,30 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 		},
 	}
 	endpointSliceExportKey := types.NamespacedName{Namespace: r.hubNamespace, Name: fleetUniqueName}
-
-	// Skip the deletion if the unique name assigned as a label is not a valid DNS subdomain name; this
-	// helps guard against user tampering with the label.
-	if isUniqueNameValid(fleetUniqueName) {
-		err := r.hubClient.Get(ctx, endpointSliceExportKey, &endpointSliceExport)
-		switch {
-		case errors.IsNotFound(err):
-			// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
-			// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
-			// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
-			// end.
-			return nil
-		case err != nil:
-			// An unexpected error has occurred.
-			return err
-		}
-
-		if !isEndpointSliceExportLinkedWithEndpointSlice(&endpointSliceExport, endpointSlice) {
-			// The EndpointSliceExport to which the unique name label on the EndpointSlice refers is not actually
-			// linked with the EndpointSlice. This could happen if direct manipulation forces unique name labels
-			// on two different EndpointSlices to point to the same EndpointSliceExport. In this case the
-			// EndpointSliceExport will not be deleted.
-			return nil
-		}
-
-		if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
-			// An unexpected error has occurred.
-			return err
-		}
+	err := r.hubClient.Get(ctx, endpointSliceExportKey, &endpointSliceExport)
+	switch {
+	case errors.IsNotFound(err):
+		// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
+		// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
+		// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
+		// end.
+		return nil
+	case err != nil:
+		// An unexpected error has occurred.
+		return err
 	}
 
+	if !isEndpointSliceExportLinkedWithEndpointSlice(&endpointSliceExport, endpointSlice) {
+		// The EndpointSliceExport to which the unique name label on the EndpointSlice refers is not actually
+		// linked with the EndpointSlice. This could happen if direct manipulation forces unique name labels
+		// on two different EndpointSlices to point to the same EndpointSliceExport. In this case the
+		// EndpointSliceExport will not be deleted.
+		return nil
+	}
+
+	if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+		// An unexpected error has occurred.
+		return err
+	}
 	return nil
 }
