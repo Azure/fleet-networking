@@ -149,8 +149,6 @@ rules:
   resources:
   - serviceimports
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -162,12 +160,4 @@ rules:
   - serviceimports/finalizers
   verbs:
   - get
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - serviceimports/status
-  verbs:
-  - get
-  - patch
   - update

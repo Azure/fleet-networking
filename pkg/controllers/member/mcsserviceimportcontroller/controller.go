@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
@@ -40,8 +41,7 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;create;update;patch;delete
 
@@ -51,17 +51,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	serviceImport := &fleetnetv1alpha1.ServiceImport{}
 	serviceImportRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("Reconciliation starts", "service", serviceImportRef)
+	klog.V(2).InfoS("Reconciliation starts", "ServiceImport", serviceImportRef)
 	defer func() {
 		latency := time.Since(startTime).Milliseconds()
-		klog.V(2).InfoS("Reconciliation ends", "service", serviceImportRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "ServiceImport", serviceImportRef, "latency", latency)
 	}()
 
-	err := r.memberClient.Get(ctx, req.NamespacedName, serviceImport)
-	if err != nil {
+	if err := r.memberClient.Get(ctx, req.NamespacedName, serviceImport); err != nil {
 		klog.ErrorS(err, "Failed to get ServiceImport", "ServiceImport", serviceImportRef)
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
+
 	internalServiceImportName := formatInternalServiceImportName(serviceImport)
 	internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -71,21 +71,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Examine DeletionTimestamp to determine if service import is under deletion.
-	if serviceImport.ObjectMeta.DeletionTimestamp.IsZero() {
-		// Add finalizer when it's in service import when not being deleted
-		if !controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
-			controllerutil.AddFinalizer(serviceImport, ServiceImportFinalizer)
-			if err := r.memberClient.Update(ctx, serviceImport); err != nil {
-				klog.ErrorS(err, "Failed to add serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
+	if !serviceImport.ObjectMeta.DeletionTimestamp.IsZero() {
 		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
 		if controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
 			if err := r.hubClient.Delete(ctx, internalServiceImport); err != nil {
 				klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
-				return ctrl.Result{}, err
+				if !apierrors.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
 			}
 
 			controllerutil.RemoveFinalizer(serviceImport, ServiceImportFinalizer)
@@ -96,6 +89,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 			// Stop reconciliation as the item is being deleted
 			return ctrl.Result{}, nil
+		}
+	} else {
+		// Add finalizer when it's in service import when not being deleted
+		if !controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
+			controllerutil.AddFinalizer(serviceImport, ServiceImportFinalizer)
+			if err := r.memberClient.Update(ctx, serviceImport); err != nil {
+				klog.ErrorS(err, "Failed to add serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -112,6 +114,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", klog.KObj(serviceImport))
 		return ctrl.Result{}, err
 	}
+
 	return ctrl.Result{}, nil
 }
 
