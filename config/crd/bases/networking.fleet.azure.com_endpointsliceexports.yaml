@@ -103,6 +103,19 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
+              ownerServiceReference:
+                description: The reference to the owner Service
+                properties:
+                  name:
+                    description: The name of the owner Service.
+                    type: string
+                  namespace:
+                    description: The namespace of the owner Service.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
               ports:
                 description: The list of ports exported by each endpoint in this EndpointSliceExport.
                   Each port must have a unique name. When the field is empty, it indicates
@@ -146,6 +159,7 @@ spec:
             - addressType
             - endpointSliceReference
             - endpoints
+            - ownerServiceReference
             type: object
         required:
         - spec

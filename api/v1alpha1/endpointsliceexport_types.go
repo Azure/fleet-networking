@@ -22,6 +22,16 @@ type Endpoint struct {
 	Addresses []string `json:"addresses"`
 }
 
+// OwnerServiceReference points to the Service that owns the exported EndpointSlice.
+type OwnerServiceReference struct {
+	// The namespace of the owner Service.
+	// +kubebuilder:validation:Required
+	Namespace string `json:"namespace"`
+	// The name of the owner Service.
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+}
+
 // EndpointSliceExportSpec specifies the spec of an exported EndpointSlice.
 type EndpointSliceExportSpec struct {
 	// The type of addresses carried by this EndpointSliceExport.
@@ -42,6 +52,9 @@ type EndpointSliceExportSpec struct {
 	// The reference to the source EndpointSlice.
 	// +kubebuilder:validation:Required
 	EndpointSliceReference ExportedObjectReference `json:"endpointSliceReference"`
+	// The reference to the owner Service
+	// +kubebuilder:validation:Required
+	OwnerServiceReference OwnerServiceReference `json:"ownerServiceReference"`
 }
 
 // +kubebuilder:object:root=true

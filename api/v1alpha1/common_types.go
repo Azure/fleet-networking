@@ -54,8 +54,8 @@ func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.
 }
 
 // UpdateFromMetaObject updates an existing ExportedObjectReference using ObjectMeta fields from the
-// referenced object. Note that most fields in an ExportedObjectReference should be immutable after creation,
-// and this method updates only the mutable fields.
+// referenced object.
+// Note that most fields in an ExportedObjectReference should be immutable after creation.
 func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta) {
 	e.ResourceVersion = objMeta.ResourceVersion
 	e.Generation = objMeta.Generation

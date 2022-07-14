@@ -43,9 +43,12 @@ rules:
   resources:
   - endpointsliceexports
   verbs:
+  - create
   - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - networking.fleet.azure.com
