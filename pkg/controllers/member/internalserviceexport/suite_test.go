@@ -97,18 +97,8 @@ var _ = BeforeSuite(func() {
 
 	// Start up the InternalServiceExport controller.
 	ctrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
-<<<<<<< HEAD
-<<<<<<< HEAD
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
-=======
-		Scheme: scheme.Scheme,
-		Port:   8081,
->>>>>>> bf30227 (Minor fixes)
-=======
-		Scheme:             scheme.Scheme,
-		MetricsBindAddress: "0",
->>>>>>> 958fe2c (Minor fixes)
 	})
 	Expect(err).NotTo(HaveOccurred())
 
