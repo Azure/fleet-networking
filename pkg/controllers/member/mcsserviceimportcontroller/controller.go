@@ -71,7 +71,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Examine DeletionTimestamp to determine if service import is under deletion.
-	if !serviceImport.ObjectMeta.DeletionTimestamp.IsZero() {
+	if serviceImport.ObjectMeta.DeletionTimestamp != nil {
 		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
 		if controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
 			if err := r.hubClient.Delete(ctx, internalServiceImport); err != nil {
