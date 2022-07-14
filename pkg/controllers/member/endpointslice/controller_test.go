@@ -419,6 +419,8 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 // TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport tests the
 // *Reconciler.shouldSkipOrUnexportEndpointSlice method.
 func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *testing.T) {
+	deletionTimestamp := metav1.Now()
+
 	testCases := []struct {
 		name          string
 		endpointSlice *discoveryv1.EndpointSlice
@@ -479,6 +481,34 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 			want: shouldUnexportEndpointSliceOp,
 		},
 		{
+			name: "should unexport endpoint slice (svc export is deleted)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+					Labels: map[string]string{
+						discoveryv1.LabelServiceName: svcName,
+						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+				},
+				AddressType: discoveryv1.AddressTypeIPv4,
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         memberUserNS,
+					Name:              svcName,
+					DeletionTimestamp: &deletionTimestamp,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberClusterID, svcName),
+					},
+				},
+			},
+			want: shouldUnexportEndpointSliceOp,
+		},
+		{
 			name: "should skip endpoint slice (invalid svc export)",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
@@ -524,6 +554,33 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportConflictedCondition(memberClusterID, svcName),
+					},
+				},
+			},
+			want: shouldSkipEndpointSliceOp,
+		},
+		{
+			name: "should skip endpoint slice (svc export is deleted)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+					Labels: map[string]string{
+						discoveryv1.LabelServiceName: svcName,
+					},
+				},
+				AddressType: discoveryv1.AddressTypeIPv4,
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         memberUserNS,
+					Name:              svcName,
+					DeletionTimestamp: &deletionTimestamp,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -623,6 +680,21 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 			},
 			want: shouldUnexportEndpointSliceOp,
 		},
+		{
+			name: "should skip endpoint slice (deleted)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         memberUserNS,
+					Name:              endpointSliceName,
+					DeletionTimestamp: &deletionTimestamp,
+					Labels: map[string]string{
+						discoveryv1.LabelServiceName: svcName,
+					},
+				},
+				AddressType: discoveryv1.AddressTypeIPv4,
+			},
+			want: shouldSkipEndpointSliceOp,
+		},
 	}
 
 	ctx := context.Background()
@@ -652,6 +724,8 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 
 // TestIsServiceExportValidWithNoConflict tests the isServiceExportValidWithNoConflict function.
 func TestIsServiceExportValidWithNoConflict(t *testing.T) {
+	deletionTimestamp := metav1.Now()
+
 	testCases := []struct {
 		name      string
 		svcExport *fleetnetv1alpha1.ServiceExport
@@ -710,6 +784,23 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "svc export is valid with no conflicts, but has been deleted",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         memberUserNS,
+					Name:              svcName,
+					DeletionTimestamp: &deletionTimestamp,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberUserNS, svcName),
+					},
 				},
 			},
 			want: false,

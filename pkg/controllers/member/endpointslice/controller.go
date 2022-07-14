@@ -216,11 +216,17 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 		return shouldSkipEndpointSliceOp, nil
 	}
 
-	if hasUniqueNameLabel && endpointSlice.DeletionTimestamp != nil {
-		// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice has a unique
-		// name label (i.e. it might have been exported), but it has been deleted; as a result,
-		// the EndpointSlice should be unexported.
-		return shouldUnexportEndpointSliceOp, nil
+	if endpointSlice.DeletionTimestamp != nil {
+		if hasUniqueNameLabel {
+			// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice has a unique
+			// name label (i.e. it might have been exported), but it has been deleted; as a result,
+			// the EndpointSlice should be unexported.
+			return shouldUnexportEndpointSliceOp, nil
+		}
+		// The Service using the EndpointSlice is exported with no conflicts, but the EndpointSlice does not have a
+		// unique name label (i.e. it has not been exported), and it has been deleted; as a result,
+		// the EndpointSlice should be skipped.
+		return shouldSkipEndpointSliceOp, nil
 	}
 
 	// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice is not marked
