@@ -1,4 +1,4 @@
-package mcsserviceimportcontroller
+package serviceimport
 
 import (
 	"context"

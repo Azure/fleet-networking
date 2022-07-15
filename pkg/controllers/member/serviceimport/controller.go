@@ -3,9 +3,9 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package mcsserviceimportcontroller features the internalserviceimport controller deployed in member cluster to managed
+// Package serviceimport features the serviceimport controller deployed in member cluster to managed
 // internalserviceimport according to its corresponding serviceimport.
-package mcsserviceimportcontroller
+package serviceimport
 
 import (
 	"context"
