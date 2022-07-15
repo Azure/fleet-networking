@@ -116,9 +116,17 @@ var _ = Describe("Create or update a service import", func() {
 			// 3. Check internal service import is deleted after service import is deleted.
 			By("By deleting the service import")
 			Expect(memberClient.Delete(ctx, serviceImport)).Should(Succeed())
-			By("By checking the existence of internal service import")
+			By("By checking the existence of  service import")
+			serviceImportList := &fleetnetv1alpha1.ServiceImportList{}
 			Eventually(func() (int, error) {
-				internalServiceImportList := &fleetnetv1alpha1.InternalServiceImportList{}
+				if err := memberClient.List(ctx, serviceImportList, &client.ListOptions{Namespace: testNamespace}); err != nil {
+					return -1, err
+				}
+				return len(serviceImportList.Items), nil
+			}, duration, interval).Should(Equal(0))
+			By("By checking the existence of internal service import")
+			internalServiceImportList := &fleetnetv1alpha1.InternalServiceImportList{}
+			Eventually(func() (int, error) {
 				if err := hubClient.List(ctx, internalServiceImportList, &client.ListOptions{Namespace: hubNamespace}); err != nil {
 					return -1, err
 				}
