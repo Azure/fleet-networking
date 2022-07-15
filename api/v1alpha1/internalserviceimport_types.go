@@ -10,6 +10,8 @@ import (
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=internalsvcimport
+// +kubebuilder:subresource:status
 
 // InternalServiceImport is used by the MCS controller to import the Service to a single cluster manually,
 // while ServiceImport is logical identifiers for a Service that exists in another cluster or that stretches

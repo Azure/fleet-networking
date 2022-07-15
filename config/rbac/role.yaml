@@ -43,9 +43,12 @@ rules:
   resources:
   - endpointsliceexports
   verbs:
+  - create
   - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - networking.fleet.azure.com
@@ -135,7 +138,7 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - serviceimport
+  - serviceimports
   verbs:
   - create
   - delete
@@ -147,17 +150,15 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - serviceimports
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
   - serviceimports/finalizers
   verbs:
   - get
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/status
+  verbs:
+  - get
+  - patch
   - update

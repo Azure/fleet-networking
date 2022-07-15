@@ -7,6 +7,7 @@ package internalserviceexport
 
 import (
 	"context"
+	"flag"
 	"path/filepath"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -95,8 +97,16 @@ var _ = BeforeSuite(func() {
 	// Set up resources.
 	setUpResources()
 
+	By("starting the controller manager")
+	klog.InitFlags(flag.CommandLine)
+	flag.Parse()
+
 	// Start up the InternalServiceExport controller.
-	ctrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{Scheme: scheme.Scheme})
+	ctrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: "0",
+		Logger:             klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)),
+	})
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
