@@ -73,6 +73,15 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+  - internalserviceimports
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
   - multiclusterservices
   verbs:
   - create
@@ -126,7 +135,7 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - serviceimport
+  - serviceimports
   verbs:
   - create
   - delete
@@ -135,3 +144,11 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
