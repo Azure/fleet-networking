@@ -69,13 +69,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Namespace: r.hubNamespace,
 		},
 	}
+	internalServiceImportRef := klog.KObj(internalServiceImport)
 
 	// Examine DeletionTimestamp to determine if service import is under deletion.
 	if serviceImport.ObjectMeta.DeletionTimestamp != nil {
 		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
 		if controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
 			if err := r.hubClient.Delete(ctx, internalServiceImport); err != nil {
-				klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+				klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
 				if !apierrors.IsNotFound(err) {
 					return ctrl.Result{}, err
 				}
@@ -90,18 +91,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// Stop reconciliation as the item is being deleted
 			return ctrl.Result{}, nil
 		}
-	} else {
-		// Add finalizer when it's in service import when not being deleted
-		if !controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
-			controllerutil.AddFinalizer(serviceImport, ServiceImportFinalizer)
-			if err := r.memberClient.Update(ctx, serviceImport); err != nil {
-				klog.ErrorS(err, "Failed to add serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
-				return ctrl.Result{}, err
-			}
+	}
+
+	// Add finalizer when it's in service import when not being deleted
+	if !controllerutil.ContainsFinalizer(serviceImport, ServiceImportFinalizer) {
+		controllerutil.AddFinalizer(serviceImport, ServiceImportFinalizer)
+		if err := r.memberClient.Update(ctx, serviceImport); err != nil {
+			klog.ErrorS(err, "Failed to add serviceimport finalizer", "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
+			return ctrl.Result{}, err
 		}
 	}
 
-	klog.V(2).InfoS("Create or update internal service import", "InternalServiceImport", klog.KObj(internalServiceImport))
+	klog.V(2).InfoS("Create or update internal service import", "InternalServiceImport", internalServiceImportRef)
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.hubClient, internalServiceImport, func() error {
 		if internalServiceImport.CreationTimestamp.IsZero() {
 			// Set the ServiceReference only when the InternalServiceImport is created; most of the fields in
@@ -111,7 +112,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta)
 		return nil
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", klog.KObj(internalServiceImport), "ServiceImport", klog.KObj(serviceImport))
+		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef)
 		return ctrl.Result{}, err
 	}
 
