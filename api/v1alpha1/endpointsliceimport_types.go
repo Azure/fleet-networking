@@ -35,5 +35,5 @@ type EndpointSliceImportList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&EndpointSliceExport{}, &EndpointSliceExportList{})
+	SchemeBuilder.Register(&EndpointSliceImport{}, &EndpointSliceImportList{})
 }
