@@ -3,6 +3,9 @@
 
 name: Building and Pushing to MCR
 on:
+  push:
+    branches:
+      - mainred/build-publish-mcr
   workflow_dispatch:
     inputs:
       imageVersion:
