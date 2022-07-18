@@ -1,3 +1,6 @@
+# This Github Action will build and publish images to Azure Container Registry(ACR), from where the published images will be
+# automatically pushed to the trusted registry, Microsoft Container Registry(MCR).
+
 name: Building and Pushing to MCR
 on:
   workflow_dispatch:
@@ -9,6 +12,10 @@ on:
 permissions:
       id-token: write
       contents: read
+
+env:
+  # `public` indicates images to MCR wil be publicly available, and will be removed in the final MCR images
+  REGISTRY_REPO: public/aks/fleet
 
 jobs:
   prepare-variables:
@@ -51,16 +58,16 @@ jobs:
           make docker-build-hub-net-controller-manager
         env:
           HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.image_version }}
-          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/public/aks/fleet
+          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
       - name: Build and publish member-net-controller-manager
         run: |
           make docker-build-member-net-controller-manager
         env:
           HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.image_version }}
-          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/public/aks/fleet
+          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
       - name: Build and publish mcs-controller-manager
         run: |
           make docker-build-mcs-controller-manager
         env:
           HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.image_version }}
-          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/public/aks/fleet
+          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
