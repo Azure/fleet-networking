@@ -32,6 +32,15 @@ const (
 	endpointSliceImportName = "bravelion-work-appendpoint-slice-1a2bc"
 )
 
+var httpPortName = "http"
+var httpPort = int32(80)
+var httpPortProtocol = corev1.ProtocolTCP
+var httpPortAppProtocol = "www"
+var udpPortName = "udp"
+var udpPort = int32(81)
+var udpPortProtocol = corev1.ProtocolUDP
+var udpPortAppProtocol = "example.com/custom"
+
 // Bootstrap the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
@@ -44,15 +53,6 @@ func TestMain(m *testing.M) {
 
 // ipv4EndpointSliceImport returns an EndpointSliceImport.
 func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
-	httpPortName := "http"
-	httpPort := int32(80)
-	httpPortProtocol := corev1.ProtocolTCP
-	httpPortAppProtocol := "www"
-	udpPortName := "udp"
-	udpPort := int32(81)
-	udpPortProtocol := corev1.ProtocolUDP
-	udpPortAppProtocol := "example.com/custom"
-
 	return &fleetnetv1alpha1.EndpointSliceImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: hubNSForMember,
@@ -101,15 +101,6 @@ func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
 
 // importedIPv4EndpointSlice returns an EndpointSlice.
 func importedIPv4EndpointSlice() *discoveryv1.EndpointSlice {
-	httpPortName := "http"
-	httpPort := int32(80)
-	httpPortProtocol := corev1.ProtocolTCP
-	httpPortAppProtocol := "www"
-	udpPortName := "udp"
-	udpPort := int32(81)
-	udpPortProtocol := corev1.ProtocolUDP
-	udpPortAppProtocol := "example.com/custom"
-
 	return &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: fleetSystemNS,

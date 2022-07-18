@@ -60,15 +60,6 @@ func fulfilledMultiClusterSvc() *fleetnetv1alpha1.MultiClusterService {
 
 // svcDerivedByMultiClusterSvc returns a Service that is derived from a ServiceImport by a MultiClusterService.
 func svcDerivedByMultiClusterSvc() *corev1.Service {
-	httpPortName := "http"
-	httpPort := int32(80)
-	httpPortProtocol := corev1.ProtocolTCP
-	httpPortAppProtocol := "www"
-	udpPortName := "udp"
-	udpPort := int32(81)
-	udpPortProtocol := corev1.ProtocolUDP
-	udpPortAppProtocol := "example.com/custom"
-
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: fleetSystemNS,
