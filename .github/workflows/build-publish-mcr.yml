@@ -1,8 +1,5 @@
 name: Building and Pushing to MCR
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       imageVersion:
