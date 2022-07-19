@@ -37,6 +37,9 @@ type ExportedObjectReference struct {
 	// The UID of the referred object.
 	// +kubebuilder:validation:Required
 	UID types.UID `json:"uid"`
+	// The namespaced name of the referred object.
+	// +kubebuilder:validation:Required
+	NamespacedName string `json:"namespacedName"`
 }
 
 // FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
@@ -50,6 +53,7 @@ func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.
 		ResourceVersion: objMeta.ResourceVersion,
 		Generation:      objMeta.Generation,
 		UID:             objMeta.UID,
+		NamespacedName:  types.NamespacedName{Namespace: objMeta.Namespace, Name: objMeta.Name}.String(),
 	}
 }
 
