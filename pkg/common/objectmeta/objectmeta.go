@@ -14,6 +14,9 @@ const (
 	// MultiClusterServiceLabelDerivedService is the label added by the MCS controller, which marks the
 	// derived Service behind a MCS.
 	MultiClusterServiceLabelDerivedService = "networking.fleet.azure.com/derived-service"
+	// MultiClusterServiceLabelServiceImport is the label added by the MCS controller, which marks the
+	//  ServiceImport created by the MCS controller.
+	MultiClusterServiceLabelServiceImport = "networking.fleet.azure.com/service-import"
 )
 
 // Annotations

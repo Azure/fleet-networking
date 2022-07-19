@@ -114,7 +114,7 @@ func TestHandleDelete(t *testing.T) {
 			name: "having derived service and service import",
 			labels: map[string]string{
 				objectmeta.MultiClusterServiceLabelDerivedService: testServiceName,
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 			},
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
@@ -144,7 +144,7 @@ func TestHandleDelete(t *testing.T) {
 		{
 			name: "having service import",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -157,7 +157,7 @@ func TestHandleDelete(t *testing.T) {
 			name: "resources have been deleted",
 			labels: map[string]string{
 				objectmeta.MultiClusterServiceLabelDerivedService: testServiceName,
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 			},
 		},
 	}
@@ -308,7 +308,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -327,7 +327,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no updates on mcs (invalid service import) without derived service label",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -349,7 +349,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -368,7 +368,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "update service import spec on mcs",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: "old-service",
+				objectmeta.MultiClusterServiceLabelServiceImport: "old-service",
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
 				LoadBalancer: loadBalancerStatus,
@@ -397,7 +397,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -416,7 +416,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "update service import on the mcs and no old service import resource",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: "old-service",
+				objectmeta.MultiClusterServiceLabelServiceImport: "old-service",
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
@@ -432,7 +432,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -451,7 +451,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no update on service import on the mcs and no service import resource ",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
@@ -467,7 +467,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -486,7 +486,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no updates on mcs (invalid service import) without derived service resource",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 				objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
@@ -515,7 +515,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -534,7 +534,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no updates on mcs (invalid service import) with derived service resource",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 				objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
@@ -572,7 +572,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport: testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -591,7 +591,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no updates on the mcs (valid service import) without derived service label",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport: testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport: testServiceName,
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -637,7 +637,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport:             testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 						objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 					},
 				},
@@ -657,7 +657,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "no updates on the mcs (valid service import) without derived service resource",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 				objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
@@ -704,7 +704,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport:             testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 						objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 					},
 				},
@@ -724,7 +724,7 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name: "service import spec mismatching with derived service",
 			labels: map[string]string{
-				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 				objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
@@ -814,7 +814,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testNamespace,
 					Labels: map[string]string{
-						multiClusterServiceLabelServiceImport:             testServiceName,
+						objectmeta.MultiClusterServiceLabelServiceImport:  testServiceName,
 						objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
 					},
 				},
