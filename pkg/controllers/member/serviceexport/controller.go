@@ -75,14 +75,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if the ServiceExport has been deleted and needs cleanup (unexporting Service).
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
-	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
-	if isServiceExportCleanupNeeded(&svcExport) {
-		klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
-		res, err := r.unexportService(ctx, &svcExport)
-		if err != nil {
-			klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+	// finalizer guarantees that the corresponding Service has never been exported to the fleet, thus no action
+	// is needed.
+	if svcExport.DeletionTimestamp != nil {
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+			klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
+			res, err := r.unexportService(ctx, &svcExport)
+			if err != nil {
+				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+			}
+			return res, err
 		}
-		return res, err
+		return ctrl.Result{}, nil
 	}
 
 	// Check if the Service to export exists.
@@ -95,7 +99,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.memberClient.Get(ctx, req.NamespacedName, &svc)
 	switch {
 	// The Service to export does not exist or has been deleted.
-	case errors.IsNotFound(err) || isServiceDeleted(&svc):
+	case errors.IsNotFound(err) || svc.DeletionTimestamp != nil:
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
 		klog.V(2).InfoS("Service is deleted; unexport the service", "service", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {

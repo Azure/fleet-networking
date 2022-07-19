@@ -71,6 +71,8 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 	}
 }
 
+// serviceExportPendingConflictResolutionCondition returns a ServiceExportConflict condition which reports that
+// a confliction resolution is in progress.
 func serviceExportPendingConflictResolutionCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
@@ -78,6 +80,18 @@ func serviceExportPendingConflictResolutionCondition(userNS, svcName string) met
 		ObservedGeneration: 3,
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", userNS, svcName),
+	}
+}
+
+// serviceExportNoConflictCondition returns a ServiceExportConflict condition which reports that a service is exported
+// with no conflict.
+func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: 4,
+		Reason:             "NoConflictDetected",
+		Message:            fmt.Sprintf("service %s/%s is exported with no conflict", userNS, svcName),
 	}
 }
 
@@ -89,109 +103,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
-}
-
-// TestIsServiceExportCleanupNeeded tests the isServiceExportCleanupNeeded function.
-func TestIsServiceExportCleanupNeeded(t *testing.T) {
-	timestamp := metav1.Now()
-	testCases := []struct {
-		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
-		want      bool
-	}{
-		{
-			name: "should not clean up regular ServiceExport",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "should not clean up ServiceExport with only DeletionTimestamp set",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         memberUserNS,
-					Name:              svcName,
-					DeletionTimestamp: &timestamp,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "should not clean up ServiceExport with cleanup finalizer only",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Finalizers: []string{svcExportCleanupFinalizer},
-				},
-			},
-			want: false,
-		},
-		{
-			name: "should clean up ServiceExport with both cleanup finalizer and DeletionTimestamp set",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         memberUserNS,
-					Name:              svcName,
-					DeletionTimestamp: &timestamp,
-					Finalizers:        []string{svcExportCleanupFinalizer},
-				},
-			},
-			want: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isServiceExportCleanupNeeded(tc.svcExport); got != tc.want {
-				t.Fatalf("isServiceExportCleanupNeeded(%+v) = %t, want %t", tc.svcExport, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestIsServiceDeleted tests the isServiceDeleted function.
-func TestIsServiceDeleted(t *testing.T) {
-	timestamp := metav1.Now()
-	testCases := []struct {
-		name string
-		svc  *corev1.Service
-		want bool
-	}{
-		{
-			name: "should not delete Service with DeletionTimestamp set",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "should delete Service with DeletionTimestamp set",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         memberUserNS,
-					Name:              svcName,
-					DeletionTimestamp: &timestamp,
-				},
-			},
-			want: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isServiceDeleted(tc.svc); got != tc.want {
-				t.Fatalf("isServiceDeleted(%+v) = %t, want %t", tc.svc, got, tc.want)
-			}
-		})
-	}
 }
 
 // TestIsServiceEligibleForExport tests the isServiceEligibleForExport function.
@@ -510,7 +421,7 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 			},
 		},
 		{
-			name: "should not mark a svc export that is valid already and conflict resolved",
+			name: "should not mark a svc export that is valid already with a conflict condition (pending)",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -526,6 +437,25 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 			wantConds: []metav1.Condition{
 				serviceExportValidCondition(memberUserNS, svcName),
 				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+			},
+		},
+		{
+			name: "should not mark a svc export that is valid already with a conflict condition (no conflict)",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportNoConflictCondition(memberUserNS, svcName),
 			},
 		},
 	}
