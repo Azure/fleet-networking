@@ -65,11 +65,11 @@ jobs:
         run: |
           make docker-build-member-net-controller-manager
         env:
-          HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
+          MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
       - name: Build and publish mcs-controller-manager
         run: |
           make docker-build-mcs-controller-manager
         env:
-          HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
+          MCS_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
