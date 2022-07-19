@@ -32,6 +32,10 @@ const (
 	svcExportInvalidNotFoundCondReason       = "ServiceNotFound"
 	svcExportInvalidIneligibleCondReason     = "ServiceIneligible"
 	svcExportPendingConflictResolutionReason = "ServicePendingConflictResolution"
+
+	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that
+	// a ServiceExport can only be deleted after its corresponding Service has been unexported from the hub cluster.
+	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
 )
 
 // Reconciler reconciles the export of a Service.
@@ -71,22 +75,31 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if the ServiceExport has been deleted and needs cleanup (unexporting Service).
 	// A ServiceExport needs cleanup when it has the ServiceExport cleanup finalizer added; the absence of this
-	// finalizer guarantees that the corresponding Service has never been exported to the fleet.
-	if isServiceExportCleanupNeeded(&svcExport) {
-		klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
-		res, err := r.unexportService(ctx, &svcExport)
-		if err != nil {
-			klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+	// finalizer guarantees that the corresponding Service has never been exported to the fleet, thus no action
+	// is needed.
+	if svcExport.DeletionTimestamp != nil {
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+			klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
+			res, err := r.unexportService(ctx, &svcExport)
+			if err != nil {
+				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+			}
+			return res, err
 		}
-		return res, err
+		return ctrl.Result{}, nil
 	}
 
 	// Check if the Service to export exists.
-	var svc corev1.Service
+	svc := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      req.Name,
+		},
+	}
 	err := r.memberClient.Get(ctx, req.NamespacedName, &svc)
 	switch {
 	// The Service to export does not exist or has been deleted.
-	case errors.IsNotFound(err) || isServiceDeleted(&svc):
+	case errors.IsNotFound(err) || svc.DeletionTimestamp != nil:
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
 		klog.V(2).InfoS("Service is deleted; unexport the service", "service", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
@@ -127,7 +140,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// Add the cleanup finalizer; this must happen before the Service is actually exported.
+	// Add the cleanup finalizer to the ServiceExport; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 		klog.V(2).InfoS("Add cleanup finalizer to service export", "service", svcRef)
 		if err := r.addServiceExportCleanupFinalizer(ctx, &svcExport); err != nil {
@@ -195,7 +208,6 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 	// always exported using the name format `ORIGINAL_NAMESPACE-ORIGINAL_NAME`; for example, a Service
 	// from namespace `default`` with the name `store`` will be exported with the name `default-store`.
 	internalSvcExportName := formatInternalServiceExportName(svcExport)
-
 	internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.hubNamespace,
@@ -205,21 +217,26 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 
 	// Unexport the Service.
 	if err := r.hubClient.Delete(ctx, internalSvcExport); err != nil && !errors.IsNotFound(err) {
-		// It is guaranteed that a finalizer is always added before the Service is actually exported; as a result,
-		// in some rare occasions it could happen that a ServiceExport has a finalizer present yet the corresponding
-		// Service has not been exported to the hub cluster yet. It is an expected behavior and no action
-		// is needed on this controller's end.
+		// It is guaranteed that a finalizer is always added to a ServiceExport before the corresponding Service is
+		// actually exported; in some rare occasions, e.g. the controller crashes right after it adds the finalizer
+		// to the ServiceExport but before the it gets a chance to actually export the Service to the
+		// hub cluster, it could happen that a ServiceExport has a finalizer present yet the corresponding Service
+		// has not been exported to the hub cluster. It is an expected behavior and no action is needed on this
+		// controller's end.
 		return ctrl.Result{}, err
 	}
 
-	// Remove the finalizer; it must happen after the Service has successfully been unexported.
-	return r.removeServiceExportCleanupFinalizer(ctx, svcExport)
+	// Remove the finalizer from the ServiceExport; it must happen after the Service has been successfully unexported.
+	if err := r.removeServiceExportCleanupFinalizer(ctx, svcExport); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 // removeServiceExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
-func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
-	return ctrl.Result{}, r.memberClient.Update(ctx, svcExport)
+	return r.memberClient.Update(ctx, svcExport)
 }
 
 // markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
