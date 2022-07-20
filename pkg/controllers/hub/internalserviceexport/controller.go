@@ -10,6 +10,7 @@ package internalserviceexport
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,9 +33,6 @@ const (
 	// result have been updated.
 	internalServiceExportFinalizer = "networking.fleet.azure.com/internal-svc-export-cleanup"
 
-	// fields name used to filter resources
-	exportedServiceFieldNamespacedName = "spec.serviceReference.namespacedName"
-
 	conditionReasonNoConflictFound = "NoConflictFound"
 	conditionReasonConflictFound   = "ConflictFound"
 )
@@ -43,15 +41,18 @@ const (
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	// ServiceImportSpecProcessTime is the wait time for the controller to requeue the request and to wait for the
+	// ServiceImport controller to resolve the service Spec.
+	ServiceImportSpecProcessTime time.Duration
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports/finalizers,verbs=update
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/status,verbs=get;update;patch
 
-// Reconcile creates/updates/deletes ServiceImport by watching internalServiceExport objects and handles the service spec.
+// Reconcile creates/updates ServiceImport by watching internalServiceExport objects.
 // To simplify the design and implementation in the first phase, the serviceExport will be marked as conflicted if its
 // service spec does not match with serviceImport.
 // We may support KEP1645 Constraints and Conflict Resolution in the future.
@@ -96,47 +97,55 @@ func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fl
 	serviceImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
 
 	if err := r.Client.Get(ctx, serviceImportName, serviceImport); err != nil {
-		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef)
-		// NotFound could happen when this serviceExport is the last one and a failure happens after we delete
-		// serviceImport before removing the finalizer.
-		if errors.IsNotFound(err) {
-			return r.removeFinalizer(ctx, internalServiceExport)
-		}
-		return ctrl.Result{}, err
-	}
-	desiredServiceImportStatus := r.calculateDesiredServiceImportStatus(internalServiceExport, serviceImport)
-
-	// If there is no more clusters exported service with the same spec, we need to pick the new service spec from the
-	// exported services.
-	change, err := r.resolveExportedServiceSpec(ctx, serviceImport, desiredServiceImportStatus)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// update the service import status before updating the internalServiceExport
-	// If failures happen after updating the service import status, other newly created serviceExport with the same
-	// spec will still be treated as the valid one. There could be some latency to update the serviceExport status.
-	// It should be eventually reflected on the serviceExport status after retries.
-	serviceImportKObj := klog.KObj(serviceImport)
-	klog.V(2).InfoS("Updating the serviceImport status", "internalServiceExport", internalServiceExportKObj, "serviceImport", serviceImportKObj, "oldStatus", serviceImport.Status, "status", desiredServiceImportStatus)
-	serviceImport.Status = *desiredServiceImportStatus
-	if err := r.updateServiceImport(ctx, serviceImport); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// If resolved spec has been changed, we need to update the ObservedGeneration of the conflicted objects, which is
-	// useful for the troubleshooting.
-	for i := range change.conflict {
-		if err := r.updateInternalServiceExportStatus(ctx, change.conflict[i], true); err != nil {
+		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+		if !errors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
+		return r.removeFinalizer(ctx, internalServiceExport)
 	}
-	for i := range change.noConflict {
-		if err := r.updateInternalServiceExportStatus(ctx, change.noConflict[i], false); err != nil {
-			return ctrl.Result{}, err
-		}
+	oldStatus := serviceImport.Status.DeepCopy()
+	removeClusterFromServiceImportStatus(serviceImport, internalServiceExport.Spec.ServiceReference.ClusterID)
+	if err := r.updateServiceImportStatus(ctx, serviceImport, oldStatus); err != nil {
+		return ctrl.Result{}, err
 	}
 	return r.removeFinalizer(ctx, internalServiceExport)
+}
+
+func removeClusterFromServiceImportStatus(serviceImport *fleetnetv1alpha1.ServiceImport, clusterID string) {
+	var updatedClusters []fleetnetv1alpha1.ClusterStatus
+	for _, c := range serviceImport.Status.Clusters {
+		if c.Cluster != clusterID {
+			updatedClusters = append(updatedClusters, c)
+		}
+	}
+	if len(updatedClusters) == 0 {
+		serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{}
+	} else {
+		serviceImport.Status.Clusters = updatedClusters
+	}
+}
+
+func addClusterToServiceImportStatus(serviceImport *fleetnetv1alpha1.ServiceImport, clusterID string) {
+	for _, c := range serviceImport.Status.Clusters {
+		if c.Cluster == clusterID {
+			return
+		}
+	}
+	serviceImport.Status.Clusters = append(serviceImport.Status.Clusters, fleetnetv1alpha1.ClusterStatus{Cluster: clusterID})
+}
+
+func (r *Reconciler) updateServiceImportStatus(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport, oldStatus *fleetnetv1alpha1.ServiceImportStatus) error {
+	if equality.Semantic.DeepEqual(&serviceImport.Status, oldStatus) { // no change
+		return nil
+	}
+	serviceImportKObj := klog.KObj(serviceImport)
+	klog.V(2).InfoS("Updating the serviceImport status", "serviceImport", serviceImportKObj, "oldStatus", oldStatus, "status", serviceImport.Status)
+
+	if err := r.Client.Status().Update(ctx, serviceImport); err != nil {
+		klog.ErrorS(err, "Failed to update the serviceImport status", "serviceImport", serviceImportKObj, "oldStatus", oldStatus, "status", serviceImport.Status)
+		return err
+	}
+	return nil
 }
 
 func (r *Reconciler) removeFinalizer(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
@@ -147,106 +156,6 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, internalServiceExport 
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
-}
-
-// calculateDesiredServiceImportStatus will create a new desired serviceImportStatus by removing the internalServiceExport
-// cluster.
-// This function won't change the original serviceImport.
-func (*Reconciler) calculateDesiredServiceImportStatus(internalServiceExport *fleetnetv1alpha1.InternalServiceExport, serviceImport *fleetnetv1alpha1.ServiceImport) *fleetnetv1alpha1.ServiceImportStatus {
-	desiredServiceImportStatus := serviceImport.Status.DeepCopy()
-	var updatedClusters []fleetnetv1alpha1.ClusterStatus
-	for _, c := range serviceImport.Status.Clusters {
-		if c.Cluster != internalServiceExport.Spec.ServiceReference.ClusterID {
-			updatedClusters = append(updatedClusters, c)
-		}
-	}
-	desiredServiceImportStatus.Clusters = updatedClusters
-	return desiredServiceImportStatus
-}
-
-// updateServiceImport updates the serviceImport status.
-func (r *Reconciler) updateServiceImport(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport) error {
-	serviceImportKObj := klog.KObj(serviceImport)
-
-	if len(serviceImport.Status.Clusters) != 0 {
-		klog.V(2).InfoS("Updating the serviceImport status to remove cluster", "serviceImport", serviceImportKObj, "status", serviceImport.Status)
-		if err := r.Client.Status().Update(ctx, serviceImport); err != nil {
-			klog.ErrorS(err, "Failed to update the serviceImport status to remove cluster", "serviceImport", serviceImportKObj, "status", serviceImport.Status)
-			return err
-		}
-		return nil
-	}
-
-	klog.V(2).InfoS("Removing the serviceImport as there is no service export", "serviceImport", serviceImportKObj)
-	if err := r.Client.Delete(ctx, serviceImport); err != nil {
-		klog.ErrorS(err, "Failed to remove the serviceImport", "serviceImport", serviceImportKObj)
-		return client.IgnoreNotFound(err)
-	}
-	return nil
-}
-
-// statusChange stores the internalServiceExports list whose status needs to be updated.
-type statusChange struct {
-	conflict   []*fleetnetv1alpha1.InternalServiceExport
-	noConflict []*fleetnetv1alpha1.InternalServiceExport
-}
-
-// resolveExportedServiceSpec picks service spec from exported services if there is no more serviceExports for the
-// existing spec.
-// We don't support KEP1645 Constraints and Conflict Resolution for now, which is defined.
-// https://github.com/kubernetes/enhancements/tree/master/keps/sig-multicluster/1645-multi-cluster-services-api#constraints-and-conflict-resolution
-// It rebuilds the desiredServiceImportStatus.
-// It returns the internalServiceExports list whose status needs to be updated.
-func (r *Reconciler) resolveExportedServiceSpec(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport, desiredServiceImportStatus *fleetnetv1alpha1.ServiceImportStatus) (statusChange, error) {
-	var resolvedPortsSpec *[]fleetnetv1alpha1.ServicePort
-	if len(desiredServiceImportStatus.Clusters) != 0 {
-		// use the existing ports spec
-		resolvedPortsSpec = &serviceImport.Status.Ports
-		// We still need to figure out the conflict and noConflict list to handle one case:
-		// When failures happen after reconciler updates the serviceImport and before it updates the internalServiceImport
-		// status, the next reconcile has to update the status.
-		// So we cannot return here.
-	}
-	internalServiceExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-	listOpts := client.MatchingFields{
-		exportedServiceFieldNamespacedName: serviceImport.Name,
-	}
-	if err := r.Client.List(ctx, internalServiceExportList, &listOpts); err != nil {
-		klog.ErrorS(err, "Failed to list internalServiceExports used by the serviceImport", "serviceImport", klog.KObj(serviceImport))
-		return statusChange{}, err
-	}
-
-	change := statusChange{
-		conflict:   []*fleetnetv1alpha1.InternalServiceExport{},
-		noConflict: []*fleetnetv1alpha1.InternalServiceExport{},
-	}
-	clusters := make([]fleetnetv1alpha1.ClusterStatus, 0, len(internalServiceExportList.Items))
-	for i := range internalServiceExportList.Items {
-		v := internalServiceExportList.Items[i]
-		if v.DeletionTimestamp != nil { // skip if the resource is in the deleting state
-			continue
-		}
-		if resolvedPortsSpec == nil {
-			// pick the first internalServiceExport spec
-			resolvedPortsSpec = &v.Spec.Ports
-		}
-		// TODO: ideally we should ignore the order when comparing the serviceImports; port and protocol are the key.
-		if !equality.Semantic.DeepEqual(*resolvedPortsSpec, v.Spec.Ports) {
-			change.conflict = append(change.conflict, &v)
-			continue
-		}
-		clusters = append(clusters, fleetnetv1alpha1.ClusterStatus{Cluster: v.Spec.ServiceReference.ClusterID})
-		change.noConflict = append(change.noConflict, &v)
-	}
-
-	// rebuild the desired status
-	// If there is no exported service, the status will be empty.
-	desiredServiceImportStatus.Clusters = clusters
-	desiredServiceImportStatus.Type = fleetnetv1alpha1.ClusterSetIP // may support headless in the future
-	if resolvedPortsSpec != nil {
-		desiredServiceImportStatus.Ports = *resolvedPortsSpec
-	}
-	return change, nil
 }
 
 func (r *Reconciler) updateInternalServiceExportStatus(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport, conflict bool) error {
@@ -286,22 +195,71 @@ func (r *Reconciler) updateInternalServiceExportStatus(ctx context.Context, inte
 	return nil
 }
 
-func (r *Reconciler) handleUpdate(_ context.Context, _ *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
+func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
+	internalServiceExportKObj := klog.KObj(internalServiceExport)
+	// get serviceImport
+	serviceImport := &fleetnetv1alpha1.ServiceImport{}
+	serviceImportName := types.NamespacedName{Namespace: internalServiceExport.Spec.ServiceReference.Namespace, Name: internalServiceExport.Spec.ServiceReference.Name}
+	serviceImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
+
+	if err := r.Client.Get(ctx, serviceImportName, serviceImport); err != nil {
+		if !errors.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+			return ctrl.Result{}, err
+		}
+		serviceImport = &fleetnetv1alpha1.ServiceImport{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: serviceImportName.Namespace,
+				Name:      serviceImportName.Name,
+			},
+		}
+		klog.V(2).InfoS("Creating serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+		if err := r.Client.Create(ctx, serviceImport); err != nil {
+			klog.ErrorS(err, "Failed to create or update service import", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+			return ctrl.Result{}, err
+		}
+	}
+
+	if len(serviceImport.Status.Ports) == 0 {
+		// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
+		klog.V(3).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+		return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+	}
+
+	oldStatus := serviceImport.Status.DeepCopy()
+	clusterID := internalServiceExport.Spec.ServiceReference.ClusterID
+
+	// To simplify the implementation, we compare the whole ports structure.
+	// TODO, change to compare the ports by ignoring the order and protocol and port are the map keys.
+	if !equality.Semantic.DeepEqual(serviceImport.Status.Ports, internalServiceExport.Spec.Ports) {
+		removeClusterFromServiceImportStatus(serviceImport, clusterID)
+		if err := r.updateServiceImportStatus(ctx, serviceImport, oldStatus); err != nil {
+			return ctrl.Result{}, err
+		}
+		// It's possible, eg, there is only one serviceExport and its spec has been changed.
+		// ServiceImport stores the old spec of this ServiceExport and later the serviceExport changes its spec.
+		if len(serviceImport.Status.Ports) == 0 {
+			klog.V(3).InfoS("Removed the cluster and waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+			// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
+			return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+		}
+		return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, true)
+	}
+
+	addClusterToServiceImportStatus(serviceImport, clusterID)
+	if err := r.updateServiceImportStatus(ctx, serviceImport, oldStatus); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if err := r.updateInternalServiceExportStatus(ctx, internalServiceExport, false); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ctx := context.Background()
-	// add index to quickly query internalServiceExport list by service
-	extractFunc := func(o client.Object) []string {
-		name := o.(*fleetnetv1alpha1.InternalServiceExport).Spec.ServiceReference.NamespacedName
-		return []string{name}
-	}
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &fleetnetv1alpha1.InternalServiceExport{}, exportedServiceFieldNamespacedName, extractFunc); err != nil {
-		klog.ErrorS(err, "Failed to create index", "field", exportedServiceFieldNamespacedName)
-		return err
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.InternalServiceExport{}).
 		Complete(r)
