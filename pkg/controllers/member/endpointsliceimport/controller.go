@@ -100,7 +100,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch {
 	case err != nil:
 		// An unexpected error occurs.
-		klog.ErrorS(err, "Failed to list MCS", "namespace", ownerSvcNS, "serviceImport", ownerSvcName)
+		klog.ErrorS(err, "Failed to list MCS",
+			"serviceImport", klog.KRef(ownerSvcNS, ownerSvcName),
+			"endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{}, err
 	case len(multiClusterSvcList.Items) == 0:
 		// No matching MCS is found; typically this will never happen as the hub cluster will only distribute
@@ -108,7 +110,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// sees an in-between state where a Service is imported and then immediately unimported, and the hub cluster
 		// does not get to retract distributed EndpointSlices in time. In this case the controller will skip
 		// importing the EndpointSlice.
-		klog.V(2).InfoS("No matching MCS is found; EndpointSlice will not be imported", "namespace", ownerSvcNS, "serviceImport", ownerSvcName)
+		klog.V(2).InfoS("No matching MCS is found; EndpointSlice will not be imported",
+			"serviceImport", klog.KRef(ownerSvcNS, ownerSvcName),
+			"endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{}, nil
 	}
 
@@ -131,6 +135,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	//   not knowing that a Service has been successfully claimed by itself.
 	if !r.isDerivedServiceValid(ctx, derivedSvcName) {
 		// Retry importing the EndpointSlice at a later time if no valid derived Service can be found.
+		klog.V(2).InfoS("No valid derived Service; will retry importing EndpointSlice later",
+			"derivedServiceName", derivedSvcName,
+			"endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{RequeueAfter: endpointSliceImportRetryInterval}, nil
 	}
 
