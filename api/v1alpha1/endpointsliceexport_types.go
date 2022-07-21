@@ -52,7 +52,7 @@ type EndpointSliceExportSpec struct {
 	// The reference to the source EndpointSlice.
 	// +kubebuilder:validation:Required
 	EndpointSliceReference ExportedObjectReference `json:"endpointSliceReference"`
-	// The reference to the owner Service
+	// The reference to the owner Service.
 	// +kubebuilder:validation:Required
 	OwnerServiceReference OwnerServiceReference `json:"ownerServiceReference"`
 }

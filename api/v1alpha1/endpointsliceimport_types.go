@@ -11,7 +11,6 @@ import (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking}
-// +kubebuilder:subresource:status
 
 // EndpointSliceImport is a data transport type that hub cluster uses to distribute exported EndpointSlices
 // to member clusters.
