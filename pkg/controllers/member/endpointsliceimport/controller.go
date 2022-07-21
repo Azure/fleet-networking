@@ -47,6 +47,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list
 
 // Reconcile imports an EndpointSlice from hub cluster.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -160,6 +161,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Associate the EndpointSlice with the Service.
+	klog.V(2).InfoS("Import the EndpointSlice", "endpointSlice", endpointSliceRef)
 	endpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.fleetSystemNamespace,
