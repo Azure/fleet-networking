@@ -131,6 +131,7 @@ func TestReconciler_NotFound(t *testing.T) {
 		Namespace: testMemberNamespace,
 		Name:      testName,
 	}
+
 	got, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: name})
 	if err != nil {
 		t.Fatalf("failed to reconcile: %v", err)
@@ -179,6 +180,7 @@ func TestHandleDelete(t *testing.T) {
 							Cluster: testClusterID,
 						},
 					},
+					Type: fleetnetv1alpha1.ClusterSetIP,
 				},
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
