@@ -9,12 +9,10 @@ package internalserviceexport
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/internalserviceexport"
 )
 
 const (
@@ -32,9 +30,6 @@ const (
 	// InternalServiceExport can only be deleted after both ServiceImport label and ServiceExport conflict resolution
 	// result have been updated.
 	internalServiceExportFinalizer = "networking.fleet.azure.com/internal-svc-export-cleanup"
-
-	conditionReasonNoConflictFound = "NoConflictFound"
-	conditionReasonConflictFound   = "ConflictFound"
 )
 
 // Reconciler reconciles a InternalServiceExport object.
@@ -158,43 +153,6 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, internalServiceExport 
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) updateInternalServiceExportStatus(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport, conflict bool) error {
-	svcName := types.NamespacedName{
-		Namespace: internalServiceExport.Spec.ServiceReference.Namespace,
-		Name:      internalServiceExport.Spec.ServiceReference.Name,
-	}
-	desiredCond := metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
-		Status:             metav1.ConditionFalse,
-		Reason:             conditionReasonNoConflictFound,
-		ObservedGeneration: internalServiceExport.Spec.ServiceReference.Generation, // use the generation of the original object
-		Message:            fmt.Sprintf("service %s is exported without conflict", svcName),
-	}
-	if conflict {
-		desiredCond = metav1.Condition{
-			Type:               string(fleetnetv1alpha1.ServiceExportConflict),
-			Status:             metav1.ConditionTrue,
-			Reason:             conditionReasonConflictFound,
-			ObservedGeneration: internalServiceExport.Spec.ServiceReference.Generation, // use the generation of the original object
-			Message:            fmt.Sprintf("service %s is in conflict with other exported services", svcName),
-		}
-	}
-	currentCond := meta.FindStatusCondition(internalServiceExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if condition.EqualCondition(currentCond, &desiredCond) {
-		return nil
-	}
-	exportKObj := klog.KObj(internalServiceExport)
-	oldStatus := internalServiceExport.Status.DeepCopy()
-	meta.SetStatusCondition(&internalServiceExport.Status.Conditions, desiredCond)
-
-	klog.V(2).InfoS("Updating internalServiceExport status", "internalServiceExport", exportKObj, "status", internalServiceExport.Status, "oldStatus", oldStatus)
-	if err := r.Status().Update(ctx, internalServiceExport); err != nil {
-		klog.ErrorS(err, "Failed to update internalServiceExport status", "internalServiceExport", exportKObj, "status", internalServiceExport.Status, "oldStatus", oldStatus)
-		return err
-	}
-	return nil
-}
-
 func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
 	internalServiceExportKObj := klog.KObj(internalServiceExport)
 	// get serviceImport
@@ -243,7 +201,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 			// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
 			return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
 		}
-		return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, true)
+		return ctrl.Result{}, internalserviceexport.UpdateStatus(ctx, r.Client, internalServiceExport, true, false)
 	}
 
 	addClusterToServiceImportStatus(serviceImport, clusterID)
@@ -251,11 +209,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateInternalServiceExportStatus(ctx, internalServiceExport, false); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, internalserviceexport.UpdateStatus(ctx, r.Client, internalServiceExport, false, false)
 }
 
 // SetupWithManager sets up the controller with the Manager.

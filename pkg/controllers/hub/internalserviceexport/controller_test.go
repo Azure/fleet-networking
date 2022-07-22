@@ -27,6 +27,9 @@ const (
 	testMemberNamespace       = "member-1-ns"
 	testClusterID             = "member-1"
 	fleetNetworkingAPIVersion = "networking.fleet.azure.com/v1alpha1"
+
+	conditionReasonNoConflictFound = "NoConflictFound"
+	conditionReasonConflictFound   = "ConflictFound"
 )
 
 var (
