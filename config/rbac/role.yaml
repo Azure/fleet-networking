@@ -65,6 +65,12 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+  - internalserviceexports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
   - internalserviceexports/status
   verbs:
   - get

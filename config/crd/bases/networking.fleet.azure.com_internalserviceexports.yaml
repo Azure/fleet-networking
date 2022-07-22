@@ -112,6 +112,9 @@ spec:
                   namespace:
                     description: The namespace of the referred object.
                     type: string
+                  namespacedName:
+                    description: The namespaced name of the referred object.
+                    type: string
                   resourceVersion:
                     description: The resource version of the referred object.
                     type: string
@@ -124,10 +127,12 @@ spec:
                 - kind
                 - name
                 - namespace
+                - namespacedName
                 - resourceVersion
                 - uid
                 type: object
             required:
+            - ports
             - serviceReference
             type: object
           status:
