@@ -7,5 +7,6 @@
     {
       "pattern": "^https://github.com/Azure/fleet-networking"
     }
-  ]
+  ],
+  "timeout": "20s"
 }
