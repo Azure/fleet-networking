@@ -2,5 +2,11 @@
   "aliveStatusCodes": [
     200,
     203
-  ]
+  ],
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com/Azure/fleet-networking"
+    }
+  ],
+  "timeout": "20s"
 }
