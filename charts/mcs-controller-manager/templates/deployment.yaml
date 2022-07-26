@@ -22,21 +22,16 @@ spec:
       serviceAccountName: {{ include "mcs-controller-manager.fullname" . }}-sa
       containers:
         - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            - --leader-elect={{ .Values.enableLeaderElection }}
             - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
             - --v={{ .Values.logVerbosity }}
           ports:
           - containerPort: 8081
             name: healthz
             protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
           livenessProbe:
             httpGet:
               path: /healthz
