@@ -14,7 +14,7 @@ logVerbosity: 1
 
 fleetSystemNamespace: fleet-system
 
-enableLeaderElection: false
+enableLeaderElection: true
 
 resources:
   limits:
