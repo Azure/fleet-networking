@@ -33,7 +33,7 @@ const (
 
 	mcsServiceImportRefFieldKey = ".spec.serviceImport.name"
 
-	endpointSliceImportRetryInterval = time.Second * 30
+	endpointSliceImportRetryInterval = time.Second * 2
 )
 
 // Reconciler reconciles an EndpointSliceImport.
@@ -138,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	isValid, err := r.isDerivedServiceValid(ctx, derivedSvcName)
 	switch {
 	case err != nil:
-		klog.V(2).ErrorS(err, "Failed to check if derived Service is valid",
+		klog.ErrorS(err, "Failed to check if derived Service is valid",
 			"derivedServiceName", derivedSvcName,
 			"endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{}, err
