@@ -23,15 +23,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/labels"
 )
 
 const (
 	// controllerID helps identify that imported EndpointSlices are managed by this controller.
 	controllerID                        = "endpointsliceimport-controller.networking.fleet.azure.com"
 	endpointSliceImportCleanupFinalizer = "networking.fleet.azure.com/endpointsliceimport-cleanup"
-	derivedServiceLabel                 = "networking.fleet.azure.com/derived-service"
 
-	MCSServiceImportRefFieldKey = ".spec.serviceImport.name"
+	mcsServiceImportRefFieldKey = ".spec.serviceImport.name"
 
 	endpointSliceImportRetryInterval = time.Second * 30
 )
@@ -47,7 +47,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list
-//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list
 
 // Reconcile imports an EndpointSlice from hub cluster.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -97,7 +97,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.memberClient.List(ctx,
 		multiClusterSvcList,
 		client.InNamespace(ownerSvcNS),
-		client.MatchingFields{MCSServiceImportRefFieldKey: ownerSvcName})
+		client.MatchingFields{mcsServiceImportRefFieldKey: ownerSvcName})
 	switch {
 	case err != nil:
 		// An unexpected error occurs.
@@ -133,8 +133,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// * the controller sees an in-between state where a Service is imported and then immediately unimported,
 	//   and the hub cluster does not get to retract distributed EndpointSlices in time; or
 	// * a connectivity issue has kept the member cluster out of sync with the hub cluster, with the member cluster
-	//   not knowing that a Service has been successfully claimed by itself.
-	if !r.isDerivedServiceValid(ctx, derivedSvcName) {
+	//   not knowing that a Service has been successfully claimed by itself; or
+	// * the controller for processing MCSes lags, and has not created the derived Service in time.
+	isValid, err := r.isDerivedServiceValid(ctx, derivedSvcName)
+	switch {
+	case err != nil:
+		klog.V(2).ErrorS(err, "Failed to check if derived Service is valid",
+			"derivedServiceName", derivedSvcName,
+			"endpointSliceImport", endpointSliceImportRef)
+		return ctrl.Result{}, err
+	case !isValid:
 		// Retry importing the EndpointSlice at a later time if no valid derived Service can be found.
 		klog.V(2).InfoS("No valid derived Service; will retry importing EndpointSlice later",
 			"derivedServiceName", derivedSvcName,
@@ -172,7 +180,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		formatEndpointSliceFromImport(endpointSlice, derivedSvcName, endpointSliceImport)
 		return nil
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create/update EndpointSlice", "endpointSlice", endpointSliceRef, "op", op)
+		klog.ErrorS(err, "Failed to create/update EndpointSlice",
+			"endpointSlice", endpointSliceRef,
+			"op", op,
+			"endpointSliceImport", endpointSliceImportRef)
 	}
 	return ctrl.Result{}, nil
 }
@@ -189,7 +200,7 @@ func (r *Reconciler) SetupWithManager(memberCtrlMgr, hubCtrlMgr ctrl.Manager) er
 	}
 	if err := memberCtrlMgr.GetFieldIndexer().IndexField(context.Background(),
 		&fleetnetv1alpha1.MultiClusterService{},
-		MCSServiceImportRefFieldKey,
+		mcsServiceImportRefFieldKey,
 		indexerFunc,
 	); err != nil {
 		return err
@@ -226,16 +237,8 @@ func (r *Reconciler) unimportEndpointSlice(ctx context.Context, endpointSliceImp
 	}
 
 	// Remove the EndpointSliceImport cleanup finalizer.
-	return r.removeEndpointSliceImportCleanupFinalizer(ctx, endpointSliceImport)
-}
-
-// removeEndpointSliceImportFinalizer removes the cleanup finalizer from an EndpointSliceImport.
-func (r *Reconciler) removeEndpointSliceImportCleanupFinalizer(ctx context.Context, endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport) error {
-	if controllerutil.ContainsFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer) {
-		controllerutil.RemoveFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer)
-		return r.hubClient.Update(ctx, endpointSliceImport)
-	}
-	return nil
+	controllerutil.RemoveFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer)
+	return r.hubClient.Update(ctx, endpointSliceImport)
 }
 
 // addEndpointSliceImportCleanupFinalizer adds the cleanup finalizer to an EndpointSliceImport.
@@ -248,10 +251,10 @@ func (r *Reconciler) addEndpointSliceImportCleanupFinalizer(ctx context.Context,
 }
 
 // isDerivedServiceValid returns if a derived Service is valid for EndpointSlice association.
-func (r *Reconciler) isDerivedServiceValid(ctx context.Context, derivedSvcName string) bool {
+func (r *Reconciler) isDerivedServiceValid(ctx context.Context, derivedSvcName string) (bool, error) {
 	// Check if the given name is a valid Service name; this helps guard against user tampering the label.
 	if errs := validation.IsDNS1035Label(derivedSvcName); len(errs) != 0 {
-		return false
+		return false, nil
 	}
 
 	// Check if the derived Service has been created and has not been marked for deletion.
@@ -260,16 +263,20 @@ func (r *Reconciler) isDerivedServiceValid(ctx context.Context, derivedSvcName s
 	derivedSvc := &corev1.Service{}
 	derivedSvcKey := types.NamespacedName{Namespace: r.fleetSystemNamespace, Name: derivedSvcName}
 	if err := r.memberClient.Get(ctx, derivedSvcKey, derivedSvc); err != nil {
-		return false
+		return false, client.IgnoreNotFound(err)
 	}
-	return derivedSvc.DeletionTimestamp == nil
+	return derivedSvc.DeletionTimestamp == nil, nil
 }
 
 // scanForDerivedServiceName scans a list of MCSes and returns the first found derived Service label in the list.
 func scanForDerivedServiceName(multiClusterSvcList *fleetnetv1alpha1.MultiClusterServiceList) string {
 	var derivedSvcName string
 	for _, multiClusterSvc := range multiClusterSvcList.Items {
-		svcName, ok := multiClusterSvc.Labels[derivedServiceLabel]
+		if multiClusterSvc.DeletionTimestamp != nil {
+			continue
+		}
+
+		svcName, ok := multiClusterSvc.Labels[labels.DerivedServiceLabel]
 		if ok {
 			derivedSvcName = svcName
 			break

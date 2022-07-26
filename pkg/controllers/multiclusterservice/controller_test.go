@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/labels"
 )
 
 const (
@@ -112,7 +113,7 @@ func TestHandleDelete(t *testing.T) {
 		{
 			name: "having derived service and service import",
 			labels: map[string]string{
-				multiClusterServiceLabelService:       testServiceName,
+				labels.DerivedServiceLabel:            testServiceName,
 				multiClusterServiceLabelServiceImport: testServiceName,
 			},
 			service: &corev1.Service{
@@ -131,7 +132,7 @@ func TestHandleDelete(t *testing.T) {
 		{
 			name: "having derived service",
 			labels: map[string]string{
-				multiClusterServiceLabelService: testServiceName,
+				labels.DerivedServiceLabel: testServiceName,
 			},
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
@@ -155,7 +156,7 @@ func TestHandleDelete(t *testing.T) {
 		{
 			name: "resources have been deleted",
 			labels: map[string]string{
-				multiClusterServiceLabelService:       testServiceName,
+				labels.DerivedServiceLabel:            testServiceName,
 				multiClusterServiceLabelServiceImport: testServiceName,
 			},
 		},
@@ -486,7 +487,7 @@ func TestHandleUpdate(t *testing.T) {
 			name: "no updates on mcs (invalid service import) without derived service resource",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
-				multiClusterServiceLabelService:       derivedServiceName,
+				labels.DerivedServiceLabel:            derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
 				LoadBalancer: corev1.LoadBalancerStatus{},
@@ -534,7 +535,7 @@ func TestHandleUpdate(t *testing.T) {
 			name: "no updates on mcs (invalid service import) with derived service resource",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
-				multiClusterServiceLabelService:       derivedServiceName,
+				labels.DerivedServiceLabel:            derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
 				LoadBalancer: loadBalancerStatus,
@@ -637,7 +638,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 					Labels: map[string]string{
 						multiClusterServiceLabelServiceImport: testServiceName,
-						multiClusterServiceLabelService:       derivedServiceName,
+						labels.DerivedServiceLabel:            derivedServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -657,7 +658,7 @@ func TestHandleUpdate(t *testing.T) {
 			name: "no updates on the mcs (valid service import) without derived service resource",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
-				multiClusterServiceLabelService:       derivedServiceName,
+				labels.DerivedServiceLabel:            derivedServiceName,
 			},
 			serviceImport: &fleetnetv1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -704,7 +705,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 					Labels: map[string]string{
 						multiClusterServiceLabelServiceImport: testServiceName,
-						multiClusterServiceLabelService:       derivedServiceName,
+						labels.DerivedServiceLabel:            derivedServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -724,7 +725,7 @@ func TestHandleUpdate(t *testing.T) {
 			name: "service import spec mismatching with derived service",
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
-				multiClusterServiceLabelService:       derivedServiceName,
+				labels.DerivedServiceLabel:            derivedServiceName,
 			},
 			status: &fleetnetv1alpha1.MultiClusterServiceStatus{
 				LoadBalancer: corev1.LoadBalancerStatus{
@@ -814,7 +815,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 					Labels: map[string]string{
 						multiClusterServiceLabelServiceImport: testServiceName,
-						multiClusterServiceLabelService:       derivedServiceName,
+						labels.DerivedServiceLabel:            derivedServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{

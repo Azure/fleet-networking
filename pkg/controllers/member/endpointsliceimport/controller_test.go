@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/labels"
 )
 
 const (
@@ -32,14 +33,16 @@ const (
 	endpointSliceImportName = "bravelion-work-appendpoint-slice-1a2bc"
 )
 
-var httpPortName = "http"
-var httpPort = int32(80)
-var httpPortProtocol = corev1.ProtocolTCP
-var httpPortAppProtocol = "www"
-var udpPortName = "udp"
-var udpPort = int32(81)
-var udpPortProtocol = corev1.ProtocolUDP
-var udpPortAppProtocol = "example.com/custom"
+var (
+	httpPortName        = "http"
+	httpPort            = int32(80)
+	httpPortProtocol    = corev1.ProtocolTCP
+	httpPortAppProtocol = "www"
+	udpPortName         = "udp"
+	udpPort             = int32(81)
+	udpPortProtocol     = corev1.ProtocolUDP
+	udpPortAppProtocol  = "example.com/custom"
+)
 
 // Bootstrap the test environment.
 func TestMain(m *testing.M) {
@@ -161,7 +164,7 @@ func TestScanForDerivedServiceName(t *testing.T) {
 							Namespace: memberUserNS,
 							Name:      altMultiClusterSvcName,
 							Labels: map[string]string{
-								derivedServiceLabel: derivedSvcName,
+								labels.DerivedServiceLabel: derivedSvcName,
 							},
 						},
 					},
@@ -218,8 +221,8 @@ func TestFormatEndpointSliceFromImport(t *testing.T) {
 			}
 
 			formatEndpointSliceFromImport(endpointSlice, derivedSvcName, tc.endpointSliceImport)
-			if !cmp.Equal(endpointSlice, tc.want) {
-				t.Fatalf("formatEndpointSliceImport(), got %+v, want %+v", endpointSlice, tc.want)
+			if diff := cmp.Diff(endpointSlice, tc.want); diff != "" {
+				t.Fatalf("formatEndpointSliceImport(), got diff %s", diff)
 			}
 		})
 	}
@@ -286,8 +289,8 @@ func TestIsDerivedServiceValid(t *testing.T) {
 				fleetSystemNamespace: fleetSystemNS,
 			}
 
-			if got := reconciler.isDerivedServiceValid(ctx, tc.derivedSvcName); got != tc.want {
-				t.Fatalf("isDerivedServiceValid(%+v), got %t, want %t", tc.derivedSvc, got, tc.want)
+			if got, err := reconciler.isDerivedServiceValid(ctx, tc.derivedSvcName); got != tc.want || err != nil {
+				t.Fatalf("isDerivedServiceValid(%+v) = %t, %v, want %t, no error", tc.derivedSvcName, got, err, tc.want)
 			}
 		})
 	}
@@ -318,16 +321,29 @@ func TestUnimportEndpointSlice_WithFinalizer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should unimport endpointslice",
+			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      endpointSliceImportName,
+					Finalizers: []string{
+						endpointSliceImportCleanupFinalizer,
+					},
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeMemberClient := fake.NewClientBuilder().
-				WithScheme(scheme.Scheme).
-				WithObjects(tc.endpointSlice).
-				Build()
+			fakeMemberClientBuilder := fake.NewClientBuilder().WithScheme(scheme.Scheme)
+			if tc.endpointSlice != nil {
+				fakeMemberClientBuilder = fakeMemberClientBuilder.WithObjects(tc.endpointSlice)
+			}
+			fakeMemberClient := fakeMemberClientBuilder.Build()
 			fakeHubClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.endpointSliceImport).
@@ -415,60 +431,6 @@ func TestUnimportEndpointSlice_WithoutFinalizer(t *testing.T) {
 			endpointSliceKey := types.NamespacedName{Namespace: fleetSystemNS, Name: endpointSliceImportName}
 			if err := fakeMemberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 				t.Fatalf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
-			}
-		})
-	}
-}
-
-// TestRemoveEndpointSliceImportCleanupFinalizer tests the *Reconciler.removeEndpointSliceImportCleanupFinalizer method.
-func TestRemoveEndpointSliceImportCleanupFinalizer(t *testing.T) {
-	testCases := []struct {
-		name                string
-		endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-	}{
-		{
-			name: "should remove cleanup finalizer",
-			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceImportName,
-					Finalizers: []string{
-						endpointSliceImportCleanupFinalizer,
-					},
-				},
-			},
-		},
-	}
-
-	ctx := context.Background()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			fakeMemberClient := fake.NewClientBuilder().
-				WithScheme(scheme.Scheme).
-				Build()
-			fakeHubClient := fake.NewClientBuilder().
-				WithScheme(scheme.Scheme).
-				WithObjects(tc.endpointSliceImport).
-				Build()
-			reconciler := Reconciler{
-				memberClient:         fakeMemberClient,
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
-			}
-
-			if err := reconciler.removeEndpointSliceImportCleanupFinalizer(ctx, tc.endpointSliceImport); err != nil {
-				t.Fatalf("removeEndpointSliceImportCleanupFinalizer(%+v), got %v, want no error", tc.endpointSliceImport, err)
-			}
-
-			updatedEndpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
-			endpointSliceImportKey := types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceImportName}
-			if err := fakeHubClient.Get(ctx, endpointSliceImportKey, updatedEndpointSliceImport); err != nil {
-				t.Fatalf("endpointSliceImport Get(%+v), got %v, want no error", endpointSliceImportKey, err)
-			}
-
-			if len(updatedEndpointSliceImport.Finalizers) != 0 {
-				t.Fatalf("endpointSliceImport finalizers, got %+v, want %+v", updatedEndpointSliceImport.Finalizers, []string{})
 			}
 		})
 	}
