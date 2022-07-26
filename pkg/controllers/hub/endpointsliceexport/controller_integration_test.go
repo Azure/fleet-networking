@@ -30,7 +30,6 @@ const (
 )
 
 var svcImportKey = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
-var endpointSliceImportAKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
 var endpointSliceImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
 var endpointSliceImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: endpointSliceExportName}
 

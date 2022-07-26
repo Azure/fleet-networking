@@ -133,7 +133,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case err != nil && errors.IsNotFound(err):
 		// The corresponding ServiceImport does not exist; normally this will never happen as an EndpointSlice can
 		// only be exported after its owner Service has been successfully exported. It could be that the controller
-		// observes some in-between state, such as a Service is deleted right after being exported succesfully,
+		// observes some in-between state, such as a Service is deleted right after being exported successfully,
 		// and the system does not get to withdraw exported EndpointSlices from the Service yet. The controller
 		// will requeue the EndpointSliceExport and wait until the state stablizes.
 		klog.V(2).InfoS("ServiceImport does not exist", "serviceImport", svcImportRef, "endpointSliceExport", endpointSliceExportRef)
@@ -329,7 +329,8 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 	// Withdraw EndpointSliceImports from member clusters.
 	// TO-DO (chenyu1): Add retry with exponential backoff logic to guard against transitory errors
 	// (e.g. API server throuttling).
-	for _, endpointSliceImport := range endpointSliceImportList.Items {
+	for idx := range endpointSliceImportList.Items {
+		endpointSliceImport := endpointSliceImportList.Items[idx]
 		if err := r.hubClient.Delete(ctx, &endpointSliceImport); err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to withdraw EndpointSliceImport",
 				"endpointSliceImport", klog.KObj(&endpointSliceImport),
