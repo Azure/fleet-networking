@@ -27,7 +27,6 @@ import (
 
 const (
 	hubNSForMemberA         = "bravelion"
-	clusterIDForMemberA     = "0"
 	hubNSForMemberB         = "highflyingcat"
 	clusterIDForMemberB     = "1"
 	hubNSForMemberC         = "singingbutterfly"
