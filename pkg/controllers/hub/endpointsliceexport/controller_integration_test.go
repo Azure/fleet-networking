@@ -29,9 +29,11 @@ const (
 	consistentlyInterval = time.Millisecond * 150
 )
 
-var svcImportKey = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
-var endpointSliceImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
-var endpointSliceImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: endpointSliceExportName}
+var (
+	svcImportKey            = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
+	endpointSliceImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
+	endpointSliceImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: endpointSliceExportName}
+)
 
 // fulfilledSvcInUseByAnnotation returns a fulfilled ServiceInUseBy for annotation use.
 func fulfilledSvcInUseByAnnotation() fleetnetv1alpha1.ServiceInUseBy {
@@ -181,6 +183,32 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
+			Eventually(func() bool {
+				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
+				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
+					return false
+				}
+
+				if len(endpointSliceImportList.Items) != 0 {
+					return false
+				}
+
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
+				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
@@ -242,6 +270,33 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
+			Eventually(func() bool {
+				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
+				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
+					return false
+				}
+
+				if len(endpointSliceImportList.Items) != 0 {
+					return false
+				}
+
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
+				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 		})
 
@@ -304,6 +359,33 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
+			Eventually(func() bool {
+				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
+				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
+					return false
+				}
+
+				if len(endpointSliceImportList.Items) != 0 {
+					return false
+				}
+
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
+				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 		})
 
@@ -368,6 +450,33 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
+			Eventually(func() bool {
+				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
+				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
+					return false
+				}
+
+				if len(endpointSliceImportList.Items) != 0 {
+					return false
+				}
+
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
+				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 		})
 
@@ -430,6 +539,33 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
+			Eventually(func() bool {
+				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
+				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
+					return false
+				}
+
+				if len(endpointSliceImportList.Items) != 0 {
+					return false
+				}
+
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
+				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 		})
 
