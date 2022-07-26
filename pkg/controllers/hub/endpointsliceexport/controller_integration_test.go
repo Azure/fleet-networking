@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/consts"
 )
 
 const (
@@ -55,7 +56,7 @@ func unfulfilledAndRequestedServiceImport() *fleetnetv1alpha1.ServiceImport {
 			Namespace: memberUserNS,
 			Name:      svcName,
 			Annotations: map[string]string{
-				svcInUseByAnnotationKey: string(data),
+				consts.ServiceInUseByAnnotationKey: string(data),
 			},
 		},
 	}
@@ -355,7 +356,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 		BeforeEach(func() {
 			svcImport = unfulfilledAndRequestedServiceImport()
 			svcImport.Annotations = map[string]string{
-				svcInUseByAnnotationKey: "xyz",
+				consts.ServiceInUseByAnnotationKey: "xyz",
 			}
 			Expect(hubClient.Create(ctx, svcImport)).Should(Succeed())
 			fulfillSvcImport(svcImport)
@@ -879,7 +880,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(err).To(BeNil())
 
 			Expect(hubClient.Get(ctx, svcImportKey, svcImport)).Should(Succeed())
-			svcImport.Annotations[svcInUseByAnnotationKey] = string(updatedSvcInUseByData)
+			svcImport.Annotations[consts.ServiceInUseByAnnotationKey] = string(updatedSvcInUseByData)
 			Expect(hubClient.Update(ctx, svcImport)).Should(Succeed())
 
 			// Check if the EndpointSlice has been re-distributed.
@@ -988,7 +989,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(err).To(BeNil())
 
 			Expect(hubClient.Get(ctx, svcImportKey, svcImport)).Should(Succeed())
-			svcImport.Annotations[svcInUseByAnnotationKey] = string(updatedSvcInUseByData)
+			svcImport.Annotations[consts.ServiceInUseByAnnotationKey] = string(updatedSvcInUseByData)
 			Expect(hubClient.Update(ctx, svcImport)).Should(Succeed())
 
 			// Check if the EndpointSlice has been re-distributed.
@@ -1078,7 +1079,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(err).To(BeNil())
 
 			Expect(hubClient.Get(ctx, svcImportKey, svcImport)).Should(Succeed())
-			svcImport.Annotations[svcInUseByAnnotationKey] = string(updatedSvcInUseByData)
+			svcImport.Annotations[consts.ServiceInUseByAnnotationKey] = string(updatedSvcInUseByData)
 			Expect(hubClient.Update(ctx, svcImport)).Should(Succeed())
 
 			// Check if the EndpointSlice has been re-distributed.

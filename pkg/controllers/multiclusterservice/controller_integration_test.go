@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/labels"
+	"go.goms.io/fleet-networking/pkg/common/consts"
 )
 
 var _ = Describe("Test MultiClusterService Controller", func() {
@@ -93,7 +93,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			By("By checking derived service label")
-			_, ok := createdMultiClusterService.GetLabels()[labels.DerivedServiceLabel]
+			_, ok := createdMultiClusterService.GetLabels()[consts.DerivedServiceLabel]
 			Expect(ok).Should(BeFalse())
 
 			serviceImportLookupKey := types.NamespacedName{Name: testServiceName, Namespace: testNamespace}
@@ -149,7 +149,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				return createdMultiClusterService.Status.Conditions[0].Status == metav1.ConditionTrue
 			}, duration, interval).Should(BeTrue())
 
-			derivedServiceLookupKey := types.NamespacedName{Name: createdMultiClusterService.GetLabels()[labels.DerivedServiceLabel], Namespace: systemNamespace}
+			derivedServiceLookupKey := types.NamespacedName{Name: createdMultiClusterService.GetLabels()[consts.DerivedServiceLabel], Namespace: systemNamespace}
 			createdService := &corev1.Service{}
 			By("By checking derived service")
 			Eventually(func() bool {

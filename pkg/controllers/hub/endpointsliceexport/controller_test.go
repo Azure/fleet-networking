@@ -174,8 +174,8 @@ func TestFormatEndpointSliceFromExport(t *testing.T) {
 			}
 			formatEndpointSliceFromExport(endpointSlice, tc.endpointSliceExport)
 
-			if !cmp.Equal(endpointSlice, tc.endpointSlice) {
-				t.Fatalf("formatEndpointSliceFromExport(), got %+v, want %+v", endpointSlice, tc.endpointSlice)
+			if diff := cmp.Diff(endpointSlice, tc.endpointSlice); diff != "" {
+				t.Fatalf("formatEndpointSliceFromExport(), got diff %s", diff)
 			}
 		})
 	}
@@ -537,12 +537,12 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 				t.Fatalf("scanForEndpointSliceImports(%+v, %v), got %v, want no error", tc.endpointSliceExport, tc.svcInUseBy, err)
 			}
 
-			if !cmp.Equal(toWithdraw, tc.wantToWithdraw, ignoredObjectMetaFields) {
-				t.Fatalf("endpointSliceImportsToWithdraw, got %+v, want %+v", toWithdraw, tc.wantToWithdraw)
+			if diff := cmp.Diff(toWithdraw, tc.wantToWithdraw, ignoredObjectMetaFields); diff != "" {
+				t.Fatalf("endpointSliceImportsToWithdraw, got diff %s", diff)
 			}
 
-			if !cmp.Equal(toCreateOrUpdate, tc.wantToCreateOrUpdate, ignoredObjectMetaFields) {
-				t.Fatalf("endpointSliceImportsToCreateOrUpdate, got %+v, want %+v", toCreateOrUpdate, tc.wantToCreateOrUpdate)
+			if diff := cmp.Diff(toCreateOrUpdate, tc.wantToCreateOrUpdate, ignoredObjectMetaFields); diff != "" {
+				t.Fatalf("endpointSliceImportsToCreateOrUpdate, got diff %s", diff)
 			}
 		})
 	}

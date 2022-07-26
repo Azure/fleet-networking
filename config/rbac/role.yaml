@@ -65,11 +65,8 @@ rules:
   resources:
   - endpointsliceimports
   verbs:
-<<<<<<< HEAD
-=======
   - create
   - delete
->>>>>>> a1bf72f (Added EndpointSliceExport controller (for hub cluster))
   - get
   - list
   - patch
