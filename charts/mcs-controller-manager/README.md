@@ -32,9 +32,8 @@ helm upgrade mcs-controller-manager ./charts/mcs-controller-manager/
 | image.repository | Image repository | `ghcr.io/azure/fleet-networking/mcs-controller-manager` |
 | image.pullPolicy | Image pullPolicy | `IfNotPresent` |
 | image.tag | The image tag to use | `v0.1.0` |
-| logVerbosity | Log level. Uses V logs (klog) | `1` |
+| logVerbosity | Log level. Uses V logs (klog) | `2` |
 | fleetSystemNamespace | Namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
-| enableLeaderElection | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `true` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |
