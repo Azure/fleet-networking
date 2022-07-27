@@ -172,7 +172,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(2).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
 		delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
 		if err := r.memberClient.Update(ctx, &endpointSlice); err != nil {
-			klog.ErrorS(err, "Failed to update endpoint slice", "endpointSlice", endpointSliceRef)
+			klog.ErrorS(err, "Failed to remove endpointslice unique name label", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -180,7 +180,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err,
 			"Failed to create/update endpointslice export",
 			"endpointSlice", endpointSliceRef,
-			"endpointSliceExport", klog.KRef(r.hubNamespace, fleetUniqueName),
+			"endpointSliceExport", klog.KObj(&endpointSliceExport),
 			"op", createOrUpdateOp)
 		return ctrl.Result{}, err
 	}
@@ -381,6 +381,8 @@ func (r *Reconciler) assignUniqueNameAsLabel(ctx context.Context, endpointSlice 
 	if err != nil {
 		// Fall back to use a random lower case alphabetic string as the unique name. Normally this branch should
 		// never run.
+		klog.ErrorS(err, "Failed to generate a unique name; fall back to random lower case alphabetic strings",
+			"endpointSlice", klog.KObj(endpointSlice))
 		fleetUniqueName = uniquename.RandomLowerCaseAlphabeticString(25)
 	}
 	updatedEndpointSlice := endpointSlice.DeepCopy()
@@ -389,6 +391,5 @@ func (r *Reconciler) assignUniqueNameAsLabel(ctx context.Context, endpointSlice 
 		updatedEndpointSlice.Labels = map[string]string{}
 	}
 	updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel] = fleetUniqueName
-	err = r.memberClient.Update(ctx, updatedEndpointSlice)
-	return fleetUniqueName, err
+	return fleetUniqueName, r.memberClient.Update(ctx, updatedEndpointSlice)
 }
