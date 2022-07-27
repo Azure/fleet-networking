@@ -156,13 +156,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		endpointSliceExport.Spec.AddressType = discoveryv1.AddressTypeIPv4
 		endpointSliceExport.Spec.Endpoints = extractedEndpoints
 		endpointSliceExport.Spec.Ports = endpointSlice.Ports
-		endpointSliceExport.Spec.EndpointSliceReference.UpdateFromMetaObject(endpointSlice.ObjectMeta)
 		endpointSliceExport.Spec.OwnerServiceReference = fleetnetv1alpha1.OwnerServiceReference{
 			// The owner Service is guaranteed to reside in the same namespace as the EndpointSlice to export.
 			Namespace:      endpointSlice.Namespace,
 			Name:           endpointSlice.Labels[discoveryv1.LabelServiceName],
 			NamespacedName: fmt.Sprintf("%s/%s", endpointSlice.Namespace, endpointSlice.Labels[discoveryv1.LabelServiceName]),
 		}
+
+		endpointSliceExport.Spec.EndpointSliceReference.UpdateFromMetaObject(endpointSlice.ObjectMeta)
 
 		return nil
 	})
