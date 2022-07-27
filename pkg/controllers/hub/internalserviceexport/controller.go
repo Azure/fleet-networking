@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,14 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/internalserviceexport"
-)
-
-const (
-	// internalServiceExportFinalizer is the finalizer InternalServiceExport controllers adds to mark that a
-	// InternalServiceExport can only be deleted after both ServiceImport label and ServiceExport conflict resolution
-	// result have been updated.
-	internalServiceExportFinalizer = "networking.fleet.azure.com/internal-svc-export-cleanup"
+	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 // Reconciler reconciles a InternalServiceExport object.
@@ -66,8 +61,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// register finalizer
-	if !controllerutil.ContainsFinalizer(&internalServiceExport, internalServiceExportFinalizer) {
-		controllerutil.AddFinalizer(&internalServiceExport, internalServiceExportFinalizer)
+	if !controllerutil.ContainsFinalizer(&internalServiceExport, objectmea.InternalServiceExportFinalizer) {
+		controllerutil.AddFinalizer(&internalServiceExport, objectmea.InternalServiceExportFinalizer)
 		if err := r.Update(ctx, &internalServiceExport); err != nil {
 			klog.ErrorS(err, "Failed to add internalServiceExport finalizer", "internalServiceExport", internalServiceExportKRef)
 			return ctrl.Result{}, err
@@ -79,7 +74,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
 	// the internalServiceExport is being deleted
-	if !controllerutil.ContainsFinalizer(internalServiceExport, internalServiceExportFinalizer) {
+	if !controllerutil.ContainsFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer) {
 		return ctrl.Result{}, nil
 	}
 
@@ -90,7 +85,6 @@ func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fl
 	serviceImport := &fleetnetv1alpha1.ServiceImport{}
 	serviceImportName := types.NamespacedName{Namespace: internalServiceExport.Spec.ServiceReference.Namespace, Name: internalServiceExport.Spec.ServiceReference.Name}
 	serviceImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
-
 	if err := r.Client.Get(ctx, serviceImportName, serviceImport); err != nil {
 		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
 		if !errors.IsNotFound(err) {
@@ -98,6 +92,15 @@ func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fl
 		}
 		return r.removeFinalizer(ctx, internalServiceExport)
 	}
+	// check serviceImport spec
+	if len(serviceImport.Status.Ports) == 0 {
+		// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
+		// In case serviceImport picks the same spec as the deleting one at the same time and controller misses removing
+		// the clusterID from the serviceImport.
+		klog.V(2).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
+		return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+	}
+
 	oldStatus := serviceImport.Status.DeepCopy()
 	removeClusterFromServiceImportStatus(serviceImport, internalServiceExport.Spec.ServiceReference.ClusterID)
 	if err := r.updateServiceImportStatus(ctx, serviceImport, oldStatus); err != nil {
@@ -145,12 +148,33 @@ func (r *Reconciler) updateServiceImportStatus(ctx context.Context, serviceImpor
 
 func (r *Reconciler) removeFinalizer(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
 	// remove the finalizer
-	controllerutil.RemoveFinalizer(internalServiceExport, internalServiceExportFinalizer)
+	controllerutil.RemoveFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
 	if err := r.Client.Update(ctx, internalServiceExport); err != nil {
 		klog.ErrorS(err, "Failed to remove internalServiceExport finalizer", "internalServiceExport", klog.KObj(internalServiceExport))
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) updateInternalServiceExportStatus(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport, conflict bool) error {
+	desiredCond := condition.UnconflictedServiceExportConflictCondition(*internalServiceExport)
+	if conflict {
+		desiredCond = condition.ConflictedServiceExportConflictCondition(*internalServiceExport)
+	}
+	currentCond := meta.FindStatusCondition(internalServiceExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+	if condition.EqualCondition(currentCond, &desiredCond) {
+		return nil
+	}
+	exportKObj := klog.KObj(internalServiceExport)
+	oldStatus := internalServiceExport.Status.DeepCopy()
+	meta.SetStatusCondition(&internalServiceExport.Status.Conditions, desiredCond)
+
+	klog.V(2).InfoS("Updating internalServiceExport status", "internalServiceExport", exportKObj, "status", internalServiceExport.Status, "oldStatus", oldStatus)
+	if err := r.Status().Update(ctx, internalServiceExport); err != nil {
+		klog.ErrorS(err, "Failed to update internalServiceExport status", "internalServiceExport", exportKObj, "status", internalServiceExport.Status, "oldStatus", oldStatus)
+		return err
+	}
+	return nil
 }
 
 func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
@@ -201,7 +225,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 			// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
 			return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
 		}
-		return ctrl.Result{}, internalserviceexport.UpdateStatus(ctx, r.Client, internalServiceExport, true, false)
+		return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, true)
 	}
 
 	addClusterToServiceImportStatus(serviceImport, clusterID)
@@ -209,7 +233,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, internalserviceexport.UpdateStatus(ctx, r.Client, internalServiceExport, false, false)
+	return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, false)
 }
 
 // SetupWithManager sets up the controller with the Manager.

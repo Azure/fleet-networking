@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
@@ -38,6 +39,21 @@ func conflictedServiceExportConflictCondition(svcNamespace string, svcName strin
 		Reason:             "ConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported services", svcNamespace, svcName),
 	}
+}
+
+func deleteInternalServiceExport(internalServiceExport *fleetnetv1alpha1.InternalServiceExport) error {
+	key := types.NamespacedName{
+		Namespace: internalServiceExport.GetNamespace(),
+		Name:      internalServiceExport.GetName(),
+	}
+	if err := k8sClient.Get(ctx, key, internalServiceExport); err != nil {
+		return err
+	}
+	controllerutil.RemoveFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
+	if err := k8sClient.Update(ctx, internalServiceExport); err != nil {
+		return err
+	}
+	return k8sClient.Delete(ctx, internalServiceExport)
 }
 
 var _ = Describe("Test ServiceImport Controller", func() {
@@ -102,6 +118,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				},
 				Spec: internalServiceExportSpec,
 			}
+			controllerutil.AddFinalizer(internalServiceExportA, objectmea.InternalServiceExportFinalizer)
 			internalServiceExportB = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-" + testServiceName,
@@ -129,6 +146,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
+			controllerutil.AddFinalizer(internalServiceExportB, objectmea.InternalServiceExportFinalizer)
 			internalServiceExportC = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-othersvc",
@@ -148,6 +166,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
+			controllerutil.AddFinalizer(internalServiceExportC, objectmea.InternalServiceExportFinalizer)
 			internalServiceExportAA = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-" + testServiceName,
@@ -167,7 +186,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
-
+			controllerutil.AddFinalizer(internalServiceExportAA, objectmea.InternalServiceExportFinalizer)
 		})
 
 		AfterEach(func() {
@@ -175,16 +194,24 @@ var _ = Describe("Test ServiceImport Controller", func() {
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, serviceImport))).Should(Succeed())
 
 			By("Deleting internalServiceExportA if exists")
-			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, internalServiceExportA))).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(deleteInternalServiceExport(internalServiceExportA))
+			}, timeout, interval).Should(Succeed())
 
 			By("Deleting internalServiceExportB if exists")
-			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, internalServiceExportB))).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(deleteInternalServiceExport(internalServiceExportB))
+			}, timeout, interval).Should(Succeed())
 
 			By("Deleting internalServiceExportC if exists")
-			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, internalServiceExportC))).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(deleteInternalServiceExport(internalServiceExportC))
+			}, timeout, interval).Should(Succeed())
 
 			By("Deleting internalServiceExportAA if exists")
-			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, internalServiceExportAA))).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(deleteInternalServiceExport(internalServiceExportAA))
+			}, timeout, interval).Should(Succeed())
 		})
 
 		It("There are no internalServiceExports and serviceImport should be deleted", func() {
@@ -214,7 +241,6 @@ var _ = Describe("Test ServiceImport Controller", func() {
 			Expect(k8sClient.Create(ctx, internalServiceExportC)).Should(Succeed())
 
 			By("Creating internalServiceExportAA")
-			controllerutil.AddFinalizer(internalServiceExportAA, "test")
 			Expect(k8sClient.Create(ctx, internalServiceExportAA)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, internalServiceExportAA)).Should(Succeed())
 
@@ -350,19 +376,6 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				}
 				return cmp.Diff(want, got, options...)
 			}, timeout, interval).Should(BeEmpty())
-
-			By("Removing finalizer of the internalServiceExportAA")
-			Eventually(func() error {
-				key := types.NamespacedName{
-					Namespace: internalServiceExportAA.GetNamespace(),
-					Name:      internalServiceExportAA.GetName(),
-				}
-				if err := k8sClient.Get(ctx, key, internalServiceExportAA); err != nil {
-					return err
-				}
-				controllerutil.RemoveFinalizer(internalServiceExportAA, "test")
-				return k8sClient.Update(ctx, internalServiceExportAA)
-			}, timeout, interval).Should(Succeed())
 		})
 
 		It("InternalServiceExport ports spec is updated", func() {
@@ -427,7 +440,6 @@ var _ = Describe("Test ServiceImport Controller", func() {
 
 		It("InternalServiceExport is in the deleting state", func() {
 			By("Creating internalServiceExportA")
-			controllerutil.AddFinalizer(internalServiceExportA, "test")
 			Expect(k8sClient.Create(ctx, internalServiceExportA)).Should(Succeed())
 
 			internalServiceExportA.Status = fleetnetv1alpha1.InternalServiceExportStatus{
@@ -450,20 +462,41 @@ var _ = Describe("Test ServiceImport Controller", func() {
 			Eventually(func() bool {
 				return errors.IsNotFound(k8sClient.Get(ctx, serviceImportKey, serviceImport))
 			}, timeout, interval).Should(BeTrue())
-
-			By("Removing finalizer of the internalServiceExportA")
-			Eventually(func() error {
-				key := types.NamespacedName{
-					Namespace: internalServiceExportA.GetNamespace(),
-					Name:      internalServiceExportA.GetName(),
-				}
-				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
-					return err
-				}
-				controllerutil.RemoveFinalizer(internalServiceExportA, "test")
-				return k8sClient.Update(ctx, internalServiceExportA)
-			}, timeout, interval).Should(Succeed())
 		})
 	})
 
+	Context("ServiceImport has empty ports spec", func() {
+		var serviceImport *fleetnetv1alpha1.ServiceImport
+		var internalServiceExport *fleetnetv1alpha1.InternalServiceExport
+		BeforeEach(func() {
+			internalServiceExport = &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testNamespace + "-" + testServiceName,
+					Namespace: testMemberClusterA,
+				},
+				Spec: internalServiceExportSpec,
+			}
+			controllerutil.AddFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
+		})
+		AfterEach(func() {
+			By("Deleting serviceImport if exists")
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, serviceImport))).Should(Succeed())
+		})
+
+		It("internalServiceExport is just created without finalizer and serviceImport should be deleted", func() {
+			By("Creating serviceImport")
+			serviceImport = &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, serviceImport)).Should(Succeed())
+
+			By("Checking serviceImport")
+			Eventually(func() bool {
+				return errors.IsNotFound(k8sClient.Get(ctx, serviceImportKey, serviceImport))
+			}, timeout, interval).Should(BeTrue())
+		})
+	})
 })

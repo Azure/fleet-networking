@@ -13,15 +13,18 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/internalserviceexport"
+	"go.goms.io/fleet-networking/pkg/common/apiretry"
+	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 const (
@@ -76,6 +79,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	if len(internalServiceExportList.Items) == 0 {
+		klog.V(2).InfoS("No internalServiceExport found and deleting serviceImport", "serviceImport", serviceImportKRef)
 		return r.deleteServiceImport(ctx, &serviceImport)
 	}
 	change := statusChange{
@@ -89,6 +93,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if v.DeletionTimestamp != nil { // skip if the resource is in the deleting state
 			continue
 		}
+		// skip if the resource is just added which has not been handled by the internalServiceExport controller yet
+		if !controllerutil.ContainsFinalizer(&v, objectmea.InternalServiceExportFinalizer) {
+			klog.V(3).InfoS("Skipping the internalServiceExport because of missing finalizer", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(&v))
+			continue
+		}
+
 		if resolvedPortsSpec == nil {
 			// pick the first internalServiceExport spec
 			resolvedPortsSpec = &v.Spec.Ports
@@ -102,7 +112,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if resolvedPortsSpec == nil {
-		// All of internalServicesExports are in the deleting state.
+		// All of internalServicesExports are in the deleting state or waiting for the internalserviceexport controller to process it.
+		// We could safely delete the serviceImport if exists.
+		// When the internalserviceexport controller starts processing the object, it will create the serviceImport at
+		// that time.
+		klog.V(2).InfoS("No valid internalServiceExport found and deleting serviceImport", "serviceImport", serviceImportKRef)
 		return r.deleteServiceImport(ctx, &serviceImport)
 	}
 
@@ -110,7 +124,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	clusters := make([]fleetnetv1alpha1.ClusterStatus, 0, len(internalServiceExportList.Items))
 	for _, v := range change.noConflict {
 		klog.V(3).InfoS("Marking internalServiceExport status as nonConflict", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(v))
-		if err := internalserviceexport.UpdateStatus(ctx, r.Client, v, false, true); err != nil {
+		if err := r.updateInternalServiceExportWithRetry(ctx, v, false); err != nil {
 			if apierrors.IsNotFound(err) { // ignore deleted internalServiceExport
 				continue
 			}
@@ -126,7 +140,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	for _, v := range change.conflict {
 		klog.V(3).InfoS("Marking internalServiceExport status as Conflict", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(v))
-		if err := internalserviceexport.UpdateStatus(ctx, r.Client, v, true, true); err != nil {
+		if err := r.updateInternalServiceExportWithRetry(ctx, v, true); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 	}
@@ -135,14 +149,41 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Clusters: clusters,
 		Type:     fleetnetv1alpha1.ClusterSetIP, // may support headless in the future
 	}
-	if err := r.updateServiceImportStatusWithRetry(ctx, &serviceImport); err != nil {
+	updateFunc := func() error {
+		return r.Status().Update(ctx, &serviceImport)
+	}
+	klog.V(2).InfoS("Updating the serviceImport status", "serviceImport", serviceImportKRef, "status", serviceImport.Status)
+	if err := apiretry.Do(updateFunc); err != nil {
 		klog.ErrorS(err, "Failed to update serviceImport status with retry", "serviceImport", serviceImportKRef, "status", serviceImport.Status)
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r Reconciler) deleteServiceImport(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport) (ctrl.Result, error) {
+func (r *Reconciler) updateInternalServiceExportWithRetry(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport, conflict bool) error {
+	desiredCond := condition.UnconflictedServiceExportConflictCondition(*internalServiceExport)
+	if conflict {
+		desiredCond = condition.ConflictedServiceExportConflictCondition(*internalServiceExport)
+	}
+	currentCond := meta.FindStatusCondition(internalServiceExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+	if condition.EqualCondition(currentCond, &desiredCond) {
+		return nil
+	}
+	exportKObj := klog.KObj(internalServiceExport)
+	oldStatus := internalServiceExport.Status.DeepCopy()
+	meta.SetStatusCondition(&internalServiceExport.Status.Conditions, desiredCond)
+
+	updateFunc := func() error {
+		return r.Client.Status().Update(ctx, internalServiceExport)
+	}
+	if err := apiretry.Do(updateFunc); err != nil {
+		klog.ErrorS(err, "Failed to update internalServiceExport status with retry", "internalServiceExport", exportKObj, "status", internalServiceExport.Status, "oldStatus", oldStatus)
+		return err
+	}
+	return nil
+}
+
+func (r *Reconciler) deleteServiceImport(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport) (ctrl.Result, error) {
 	serviceImportKObj := klog.KObj(serviceImport)
 	if err := r.Client.Delete(ctx, serviceImport); err != nil {
 		klog.ErrorS(err, "Failed to delete serviceImport", "serviceImport", serviceImportKObj)
@@ -150,22 +191,6 @@ func (r Reconciler) deleteServiceImport(ctx context.Context, serviceImport *flee
 	}
 	klog.V(2).InfoS("There are no internalServiceExports and serviceImport has been deleted", "serviceImport", serviceImportKObj)
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) updateServiceImportStatusWithRetry(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport) error {
-	backOffPeriod := retry.DefaultBackoff
-	backOffPeriod.Cap = time.Second * 1
-
-	return retry.OnError(backOffPeriod,
-		func(err error) bool {
-			if apierrors.IsNotFound(err) || apierrors.IsInvalid(err) {
-				return false
-			}
-			return true
-		},
-		func() error {
-			return r.Status().Update(ctx, serviceImport)
-		})
 }
 
 // SetupWithManager sets up the controller with the Manager.
