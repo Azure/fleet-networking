@@ -476,7 +476,9 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				},
 				Spec: internalServiceExportSpec,
 			}
-			controllerutil.AddFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
+
+			By("Creating internalServiceExport")
+			Expect(k8sClient.Create(ctx, internalServiceExport)).Should(Succeed())
 		})
 		AfterEach(func() {
 			By("Deleting serviceImport if exists")
