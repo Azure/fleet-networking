@@ -1,0 +1,53 @@
+# Default values for member-net-controller-manager.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/azure/fleet-networking/member-net-controller-manager
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v0.1.0"
+
+namespace:  fleet-system
+
+logVerbosity: 2
+
+refreshtoken:
+  repository: ghcr.io/azure/fleet/refresh-token
+  pullPolicy: Always
+  tag: v0.1.0
+
+config:
+  provider: secret
+  hubURL : https://<hub_cluster_api_server_ip>:<hub_cluster_port>
+  memberClusterName: membercluster-sample
+  hubCA: <certificate-authority-data>
+
+fleetSystemNamespace: fleet-system
+
+secret:
+  name: "hub-kubeconfig-secret"
+  namespace: "default"
+
+azure:
+  clientid: <member_cluster_clientID>
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+tlsClientInsecure: true #TODO should be false in the production
+
+podAnnotations: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "member-net-controller-manager.fullname" . }}
+  namespace: {{ .Values.fleetSystemNamespace }}
+  labels:
+    {{- include "member-net-controller-manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "member-net-controller-manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "member-net-controller-manager.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "member-net-controller-manager.fullname" . }}-sa
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --tls-insecure={{ .Values.tlsClientInsecure }}
+            - --v={{ .Values.logVerbosity }}
+          ports:
+          - containerPort: 8081
+            name: hubhealthz
+            protocol: TCP
+          - containerPort: 8082
+            name: memberhealthz
+            protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: hubhealthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: hubhealthz
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: memberhealthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: memberhealthz
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+          - name: HUB_SERVER_URL
+            value: "{{ .Values.config.hubURL }}"
+          - name: CONFIG_PATH
+            value: "/config/token"
+          - name: MEMBER_CLUSTER_NAME
+            value: "{{ .Values.config.memberClusterName }}"
+          - name: HUB_CERTIFICATE_AUTHORITY
+            value: "{{ .Values.config.hubCA }}"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - name: provider-token 
+            mountPath: /config
+        - name: refresh-token
+          image: "{{ .Values.refreshtoken.repository }}:{{ .Values.refreshtoken.tag }}"
+          imagePullPolicy: {{ .Values.refreshtoken.pullPolicy }}
+          args:
+            {{ $provider := .Values.config.provider }}
+            - {{ $provider }}
+            {{ range $key, $value := (index .Values $provider) }}
+            - --{{ $key }}={{ $value }}
+            {{ end }}
+          ports:
+            - name: http
+              containerPort: 4000
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - name: provider-token
+            mountPath: /config
+      volumes:
+      - name: provider-token
+        emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
