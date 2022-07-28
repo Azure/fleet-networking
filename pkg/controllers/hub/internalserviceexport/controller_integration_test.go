@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 var _ = Describe("Test InternalServiceExport Controller", func() {
@@ -125,7 +126,7 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
 					return false
 				}
-				return controllerutil.ContainsFinalizer(internalServiceExportA, internalServiceExportFinalizer)
+				return controllerutil.ContainsFinalizer(internalServiceExportA, objectmeta.InternalServiceExportFinalizer)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Updating serviceImport status (the resolved spec is the same as internalServiceImport)")
