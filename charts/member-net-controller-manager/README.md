@@ -46,9 +46,4 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
 
-config:
-  provider: secret
-  hubURL : 
-  memberClusterName: membercluster-sample
-  hubCA: <certificate-authority-data>
 ## Contributing Changes
