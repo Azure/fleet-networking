@@ -41,8 +41,8 @@ const (
 
 // Reconciler reconciles the distribution of EndpointSlices across the fleet.
 type Reconciler struct {
-	hubClient            client.Client
-	fleetSystemNamespace string
+	HubClient            client.Client
+	FleetSystemNamespace string
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;create;update;patch
@@ -62,7 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the EndpointSliceExport object.
 	endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
-	if err := r.hubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
+	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
 		// Skip the reconciliation if the EndpointSliceExport does not exist; this should only happen when the
 		// EndpointSliceExport does not have a finalizer set and is deleted right before the controller gets a
 		// chance to reconcile it. The absence of the finalizer guarantees that the EndpointSlice has never been
@@ -99,15 +99,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Keep one copy of EndpointSlice in the hub cluster for reference. This will always happen even if its owner
 	// Service has not been imported by any member cluster yet.
 	klog.V(2).InfoS("Create/update the local EndpointSlice copy",
-		"endpointSlice", klog.KRef(r.fleetSystemNamespace, endpointSliceExport.Name),
+		"endpointSlice", klog.KRef(r.FleetSystemNamespace, endpointSliceExport.Name),
 		"endpointSliceExport", endpointSliceExportRef)
 	endpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.fleetSystemNamespace,
+			Namespace: r.FleetSystemNamespace,
 			Name:      endpointSliceExport.Name,
 		},
 	}
-	op, err := controllerutil.CreateOrUpdate(ctx, r.hubClient, endpointSlice, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, r.HubClient, endpointSlice, func() error {
 		formatEndpointSliceFromExport(endpointSlice, endpointSliceExport)
 		return nil
 	})
@@ -129,7 +129,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.V(2).InfoS("Inquire ServceImport to find out which member clusters have requested the EndpointSlice",
 		"serviceImport", svcImportRef,
 		"endpointSliceExport", endpointSliceExportRef)
-	err = r.hubClient.Get(ctx, svcImportKey, svcImport)
+	err = r.HubClient.Get(ctx, svcImportKey, svcImport)
 	switch {
 	case err != nil && errors.IsNotFound(err):
 		// The corresponding ServiceImport does not exist; normally this will never happen as an EndpointSlice can
@@ -205,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"endpointSliceImport", klog.KObj(endpointSliceImport),
 			"endpointSliceExport", endpointSliceExportRef)
 		if err := apiretry.Do(func() error {
-			return r.hubClient.Delete(ctx, endpointSliceImport)
+			return r.HubClient.Delete(ctx, endpointSliceImport)
 		}); err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to withdraw EndpointSlice",
 				"endpointSliceImport", klog.KObj(endpointSliceImport),
@@ -229,7 +229,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		var op controllerutil.OperationResult
 		if err := apiretry.Do(func() error {
 			var createOrUpdateErr error
-			op, createOrUpdateErr = controllerutil.CreateOrUpdate(ctx, r.hubClient, endpointSliceImport, func() error {
+			op, createOrUpdateErr = controllerutil.CreateOrUpdate(ctx, r.HubClient, endpointSliceImport, func() error {
 				endpointSliceImport.Spec = *endpointSliceExport.Spec.DeepCopy()
 				return nil
 			})
@@ -291,7 +291,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 		fieldMatcher := client.MatchingFields{
 			endpointSliceExportOwnerSvcNamespacedNameFieldKey: fmt.Sprintf("%s/%s", svcImport.Namespace, svcImport.Name),
 		}
-		if err := r.hubClient.List(ctx, endpointSliceExportList, fieldMatcher); err != nil {
+		if err := r.HubClient.List(ctx, endpointSliceExportList, fieldMatcher); err != nil {
 			klog.ErrorS(err,
 				"Failed to list EndpointSliceExports for an imported Service",
 				"serviceImport", klog.KObj(svcImport))
@@ -323,7 +323,7 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 	listOpts := client.MatchingFields{
 		endpointSliceImportNameFieldKey: endpointSliceExport.Name,
 	}
-	if err := r.hubClient.List(ctx, endpointSliceImportList, listOpts); err != nil {
+	if err := r.HubClient.List(ctx, endpointSliceImportList, listOpts); err != nil {
 		klog.ErrorS(err, "Failed to list EndpointSliceImports by a specific name",
 			"endpointSliceImportName", endpointSliceExport.Name,
 			"endpointSliceExport", klog.KObj(endpointSliceExport))
@@ -334,7 +334,7 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 	for idx := range endpointSliceImportList.Items {
 		endpointSliceImport := endpointSliceImportList.Items[idx]
 		if err := apiretry.Do(func() error {
-			return r.hubClient.Delete(ctx, &endpointSliceImport)
+			return r.HubClient.Delete(ctx, &endpointSliceImport)
 		}); err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to withdraw EndpointSliceImport",
 				"endpointSliceImport", klog.KObj(&endpointSliceImport),
@@ -350,11 +350,11 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 func (r *Reconciler) removeHubEndpointSliceCopyAndCleanupFinalizer(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) error {
 	endpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.fleetSystemNamespace,
+			Namespace: r.FleetSystemNamespace,
 			Name:      endpointSliceExport.Name,
 		},
 	}
-	if err := r.hubClient.Delete(ctx, endpointSlice); err != nil && !errors.IsNotFound(err) {
+	if err := r.HubClient.Delete(ctx, endpointSlice); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to remove EndpointSlice copy in the hub cluster",
 			"endpointSlice", klog.KObj(endpointSlice),
 			"endpointSliceExport", klog.KObj(endpointSliceExport))
@@ -372,13 +372,13 @@ func (r *Reconciler) removeHubEndpointSliceCopyAndCleanupFinalizer(ctx context.C
 // removeEndpointSliceExportCleanupFinalizer removes the cleanup finalizer from an EndpointSliceExport.
 func (r *Reconciler) removeEndpointSliceExportCleanupFinalizer(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) error {
 	controllerutil.RemoveFinalizer(endpointSliceExport, endpointSliceExportCleanupFinalizer)
-	return r.hubClient.Update(ctx, endpointSliceExport)
+	return r.HubClient.Update(ctx, endpointSliceExport)
 }
 
 // addEndpointSliceExportCleanupFinalizer adds the cleanup finalizer to an EndpointSliceExport.
 func (r *Reconciler) addEndpointSliceExportCleanupFinalizer(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) error {
 	controllerutil.AddFinalizer(endpointSliceExport, endpointSliceExportCleanupFinalizer)
-	return r.hubClient.Update(ctx, endpointSliceExport)
+	return r.HubClient.Update(ctx, endpointSliceExport)
 }
 
 // scanForEndpointSliceImports lists all EndpointSliceImports across the fleet created from a specific
@@ -401,7 +401,7 @@ func (r *Reconciler) scanForEndpointSliceImports(
 	listOpts := client.MatchingFields{
 		endpointSliceImportNameFieldKey: endpointSliceExport.Name,
 	}
-	if err := r.hubClient.List(ctx, endpointSliceImportList, listOpts); err != nil {
+	if err := r.HubClient.List(ctx, endpointSliceImportList, listOpts); err != nil {
 		klog.ErrorS(err, "Failed to list EndpointSliceImports by a specific name",
 			"endpointSliceImportName", endpointSliceExport.Name,
 			"endpointSliceExport", klog.KObj(endpointSliceExport))

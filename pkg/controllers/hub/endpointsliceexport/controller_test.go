@@ -227,8 +227,8 @@ func TestWithdrawAllEndpointSliceImports(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.withdrawAllEndpointSliceImports(ctx, tc.endpointSliceExport); err != nil {
@@ -277,8 +277,8 @@ func TestRemoveHubEndpointSliceCopyAndCleanupFinalizer(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.removeHubEndpointSliceCopyAndCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
@@ -323,8 +323,8 @@ func TestRemoveEndpointSliceExportCleanupFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceExport).
 				Build()
 			reconciler := Reconciler{
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.removeEndpointSliceExportCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
@@ -362,8 +362,8 @@ func TestAddEndpointSliceExportCleanupFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceExport).
 				Build()
 			reconciler := Reconciler{
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.addEndpointSliceExportCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
@@ -527,8 +527,8 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			toWithdraw, toCreateOrUpdate, err := reconciler.scanForEndpointSliceImports(ctx, tc.endpointSliceExport, tc.svcInUseBy)
