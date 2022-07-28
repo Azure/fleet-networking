@@ -273,16 +273,16 @@ func (r *Reconciler) clearInternalServiceImportStatus(ctx context.Context, inter
 func (r *Reconciler) removeInternalServiceImportCleanupFinalizer(ctx context.Context, internalSvcImport *fleetnetv1alpha1.InternalServiceImport) error {
 	if controllerutil.ContainsFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer) {
 		controllerutil.RemoveFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer)
-		return r.HubClient.Status().Update(ctx, internalSvcImport)
+		return r.HubClient.Update(ctx, internalSvcImport)
 	}
 	return nil
 }
 
 // addInternalServiceImportCleanupFinalizer adds the cleanup finalizer to an InternalServiceImport.
 func (r *Reconciler) addInternalServiceImportCleanupFinalizer(ctx context.Context, internalSvcImport *fleetnetv1alpha1.InternalServiceImport) error {
-	if controllerutil.ContainsFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer) {
+	if !controllerutil.ContainsFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer) {
 		controllerutil.AddFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer)
-		return r.HubClient.Status().Update(ctx, internalSvcImport)
+		return r.HubClient.Update(ctx, internalSvcImport)
 	}
 	return nil
 }
