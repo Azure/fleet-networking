@@ -116,9 +116,13 @@ spec:
                   namespace:
                     description: The namespace of the owner Service.
                     type: string
+                  namespacedName:
+                    description: The namespaced name (key) of the owner Service.
+                    type: string
                 required:
                 - name
                 - namespace
+                - namespacedName
                 type: object
               ports:
                 description: The list of ports exported by each endpoint in this EndpointSliceExport.
