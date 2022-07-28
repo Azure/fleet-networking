@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -95,7 +96,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := startControllerManagers(ctrl.SetupSignalHandler(), hubConfig, memberConfig, hubOptions, memberOptions); err != nil {
+	if err := startControllerManagers(hubConfig, memberConfig, hubOptions, memberOptions); err != nil {
 		os.Exit(1)
 	}
 }
@@ -184,7 +185,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options, error) {
 	return ctrl.GetConfigOrDie(), memberOpts, nil
 }
 
-func startControllerManagers(ctx context.Context, hubConfig, memberConfig *rest.Config, hubOptions, memberOptions *ctrl.Options) error {
+func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, memberOptions *ctrl.Options) error {
 	if hubConfig == nil || memberConfig == nil || hubOptions == nil || memberOptions == nil {
 		return errors.New("config or options cannot be nil")
 	}
@@ -220,29 +221,42 @@ func startControllerManagers(ctx context.Context, hubConfig, memberConfig *rest.
 	}
 
 	klog.V(2).InfoS("Setup controllers with controller manager")
-	if err := setupControllersWithManager(ctx, hubMgr, memberMgr); err != nil {
+	if err := setupControllersWithManager(hubMgr, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to setup controllers with manager")
 		return err
 	}
 
-	// TODO(mainred): we need to exit the program when either manager starts unsuccessfully.
+	var startErr error
+	// All managers should stop if any of them is dead.
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		klog.V(2).InfoS("Starting hub manager")
 		defer klog.V(2).InfoS("Shutting down hub manager")
-		err := hubMgr.Start(ctx)
-		if err != nil {
+		if err := hubMgr.Start(ctx); err != nil {
 			klog.ErrorS(err, "Failed to starting hub manager")
-			return
+		} else {
+			startErr = err
 		}
+		cancel()
+	}()
+	wg.Add(1)
+	go func() {
+		klog.V(2).InfoS("Starting member manager")
+		defer klog.V(3).InfoS("Shutting down member manager")
+		if err = memberMgr.Start(ctx); err != nil {
+			klog.ErrorS(err, "Failed to starting member manager")
+		} else {
+			startErr = err
+		}
+		cancel()
 	}()
 
-	klog.V(2).InfoS("Starting member manager")
-	defer klog.V(3).InfoS("Shutting down member manager")
-	if err := memberMgr.Start(ctx); err != nil {
-		klog.ErrorS(err, "Failed to starting member manager")
-		return err
+	wg.Wait()
+	if startErr != nil {
+		return startErr
 	}
-
 	return nil
 }
 
@@ -256,7 +270,7 @@ func getMemberClusterHubNamespaceName() (string, error) {
 	return mcHubNamespace, nil
 }
 
-func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
+func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 	klog.V(2).InfoS("Begin to setup controllers with controller manager")
 
 	mcName, err := envOrError(memberClusterNameEnvKey)
@@ -272,6 +286,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	}
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
+	ctx := context.Background()
 	if err := endpointslice.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient(), mcHubNamespace).SetupWithManager(ctx, hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
