@@ -414,4 +414,71 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 			}, timeout, interval).Should(BeEmpty())
 		})
 	})
+
+	Context("Deleting internalServiceExport", func() {
+		var serviceImport fleetnetv1alpha1.ServiceImport
+		var internalServiceExportA *fleetnetv1alpha1.InternalServiceExport
+
+		BeforeEach(func() {
+			By("Creating internalServiceExport")
+			internalServiceExportA = &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testMemberClusterA,
+				},
+				Spec: internalServiceExportSpec,
+			}
+			Expect(k8sClient.Create(ctx, internalServiceExportA)).Should(Succeed())
+
+			By("Checking serviceImport status")
+			Eventually(func() string {
+				want := fleetnetv1alpha1.ServiceImportStatus{}
+				if err := k8sClient.Get(ctx, serviceImportKey, &serviceImport); err != nil {
+					return err.Error()
+				}
+				return cmp.Diff(want, serviceImport.Status, options...)
+			}, timeout, interval).Should(BeEmpty())
+		})
+
+		AfterEach(func() {
+			By("Deleting serviceImport if exists")
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &serviceImport))).Should(Succeed())
+		})
+
+		It("Deleting the internalServiceExport", func() {
+			By("Deleting the internalServiceExport")
+			Expect(k8sClient.Delete(ctx, internalServiceExportA)).Should(Succeed())
+
+			By("Checking internalServiceExportA status")
+			Consistently(func() string {
+				want := fleetnetv1alpha1.InternalServiceExportStatus{}
+				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
+				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
+					return err.Error()
+				}
+				return cmp.Diff(want, internalServiceExportA.Status, options...)
+			}, duration, interval).Should(BeEmpty())
+
+			By("Updating serviceImport status")
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Ports: importServicePorts,
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: "other-cluster",
+					},
+				},
+				Type: fleetnetv1alpha1.ClusterSetIP,
+			}
+			Expect(k8sClient.Status().Update(ctx, &serviceImport)).Should(Succeed())
+
+			By("Checking internalServiceExportA")
+			Eventually(func() bool {
+				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
+				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
+					return errors.IsNotFound(err)
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+	})
 })
