@@ -24,6 +24,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 // Reconciler reconciles a InternalServiceExport object.
