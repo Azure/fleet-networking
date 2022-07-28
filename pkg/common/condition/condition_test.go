@@ -5,8 +5,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+)
+
+var (
+	appProtocol   = "app-protocol"
+	testClusterID = "test-cluster-id"
 )
 
 func TestEqualCondition(t *testing.T) {
@@ -220,5 +226,89 @@ func TestEqualConditionIgnoreReason(t *testing.T) {
 					tc.current, tc.desired, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestUnconflictedServiceExportConflictCondition(t *testing.T) {
+	input := fleetnetv1alpha1.InternalServiceExport{
+		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+			Ports: []fleetnetv1alpha1.ServicePort{
+				{
+					Name:        "portA",
+					Protocol:    "TCP",
+					Port:        8080,
+					AppProtocol: &appProtocol,
+					TargetPort:  intstr.IntOrString{IntVal: 8080},
+				},
+				{
+					Name:       "portB",
+					Protocol:   "TCP",
+					Port:       9090,
+					TargetPort: intstr.IntOrString{IntVal: 9090},
+				},
+			},
+			ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+				ClusterID:       testClusterID,
+				Kind:            "Service",
+				Namespace:       "test-ns",
+				Name:            "test-svc",
+				ResourceVersion: "0",
+				Generation:      123,
+				UID:             "0",
+			},
+		},
+	}
+	want := metav1.Condition{
+		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Status:             metav1.ConditionFalse,
+		Reason:             conditionReasonNoConflictFound,
+		ObservedGeneration: 123, // use the generation of the original object
+		Message:            "service test-ns/test-svc is exported without conflict",
+	}
+	got := UnconflictedServiceExportConflictCondition(input)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("UnconflictedServiceExportConflictCondition() mismatch (-want, +got):\n%s", diff)
+	}
+}
+
+func TestConflictedServiceExportConflictCondition(t *testing.T) {
+	input := fleetnetv1alpha1.InternalServiceExport{
+		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+			Ports: []fleetnetv1alpha1.ServicePort{
+				{
+					Name:        "portA",
+					Protocol:    "TCP",
+					Port:        8080,
+					AppProtocol: &appProtocol,
+					TargetPort:  intstr.IntOrString{IntVal: 8080},
+				},
+				{
+					Name:       "portB",
+					Protocol:   "TCP",
+					Port:       9090,
+					TargetPort: intstr.IntOrString{IntVal: 9090},
+				},
+			},
+			ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+				ClusterID:       testClusterID,
+				Kind:            "Service",
+				Namespace:       "test-ns",
+				Name:            "test-svc",
+				ResourceVersion: "0",
+				Generation:      123,
+				UID:             "0",
+			},
+		},
+	}
+	want := metav1.Condition{
+		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Status:             metav1.ConditionTrue,
+		Reason:             conditionReasonConflictFound,
+		ObservedGeneration: 123,
+		Message:            "service test-ns/test-svc is in conflict with other exported services",
+	}
+	got := ConflictedServiceExportConflictCondition(input)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ConflictedServiceExportConflictCondition() mismatch (-want, +got):\n%s", diff)
 	}
 }

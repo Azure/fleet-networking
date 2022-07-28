@@ -1,4 +1,9 @@
-// Package multiclusterservice features the mcs controller to multiclusterservice CRD.
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+// Package multiclusterservice features the mcs controller to reconcile multiclusterservice CRD.
 // The controller could be installed in either hub cluster or member clusters.
 package multiclusterservice
 
