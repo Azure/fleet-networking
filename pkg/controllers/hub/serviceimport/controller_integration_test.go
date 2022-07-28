@@ -273,7 +273,15 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				}
 				resolvedClusterID = serviceImport.Status.Clusters[0].Cluster
 				if resolvedClusterID != testClusterID {
-					want.Ports = internalServiceExportB.Spec.Ports
+					want = fleetnetv1alpha1.ServiceImportStatus{
+						Clusters: []fleetnetv1alpha1.ClusterStatus{
+							{
+								Cluster: "member-cluster-b",
+							},
+						},
+						Type:  fleetnetv1alpha1.ClusterSetIP,
+						Ports: internalServiceExportB.Spec.Ports,
+					}
 				}
 				return cmp.Diff(want, serviceImport.Status, options...)
 			}, timeout, interval).Should(BeEmpty())
