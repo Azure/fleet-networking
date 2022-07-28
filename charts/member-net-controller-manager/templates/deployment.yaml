@@ -37,21 +37,21 @@ spec:
             name: memberhealthz
             protocol: TCP
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: hubhealthz
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: hubhealthz
+            exec:
+              command:
+              - sh
+              - -c 
+              - "reply=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:8081/healthz); if [ \"$reply\" -lt 200 -o \"$reply\" -ge 400 ]; then exit 1; fi; reply=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:8082/healthz); if [ \"$reply\" -lt 200 -o \"$reply\" -ge 400 ]; then exit 1; fi"
           livenessProbe:
             httpGet:
               path: /healthz
-              port: memberhealthz
+              port: hubhealthz
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: memberhealthz
+            exec:
+              command:
+              - sh
+              - -c 
+              - "reply=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:8081/readyz); if [ \"$reply\" -lt 200 -o \"$reply\" -ge 400 ]; then exit 1; fi; reply=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:8082/readyz); if [ \"$reply\" -lt 200 -o \"$reply\" -ge 400 ]; then exit 1; fi"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:

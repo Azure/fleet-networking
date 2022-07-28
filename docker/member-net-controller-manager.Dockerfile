@@ -24,6 +24,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/member-net-controller-manager .
+# install curl for check health probe for multiple controller managers in one container
+COPY --from=builder /usr/bin/curl /bin/curl
 USER 65532:65532
 
 ENTRYPOINT ["/member-net-controller-manager"]
