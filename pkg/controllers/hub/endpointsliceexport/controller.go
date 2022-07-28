@@ -241,7 +241,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				"op", op)
 			return ctrl.Result{}, err
 		}
-
 	}
 
 	return ctrl.Result{}, nil
