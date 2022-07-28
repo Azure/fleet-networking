@@ -25,6 +25,14 @@ const (
 	endpointSliceUniqueNameLabel = "networking.fleet.azure.com/fleet-unique-name"
 )
 
+// NewReconciler returns a reconciler for the EndpointSliceExport.
+func NewReconciler(memberClient, hubClient client.Client) *Reconciler {
+	return &Reconciler{
+		memberClient: memberClient,
+		hubClient:    hubClient,
+	}
+}
+
 type Reconciler struct {
 	memberClient client.Client
 	hubClient    client.Client

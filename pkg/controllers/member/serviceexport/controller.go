@@ -38,6 +38,16 @@ const (
 	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
 )
 
+// NewReconciler returns a reconciler for the ServiceExport.
+func NewReconciler(memberClient, hubClient client.Client, memberClusterID, hubNamespace string) *Reconciler {
+	return &Reconciler{
+		memberClient:    memberClient,
+		hubClient:       hubClient,
+		memberClusterID: memberClusterID,
+		hubNamespace:    hubNamespace,
+	}
+}
+
 // Reconciler reconciles the export of a Service.
 type Reconciler struct {
 	memberClusterID string

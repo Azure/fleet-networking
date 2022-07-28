@@ -43,6 +43,15 @@ const (
 	continueReconcileOp skipOrUnexportEndpointSliceOp = 2
 )
 
+// NewReconciler returns a reconciler for the export of an EndpointSlice.
+func NewReconciler(memberClient, hubClient client.Client, hubNamespace string) *Reconciler {
+	return &Reconciler{
+		memberClient: memberClient,
+		hubClient:    hubClient,
+		hubNamespace: hubNamespace,
+	}
+}
+
 // Reconciler reconciles the export of an EndpointSlice.
 type Reconciler struct {
 	memberClient client.Client

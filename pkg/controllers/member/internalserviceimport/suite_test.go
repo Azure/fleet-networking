@@ -116,9 +116,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		Scheme:       mgr.GetScheme(),
+		memberClient: memberClient,
+		hubClient:    hubClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

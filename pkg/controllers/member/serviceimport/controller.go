@@ -14,7 +14,6 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +27,16 @@ const (
 	ServiceImportFinalizer = "networking.fleet.azure.com/serviceimport-cleanup"
 )
 
+// NewReconciler returns a reconciler for the ServiceImport.
+func NewReconciler(memberClient, hubClient client.Client, memberClusterID, hubNamespace string) *Reconciler {
+	return &Reconciler{
+		memberClient:    memberClient,
+		hubClient:       hubClient,
+		memberClusterID: memberClusterID,
+		hubNamespace:    hubNamespace,
+	}
+}
+
 // Reconciler reconciles a InternalServceImport object.
 type Reconciler struct {
 	memberClusterID string
@@ -37,8 +46,6 @@ type Reconciler struct {
 
 	hubClient    client.Client
 	memberClient client.Client
-
-	Scheme *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;update;patch

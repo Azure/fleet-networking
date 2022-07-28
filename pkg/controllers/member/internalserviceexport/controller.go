@@ -22,6 +22,14 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+// NewReconciler returns a reconciler for the InternalServiceExport.
+func NewReconciler(memberClient, hubClient client.Client) *Reconciler {
+	return &Reconciler{
+		memberClient: memberClient,
+		hubClient:    hubClient,
+	}
+}
+
 // Reconciler reconciles the update of an InternalServiceExport.
 type Reconciler struct {
 	memberClient client.Client

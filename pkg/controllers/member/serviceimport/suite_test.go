@@ -97,7 +97,6 @@ var _ = BeforeSuite(func() {
 		hubNamespace:    hubNamespace,
 		memberClient:    memberClient,
 		hubClient:       hubClient,
-		Scheme:          mgr.GetScheme(),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
