@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/consts"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -276,7 +276,7 @@ func scanForDerivedServiceName(multiClusterSvcList *fleetnetv1alpha1.MultiCluste
 			continue
 		}
 
-		svcName, ok := multiClusterSvc.Labels[consts.DerivedServiceLabel]
+		svcName, ok := multiClusterSvc.Labels[objectmeta.DerivedServiceLabel]
 		if ok {
 			derivedSvcName = svcName
 			break

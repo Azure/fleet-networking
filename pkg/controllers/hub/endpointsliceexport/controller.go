@@ -26,7 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/consts"
+	"go.goms.io/fleet-networking/pkg/common/apiretry"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -152,7 +153,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: endpointSliceExportRetryInterval}, nil
 	}
 
-	data, ok := svcImport.ObjectMeta.Annotations[consts.ServiceInUseByAnnotationKey]
+	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceInUseByAnnotationKey]
 	if !ok {
 		// No cluster has requested to import the EndpointSlice's owner service.
 		// If the exported EndpointSlice has been distributed across the fleet before; withdraw the
@@ -173,7 +174,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"serviceImport", svcImportRef,
 			"endpointSliceExport", endpointSliceExportRef)
 		// This error cannot be recovered by retrying; a reconciliation will be triggered when the ServiceInUseBy
-		// data is updated.
+		// data is overwritten.
 		return ctrl.Result{}, nil
 	}
 
@@ -203,9 +204,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(4).InfoS("Withdraw endpointSlice",
 			"endpointSliceImport", klog.KObj(endpointSliceImport),
 			"endpointSliceExport", endpointSliceExportRef)
-		// TO-DO (chenyu1): Add retry with exponential backoff logic to guard against transitory errors
-		// (e.g. API server throuttling).
-		if err := r.hubClient.Delete(ctx, endpointSliceImport); err != nil && !errors.IsNotFound(err) {
+		if err := apiretry.Do(func() error {
+			return r.hubClient.Delete(ctx, endpointSliceImport)
+		}); err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to withdraw EndpointSlice",
 				"endpointSliceImport", klog.KObj(endpointSliceImport),
 				"endpointSliceExport", endpointSliceExportRef)
@@ -224,19 +225,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(4).InfoS("Create/update endpointSliceImport",
 			"endpointSliceImport", klog.KObj(endpointSliceImport),
 			"endpointSliceExport", endpointSliceExportRef)
-		// TO-DO (chenyu1): Add retry with exponential backoff logic to guard against transitory errors
-		// (e.g. API server throuttling).
-		op, err := controllerutil.CreateOrUpdate(ctx, r.hubClient, endpointSliceImport, func() error {
-			endpointSliceImport.Spec = *endpointSliceExport.Spec.DeepCopy()
-			return nil
-		})
-		if err != nil {
+
+		var op controllerutil.OperationResult
+		if err := apiretry.Do(func() error {
+			var createOrUpdateErr error
+			op, createOrUpdateErr = controllerutil.CreateOrUpdate(ctx, r.hubClient, endpointSliceImport, func() error {
+				endpointSliceImport.Spec = *endpointSliceExport.Spec.DeepCopy()
+				return nil
+			})
+			return createOrUpdateErr
+		}); err != nil {
 			klog.ErrorS(err, "Failed to create or update EndpointSliceImport",
 				"endpointSliceImport", klog.KObj(endpointSliceImport),
 				"endpointSliceExport", endpointSliceExportRef,
 				"op", op)
 			return ctrl.Result{}, err
 		}
+
 	}
 
 	return ctrl.Result{}, nil
@@ -327,11 +332,11 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 	}
 
 	// Withdraw EndpointSliceImports from member clusters.
-	// TO-DO (chenyu1): Add retry with exponential backoff logic to guard against transitory errors
-	// (e.g. API server throuttling).
 	for idx := range endpointSliceImportList.Items {
 		endpointSliceImport := endpointSliceImportList.Items[idx]
-		if err := r.hubClient.Delete(ctx, &endpointSliceImport); err != nil && !errors.IsNotFound(err) {
+		if err := apiretry.Do(func() error {
+			return r.hubClient.Delete(ctx, &endpointSliceImport)
+		}); err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to withdraw EndpointSliceImport",
 				"endpointSliceImport", klog.KObj(&endpointSliceImport),
 				"endpointSliceExport", klog.KObj(endpointSliceExport))

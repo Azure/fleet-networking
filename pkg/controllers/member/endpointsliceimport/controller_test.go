@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/consts"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -164,7 +164,7 @@ func TestScanForDerivedServiceName(t *testing.T) {
 							Namespace: memberUserNS,
 							Name:      altMultiClusterSvcName,
 							Labels: map[string]string{
-								consts.DerivedServiceLabel: derivedSvcName,
+								objectmeta.DerivedServiceLabel: derivedSvcName,
 							},
 						},
 					},
