@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/meta"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -301,7 +301,7 @@ func (r *Reconciler) annotateServiceImportWithServiceInUseByInfo(ctx context.Con
 		return err
 	}
 
-	svcImport.Annotations[meta.ServiceInUseByAnnotationKey] = string(data)
+	svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey] = string(data)
 	return r.HubClient.Status().Update(ctx, svcImport)
 }
 
@@ -322,7 +322,7 @@ func (r *Reconciler) fulfillInternalServiceImport(ctx context.Context,
 
 // extractServiceInUseByInfoFromServiceImport extracts ServiceInUseBy information from annotations on a ServiceImport.
 func extractServiceInUseByInfoFromServiceImport(svcImport *fleetnetv1alpha1.ServiceImport) *fleetnetv1alpha1.ServiceInUseBy {
-	data, ok := svcImport.ObjectMeta.Annotations[meta.ServiceInUseByAnnotationKey]
+	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceInUseByAnnotationKey]
 	if !ok {
 		// The ServiceInUseBy annotation is absent on ServiceImport.
 		return &fleetnetv1alpha1.ServiceInUseBy{

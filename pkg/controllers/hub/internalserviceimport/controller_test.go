@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/meta"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -29,7 +29,6 @@ const (
 	clusterIDForMemberA   = "0"
 	hubNSForMemberB       = "highflyingcat"
 	clusterIDForMemberB   = "1"
-	hubNSForMemberC       = "singingbutterfly"
 	clusterIDForMemberC   = "2"
 	memberUserNS          = "work"
 	svcName               = "app"
@@ -39,7 +38,6 @@ const (
 var (
 	svcImportKey          = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 	internalSvcImportAKey = types.NamespacedName{Namespace: hubNSForMemberA, Name: internalSvcImportName}
-	internalSvcImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: internalSvcImportName}
 
 	httpPortName        = "http"
 	httpPort            = int32(80)
@@ -73,7 +71,7 @@ func fulfilledServiceImport() *fleetnetv1alpha1.ServiceImport {
 			Namespace: memberUserNS,
 			Name:      svcName,
 			Annotations: map[string]string{
-				meta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
+				objectmeta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
 			},
 		},
 		Status: fleetnetv1alpha1.ServiceImportStatus{
@@ -143,7 +141,7 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						meta.ServiceInUseByAnnotationKey: "xyz",
+						objectmeta.ServiceInUseByAnnotationKey: "xyz",
 					},
 				},
 			},
@@ -158,7 +156,7 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						meta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
+						objectmeta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
 					},
 				},
 			},
@@ -228,7 +226,7 @@ func TestWithdrawServiceImport(t *testing.T) {
 				t.Fatalf("serviceImport Get(%+v), got %v, want no error", svcImportKey, err)
 			}
 
-			data := svcImport.Annotations[meta.ServiceInUseByAnnotationKey]
+			data := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
 			svcInUseBy := &fleetnetv1alpha1.ServiceInUseBy{}
 			if err := json.Unmarshal([]byte(data), svcInUseBy); err != nil {
 				t.Fatalf("serviceInUseBy annotation unmarshal, got %v, want no error", err)
@@ -420,7 +418,7 @@ func TestAnnotateServiceImportWithServiceInUseByInfo(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						meta.ServiceInUseByAnnotationKey: "xyz",
+						objectmeta.ServiceInUseByAnnotationKey: "xyz",
 					},
 				},
 			},
@@ -450,9 +448,9 @@ func TestAnnotateServiceImportWithServiceInUseByInfo(t *testing.T) {
 			}
 
 			wantSvcInUseByAnnotation := fulfilledSvcInUseByAnnotationString()
-			if !cmp.Equal(svcImport.Annotations[meta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation) {
+			if !cmp.Equal(svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation) {
 				t.Fatalf("serviceImport ServiceInUseBy annotation, got %s, want %s",
-					svcImport.Annotations[meta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation)
+					svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation)
 			}
 		})
 	}
