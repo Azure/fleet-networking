@@ -18,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 const (
@@ -282,7 +281,7 @@ func TestHandleDelete(t *testing.T) {
 			ctx := context.Background()
 
 			internalSvcExportObj := internalServiceExportForTest()
-			internalSvcExportObj.Finalizers = []string{objectmea.InternalServiceExportFinalizer}
+			internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
 			now := metav1.Now()
 			internalSvcExportObj.DeletionTimestamp = &now
 			objects := []client.Object{internalSvcExportObj}
@@ -340,7 +339,7 @@ func TestHandleDelete_EmptyServiceImportSpec(t *testing.T) {
 	ctx := context.Background()
 
 	internalSvcExportObj := internalServiceExportForTest()
-	internalSvcExportObj.Finalizers = []string{objectmea.InternalServiceExportFinalizer}
+	internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
 	now := metav1.Now()
 	internalSvcExportObj.DeletionTimestamp = &now
 	objects := []client.Object{internalSvcExportObj, serviceImport}

@@ -1,7 +1,6 @@
 package apiretry
 
 import (
-	"fmt"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -46,18 +45,6 @@ func TestDo(t *testing.T) {
 				if counter == 0 {
 					counter = 1
 					return errors.NewTooManyRequestsError("too many requests")
-				}
-				counter = 2
-				return nil
-			},
-			wantCounter: 2,
-		},
-		{
-			name: "is conflict error",
-			do: func() error {
-				if counter == 0 {
-					counter = 1
-					return errors.NewConflict(schema.GroupResource{}, "abc", fmt.Errorf("error"))
 				}
 				counter = 2
 				return nil

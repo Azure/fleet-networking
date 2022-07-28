@@ -24,7 +24,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/apiretry"
 	"go.goms.io/fleet-networking/pkg/common/condition"
-	"go.goms.io/fleet-networking/pkg/common/objectmea"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -94,7 +94,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			continue
 		}
 		// skip if the resource is just added which has not been handled by the internalServiceExport controller yet
-		if !controllerutil.ContainsFinalizer(&v, objectmea.InternalServiceExportFinalizer) {
+		if !controllerutil.ContainsFinalizer(&v, objectmeta.InternalServiceExportFinalizer) {
 			klog.V(3).InfoS("Skipping the internalServiceExport because of missing finalizer", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(&v))
 			continue
 		}
@@ -121,7 +121,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// To reduce reconcile failure, we'll keep retry until it succeeds.
-	clusters := make([]fleetnetv1alpha1.ClusterStatus, 0, len(internalServiceExportList.Items))
+	clusters := make([]fleetnetv1alpha1.ClusterStatus, 0, len(change.noConflict))
 	for _, v := range change.noConflict {
 		klog.V(3).InfoS("Marking internalServiceExport status as nonConflict", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(v))
 		if err := r.updateInternalServiceExportWithRetry(ctx, v, false); err != nil {

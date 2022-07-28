@@ -1,5 +1,5 @@
 // Package objectmea defines shared meta const used by the networking objects.
-package objectmea
+package objectmeta
 
 // finalizers
 const (

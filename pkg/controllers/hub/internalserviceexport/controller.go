@@ -24,7 +24,6 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
-	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 // Reconciler reconciles a InternalServiceExport object.
@@ -61,8 +60,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// register finalizer
-	if !controllerutil.ContainsFinalizer(&internalServiceExport, objectmea.InternalServiceExportFinalizer) {
-		controllerutil.AddFinalizer(&internalServiceExport, objectmea.InternalServiceExportFinalizer)
+	if !controllerutil.ContainsFinalizer(&internalServiceExport, objectmeta.InternalServiceExportFinalizer) {
+		controllerutil.AddFinalizer(&internalServiceExport, objectmeta.InternalServiceExportFinalizer)
 		if err := r.Update(ctx, &internalServiceExport); err != nil {
 			klog.ErrorS(err, "Failed to add internalServiceExport finalizer", "internalServiceExport", internalServiceExportKRef)
 			return ctrl.Result{}, err
@@ -74,7 +73,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
 	// the internalServiceExport is being deleted
-	if !controllerutil.ContainsFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer) {
+	if !controllerutil.ContainsFinalizer(internalServiceExport, objectmeta.InternalServiceExportFinalizer) {
 		return ctrl.Result{}, nil
 	}
 
@@ -148,7 +147,7 @@ func (r *Reconciler) updateServiceImportStatus(ctx context.Context, serviceImpor
 
 func (r *Reconciler) removeFinalizer(ctx context.Context, internalServiceExport *fleetnetv1alpha1.InternalServiceExport) (ctrl.Result, error) {
 	// remove the finalizer
-	controllerutil.RemoveFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
+	controllerutil.RemoveFinalizer(internalServiceExport, objectmeta.InternalServiceExportFinalizer)
 	if err := r.Client.Update(ctx, internalServiceExport); err != nil {
 		klog.ErrorS(err, "Failed to remove internalServiceExport finalizer", "internalServiceExport", klog.KObj(internalServiceExport))
 		return ctrl.Result{}, err

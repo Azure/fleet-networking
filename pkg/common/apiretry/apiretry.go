@@ -16,8 +16,7 @@ func Do(do func() error) error {
 	return retry.OnError(backOffPeriod, func(err error) bool {
 		if apierrors.IsTimeout(err) ||
 			apierrors.IsServerTimeout(err) ||
-			apierrors.IsTooManyRequests(err) ||
-			apierrors.IsConflict(err) {
+			apierrors.IsTooManyRequests(err) {
 			return true
 		}
 		return false

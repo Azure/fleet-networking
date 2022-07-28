@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/objectmea"
 )
 
 func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
@@ -49,7 +48,7 @@ func deleteInternalServiceExport(internalServiceExport *fleetnetv1alpha1.Interna
 	if err := k8sClient.Get(ctx, key, internalServiceExport); err != nil {
 		return err
 	}
-	controllerutil.RemoveFinalizer(internalServiceExport, objectmea.InternalServiceExportFinalizer)
+	controllerutil.RemoveFinalizer(internalServiceExport, objectmeta.InternalServiceExportFinalizer)
 	if err := k8sClient.Update(ctx, internalServiceExport); err != nil {
 		return err
 	}
@@ -118,7 +117,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				},
 				Spec: internalServiceExportSpec,
 			}
-			controllerutil.AddFinalizer(internalServiceExportA, objectmea.InternalServiceExportFinalizer)
+			controllerutil.AddFinalizer(internalServiceExportA, objectmeta.InternalServiceExportFinalizer)
 			internalServiceExportB = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-" + testServiceName,
@@ -146,7 +145,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
-			controllerutil.AddFinalizer(internalServiceExportB, objectmea.InternalServiceExportFinalizer)
+			controllerutil.AddFinalizer(internalServiceExportB, objectmeta.InternalServiceExportFinalizer)
 			internalServiceExportC = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-othersvc",
@@ -166,7 +165,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
-			controllerutil.AddFinalizer(internalServiceExportC, objectmea.InternalServiceExportFinalizer)
+			controllerutil.AddFinalizer(internalServiceExportC, objectmeta.InternalServiceExportFinalizer)
 			internalServiceExportAA = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespace + "-" + testServiceName,
@@ -186,7 +185,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					},
 				},
 			}
-			controllerutil.AddFinalizer(internalServiceExportAA, objectmea.InternalServiceExportFinalizer)
+			controllerutil.AddFinalizer(internalServiceExportAA, objectmeta.InternalServiceExportFinalizer)
 		})
 
 		AfterEach(func() {
