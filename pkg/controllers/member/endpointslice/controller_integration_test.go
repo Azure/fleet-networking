@@ -35,9 +35,15 @@ const (
 	consistentlyInterval = time.Millisecond * 50
 )
 
-func managedIPv4EndpointSliceWithoutUniqueNameLabel() *discoveryv1.EndpointSlice {
-	endpointSlicePort := int32(80)
+var (
+	endpointSlicePort = int32(80)
+	endpointSliceKey  = types.NamespacedName{
+		Namespace: memberUserNS,
+		Name:      endpointSliceName,
+	}
+)
 
+func managedIPv4EndpointSliceWithoutUniqueNameLabel() *discoveryv1.EndpointSlice {
 	return &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
@@ -69,12 +75,6 @@ func notYetFulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
 	}
 }
 
-var endpointSlicePort = int32(80)
-var endpointSliceKey = types.NamespacedName{
-	Namespace: memberUserNS,
-	Name:      endpointSliceName,
-}
-
 var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func() {
 	// consistentlyListActual runs with Consistently assertion to make sure that no EndpointSlice has been
 	// exported.
@@ -92,8 +92,10 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 	}
 
 	Context("IPv6 endpointSlice", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			endpointSlice = &discoveryv1.EndpointSlice{
@@ -149,8 +151,10 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 	})
 
 	Context("dangling endpointslice (endpointslice with no associated service)", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			endpointSlice = &discoveryv1.EndpointSlice{
@@ -229,8 +233,10 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 	})
 
 	Context("endpointslice associated with invalid exported service", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
@@ -266,8 +272,10 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 	})
 
 	Context("endpointslice associated with conflicted exported service", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
@@ -304,7 +312,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 })
 
 var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, func() {
-	var endpointSliceExportTemplate = &fleetnetv1alpha1.EndpointSliceExport{
+	endpointSliceExportTemplate := &fleetnetv1alpha1.EndpointSliceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: hubNSForMember,
 			Name:      endpointSliceUniqueName,
@@ -327,14 +335,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			},
 		},
 	}
-	var endpointSliceExportKey = types.NamespacedName{
+	endpointSliceExportKey := types.NamespacedName{
 		Namespace: hubNSForMember,
 		Name:      endpointSliceUniqueName,
 	}
 
 	Context("exported dangling endpointslice (endpointslice with no associated service)", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+		var (
+			endpointSlice       *discoveryv1.EndpointSlice
+			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+		)
 
 		BeforeEach(func() {
 			endpointSlice = &discoveryv1.EndpointSlice{
@@ -398,8 +408,10 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 	})
 
 	Context("exported endpointslice from unexported service", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+		var (
+			endpointSlice       *discoveryv1.EndpointSlice
+			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+		)
 
 		BeforeEach(func() {
 			// Must add the unique name label later; controller may reconcile too quickly for the desired
@@ -448,9 +460,11 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 	})
 
 	Context("exported endpointslice with invalid exported service", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice       *discoveryv1.EndpointSlice
+			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+			svcExport           *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			// Must add the unique name label later; controller may reconcile too quickly for the desired
@@ -504,9 +518,11 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 	})
 
 	Context("exported endpointslice with conflicted exported service", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice       *discoveryv1.EndpointSlice
+			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+			svcExport           *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			// Must add the unique name label later; controller may reconcile too quickly for the desired
@@ -560,9 +576,11 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 	})
 
 	Context("exported but deleted endpointslice", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice       *discoveryv1.EndpointSlice
+			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+			svcExport           *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			// Must add the unique name label later; controller may reconcile too quickly for the desired
@@ -625,8 +643,10 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 var _ = Describe("endpointslice controller (export endpointslice or update exported endpointslice", Serial, func() {
 	Context("new endpointslice for export", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
@@ -682,8 +702,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	})
 
 	Context("updated exported endpointslice", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
@@ -769,8 +791,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	})
 
 	Context("exported endpointslice with tampered invalid unique name label", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
@@ -861,8 +885,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	})
 
 	Context("exported endpointslice with tampered used unique name label", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 		altEndpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: hubNSForMember,
@@ -1087,8 +1113,10 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 	})
 
 	Context("endpointslices when service export becomes invalid", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
@@ -1167,8 +1195,10 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 	})
 
 	Context("endpointslices when service export becomes conflicted", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var (
+			endpointSlice *discoveryv1.EndpointSlice
+			svcExport     *fleetnetv1alpha1.ServiceExport
+		)
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
