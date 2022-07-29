@@ -1,17 +1,6 @@
 /*
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
 */
 
 package main
@@ -64,10 +53,10 @@ const (
 var (
 	scheme               = runtime.NewScheme()
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
-	hubProbeAddr         = flag.String("hub-health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	hubMetricsAddr       = flag.String("hub-metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	metricsAddr          = flag.String("metrics-bind-address", ":8090", "The address the metric endpoint binds to.")
-	probeAddr            = flag.String("health-probe-bind-address", ":8082", "The address the probe endpoint binds to.")
+	hubProbeAddr         = flag.String("hub-health-probe-bind-address", ":8081", "The address of hub controller manager the probe endpoint binds to.")
+	hubMetricsAddr       = flag.String("hub-metrics-bind-address", ":8080", "The address of hub controller manager the metric endpoint binds to.")
+	probeAddr            = flag.String("member-health-probe-bind-address", ":8082", "The address of member controller manager the probe endpoint binds to.")
+	metricsAddr          = flag.String("member-metrics-bind-address", ":8090", "The address of member controller manager the metric endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 )
 
@@ -91,10 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	memberConfig, memberOptions, err := prepareMemberParameters()
-	if err != nil {
-		os.Exit(1)
-	}
+	memberConfig, memberOptions := prepareMemberParameters()
 
 	if err := startControllerManagers(hubConfig, memberConfig, hubOptions, memberOptions); err != nil {
 		os.Exit(1)
@@ -173,7 +159,7 @@ func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 	return hubConfig, hubOptions, nil
 }
 
-func prepareMemberParameters() (*rest.Config, *ctrl.Options, error) {
+func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 	memberOpts := &ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     *metricsAddr,
@@ -182,7 +168,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options, error) {
 		LeaderElection:         *enableLeaderElection,
 		LeaderElectionID:       "2bf2b407.member.networking.fleet.azure.com",
 	}
-	return ctrl.GetConfigOrDie(), memberOpts, nil
+	return ctrl.GetConfigOrDie(), memberOpts
 }
 
 func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, memberOptions *ctrl.Options) error {
@@ -285,45 +271,48 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
+	memberClient := memberMgr.GetClient()
+	hubClient := hubMgr.GetClient()
+
 	klog.V(2).InfoS("Create endpointslice reconciler")
 	ctx := context.Background()
-	if err := endpointslice.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient(), mcHubNamespace).SetupWithManager(ctx, hubMgr); err != nil {
+	if err := endpointslice.NewReconciler(memberClient, hubClient, mcHubNamespace).SetupWithManager(ctx, hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
-	if err := endpointsliceexport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient()).SetupWithManager(hubMgr); err != nil {
+	if err := endpointsliceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
-	if err := endpointsliceexport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient()).SetupWithManager(hubMgr); err != nil {
+	if err := endpointsliceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create internalserviceexport reconciler")
-	if err := internalserviceexport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient()).SetupWithManager(hubMgr); err != nil {
+	if err := internalserviceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create internalserviceimport reconciler")
-	if err := internalserviceimport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient()).SetupWithManager(hubMgr); err != nil {
+	if err := internalserviceimport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceimport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create serviceexport reconciler")
-	if err := serviceexport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient(), mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
+	if err := serviceexport.NewReconciler(memberClient, hubClient, mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create serviceimport reconciler")
-	if err := serviceimport.NewReconciler(memberMgr.GetClient(), hubMgr.GetClient(), mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
+	if err := serviceimport.NewReconciler(memberClient, hubClient, mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceimport reconciler")
 		return err
 	}
@@ -335,7 +324,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 func envOrError(envKey string) (string, error) {
 	value, ok := os.LookupEnv(envKey)
 	if !ok {
-		return "", fmt.Errorf("Failed to retrieve the environment variable value from %s", envKey)
+		return "", fmt.Errorf("failed to retrieve the environment variable value from %s", envKey)
 	}
 	return value, nil
 }
