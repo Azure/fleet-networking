@@ -21,18 +21,10 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-// NewReconciler returns a reconciler for the InternalServiceImport.
-func NewReconciler(memberClient, hubClient client.Client) *Reconciler {
-	return &Reconciler{
-		memberClient: memberClient,
-		hubClient:    hubClient,
-	}
-}
-
 // Reconciler reconciles a InternalServiceImport object.
 type Reconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
+	MemberClient client.Client
+	HubClient    client.Client
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;delete
@@ -51,7 +43,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the InternalServiceImport object.
 	var internalSvcImport fleetnetv1alpha1.InternalServiceImport
-	if err := r.hubClient.Get(ctx, req.NamespacedName, &internalSvcImport); err != nil {
+	if err := r.HubClient.Get(ctx, req.NamespacedName, &internalSvcImport); err != nil {
 		klog.ErrorS(err, "Failed to get internal svc import", "internalServiceImport", internalSvcImportKRef)
 		// Skip the reconciliation if the InternalServiceImport does not exist.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -60,7 +52,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var serviceImport fleetnetv1alpha1.ServiceImport
 	svcImportName := types.NamespacedName{Namespace: internalSvcImport.Spec.ServiceImportReference.Namespace, Name: internalSvcImport.Spec.ServiceImportReference.Name}
 	svcImportKRef := klog.KRef(svcImportName.Namespace, svcImportName.Name)
-	err := r.memberClient.Get(ctx, svcImportName, &serviceImport)
+	err := r.MemberClient.Get(ctx, svcImportName, &serviceImport)
 	switch {
 	case errors.IsNotFound(err):
 		// Normally this situation will never happen as the ServiceImport controller guarantees, using the cleanup
@@ -71,7 +63,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"serviceImport", svcImportKRef,
 			"internalServiceImport", internalSvcImportKRef,
 		)
-		if err := r.hubClient.Delete(ctx, &internalSvcImport); err != nil {
+		if err := r.HubClient.Delete(ctx, &internalSvcImport); err != nil {
 			klog.ErrorS(err, "Failed to delete internalServiceImport", "internalServiceImport", internalSvcImportKRef)
 			return ctrl.Result{}, err
 		}
@@ -93,7 +85,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	serviceImport.Status = internalSvcImport.Status
 
 	klog.V(2).InfoS("Updating the service import status", "serviceImport", svcImportKRef, "status", serviceImport.Status, "oldStatus", oldStatus)
-	if err := r.memberClient.Status().Update(ctx, &serviceImport); err != nil {
+	if err := r.MemberClient.Status().Update(ctx, &serviceImport); err != nil {
 		klog.ErrorS(err, "Failed to update service import status", "serviceImport", svcImportKRef, "status", serviceImport.Status, "oldStatus", oldStatus)
 		return ctrl.Result{}, err
 	}

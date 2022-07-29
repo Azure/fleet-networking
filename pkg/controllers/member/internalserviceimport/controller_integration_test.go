@@ -38,7 +38,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, danglingInternalServiceImport)).Should(Succeed())
+			Expect(HubClient.Create(ctx, danglingInternalServiceImport)).Should(Succeed())
 		})
 
 		It("Should remove dangling internalServiceImport", func() {
@@ -47,7 +47,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				Name:      testName,
 			}
 			Eventually(func() bool {
-				return errors.IsNotFound(hubClient.Get(ctx, internalServiceImportKey, danglingInternalServiceImport))
+				return errors.IsNotFound(HubClient.Get(ctx, internalServiceImportKey, danglingInternalServiceImport))
 			}, timeout, interval).Should(BeTrue())
 		})
 	})
@@ -64,7 +64,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 					Name:      testName,
 				},
 			}
-			Expect(memberClient.Create(ctx, serviceImport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, serviceImport)).Should(Succeed())
 
 			By("Creating internalServiceImport")
 			internalServiceImport = &fleetnetv1alpha1.InternalServiceImport{
@@ -102,15 +102,15 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, internalServiceImport)).Should(Succeed())
-			Expect(hubClient.Status().Update(ctx, internalServiceImport)).Should(Succeed())
+			Expect(HubClient.Create(ctx, internalServiceImport)).Should(Succeed())
+			Expect(HubClient.Status().Update(ctx, internalServiceImport)).Should(Succeed())
 		})
 		AfterEach(func() {
 			By("Deleting internalServiceImport")
-			Expect(hubClient.Delete(ctx, internalServiceImport)).Should(Succeed())
+			Expect(HubClient.Delete(ctx, internalServiceImport)).Should(Succeed())
 
 			By("Deleting serviceImport")
-			Expect(memberClient.Delete(ctx, serviceImport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, serviceImport)).Should(Succeed())
 		})
 
 		It("Reporting back serviceImport status from the fleet to the member cluster", func() {
@@ -120,7 +120,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				Name:      testName,
 			}
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, serviceImportKey, serviceImport); err != nil {
+				if err := MemberClient.Get(ctx, serviceImportKey, serviceImport); err != nil {
 					return false
 				}
 				return cmp.Equal(internalServiceImport.Status, serviceImport.Status)
@@ -128,11 +128,11 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 
 			By("Updating internalServiceImport status")
 			internalServiceImport.Status.Type = fleetnetv1alpha1.Headless
-			Expect(hubClient.Status().Update(ctx, internalServiceImport)).Should(Succeed())
+			Expect(HubClient.Status().Update(ctx, internalServiceImport)).Should(Succeed())
 
 			By("Checking serviceImport status")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, serviceImportKey, serviceImport); err != nil {
+				if err := MemberClient.Get(ctx, serviceImportKey, serviceImport); err != nil {
 					return false
 				}
 				return cmp.Equal(internalServiceImport.Status, serviceImport.Status)

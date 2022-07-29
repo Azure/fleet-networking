@@ -276,43 +276,69 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
 	ctx := context.Background()
-	if err := endpointslice.NewReconciler(memberClient, hubClient, mcHubNamespace).SetupWithManager(ctx, hubMgr); err != nil {
+	if err := (&endpointslice.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+		HubNamespace: mcHubNamespace,
+	}).SetupWithManager(ctx, hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
-	if err := endpointsliceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
+	if err := (&endpointsliceexport.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create endpointslice reconciler")
-	if err := endpointsliceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
+	if err := (&endpointsliceexport.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create internalserviceexport reconciler")
-	if err := internalserviceexport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
+	if err := (&internalserviceexport.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create internalserviceimport reconciler")
-	if err := internalserviceimport.NewReconciler(memberClient, hubClient).SetupWithManager(hubMgr); err != nil {
+	if err := (&internalserviceimport.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceimport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create serviceexport reconciler")
-	if err := serviceexport.NewReconciler(memberClient, hubClient, mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
+	if err := (&serviceexport.Reconciler{
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
+		MemberClusterID: mcName,
+		HubNamespace:    mcHubNamespace,
+	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
 	}
 
 	klog.V(2).InfoS("Create serviceimport reconciler")
-	if err := serviceimport.NewReconciler(memberClient, hubClient, mcName, mcHubNamespace).SetupWithManager(memberMgr); err != nil {
+	if err := (&serviceimport.Reconciler{
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
+		MemberClusterID: mcName,
+		HubNamespace:    mcHubNamespace,
+	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceimport reconciler")
 		return err
 	}

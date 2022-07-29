@@ -43,21 +43,12 @@ const (
 	continueReconcileOp skipOrUnexportEndpointSliceOp = 2
 )
 
-// NewReconciler returns a reconciler for the export of an EndpointSlice.
-func NewReconciler(memberClient, hubClient client.Client, hubNamespace string) *Reconciler {
-	return &Reconciler{
-		memberClient: memberClient,
-		hubClient:    hubClient,
-		hubNamespace: hubNamespace,
-	}
-}
-
 // Reconciler reconciles the export of an EndpointSlice.
 type Reconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
+	MemberClient client.Client
+	HubClient    client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
-	hubNamespace string
+	HubNamespace string
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;create;update;patch;delete
@@ -75,7 +66,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the EndpointSlice object.
 	var endpointSlice discoveryv1.EndpointSlice
-	if err := r.memberClient.Get(ctx, req.NamespacedName, &endpointSlice); err != nil {
+	if err := r.MemberClient.Get(ctx, req.NamespacedName, &endpointSlice); err != nil {
 		// Skip the reconciliation if the EndpointSlice does not exist; this should only happen when an EndpointSlice
 		// is deleted right before the controller gets a chance to reconcile it. If the EndpointSlice has never
 		// been exported to the fleet, no action is required on this controller's end; on the other hand, if the
@@ -130,7 +121,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 			}),
 			Namespace: o.GetNamespace(),
 		}
-		if err := r.memberClient.List(ctx, endpointSliceList, &listOpts); err != nil {
+		if err := r.MemberClient.List(ctx, endpointSliceList, &listOpts); err != nil {
 			klog.ErrorS(err,
 				"Failed to list endpoint slices in use by a service",
 				"serviceExport", klog.KRef(o.GetNamespace(), o.GetName()),
@@ -196,7 +187,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 
 	// Retrieve the Service Export.
 	svcExport := &fleetnetv1alpha1.ServiceExport{}
-	err := r.memberClient.Get(ctx, types.NamespacedName{Namespace: endpointSlice.Namespace, Name: svcName}, svcExport)
+	err := r.MemberClient.Get(ctx, types.NamespacedName{Namespace: endpointSlice.Namespace, Name: svcName}, svcExport)
 	switch {
 	case errors.IsNotFound(err) && hasUniqueNameLabel:
 		// The Service using the EndpointSlice is not exported but the EndpointSlice has a unique name label
@@ -252,7 +243,7 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 
 	// Remove the unique name label; this must happen after the EndpointSliceExport has been deleted.
 	delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
-	return r.memberClient.Update(ctx, endpointSlice)
+	return r.MemberClient.Update(ctx, endpointSlice)
 }
 
 func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
@@ -269,12 +260,12 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 
 	endpointSliceExport := fleetnetv1alpha1.EndpointSliceExport{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.hubNamespace,
+			Namespace: r.HubNamespace,
 			Name:      fleetUniqueName,
 		},
 	}
-	endpointSliceExportKey := types.NamespacedName{Namespace: r.hubNamespace, Name: fleetUniqueName}
-	err := r.hubClient.Get(ctx, endpointSliceExportKey, &endpointSliceExport)
+	endpointSliceExportKey := types.NamespacedName{Namespace: r.HubNamespace, Name: fleetUniqueName}
+	err := r.HubClient.Get(ctx, endpointSliceExportKey, &endpointSliceExport)
 	switch {
 	case errors.IsNotFound(err):
 		// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
@@ -295,7 +286,7 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 		return nil
 	}
 
-	if err := r.hubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+	if err := r.HubClient.Delete(ctx, &endpointSliceExport); err != nil && !errors.IsNotFound(err) {
 		// An unexpected error has occurred.
 		return err
 	}
