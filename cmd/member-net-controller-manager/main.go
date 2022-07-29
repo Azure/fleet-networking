@@ -283,9 +283,10 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 	klog.V(2).InfoS("Create endpointslice reconciler")
 	ctx := context.Background()
 	if err := (&endpointslice.Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		HubNamespace: mcHubNamespace,
+		MemberClusterID: mcName,
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
+		HubNamespace:    mcHubNamespace,
 	}).SetupWithManager(ctx, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
