@@ -30,6 +30,7 @@ import (
 
 const (
 	internalSvcImportCleanupFinalizer = "networking.fleet.azure.com/internalsvcimport-cleanup"
+	svcImportCleanupFinalizer         = "networking.fleet.azure.com/serviceimport-cleanup"
 
 	internalSvcImportSvcRefNamespacedNameFieldKey = ".spec.serviceImportReference.namespacedName"
 
@@ -75,8 +76,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch {
 	case err != nil && errors.IsNotFound(err):
 		// The ServiceImport does not exist, and the Service will not be imported. If a Service spec has been
-		// added to InternalServiceImport status, it will be cleared; cleanup finalizer will be removed as well
-		// (if applicable).
+		// added to InternalServiceImport status, it will be cleared; the InternalServiceImport cleanup finalizer will
+		// be removed as well (if applicable).
 		klog.V(2).InfoS("ServiceImport does not exist; spec of imported Service (if any) will be cleared",
 			"serviceImport", svcImportRef,
 			"internalServiceImport", internalSvcImportRef)
@@ -85,7 +86,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// An unexpected error occurred.
 		klog.ErrorS(err, "Failed to get ServiceImport", "serviceImport", svcImportRef, "internalServiceImport", internalSvcImportRef)
 		return ctrl.Result{}, err
-	case len(svcImport.Status.Clusters) == 0:
+	case svcImport.DeletionTimestamp != nil && len(svcImport.Status.Clusters) == 0:
 		// The ServiceImport is being processed; requeue the InternalServiceImport for later processing.
 		klog.V(2).InfoS("ServiceImport is being processed; requeue for later processing",
 			"serviceImport", svcImportRef,
@@ -93,7 +94,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: internalSvcImportRetryInterval}, nil
 	}
 
-	if internalSvcImport.DeletionTimestamp != nil {
+	// Withdraw Service import request if the InternalServiceImport has been marked for deletion, or if the
+	// ServceImport has been marked for deletion.
+	if internalSvcImport.DeletionTimestamp != nil || svcImport.DeletionTimestamp != nil {
 		if controllerutil.ContainsFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer) {
 			klog.V(2).InfoS("InternalServiceImport is deleted; withdraw the Service import request",
 				"internalServiceImport", internalSvcImportRef)
@@ -226,21 +229,35 @@ func (r *Reconciler) withdrawServiceImport(ctx context.Context,
 	svcInUseBy := extractServiceInUseByInfoFromServiceImport(svcImport)
 	if _, ok := svcInUseBy.MemberClusters[clusterNamespace]; ok {
 		delete(svcInUseBy.MemberClusters, clusterNamespace)
-		if err := r.annotateServiceImportWithServiceInUseByInfo(ctx, svcImport, svcInUseBy); err != nil {
-			klog.ErrorS(err, "Failed to annotate ServiceImport with ServiceInUseBy info",
-				"serviceImport", klog.KObj(svcImport),
-				"serviceInUseBy", svcInUseBy)
-			return ctrl.Result{}, err
+		switch {
+		case len(svcInUseBy.MemberClusters) > 0:
+			// There are still member clusters importing the Service after the withdrawal; the ServiceInUseBy
+			// annotation will be updated. Note that with current semantics (one import only across the fleet)
+			// this branch will not run.
+			if err := r.annotateServiceImportWithServiceInUseByInfo(ctx, svcImport, svcInUseBy); err != nil {
+				klog.ErrorS(err, "Failed to annotate ServiceImport with ServiceInUseBy info",
+					"serviceImport", klog.KObj(svcImport),
+					"serviceInUseBy", svcInUseBy)
+				return ctrl.Result{}, err
+			}
+		case len(svcInUseBy.MemberClusters) == 0:
+			// No member cluster imports the Service after the withdrawal; the ServiceInUseBy annotation (and
+			// the cleanup finalizer) on ServiceImport will be cleared.
+			if err := r.clearServiceInUseByInfoFromServiceImport(ctx, svcImport); err != nil {
+				klog.ErrorS(err, "Failed to clear ServiceImport",
+					"serviceImport", klog.KObj(svcImport),
+					"serviceInUseBy", svcInUseBy)
+				return ctrl.Result{}, err
+			}
 		}
-		// A rare occurrence as it is, it could happen that the InternalServiceImport has the cleanup finalizer,
-		// yet the import is not annotated on the ServiceImport. This is usually caused by data corruption, or
-		// direct ServiceInUseBy annotation manipulation by the user; and in this case the controller will skip
-		// the updating.
 	}
+	// A rare occurrence as it is, it could happen that the InternalServiceImport has the cleanup finalizer,
+	// yet the import is not annotated on the ServiceImport. This is usually caused by data corruption, or
+	// direct ServiceInUseBy annotation manipulation by the user; and in this case the controller will skip
+	// the updating.
 
 	// Remove the cleanup finalizer.
-	controllerutil.RemoveFinalizer(internalSvcImport, internalSvcImportCleanupFinalizer)
-	if err := r.HubClient.Update(ctx, internalSvcImport); err != nil {
+	if err := r.removeInternalServiceImportCleanupFinalizer(ctx, internalSvcImport); err != nil {
 		klog.ErrorS(err, "Failed to remove cleanup finalizer from InternalServiceImport", "internalServiceImport", klog.KObj(internalSvcImport))
 		return ctrl.Result{}, err
 	}
@@ -302,7 +319,16 @@ func (r *Reconciler) annotateServiceImportWithServiceInUseByInfo(ctx context.Con
 	}
 
 	svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey] = string(data)
+	controllerutil.AddFinalizer(svcImport, svcImportCleanupFinalizer)
 	return r.HubClient.Status().Update(ctx, svcImport)
+}
+
+// clearServiceInUseByInfoFromServiceImport clears the ServiceInUseBy annotation from a ServiceImport, and its
+// cleanup finalizer.
+func (r *Reconciler) clearServiceInUseByInfoFromServiceImport(ctx context.Context, svcImport *fleetnetv1alpha1.ServiceImport) error {
+	delete(svcImport.Annotations, objectmeta.ServiceInUseByAnnotationKey)
+	controllerutil.RemoveFinalizer(svcImport, svcImportCleanupFinalizer)
+	return r.HubClient.Update(ctx, svcImport)
 }
 
 // fulfillInternalServiceImport fulfills an import of a Service by syncing the Service spec to the status of an

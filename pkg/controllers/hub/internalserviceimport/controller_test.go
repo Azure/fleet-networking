@@ -73,6 +73,7 @@ func fulfilledServiceImport() *fleetnetv1alpha1.ServiceImport {
 			Annotations: map[string]string{
 				objectmeta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
 			},
+			Finalizers: []string{svcImportCleanupFinalizer},
 		},
 		Status: fleetnetv1alpha1.ServiceImportStatus{
 			Type: fleetnetv1alpha1.ClusterSetIP,
@@ -174,8 +175,8 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 	}
 }
 
-// TestWithdrawServiceImport tests the Reconciler.withdrawServiceImport method.
-func TestWithdrawServiceImport(t *testing.T) {
+// TestWithdrawServiceImport_AnnotationMatches tests the Reconciler.withdrawServiceImport method.
+func TestWithdrawServiceImport_AnnotationMatches(t *testing.T) {
 	testCases := []struct {
 		name              string
 		svcImport         *fleetnetv1alpha1.ServiceImport
@@ -187,17 +188,6 @@ func TestWithdrawServiceImport(t *testing.T) {
 			internalSvcImport: &fleetnetv1alpha1.InternalServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  hubNSForMemberA,
-					Name:       internalSvcImportName,
-					Finalizers: []string{internalSvcImportCleanupFinalizer},
-				},
-			},
-		},
-		{
-			name:      "should withdraw service import (annotation does not match)",
-			svcImport: fulfilledServiceImport(),
-			internalSvcImport: &fleetnetv1alpha1.InternalServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  hubNSForMemberB,
 					Name:       internalSvcImportName,
 					Finalizers: []string{internalSvcImportCleanupFinalizer},
 				},
@@ -226,15 +216,158 @@ func TestWithdrawServiceImport(t *testing.T) {
 				t.Fatalf("serviceImport Get(%+v), got %v, want no error", svcImportKey, err)
 			}
 
-			data := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
-			svcInUseBy := &fleetnetv1alpha1.ServiceInUseBy{}
-			if err := json.Unmarshal([]byte(data), svcInUseBy); err != nil {
-				t.Fatalf("serviceInUseBy annotation unmarshal, got %v, want no error", err)
+			if len(svcImport.Finalizers) != 0 {
+				t.Fatalf("serviceImport finalizers, got %v, want no finalizers", svcImport.Finalizers)
 			}
 
-			_, ok := svcInUseBy.MemberClusters[fleetnetv1alpha1.ClusterNamespace(tc.internalSvcImport.Namespace)]
+			_, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
 			if ok {
-				t.Fatalf("serviceInUseBy, %s is present, want no presence", tc.internalSvcImport.Namespace)
+				t.Fatalf("serviceInUseBy annotation is present, want absence")
+			}
+
+			internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+			internalSvcImportKey := types.NamespacedName{Namespace: tc.internalSvcImport.Namespace, Name: tc.internalSvcImport.Name}
+			if err := fakeHubClient.Get(ctx, internalSvcImportKey, internalSvcImport); err != nil {
+				t.Fatalf("internalServiceImport Get(%+v), got %v, want no error", internalSvcImportAKey, err)
+			}
+
+			if len(internalSvcImport.Finalizers) != 0 {
+				t.Fatalf("internalServiceImport finalizers, got %v, want no finalizer", internalSvcImport.Finalizers)
+			}
+		})
+	}
+}
+
+// TestWithdrawServiceImport_AnnotationMismatches tests the Reconciler.withdrawServiceImport method.
+func TestWithdrawServiceImport_AnnotationMismatches(t *testing.T) {
+	testCases := []struct {
+		name               string
+		svcImport          *fleetnetv1alpha1.ServiceImport
+		internalSvcImport  *fleetnetv1alpha1.InternalServiceImport
+		wantSvcInUseByData string
+	}{
+		{
+			name:      "should withdraw service import (annotation mismatches)",
+			svcImport: fulfilledServiceImport(),
+			internalSvcImport: &fleetnetv1alpha1.InternalServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  hubNSForMemberB,
+					Name:       internalSvcImportName,
+					Finalizers: []string{internalSvcImportCleanupFinalizer},
+				},
+			},
+			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceInUseByAnnotationKey],
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeHubClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svcImport, tc.internalSvcImport).
+				Build()
+			reconciler := Reconciler{
+				HubClient: fakeHubClient,
+			}
+
+			if res, err := reconciler.withdrawServiceImport(ctx, tc.svcImport, tc.internalSvcImport); !cmp.Equal(res, ctrl.Result{}) || err != nil {
+				t.Fatalf("withdrawServiceImport(%+v, %+v) = %+v, %v, want %v, no error", tc.svcImport, tc.internalSvcImport, res, err, ctrl.Result{})
+			}
+
+			svcImport := &fleetnetv1alpha1.ServiceImport{}
+			if err := fakeHubClient.Get(ctx, svcImportKey, svcImport); err != nil {
+				t.Fatalf("serviceImport Get(%+v), got %v, want no error", svcImportKey, err)
+			}
+
+			if !cmp.Equal(svcImport.Finalizers, []string{svcImportCleanupFinalizer}) {
+				t.Fatalf("serviceImport finalizers, got %v, want %v", svcImport.Finalizers, []string{svcImportCleanupFinalizer})
+			}
+
+			data, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+			if !ok {
+				t.Fatalf("serviceInUseBy annotation is absent, want presence")
+			}
+			if !cmp.Equal(data, tc.wantSvcInUseByData) {
+				t.Fatalf("serviceInUseBy annotation, got %s, want %s", data, tc.wantSvcInUseByData)
+			}
+
+			internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+			internalSvcImportKey := types.NamespacedName{Namespace: tc.internalSvcImport.Namespace, Name: tc.internalSvcImport.Name}
+			if err := fakeHubClient.Get(ctx, internalSvcImportKey, internalSvcImport); err != nil {
+				t.Fatalf("internalServiceImport Get(%+v), got %v, want no error", internalSvcImportAKey, err)
+			}
+
+			if len(internalSvcImport.Finalizers) != 0 {
+				t.Fatalf("internalServiceImport finalizers, got %v, want no finalizer", internalSvcImport.Finalizers)
+			}
+		})
+	}
+}
+
+// TestWithdrawServiceImport_MultiImports tests the Reconciler.withdrawServiceImport method.
+func TestWithdrawServiceImport_MultiImports(t *testing.T) {
+	svcInUseBy := fulfilledServiceInUseByAnnotation()
+	svcInUseBy.MemberClusters[hubNSForMemberB] = clusterIDForMemberB
+	svcInUseByData, err := json.Marshal(svcInUseBy)
+	if err != nil {
+		panic(err)
+	}
+	svcImport := fulfilledServiceImport()
+	svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey] = string(svcInUseByData)
+
+	testCases := []struct {
+		name               string
+		svcImport          *fleetnetv1alpha1.ServiceImport
+		internalSvcImport  *fleetnetv1alpha1.InternalServiceImport
+		wantSvcInUseByData string
+	}{
+		{
+			name:      "should withdraw service import (multiple imports)",
+			svcImport: svcImport,
+			internalSvcImport: &fleetnetv1alpha1.InternalServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  hubNSForMemberB,
+					Name:       internalSvcImportName,
+					Finalizers: []string{internalSvcImportCleanupFinalizer},
+				},
+			},
+			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceInUseByAnnotationKey],
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeHubClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svcImport, tc.internalSvcImport).
+				Build()
+			reconciler := Reconciler{
+				HubClient: fakeHubClient,
+			}
+
+			if res, err := reconciler.withdrawServiceImport(ctx, tc.svcImport, tc.internalSvcImport); !cmp.Equal(res, ctrl.Result{}) || err != nil {
+				t.Fatalf("withdrawServiceImport(%+v, %+v) = %+v, %v, want %v, no error", tc.svcImport, tc.internalSvcImport, res, err, ctrl.Result{})
+			}
+
+			svcImport := &fleetnetv1alpha1.ServiceImport{}
+			if err := fakeHubClient.Get(ctx, svcImportKey, svcImport); err != nil {
+				t.Fatalf("serviceImport Get(%+v), got %v, want no error", svcImportKey, err)
+			}
+
+			if !cmp.Equal(svcImport.Finalizers, []string{svcImportCleanupFinalizer}) {
+				t.Fatalf("serviceImport finalizers, got %v, want %v", svcImport.Finalizers, []string{svcImportCleanupFinalizer})
+			}
+
+			data, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+			if !ok {
+				t.Fatalf("serviceInUseBy annotation is absent, want presence")
+			}
+			if !cmp.Equal(data, tc.wantSvcInUseByData) {
+				t.Fatalf("serviceInUseBy annotation, got %s, want %s", data, tc.wantSvcInUseByData)
 			}
 
 			internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
@@ -498,6 +631,50 @@ func TestFulfillInternalServiceImport(t *testing.T) {
 
 			if diff := cmp.Diff(internalSvcImport.Status, tc.svcImport.Status); diff != "" {
 				t.Fatalf("internalServiceImport status, got diff %s", diff)
+			}
+		})
+	}
+}
+
+// TestClearServiceInUseByInfoFromServiceImport tests the Reconciler.clearServiceInUseByInfoFromServiceImport method.
+func TestClearServiceInUseByInfoFromServiceImport(t *testing.T) {
+	testCases := []struct {
+		name      string
+		svcImport *fleetnetv1alpha1.ServiceImport
+	}{
+		{
+			name:      "should clear service in use by info + cleanup finalizer",
+			svcImport: fulfilledServiceImport(),
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeHubClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svcImport).
+				Build()
+			reconciler := Reconciler{
+				HubClient: fakeHubClient,
+			}
+
+			if err := reconciler.clearServiceInUseByInfoFromServiceImport(ctx, tc.svcImport); err != nil {
+				t.Fatalf("clearServiceInUseByInfoFromServiceImport(%+v), got %v, want no error", tc.svcImport, err)
+			}
+
+			svcImport := &fleetnetv1alpha1.ServiceImport{}
+			if err := fakeHubClient.Get(ctx, svcImportKey, svcImport); err != nil {
+				t.Fatalf("serviceImport Get(%+v), got %v, want no error", svcImportKey, err)
+			}
+
+			if len(svcImport.Finalizers) != 0 {
+				t.Fatalf("serviceImport finalizers, got %v, want no finalizers", svcImport.Finalizers)
+			}
+
+			if _, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]; ok {
+				t.Fatalf("serviceImport ServiceInUseBy annotation is present")
 			}
 		})
 	}
