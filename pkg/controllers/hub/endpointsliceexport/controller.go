@@ -48,6 +48,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch
+//+kubebuilder:rbac:groups=discovery,resources=endpointslices,verbs=get;create;update;patch;delete
 
 // Reconcile distributes an exported EndpointSlice (in the form of EndpointSliceExports) to whichever member
 // cluster that has imported the EndpointSlice's owner Service.
@@ -86,6 +87,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 			return ctrl.Result{}, nil
 		}
+		return ctrl.Result{}, nil
 	}
 
 	// Add cleanup finalizer to the EndpointSliceExport; this must happen before EndpointSlice is distributed.
@@ -153,7 +155,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: endpointSliceExportRetryInterval}, nil
 	}
 
-	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]
 	if !ok {
 		// No cluster has requested to import the EndpointSlice's owner service.
 		// If the exported EndpointSlice has been distributed across the fleet before; withdraw the
@@ -164,7 +166,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.withdrawAllEndpointSliceImports(ctx, endpointSliceExport); err != nil {
 			return ctrl.Result{}, err
 		}
-		// There is no need to remove the local EndpointSlice copy in this situation.
+		// There is no need to remove the local EndpointSlice copy in this situation (the copy might be in
+		// use by load balancing solutions on the hub cluster).
 		return ctrl.Result{}, nil
 	}
 
@@ -188,6 +191,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	klog.V(4).InfoS("EndpointSliceImports to withdraw", "count", len(endpointSliceImportsToWithdraw))
+	klog.V(4).InfoS("EndpointSliceImports to create or update", "count", len(endpointSlicesImportsToCreateOrUpdate))
 
 	// Delete distributed EndpointSlices that are no longer needed.
 	//
@@ -261,6 +266,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 		endpointSliceImportNameFieldKey,
 		endpointSliceImportIndexerFunc,
 	); err != nil {
+		klog.ErrorS(err, "Failed to set up index for EndpointSliceImport")
 		return err
 	}
 
@@ -277,6 +283,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 		endpointSliceExportOwnerSvcNamespacedNameFieldKey,
 		endpointSliceExportIndexerFunc,
 	); err != nil {
+		klog.ErrorS(err, "Failed to set up index for EndpointSliceExport")
 		return err
 	}
 

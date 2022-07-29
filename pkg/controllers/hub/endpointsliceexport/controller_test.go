@@ -174,7 +174,7 @@ func TestFormatEndpointSliceFromExport(t *testing.T) {
 			formatEndpointSliceFromExport(endpointSlice, tc.endpointSliceExport)
 
 			if diff := cmp.Diff(endpointSlice, tc.endpointSlice); diff != "" {
-				t.Fatalf("formatEndpointSliceFromExport(), got diff %s", diff)
+				t.Fatalf("endpointSlice mismatch (-got, +want)\n%s", diff)
 			}
 		})
 	}
@@ -537,11 +537,11 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(toWithdraw, tc.wantToWithdraw, ignoredObjectMetaFields); diff != "" {
-				t.Fatalf("endpointSliceImportsToWithdraw, got diff %s", diff)
+				t.Fatalf("endpointSliceImportsToWithdraw mismatch (-got, +want)\n%s", diff)
 			}
 
 			if diff := cmp.Diff(toCreateOrUpdate, tc.wantToCreateOrUpdate, ignoredObjectMetaFields); diff != "" {
-				t.Fatalf("endpointSliceImportsToCreateOrUpdate, got diff %s", diff)
+				t.Fatalf("endpointSliceImportsToCreateOrUpdate, mismatch (-got, +want)\n%s", diff)
 			}
 		})
 	}

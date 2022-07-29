@@ -93,7 +93,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			By("By checking derived service label")
-			_, ok := createdMultiClusterService.GetLabels()[objectmeta.DerivedServiceLabel]
+			_, ok := createdMultiClusterService.GetLabels()[objectmeta.MultiClusterServiceLabelDerivedService]
 			Expect(ok).Should(BeFalse())
 
 			serviceImportLookupKey := types.NamespacedName{Name: testServiceName, Namespace: testNamespace}
@@ -149,7 +149,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				return createdMultiClusterService.Status.Conditions[0].Status == metav1.ConditionTrue
 			}, duration, interval).Should(BeTrue())
 
-			derivedServiceLookupKey := types.NamespacedName{Name: createdMultiClusterService.GetLabels()[objectmeta.DerivedServiceLabel], Namespace: systemNamespace}
+			derivedServiceLookupKey := types.NamespacedName{Name: createdMultiClusterService.GetLabels()[objectmeta.MultiClusterServiceLabelDerivedService], Namespace: systemNamespace}
 			createdService := &corev1.Service{}
 			By("By checking derived service")
 			Eventually(func() bool {

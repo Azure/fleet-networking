@@ -164,7 +164,7 @@ func TestScanForDerivedServiceName(t *testing.T) {
 							Namespace: memberUserNS,
 							Name:      altMultiClusterSvcName,
 							Labels: map[string]string{
-								objectmeta.DerivedServiceLabel: derivedSvcName,
+								objectmeta.MultiClusterServiceLabelDerivedService: derivedSvcName,
 							},
 						},
 					},

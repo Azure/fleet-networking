@@ -276,7 +276,7 @@ func scanForDerivedServiceName(multiClusterSvcList *fleetnetv1alpha1.MultiCluste
 			continue
 		}
 
-		svcName, ok := multiClusterSvc.Labels[objectmeta.DerivedServiceLabel]
+		svcName, ok := multiClusterSvc.Labels[objectmeta.MultiClusterServiceLabelDerivedService]
 		if ok {
 			derivedSvcName = svcName
 			break
