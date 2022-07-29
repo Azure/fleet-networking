@@ -64,3 +64,20 @@ func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta
 	e.ResourceVersion = objMeta.ResourceVersion
 	e.Generation = objMeta.Generation
 }
+
+// ClusterID is the ID of a member cluster.
+type ClusterID string
+
+// ClusterNamespace is the namespace reserved for a specific member cluster in the hub cluster.
+type ClusterNamespace string
+
+// ServiceInUseBy describes the member clusters that have requested to import a Service from the hub cluster.
+// This object is not provided directly as a part of fleet networking API, but provided as a contract for
+// marshaling/unmarshaling ServiceImport annotations, specifically for
+// * the InternalServiceImport controller to annotate on a ServiceImport which member clusters have requested to
+//   import the Service; and
+// * the EndpointSliceExport controller to find out from annotations on a ServiceImport which member clusters
+//   have requested to import the Service.
+type ServiceInUseBy struct {
+	MemberClusters map[ClusterNamespace]ClusterID
+}
