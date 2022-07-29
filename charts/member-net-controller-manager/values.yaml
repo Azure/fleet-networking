@@ -22,8 +22,8 @@ refreshtoken:
 config:
   provider: secret
   hubURL : https://<hub_cluster_api_server_ip>:<hub_cluster_port>
-  memberClusterName: membercluster-sample
-  hubCA: <certificate-authority-data>
+  memberClusterName: <member_cluster_name>
+  hubCA: <certificate_authority_data>
 
 fleetSystemNamespace: fleet-system
 
