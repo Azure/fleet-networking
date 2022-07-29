@@ -14,7 +14,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-var _ = Describe("Test MultiClusterService Controller", func() {
+var _ = Describe("Test InternalServiceImport Controller", func() {
 	const (
 		timeout  = time.Second * 10
 		interval = time.Millisecond * 250

@@ -30,6 +30,9 @@ type OwnerServiceReference struct {
 	// The name of the owner Service.
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+	// The namespaced name (key) of the owner Service.
+	// +kubebuilder:validation:Required
+	NamespacedName string `json:"namespacedName"`
 }
 
 // EndpointSliceExportSpec specifies the spec of an exported EndpointSlice.
@@ -52,7 +55,7 @@ type EndpointSliceExportSpec struct {
 	// The reference to the source EndpointSlice.
 	// +kubebuilder:validation:Required
 	EndpointSliceReference ExportedObjectReference `json:"endpointSliceReference"`
-	// The reference to the owner Service
+	// The reference to the owner Service.
 	// +kubebuilder:validation:Required
 	OwnerServiceReference OwnerServiceReference `json:"ownerServiceReference"`
 }

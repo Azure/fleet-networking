@@ -39,12 +39,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.fleet.azure.com
   resources:
   - endpointsliceexports
   verbs:
   - create
   - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceimports
+  verbs:
   - get
   - list
   - patch

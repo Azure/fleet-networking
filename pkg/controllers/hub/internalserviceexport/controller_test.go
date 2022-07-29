@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -27,6 +28,9 @@ const (
 	testMemberNamespace       = "member-1-ns"
 	testClusterID             = "member-1"
 	fleetNetworkingAPIVersion = "networking.fleet.azure.com/v1alpha1"
+
+	conditionReasonNoConflictFound = "NoConflictFound"
+	conditionReasonConflictFound   = "ConflictFound"
 )
 
 var (
@@ -278,7 +282,7 @@ func TestHandleDelete(t *testing.T) {
 			ctx := context.Background()
 
 			internalSvcExportObj := internalServiceExportForTest()
-			internalSvcExportObj.Finalizers = []string{internalServiceExportFinalizer}
+			internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
 			now := metav1.Now()
 			internalSvcExportObj.DeletionTimestamp = &now
 			objects := []client.Object{internalSvcExportObj}
@@ -321,6 +325,54 @@ func TestHandleDelete(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleDelete_EmptyServiceImportSpec(t *testing.T) {
+	serviceImport := &fleetnetv1alpha1.ServiceImport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testServiceName,
+			Namespace: testNamespace,
+		},
+		Status: fleetnetv1alpha1.ServiceImportStatus{},
+	}
+
+	ctx := context.Background()
+
+	internalSvcExportObj := internalServiceExportForTest()
+	internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
+	now := metav1.Now()
+	internalSvcExportObj.DeletionTimestamp = &now
+	objects := []client.Object{internalSvcExportObj, serviceImport}
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(internalServiceExportScheme(t)).
+		WithObjects(objects...).
+		Build()
+
+	r := internalServiceExportReconciler(fakeClient)
+	got, err := r.handleDelete(ctx, internalSvcExportObj)
+	if err != nil {
+		t.Fatalf("failed to handle delete: %v", err)
+	}
+	want := ctrl.Result{RequeueAfter: serviceImportSpecProcessTime}
+	if !cmp.Equal(got, want) {
+		t.Errorf("handleDelete() = %+v, want %+v", got, want)
+	}
+	options := []cmp.Option{
+		cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
+		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime"),
+	}
+	internalSvcExport := fleetnetv1alpha1.InternalServiceExport{}
+	if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testMemberNamespace, Name: testName}, &internalSvcExport); err != nil {
+		t.Errorf("InternalServiceExport Get() got error %v, want no error", err)
+	}
+	gotServiceImport := fleetnetv1alpha1.ServiceImport{}
+	if err = fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &gotServiceImport); err != nil {
+		t.Errorf("ServiceImport Get() got error %v, want no error", err)
+	}
+	wantStatus := fleetnetv1alpha1.ServiceImportStatus{}
+	if diff := cmp.Diff(wantStatus, gotServiceImport.Status, options...); diff != "" {
+		t.Errorf("ServiceImportStatus mismatch (-want, +got):\n%s", diff)
 	}
 }
 

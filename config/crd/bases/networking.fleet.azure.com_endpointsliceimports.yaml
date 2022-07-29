@@ -6,23 +6,23 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
-  name: endpointsliceexports.networking.fleet.azure.com
+  name: endpointsliceimports.networking.fleet.azure.com
 spec:
   group: networking.fleet.azure.com
   names:
     categories:
     - fleet-networking
-    kind: EndpointSliceExport
-    listKind: EndpointSliceExportList
-    plural: endpointsliceexports
-    singular: endpointsliceexport
+    kind: EndpointSliceImport
+    listKind: EndpointSliceImportList
+    plural: endpointsliceimports
+    singular: endpointsliceimport
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: EndpointSliceExport is a data transport type that member clusters
-          in the fleet use to upload the spec of an EndpointSlice to the hub cluster.
+        description: EndpointSliceImport is a data transport type that hub cluster
+          uses to distribute exported EndpointSlices to member clusters.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -69,9 +69,6 @@ spec:
                   namespace:
                     description: The namespace of the referred object.
                     type: string
-                  namespacedName:
-                    description: The namespaced name of the referred object.
-                    type: string
                   resourceVersion:
                     description: The resource version of the referred object.
                     type: string
@@ -84,7 +81,6 @@ spec:
                 - kind
                 - name
                 - namespace
-                - namespacedName
                 - resourceVersion
                 - uid
                 type: object
@@ -116,13 +112,9 @@ spec:
                   namespace:
                     description: The namespace of the owner Service.
                     type: string
-                  namespacedName:
-                    description: The namespaced name (key) of the owner Service.
-                    type: string
                 required:
                 - name
                 - namespace
-                - namespacedName
                 type: object
               ports:
                 description: The list of ports exported by each endpoint in this EndpointSliceExport.
