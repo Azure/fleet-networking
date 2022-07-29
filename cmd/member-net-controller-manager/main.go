@@ -219,24 +219,30 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 	wg.Add(1)
 	go func() {
 		klog.V(2).InfoS("Starting hub manager")
-		defer klog.V(2).InfoS("Shutting down hub manager")
+		defer func() {
+			wg.Done()
+			klog.V(2).InfoS("Shutting down hub manager")
+			cancel()
+		}()
 		if err := hubMgr.Start(ctx); err != nil {
 			klog.ErrorS(err, "Failed to starting hub manager")
 		} else {
 			startErr = err
 		}
-		cancel()
 	}()
 	wg.Add(1)
 	go func() {
 		klog.V(2).InfoS("Starting member manager")
-		defer klog.V(3).InfoS("Shutting down member manager")
+		defer func() {
+			klog.V(2).InfoS("Shutting down member manager")
+			wg.Done()
+			cancel()
+		}()
 		if err = memberMgr.Start(ctx); err != nil {
 			klog.ErrorS(err, "Failed to starting member manager")
 		} else {
 			startErr = err
 		}
-		cancel()
 	}()
 
 	wg.Wait()
@@ -280,26 +286,17 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		MemberClient: memberClient,
 		HubClient:    hubClient,
 		HubNamespace: mcHubNamespace,
-	}).SetupWithManager(ctx, hubMgr); err != nil {
+	}).SetupWithManager(ctx, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice reconciler")
 		return err
 	}
 
-	klog.V(2).InfoS("Create endpointslice reconciler")
+	klog.V(2).InfoS("Create endpointsliceexport reconciler")
 	if err := (&endpointsliceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
 	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create endpointslice reconciler")
-		return err
-	}
-
-	klog.V(2).InfoS("Create endpointslice reconciler")
-	if err := (&endpointsliceexport.Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create endpointslice reconciler")
+		klog.ErrorS(err, "Unable to create endpointsliceexport reconciler")
 		return err
 	}
 
