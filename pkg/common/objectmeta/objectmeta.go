@@ -11,14 +11,14 @@ const (
 
 // Labels
 const (
-	// DerivedServiceLabel is the label added by the MCS controller, which marks the derived Service behind
-	// a MCS.
+	// MultiClusterServiceLabelDerivedService is the label added by the MCS controller, which marks the
+	// derived Service behind a MCS.
 	MultiClusterServiceLabelDerivedService = "networking.fleet.azure.com/derived-service"
 )
 
 // Annotations
 const (
-	// ServiceInUseByAnnotationKey is the key of the ServiceInUseBy annotation, which marks the list
+	// ServiceImportAnnotationServiceInUseBy is the key of the ServiceInUseBy annotation, which marks the list
 	// of member clusters importing an exported Service.
 	ServiceImportAnnotationServiceInUseBy = "networking.fleet.azure.com/service-in-use-by"
 )

@@ -175,7 +175,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := json.Unmarshal([]byte(data), svcInUseBy); err != nil {
 		klog.ErrorS(err, "Failed to unmarshal data for in-use Services from ServiceImport annotations",
 			"serviceImport", svcImportRef,
-			"endpointSliceExport", endpointSliceExportRef)
+			"endpointSliceExport", endpointSliceExportRef,
+			"data", data)
 		// This error cannot be recovered by retrying; a reconciliation will be triggered when the ServiceInUseBy
 		// data is overwritten.
 		return ctrl.Result{}, nil
