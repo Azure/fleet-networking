@@ -134,7 +134,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(2).InfoS("A member cluster has already imported the Service",
 			"internalServiceImport", internalSvcImportRef,
 			"serviceInUseBy", svcInUseBy)
-		return ctrl.Result{}, nil
+		return r.clearInternalServiceImportStatus(ctx, internalSvcImport)
 	}
 
 	klog.V(2).InfoS("The Service can be imported; will sync the Service spec",
@@ -181,6 +181,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 		internalSvcImportSvcRefNamespacedNameFieldKey,
 		internalSvcImportIndexerFunc,
 	); err != nil {
+		klog.ErrorS(err, "Failed to set up InternalServiceImport index")
 		return err
 	}
 
@@ -244,7 +245,7 @@ func (r *Reconciler) withdrawServiceImport(ctx context.Context,
 			// No member cluster imports the Service after the withdrawal; the ServiceInUseBy annotation (and
 			// the cleanup finalizer) on ServiceImport will be cleared.
 			if err := r.clearServiceInUseByInfoFromServiceImport(ctx, svcImport); err != nil {
-				klog.ErrorS(err, "Failed to clear ServiceImport",
+				klog.ErrorS(err, "Failed to clear ServiceImport ServiceInUseBy annotation",
 					"serviceImport", klog.KObj(svcImport),
 					"serviceInUseBy", svcInUseBy)
 				return ctrl.Result{}, err
@@ -367,7 +368,7 @@ func extractServiceInUseByInfoFromServiceImport(svcImport *fleetnetv1alpha1.Serv
 		// recognized by the fleet networking control plane (more specifically, the import is not documented
 		// as ServiceImport annotations). Resync can eventually address this inconsistency, but it may take a long
 		// while for the system to recover.
-		klog.ErrorS(err, "Failed to unmarshal ServiceInUseBy data", "serviceImport", klog.KObj(svcImport))
+		klog.ErrorS(err, "Failed to unmarshal ServiceInUseBy data", "serviceImport", klog.KObj(svcImport), "data", data)
 		return &fleetnetv1alpha1.ServiceInUseBy{
 			MemberClusters: map[fleetnetv1alpha1.ClusterNamespace]fleetnetv1alpha1.ClusterID{},
 		}

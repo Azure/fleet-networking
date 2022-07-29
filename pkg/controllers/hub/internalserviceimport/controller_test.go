@@ -169,7 +169,7 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svcInUseBy := extractServiceInUseByInfoFromServiceImport(tc.svcImport)
 			if diff := cmp.Diff(svcInUseBy, tc.wantSvcInUseBy); diff != "" {
-				t.Fatalf("extractServiceInUseByInfoFromServiceImport(%+v), got diff %s", tc.svcImport, diff)
+				t.Fatalf("extractServiceInUseByInfoFromServiceImport(%+v), mismatch (-got, +want)\n%s", tc.svcImport, diff)
 			}
 		})
 	}
@@ -436,7 +436,7 @@ func TestClearInternalServiceImportStatus(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(internalSvcImport.Status, fleetnetv1alpha1.ServiceImportStatus{}); diff != "" {
-				t.Fatalf("internalServiceImport status, got diff %s", diff)
+				t.Fatalf("internalServiceImport status mismatch (-got, +want)\n%s", diff)
 			}
 		})
 	}
@@ -630,7 +630,7 @@ func TestFulfillInternalServiceImport(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(internalSvcImport.Status, tc.svcImport.Status); diff != "" {
-				t.Fatalf("internalServiceImport status, got diff %s", diff)
+				t.Fatalf("internalServiceImport status mismatch (-got, +want)\n%s", diff)
 			}
 		})
 	}
