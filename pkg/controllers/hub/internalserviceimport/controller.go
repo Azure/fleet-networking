@@ -86,7 +86,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// An unexpected error occurred.
 		klog.ErrorS(err, "Failed to get ServiceImport", "serviceImport", svcImportRef, "internalServiceImport", internalSvcImportRef)
 		return ctrl.Result{}, err
-	case svcImport.DeletionTimestamp != nil && len(svcImport.Status.Clusters) == 0:
+	case svcImport.DeletionTimestamp == nil && len(svcImport.Status.Clusters) == 0:
 		// The ServiceImport is being processed; requeue the InternalServiceImport for later processing.
 		klog.V(2).InfoS("ServiceImport is being processed; requeue for later processing",
 			"serviceImport", svcImportRef,
