@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,7 +29,6 @@ import (
 // Reconciler reconciles a InternalServiceExport object.
 type Reconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
 	// ServiceImportSpecProcessTime is the wait time for the controller to requeue the request and to wait for the
 	// ServiceImport controller to resolve the service Spec.
 	ServiceImportSpecProcessTime time.Duration

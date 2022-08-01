@@ -28,7 +28,12 @@ import (
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme               = runtime.NewScheme()
+	metricsAddr          = flag.String("metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	enableLeaderElection = flag.Bool("leader-elect", true,
+		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
@@ -41,17 +46,6 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	var fleetSystemNamespace string
-
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
-		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&fleetSystemNamespace, "fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
-
 	flag.Parse()
 	defer klog.Flush()
 
@@ -61,10 +55,10 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		MetricsBindAddress:     *metricsAddr,
 		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
+		HealthProbeBindAddress: *probeAddr,
+		LeaderElection:         *enableLeaderElection,
 		LeaderElectionID:       "2bf2b407.mcs.networking.fleet.azure.com",
 	})
 	if err != nil {
@@ -75,8 +69,7 @@ func main() {
 	//+kubebuilder:scaffold:builder
 	r := &multiclusterservice.Reconciler{
 		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		FleetSystemNamespace: fleetSystemNamespace,
+		FleetSystemNamespace: *fleetSystemNamespace,
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create mcs controller")
