@@ -29,8 +29,8 @@ var (
 	memberConfig  *rest.Config
 	hubConfig     *rest.Config
 	mgr           manager.Manager
-	memberClient  client.Client
-	hubClient     client.Client
+	MemberClient  client.Client
+	HubClient     client.Client
 	memberTestEnv *envtest.Environment
 	hubTestEnv    *envtest.Environment
 	ctx           context.Context
@@ -78,14 +78,14 @@ var _ = BeforeSuite(func() {
 
 	//+kubebuilder:scaffold:scheme
 	By("construct the member k8s client")
-	memberClient, err = client.New(memberConfig, client.Options{Scheme: scheme.Scheme})
+	MemberClient, err = client.New(memberConfig, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(memberClient).NotTo(BeNil())
+	Expect(MemberClient).NotTo(BeNil())
 
 	By("construct the hub k8s client")
-	hubClient, err = client.New(hubConfig, client.Options{Scheme: scheme.Scheme})
+	HubClient, err = client.New(hubConfig, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(hubClient).NotTo(BeNil())
+	Expect(HubClient).NotTo(BeNil())
 
 	By("Create member namespace")
 	ns := corev1.Namespace{
@@ -93,7 +93,7 @@ var _ = BeforeSuite(func() {
 			Name: testNamespace,
 		},
 	}
-	Expect(memberClient.Create(ctx, &ns)).Should(Succeed())
+	Expect(MemberClient.Create(ctx, &ns)).Should(Succeed())
 
 	By("Create fleet namespace")
 	ns = corev1.Namespace{
@@ -101,7 +101,7 @@ var _ = BeforeSuite(func() {
 			Name: testFleetNamespace,
 		},
 	}
-	Expect(hubClient.Create(ctx, &ns)).Should(Succeed())
+	Expect(HubClient.Create(ctx, &ns)).Should(Succeed())
 
 	By("starting the controller manager")
 	klog.InitFlags(flag.CommandLine)
@@ -116,9 +116,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		Scheme:       mgr.GetScheme(),
+		MemberClient: MemberClient,
+		HubClient:    HubClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

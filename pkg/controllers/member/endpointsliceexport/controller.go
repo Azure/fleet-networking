@@ -26,8 +26,8 @@ const (
 )
 
 type Reconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
+	MemberClient client.Client
+	HubClient    client.Client
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;delete
@@ -46,7 +46,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the EndpointSliceExport object.
 	endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
-	if err := r.hubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
+	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
 		klog.ErrorS(err, "Failed to get endpoint slice export", "endpointSliceExport", endpointSliceExportRef)
 		// Skip the reconciliation if the EndpointSliceExport does not exist; this should only happen when an
 		// EndpointSliceExport is deleted before the controller gets a chance to reconcile it;
@@ -61,7 +61,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Name:      endpointSliceExport.Spec.EndpointSliceReference.Name,
 	}
 	endpointSliceRef := klog.KRef(endpointSliceKey.Namespace, endpointSliceKey.Name)
-	err := r.memberClient.Get(ctx, endpointSliceKey, endpointSlice)
+	err := r.MemberClient.Get(ctx, endpointSliceKey, endpointSlice)
 	switch {
 	case errors.IsNotFound(err):
 		// The matching EndpointSlice is not found; the EndpointSliceExport should be deleted.
@@ -99,7 +99,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // deleteEndpointSliceExport deletes an EndpointSliceExport from the hub cluster.
 func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) (ctrl.Result, error) {
-	if err := r.hubClient.Delete(ctx, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
+	if err := r.HubClient.Delete(ctx, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to delete endpoint slice export", "endpointSliceExport", klog.KObj(endpointSliceExport))
 		return ctrl.Result{}, err
 	}

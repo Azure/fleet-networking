@@ -141,8 +141,8 @@ func TestDeleteEndpointSliceExport(t *testing.T) {
 				WithObjects(tc.endpointSliceExport).
 				Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
 			}
 			ctx := context.Background()
 

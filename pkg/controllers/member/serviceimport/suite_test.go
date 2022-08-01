@@ -28,15 +28,15 @@ import (
 var (
 	memberTestEnv *envtest.Environment
 	hubTestEnv    *envtest.Environment
-	memberClient  client.Client
-	hubClient     client.Client
+	MemberClient  client.Client
+	HubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
 )
 
 const (
-	memberClusterID     = "fake-member-cluster-id"
-	hubNamespace        = "fake-hub-namespace"
+	MemberClusterID     = "fake-member-cluster-id"
+	HubNamespace        = "fake-hub-namespace"
 	testNamespacePrefix = "fake-test-namespace"
 	timeout             = time.Second * 10
 	duration            = time.Second * 10
@@ -77,12 +77,12 @@ var _ = BeforeSuite(func() {
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	// Set up clients for member and hub clusters.
-	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
+	MemberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(memberClient).NotTo(BeNil())
-	hubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(MemberClient).NotTo(BeNil())
+	HubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(hubClient).NotTo(BeNil())
+	Expect(HubClient).NotTo(BeNil())
 
 	By("starting the controller manager")
 
@@ -93,11 +93,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		memberClusterID: memberClusterID,
-		hubNamespace:    hubNamespace,
-		memberClient:    memberClient,
-		hubClient:       hubClient,
-		Scheme:          mgr.GetScheme(),
+		MemberClusterID: MemberClusterID,
+		HubNamespace:    HubNamespace,
+		MemberClient:    MemberClient,
+		HubClient:       HubClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -116,10 +115,10 @@ func setupResources() {
 	By("Create member hub namespace")
 	hubNS := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hubNamespace,
+			Name: HubNamespace,
 		},
 	}
-	Expect(hubClient.Create(ctx, &hubNS)).Should(Succeed())
+	Expect(HubClient.Create(ctx, &hubNS)).Should(Succeed())
 }
 
 var _ = AfterSuite(func() {

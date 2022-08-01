@@ -100,10 +100,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		memberClusterID: memberClusterID,
-		memberClient:    memberClient,
-		hubClient:       hubClient,
-		hubNamespace:    hubNSForMember,
+		MemberClusterID: memberClusterID,
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
+		HubNamespace:    hubNSForMember,
 	}).SetupWithManager(ctx, ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 

@@ -290,9 +290,9 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.markServiceExportAsInvalidNotFound(ctx, tc.svcExport); err != nil {
@@ -360,9 +360,9 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.markServiceExportAsInvalidSvcIneligible(ctx, tc.svcExport); err != nil {
@@ -470,9 +470,9 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.markServiceExportAsValid(ctx, tc.svcExport); err != nil {
@@ -522,9 +522,9 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.removeServiceExportCleanupFinalizer(ctx, tc.svcExport); err != nil {
@@ -573,9 +573,9 @@ func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.addServiceExportCleanupFinalizer(ctx, tc.svcExport); err != nil {
@@ -646,9 +646,9 @@ func TestUnexportService(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			res, err := reconciler.unexportService(ctx, tc.svcExport)
