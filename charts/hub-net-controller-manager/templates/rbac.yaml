@@ -25,6 +25,39 @@ rules:
   - watch
   - patch
 - apiGroups:
+  - discovery
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceexports
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - networking.fleet.azure.com
   resources:
   - internalserviceexports
@@ -50,6 +83,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - networking.fleet.azure.com
   resources:
