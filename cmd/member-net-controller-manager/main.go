@@ -12,7 +12,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -72,27 +74,37 @@ func init() {
 
 func main() {
 	flag.Parse()
-	defer klog.Flush()
+
+	handleExitFunc := func() {
+		klog.Flush()
+	}
+
+	exitWithErrorFunc := func() {
+		handleExitFunc()
+		os.Exit(1)
+	}
+
+	defer handleExitFunc()
 
 	flag.VisitAll(func(f *flag.Flag) {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
 	hubConfig, hubOptions, err := prepareHubParameters()
 	if err != nil {
-		os.Exit(1)
+		exitWithErrorFunc()
 	}
 
 	memberConfig, memberOptions := prepareMemberParameters()
 
 	if err := startControllerManagers(hubConfig, memberConfig, hubOptions, memberOptions); err != nil {
-		os.Exit(1)
+		exitWithErrorFunc()
 	}
 }
 
 func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 	hubURL, err := envOrError(hubServerURLEnvKey)
 	if err != nil {
-		klog.ErrorS(err, "Hub server api cannot be empty")
+		klog.ErrorS(err, "Hub cluster endpoint URL cannot be empty")
 		return nil, nil, err
 	}
 
@@ -208,15 +220,24 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 		return err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	klog.V(1).InfoS("Setup controllers with controller manager")
-	if err := setupControllersWithManager(hubMgr, memberMgr); err != nil {
+	if err := setupControllersWithManager(ctx, hubMgr, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to setup controllers with manager")
 		return err
 	}
 
-	var startErr error
-	// All managers should stop if any of them is dead.
-	ctx, cancel := context.WithCancel(context.Background())
+	// All managers should stop if either of them is dead or Linux SIGTERM or SIGINT signal is received
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ch
+		klog.Info("Received termination, signaling shutdown")
+		cancel()
+	}()
+
+	var startErrors []error
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -227,8 +248,9 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 			cancel()
 		}()
 		if err := hubMgr.Start(ctx); err != nil {
-			klog.ErrorS(err, "Failed to starting hub manager")
-			startErr = err
+			klog.ErrorS(err, "Failed to start hub manager")
+			hubMgrStartErr := fmt.Errorf("hub manager start failure: %s", err.Error())
+			startErrors = append(startErrors, hubMgrStartErr)
 		}
 	}()
 	wg.Add(1)
@@ -240,14 +262,16 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 			cancel()
 		}()
 		if err = memberMgr.Start(ctx); err != nil {
-			klog.ErrorS(err, "Failed to starting member manager")
-			startErr = err
+			klog.ErrorS(err, "Failed to start member manager")
+			memberMgrStartErr := fmt.Errorf("member manager start failure: %s", err.Error())
+			startErrors = append(startErrors, memberMgrStartErr)
 		}
 	}()
 
 	wg.Wait()
-	if startErr != nil {
-		return startErr
+
+	if len(startErrors) > 0 {
+		return fmt.Errorf("%s", startErrors)
 	}
 	return nil
 }
@@ -261,7 +285,7 @@ func getMemberClusterHubNamespaceName() (string, error) {
 	return fmt.Sprintf(hubNamespaceNameFormat, mcName), nil
 }
 
-func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
+func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
 	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
 	mcName, err := envOrError(memberClusterNameEnvKey)
@@ -279,52 +303,51 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
 
-	klog.V(1).InfoS("Create endpointslice reconciler")
-	ctx := context.Background()
+	klog.V(1).InfoS("Create endpointslice controller")
 	if err := (&endpointslice.Reconciler{
 		MemberClusterID: mcName,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		HubNamespace:    mcHubNamespace,
 	}).SetupWithManager(ctx, memberMgr); err != nil {
-		klog.ErrorS(err, "Unable to create endpointslice reconciler")
+		klog.ErrorS(err, "Unable to create endpointslice controller")
 		return err
 	}
 
-	klog.V(1).InfoS("Create endpointsliceexport reconciler")
+	klog.V(1).InfoS("Create endpointsliceexport controller")
 	if err := (&endpointsliceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
 	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create endpointsliceexport reconciler")
+		klog.ErrorS(err, "Unable to create endpointsliceexport controller")
 		return err
 	}
 
-	klog.V(1).InfoS("Create endpointsliceimport reconciler")
+	klog.V(1).InfoS("Create endpointsliceimport controller")
 	if err := (&endpointsliceimport.Reconciler{
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
 		FleetSystemNamespace: *fleetSystemNamespace,
 	}).SetupWithManager(memberMgr, hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create endpointsliceimport reconciler")
+		klog.ErrorS(err, "Unable to create endpointsliceimport controller")
 		return err
 	}
 
-	klog.V(1).InfoS("Create internalserviceexport reconciler")
+	klog.V(1).InfoS("Create internalserviceexport controller")
 	if err := (&internalserviceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
 	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create internalserviceexport reconciler")
+		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err
 	}
 
-	klog.V(1).InfoS("Create internalserviceimport reconciler")
+	klog.V(1).InfoS("Create internalserviceimport controller")
 	if err := (&internalserviceimport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
 	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create internalserviceimport reconciler")
+		klog.ErrorS(err, "Unable to create internalserviceimport controller")
 		return err
 	}
 
