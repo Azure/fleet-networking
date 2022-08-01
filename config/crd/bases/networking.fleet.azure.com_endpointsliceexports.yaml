@@ -108,7 +108,7 @@ spec:
                 type: array
                 x-kubernetes-list-type: atomic
               ownerServiceReference:
-                description: The reference to the owner Service
+                description: The reference to the owner Service.
                 properties:
                   name:
                     description: The name of the owner Service.
