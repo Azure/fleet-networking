@@ -23,6 +23,7 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/util"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -36,9 +37,9 @@ var (
 	probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	serviceImportSpecProcessTime = flag.Duration("serviceimportspec-retry-interval", 2*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
+	fleetSystemNamespace         = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
+	serviceImportSpecProcessTime = flag.Duration("internalserviceexport-retry-interval", 2*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
 		"ServiceImport controller to resolve the service Spec")
-	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
@@ -48,23 +49,14 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-// beforeProgramExit is collection of deferred functions of the main function.
-// `os.Exit` does not honor `defer`, so we wrap the deferred function(s) in `beforeProgramExit`,
-// and pass beforeProgramExitWithError to `os.Exit`.
-// Panic can also be used instead to honour `defer`, but `os.Exit` is to follow the pattern of
-// the package controller-runtime.
-func beforeProgramExit() {
-	klog.Flush()
-}
-func beforeProgramExitWithError() int {
-	beforeProgramExit()
-	return 1
-}
-
 func main() {
-	defer beforeProgramExit()
-
 	flag.Parse()
+
+	deferredFunc := func() {
+		klog.Flush()
+	}
+	defer deferredFunc()
+
 	flag.VisitAll(func(f *flag.Flag) {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
@@ -79,18 +71,18 @@ func main() {
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to start manager")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "Unable to set up health check")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "Unable to set up ready check")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
 	ctx := ctrl.SetupSignalHandler()
@@ -101,7 +93,7 @@ func main() {
 		FleetSystemNamespace: *fleetSystemNamespace,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create EndpointsliceExport controller")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
 	klog.V(1).InfoS("Start to setup InternalServiceExport controller")
@@ -110,7 +102,7 @@ func main() {
 		ServiceImportSpecProcessTime: *serviceImportSpecProcessTime,
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create InternalServiceExport controller")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
 	klog.V(1).InfoS("Start to setup InternalServiceImport controller")
@@ -118,7 +110,7 @@ func main() {
 		HubClient: mgr.GetClient(),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create InternalServiceImport controller")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
 	klog.V(1).InfoS("Start to setup ServiceImport controller")
@@ -126,12 +118,12 @@ func main() {
 		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create ServiceImport controller")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 
-	klog.V(1).InfoS("Starting manager")
+	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
 	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Problem running manager")
-		os.Exit(beforeProgramExitWithError())
+		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
 	}
 }
