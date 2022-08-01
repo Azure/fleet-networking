@@ -94,7 +94,6 @@ func internalServiceExportForTest() *fleetnetv1alpha1.InternalServiceExport {
 func internalServiceExportReconciler(client client.Client) *Reconciler {
 	return &Reconciler{
 		Client:                       client,
-		Scheme:                       client.Scheme(),
 		ServiceImportSpecProcessTime: serviceImportSpecProcessTime,
 	}
 }
