@@ -13,7 +13,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,7 +25,6 @@ import (
 type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
-	Scheme       *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;delete

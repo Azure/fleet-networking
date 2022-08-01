@@ -177,8 +177,8 @@ func TestReportBackConflictCondition(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
 			}
 
 			if err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport); err != nil {

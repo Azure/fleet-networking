@@ -35,7 +35,7 @@ var _ = Describe("Create or update a service import", func() {
 				Name: testNamespace,
 			},
 		}
-		Expect(memberClient.Create(ctx, &testNS)).Should(Succeed())
+		Expect(MemberClient.Create(ctx, &testNS)).Should(Succeed())
 	})
 
 	AfterEach(func() {
@@ -45,7 +45,7 @@ var _ = Describe("Create or update a service import", func() {
 				Name: testNamespace,
 			},
 		}
-		Expect(memberClient.Delete(ctx, &testNS)).Should(Succeed())
+		Expect(MemberClient.Delete(ctx, &testNS)).Should(Succeed())
 	})
 
 	When("Create InternalServiceImport from ServiceImport", func() {
@@ -58,11 +58,11 @@ var _ = Describe("Create or update a service import", func() {
 				},
 			}
 			By("By creating a service import")
-			Expect(memberClient.Create(ctx, serviceImport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, serviceImport)).Should(Succeed())
 			serviceImportLookupKey := types.NamespacedName{Name: serviceImport.Name, Namespace: serviceImport.Namespace}
 			// We'll need to retry getting this newly created ServiceImport, given that creation may not immediately happen.
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, serviceImportLookupKey, serviceImport); err != nil {
+				if err := MemberClient.Get(ctx, serviceImportLookupKey, serviceImport); err != nil {
 					return false
 				}
 				finalizers := serviceImport.GetFinalizers()
@@ -74,12 +74,12 @@ var _ = Describe("Create or update a service import", func() {
 				return false
 			}, timeout, interval).Should(BeTrue())
 			internalServiceImportName := formatInternalServiceImportName(serviceImport)
-			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: hubNamespace}
-			expectedServiceImportRef := fleetnetv1alpha1.FromMetaObjects(memberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta)
+			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: HubNamespace}
+			expectedServiceImportRef := fleetnetv1alpha1.FromMetaObjects(MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta)
 			internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			By("By checking the ServiceImportReference of internal service import is updated")
 			Eventually(func() bool {
-				if err := hubClient.Get(ctx, internalServiceImportLookupKey, internalServiceImport); err != nil {
+				if err := HubClient.Get(ctx, internalServiceImportLookupKey, internalServiceImport); err != nil {
 					return false
 				}
 				return cmp.Equal(expectedServiceImportRef, internalServiceImport.Spec.ServiceImportReference)
@@ -94,20 +94,20 @@ var _ = Describe("Create or update a service import", func() {
 			} else {
 				serviceImport.SetLabels(map[string]string{testLabelKey: testLabelValue})
 			}
-			Expect(memberClient.Update(ctx, serviceImport)).Should(Succeed())
+			Expect(MemberClient.Update(ctx, serviceImport)).Should(Succeed())
 			By("By fetching updated service import")
 			updatedServiceImport := &fleetnetv1alpha1.ServiceImport{}
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, serviceImportLookupKey, updatedServiceImport); err != nil {
+				if err := MemberClient.Get(ctx, serviceImportLookupKey, updatedServiceImport); err != nil {
 					return false
 				}
 				return updatedServiceImport.GetLabels() != nil && updatedServiceImport.GetLabels()[testLabelKey] == testLabelValue
 			}, timeout, interval).Should(BeTrue())
 			By("By checking internal service import is updated")
-			expectedServiceImportRef = fleetnetv1alpha1.FromMetaObjects(memberClusterID, updatedServiceImport.TypeMeta, updatedServiceImport.ObjectMeta)
+			expectedServiceImportRef = fleetnetv1alpha1.FromMetaObjects(MemberClusterID, updatedServiceImport.TypeMeta, updatedServiceImport.ObjectMeta)
 			updatedInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			Eventually(func() bool {
-				if err := hubClient.Get(ctx, internalServiceImportLookupKey, updatedInternalServiceImport); err != nil {
+				if err := HubClient.Get(ctx, internalServiceImportLookupKey, updatedInternalServiceImport); err != nil {
 					return false
 				}
 				return cmp.Equal(expectedServiceImportRef, updatedInternalServiceImport.Spec.ServiceImportReference)
@@ -115,11 +115,11 @@ var _ = Describe("Create or update a service import", func() {
 
 			// 3. Check internal service import is deleted after service import is deleted.
 			By("By deleting the service import")
-			Expect(memberClient.Delete(ctx, serviceImport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, serviceImport)).Should(Succeed())
 			By("By checking the existence of  service import")
 			serviceImportList := &fleetnetv1alpha1.ServiceImportList{}
 			Eventually(func() (int, error) {
-				if err := memberClient.List(ctx, serviceImportList, &client.ListOptions{Namespace: testNamespace}); err != nil {
+				if err := MemberClient.List(ctx, serviceImportList, &client.ListOptions{Namespace: testNamespace}); err != nil {
 					return -1, err
 				}
 				return len(serviceImportList.Items), nil
@@ -127,7 +127,7 @@ var _ = Describe("Create or update a service import", func() {
 			By("By checking the existence of internal service import")
 			internalServiceImportList := &fleetnetv1alpha1.InternalServiceImportList{}
 			Eventually(func() (int, error) {
-				if err := hubClient.List(ctx, internalServiceImportList, &client.ListOptions{Namespace: hubNamespace}); err != nil {
+				if err := HubClient.List(ctx, internalServiceImportList, &client.ListOptions{Namespace: HubNamespace}); err != nil {
 					return -1, err
 				}
 				return len(internalServiceImportList.Items), nil

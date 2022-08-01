@@ -118,7 +118,6 @@ var _ = BeforeSuite(func() {
 
 	err = (&Reconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

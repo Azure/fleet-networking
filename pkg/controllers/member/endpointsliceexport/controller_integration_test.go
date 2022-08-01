@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	memberClusterID = "bravelion"
+	MemberClusterID = "bravelion"
 
 	eventuallyTimeout    = time.Second * 10
 	eventuallyInterval   = time.Millisecond * 250
@@ -52,7 +52,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						},
 					},
 					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
+						ClusterID:       MemberClusterID,
 						Kind:            "EndpointSlice",
 						Namespace:       memberUserNS,
 						Name:            endpointSliceName,
@@ -62,7 +62,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, danglingEndpointSliceExport)).Should(Succeed())
+			Expect(HubClient.Create(ctx, danglingEndpointSliceExport)).Should(Succeed())
 		})
 
 		It("should remove dangling endpointsliceexport", func() {
@@ -71,7 +71,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 				Name:      endpointSliceExportName,
 			}
 			Eventually(func() bool {
-				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, danglingEndpointSliceExport))
+				return errors.IsNotFound(HubClient.Get(ctx, endpointSliceExportKey, danglingEndpointSliceExport))
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
@@ -98,7 +98,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					},
 				},
 			}
-			Expect(memberClient.Create(ctx, unlinkedEndpointSlice)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, unlinkedEndpointSlice)).Should(Succeed())
 
 			unlinkedEndpointSliceExport = &fleetnetv1alpha1.EndpointSliceExport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +118,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						},
 					},
 					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
+						ClusterID:       MemberClusterID,
 						Kind:            "EndpointSlice",
 						Namespace:       memberUserNS,
 						Name:            endpointSliceName,
@@ -128,11 +128,11 @@ var _ = Describe("endpointsliceexport controller", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, unlinkedEndpointSliceExport)).Should(Succeed())
+			Expect(HubClient.Create(ctx, unlinkedEndpointSliceExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, unlinkedEndpointSlice)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, unlinkedEndpointSlice)).Should(Succeed())
 		})
 
 		It("should remove unlinked endpointsliceexport", func() {
@@ -141,7 +141,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 				Name:      endpointSliceExportName,
 			}
 			Eventually(func() bool {
-				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, unlinkedEndpointSliceExport))
+				return errors.IsNotFound(HubClient.Get(ctx, endpointSliceExportKey, unlinkedEndpointSliceExport))
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
@@ -171,7 +171,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					},
 				},
 			}
-			Expect(memberClient.Create(ctx, linkedEndpointSlice)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, linkedEndpointSlice)).Should(Succeed())
 
 			linkedEndpointSliceExport = &fleetnetv1alpha1.EndpointSliceExport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -191,7 +191,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						},
 					},
 					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
+						ClusterID:       MemberClusterID,
 						Kind:            "EndpointSlice",
 						Namespace:       memberUserNS,
 						Name:            endpointSliceName,
@@ -201,12 +201,12 @@ var _ = Describe("endpointsliceexport controller", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, linkedEndpointSliceExport)).Should(Succeed())
+			Expect(HubClient.Create(ctx, linkedEndpointSliceExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, linkedEndpointSliceExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, linkedEndpointSlice)).Should(Succeed())
+			Expect(HubClient.Delete(ctx, linkedEndpointSliceExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, linkedEndpointSlice)).Should(Succeed())
 		})
 
 		It("should keep linked endpointsliceexport", func() {
@@ -215,7 +215,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					Namespace: hubNSForMember,
 					Name:      endpointSliceExportName,
 				}
-				return hubClient.Get(ctx, endpointSliceExportKey, linkedEndpointSliceExport)
+				return HubClient.Get(ctx, endpointSliceExportKey, linkedEndpointSliceExport)
 			}, consistentlyDuration, ConsistentlyInterval).Should(BeNil())
 		})
 	})

@@ -24,8 +24,8 @@ import (
 
 // Reconciler reconciles the update of an InternalServiceExport.
 type Reconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
+	MemberClient client.Client
+	HubClient    client.Client
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -45,7 +45,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the InternalServiceExport object.
 	var internalSvcExport fleetnetv1alpha1.InternalServiceExport
-	if err := r.hubClient.Get(ctx, req.NamespacedName, &internalSvcExport); err != nil {
+	if err := r.HubClient.Get(ctx, req.NamespacedName, &internalSvcExport); err != nil {
 		klog.ErrorS(err, "Failed to get internal svc export", "internalServiceExport", internalSvcExportRef)
 		// Skip the reconciliation if the InternalServiceExport does not exist.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -56,7 +56,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	svcName := internalSvcExport.Spec.ServiceReference.Name
 	svcExportRef := klog.KRef(svcNS, svcName)
 	var svcExport fleetnetv1alpha1.ServiceExport
-	err := r.memberClient.Get(ctx, types.NamespacedName{Namespace: svcNS, Name: svcName}, &svcExport)
+	err := r.MemberClient.Get(ctx, types.NamespacedName{Namespace: svcNS, Name: svcName}, &svcExport)
 	switch {
 	case errors.IsNotFound(err):
 		// The absence of ServiceExport suggests that the Service should not be, yet has been, exported. Normally
@@ -68,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"serviceExport", svcExportRef,
 			"internalServiceExport", internalSvcExportRef,
 		)
-		if err := r.hubClient.Delete(ctx, &internalSvcExport); err != nil {
+		if err := r.HubClient.Delete(ctx, &internalSvcExport); err != nil {
 			klog.ErrorS(err, "Failed to delete internal svc export", "internalServiceExport", internalSvcExportRef)
 			return ctrl.Result{}, err
 		}
@@ -119,5 +119,5 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 
 	// Update the conditions
 	meta.SetStatusCondition(&svcExport.Status.Conditions, *internalSvcExportConflictCond)
-	return r.memberClient.Status().Update(ctx, svcExport)
+	return r.MemberClient.Status().Update(ctx, svcExport)
 }

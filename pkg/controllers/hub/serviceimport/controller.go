@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,7 +34,6 @@ const (
 // Reconciler reconciles a ServiceImport object.
 type Reconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
 }
 
 // statusChange stores the internalServiceExports list whose status needs to be updated.

@@ -112,9 +112,9 @@ var _ = BeforeSuite(func() {
 	Expect(hubClient).NotTo(BeNil())
 
 	err = (&Reconciler{
-		memberClient:         memberClient,
-		hubClient:            hubClient,
-		fleetSystemNamespace: fleetSystemNS,
+		MemberClient:         memberClient,
+		HubClient:            hubClient,
+		FleetSystemNamespace: fleetSystemNS,
 	}).SetupWithManager(memberCtrlMgr, hubCtrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 

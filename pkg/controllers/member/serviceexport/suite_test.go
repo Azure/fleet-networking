@@ -27,8 +27,8 @@ import (
 var (
 	memberTestEnv *envtest.Environment
 	hubTestEnv    *envtest.Environment
-	memberClient  client.Client
-	hubClient     client.Client
+	MemberClient  client.Client
+	HubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
 )
@@ -41,14 +41,14 @@ func setUpResources() {
 			Name: memberUserNS,
 		},
 	}
-	Expect(memberClient.Create(ctx, &memberNS)).Should(Succeed())
+	Expect(MemberClient.Create(ctx, &memberNS)).Should(Succeed())
 
 	hubNS := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: hubNSForMember,
 		},
 	}
-	Expect(hubClient.Create(ctx, &hubNS)).Should(Succeed())
+	Expect(HubClient.Create(ctx, &hubNS)).Should(Succeed())
 }
 
 func TestAPIs(t *testing.T) {
@@ -85,12 +85,12 @@ var _ = BeforeSuite(func() {
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	// Set up clients for member and hub clusters.
-	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
+	MemberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(memberClient).NotTo(BeNil())
-	hubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(MemberClient).NotTo(BeNil())
+	HubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(hubClient).NotTo(BeNil())
+	Expect(HubClient).NotTo(BeNil())
 
 	// Set up resources.
 	setUpResources()
@@ -103,10 +103,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		memberClusterID: memberClusterID,
-		memberClient:    memberClient,
-		hubClient:       hubClient,
-		hubNamespace:    hubNSForMember,
+		MemberClusterID: MemberClusterID,
+		MemberClient:    MemberClient,
+		HubClient:       HubClient,
+		HubNamespace:    hubNSForMember,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
