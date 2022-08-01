@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	MemberClusterID         = "bravelion"
+	memberClusterID         = "bravelion"
 	memberUserNS            = "work"
 	hubNSForMember          = "bravelion"
 	svcName                 = "app"
@@ -220,7 +220,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 				},
 				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
 					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "EndpointSlice",
 						Namespace:       memberUserNS,
 						Name:            endpointSliceName,
@@ -239,7 +239,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						endpointSliceUniqueNameLabel: fmt.Sprintf("%s-%s-%s-%s",
-							MemberClusterID, memberUserNS, endpointSliceName, uniquename.RandomLowerCaseAlphabeticString(5)),
+							memberClusterID, memberUserNS, endpointSliceName, uniquename.RandomLowerCaseAlphabeticString(5)),
 					},
 				},
 			},
@@ -321,7 +321,7 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 				},
 				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
 					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "EndpointSlice",
 						Namespace:       memberUserNS,
 						Name:            endpointSliceName,
@@ -394,7 +394,7 @@ func TestAssignUniqueNameAsLabel(t *testing.T) {
 					Name:      endpointSliceName,
 				},
 			},
-			expectedPrefix: fmt.Sprintf("%s-%s-%s-", MemberClusterID, memberUserNS, endpointSliceName),
+			expectedPrefix: fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName),
 		},
 	}
 
@@ -407,7 +407,7 @@ func TestAssignUniqueNameAsLabel(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{
-				MemberClusterID: MemberClusterID,
+				MemberClusterID: memberClusterID,
 				MemberClient:    fakeMemberClient,
 				HubClient:       fakeHubClient,
 				HubNamespace:    hubNSForMember,
@@ -563,7 +563,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportInvalidNotFoundCondition(MemberClusterID, svcName),
+						serviceExportInvalidNotFoundCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -590,7 +590,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportConflictedCondition(MemberClusterID, svcName),
+						serviceExportConflictedCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -618,7 +618,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportNoConflictCondition(MemberClusterID, svcName),
+						serviceExportNoConflictCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -643,7 +643,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportInvalidNotFoundCondition(MemberClusterID, svcName),
+						serviceExportInvalidNotFoundCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -669,7 +669,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportConflictedCondition(MemberClusterID, svcName),
+						serviceExportConflictedCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -696,7 +696,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportNoConflictCondition(MemberClusterID, svcName),
+						serviceExportNoConflictCondition(memberClusterID, svcName),
 					},
 				},
 			},
@@ -941,7 +941,7 @@ func TestIsUniqueNameValid(t *testing.T) {
 	}{
 		{
 			name:       "is a valid unique name",
-			uniqueName: fmt.Sprintf("%s-%s-%s-%s", MemberClusterID, memberUserNS, endpointSliceName, "1x2yz"),
+			uniqueName: fmt.Sprintf("%s-%s-%s-%s", memberClusterID, memberUserNS, endpointSliceName, "1x2yz"),
 			want:       true,
 		},
 		{
