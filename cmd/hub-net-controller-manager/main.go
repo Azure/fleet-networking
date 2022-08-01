@@ -23,7 +23,9 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
 )
 
@@ -36,6 +38,7 @@ var (
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	serviceImportSpecProcessTime = flag.Duration("serviceimportspec-retry-interval", 2*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
 		"ServiceImport controller to resolve the service Spec")
+	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
@@ -90,12 +93,31 @@ func main() {
 		os.Exit(beforeProgramExitWithError())
 	}
 
-	klog.V(1).InfoS("Start to setup InternalServicEexport controller")
+	ctx := ctrl.SetupSignalHandler()
+
+	klog.V(1).InfoS("Start to setup EndpointsliceExport controller")
+	if err := (&endpointsliceexport.Reconciler{
+		HubClient:            mgr.GetClient(),
+		FleetSystemNamespace: *fleetSystemNamespace,
+	}).SetupWithManager(ctx, mgr); err != nil {
+		klog.ErrorS(err, "Unable to create EndpointsliceExport controller")
+		os.Exit(beforeProgramExitWithError())
+	}
+
+	klog.V(1).InfoS("Start to setup InternalServiceExport controller")
 	if err := (&internalserviceexport.Reconciler{
 		Client:                       mgr.GetClient(),
 		ServiceImportSpecProcessTime: *serviceImportSpecProcessTime,
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create mcs controller")
+		klog.ErrorS(err, "Unable to create InternalServiceExport controller")
+		os.Exit(beforeProgramExitWithError())
+	}
+
+	klog.V(1).InfoS("Start to setup InternalServiceImport controller")
+	if err := (&internalserviceimport.Reconciler{
+		HubClient: mgr.GetClient(),
+	}).SetupWithManager(ctx, mgr); err != nil {
+		klog.ErrorS(err, "Unable to create InternalServiceImport controller")
 		os.Exit(beforeProgramExitWithError())
 	}
 
@@ -103,12 +125,12 @@ func main() {
 	if err := (&serviceimport.Reconciler{
 		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create mcs controller")
+		klog.ErrorS(err, "Unable to create ServiceImport controller")
 		os.Exit(beforeProgramExitWithError())
 	}
 
 	klog.V(1).InfoS("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Problem running manager")
 		os.Exit(beforeProgramExitWithError())
 	}
