@@ -208,7 +208,7 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 		return err
 	}
 
-	klog.InfoS("Setup controllers with controller manager")
+	klog.V(1).InfoS("Setup controllers with controller manager")
 	if err := setupControllersWithManager(hubMgr, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to setup controllers with manager")
 		return err
@@ -220,10 +220,10 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		klog.InfoS("Starting hub manager")
+		klog.V(1).InfoS("Starting hub manager")
 		defer func() {
 			wg.Done()
-			klog.InfoS("Shutting down hub manager")
+			klog.V(1).InfoS("Shutting down hub manager")
 			cancel()
 		}()
 		if err := hubMgr.Start(ctx); err != nil {
@@ -233,9 +233,9 @@ func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, m
 	}()
 	wg.Add(1)
 	go func() {
-		klog.InfoS("Starting member manager")
+		klog.V(1).InfoS("Starting member manager")
 		defer func() {
-			klog.InfoS("Shutting down member manager")
+			klog.V(1).InfoS("Shutting down member manager")
 			wg.Done()
 			cancel()
 		}()
@@ -258,12 +258,11 @@ func getMemberClusterHubNamespaceName() (string, error) {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return "", err
 	}
-	mcHubNamespace := fmt.Sprintf(hubNamespaceNameFormat, mcName)
-	return mcHubNamespace, nil
+	return fmt.Sprintf(hubNamespaceNameFormat, mcName), nil
 }
 
 func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
-	klog.InfoS("Begin to setup controllers with controller manager")
+	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
 	mcName, err := envOrError(memberClusterNameEnvKey)
 	if err != nil {
@@ -280,7 +279,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
 
-	klog.InfoS("Create endpointslice reconciler")
+	klog.V(1).InfoS("Create endpointslice reconciler")
 	ctx := context.Background()
 	if err := (&endpointslice.Reconciler{
 		MemberClusterID: mcName,
@@ -292,7 +291,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create endpointsliceexport reconciler")
+	klog.V(1).InfoS("Create endpointsliceexport reconciler")
 	if err := (&endpointsliceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
@@ -301,7 +300,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create endpointsliceimport reconciler")
+	klog.V(1).InfoS("Create endpointsliceimport reconciler")
 	if err := (&endpointsliceimport.Reconciler{
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
@@ -311,7 +310,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create internalserviceexport reconciler")
+	klog.V(1).InfoS("Create internalserviceexport reconciler")
 	if err := (&internalserviceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
@@ -320,7 +319,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create internalserviceimport reconciler")
+	klog.V(1).InfoS("Create internalserviceimport reconciler")
 	if err := (&internalserviceimport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
@@ -329,7 +328,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create serviceexport reconciler")
+	klog.V(1).InfoS("Create serviceexport reconciler")
 	if err := (&serviceexport.Reconciler{
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
@@ -340,7 +339,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Create serviceimport reconciler")
+	klog.V(1).InfoS("Create serviceimport reconciler")
 	if err := (&serviceimport.Reconciler{
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
@@ -351,7 +350,7 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		return err
 	}
 
-	klog.InfoS("Succeeded to setup controllers with controller manager")
+	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")
 	return nil
 }
 
