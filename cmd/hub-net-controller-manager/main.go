@@ -1,17 +1,6 @@
 /*
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
 */
 
 package main
@@ -45,7 +34,7 @@ var (
 	probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	serviceImportSpecProcessTime = flag.Duration("serviceimportspec-process", 10*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
+	serviceImportSpecProcessTime = flag.Duration("serviceimportspec-retry-interval", 2*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
 		"ServiceImport controller to resolve the service Spec")
 )
 
@@ -73,39 +62,41 @@ func main() {
 		LeaderElectionID:       "2bf2b407.hub.networking.fleet.azure.com",
 	})
 	if err != nil {
-		klog.ErrorS(err, "unable to start manager")
+		klog.ErrorS(err, "Unable to start manager")
 		os.Exit(1)
 	}
 
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "unable to set up health check")
+		klog.ErrorS(err, "Unable to set up health check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "unable to set up ready check")
+		klog.ErrorS(err, "Unable to set up ready check")
 		os.Exit(1)
 	}
 
+	klog.V(1).InfoS("Start to setup InternalServicEexport controller")
 	if err := (&internalserviceexport.Reconciler{
 		Client:                       mgr.GetClient(),
 		ServiceImportSpecProcessTime: *serviceImportSpecProcessTime,
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "unable to create mcs controller")
+		klog.ErrorS(err, "Unable to create mcs controller")
 		os.Exit(1)
 	}
 
+	klog.V(1).InfoS("Start to setup ServiceImport controller")
 	if err := (&serviceimport.Reconciler{
 		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "unable to create mcs controller")
+		klog.ErrorS(err, "Unable to create mcs controller")
 		os.Exit(1)
 	}
 
-	klog.V(2).InfoS("starting manager")
+	klog.V(1).InfoS("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		klog.ErrorS(err, "problem running manager")
+		klog.ErrorS(err, "Problem running manager")
 		os.Exit(1)
 	}
 }
