@@ -319,7 +319,7 @@ func (r *Reconciler) annotateServiceImportWithServiceInUseByInfo(ctx context.Con
 		return err
 	}
 
-	svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey] = string(data)
+	svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy] = string(data)
 	controllerutil.AddFinalizer(svcImport, svcImportCleanupFinalizer)
 	return r.HubClient.Status().Update(ctx, svcImport)
 }
@@ -327,7 +327,7 @@ func (r *Reconciler) annotateServiceImportWithServiceInUseByInfo(ctx context.Con
 // clearServiceInUseByInfoFromServiceImport clears the ServiceInUseBy annotation from a ServiceImport, and its
 // cleanup finalizer.
 func (r *Reconciler) clearServiceInUseByInfoFromServiceImport(ctx context.Context, svcImport *fleetnetv1alpha1.ServiceImport) error {
-	delete(svcImport.Annotations, objectmeta.ServiceInUseByAnnotationKey)
+	delete(svcImport.Annotations, objectmeta.ServiceImportAnnotationServiceInUseBy)
 	controllerutil.RemoveFinalizer(svcImport, svcImportCleanupFinalizer)
 	return r.HubClient.Update(ctx, svcImport)
 }
@@ -349,7 +349,7 @@ func (r *Reconciler) fulfillInternalServiceImport(ctx context.Context,
 
 // extractServiceInUseByInfoFromServiceImport extracts ServiceInUseBy information from annotations on a ServiceImport.
 func extractServiceInUseByInfoFromServiceImport(svcImport *fleetnetv1alpha1.ServiceImport) *fleetnetv1alpha1.ServiceInUseBy {
-	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+	data, ok := svcImport.ObjectMeta.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]
 	if !ok {
 		// The ServiceInUseBy annotation is absent on ServiceImport.
 		return &fleetnetv1alpha1.ServiceInUseBy{

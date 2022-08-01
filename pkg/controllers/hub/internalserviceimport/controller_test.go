@@ -71,7 +71,7 @@ func fulfilledServiceImport() *fleetnetv1alpha1.ServiceImport {
 			Namespace: memberUserNS,
 			Name:      svcName,
 			Annotations: map[string]string{
-				objectmeta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
+				objectmeta.ServiceImportAnnotationServiceInUseBy: fulfilledSvcInUseByAnnotationString(),
 			},
 			Finalizers: []string{svcImportCleanupFinalizer},
 		},
@@ -142,7 +142,7 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						objectmeta.ServiceInUseByAnnotationKey: "xyz",
+						objectmeta.ServiceImportAnnotationServiceInUseBy: "xyz",
 					},
 				},
 			},
@@ -157,7 +157,7 @@ func TestExtractServiceInUseByInfoFromServiceImport(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						objectmeta.ServiceInUseByAnnotationKey: fulfilledSvcInUseByAnnotationString(),
+						objectmeta.ServiceImportAnnotationServiceInUseBy: fulfilledSvcInUseByAnnotationString(),
 					},
 				},
 			},
@@ -220,7 +220,7 @@ func TestWithdrawServiceImport_AnnotationMatches(t *testing.T) {
 				t.Fatalf("serviceImport finalizers, got %v, want no finalizers", svcImport.Finalizers)
 			}
 
-			_, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+			_, ok := svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]
 			if ok {
 				t.Fatalf("serviceInUseBy annotation is present, want absence")
 			}
@@ -256,7 +256,7 @@ func TestWithdrawServiceImport_AnnotationMismatches(t *testing.T) {
 					Finalizers: []string{internalSvcImportCleanupFinalizer},
 				},
 			},
-			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceInUseByAnnotationKey],
+			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy],
 		},
 	}
 
@@ -285,7 +285,7 @@ func TestWithdrawServiceImport_AnnotationMismatches(t *testing.T) {
 				t.Fatalf("serviceImport finalizers, got %v, want %v", svcImport.Finalizers, []string{svcImportCleanupFinalizer})
 			}
 
-			data, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+			data, ok := svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]
 			if !ok {
 				t.Fatalf("serviceInUseBy annotation is absent, want presence")
 			}
@@ -315,7 +315,7 @@ func TestWithdrawServiceImport_MultiImports(t *testing.T) {
 		panic(err)
 	}
 	svcImport := fulfilledServiceImport()
-	svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey] = string(svcInUseByData)
+	svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy] = string(svcInUseByData)
 
 	testCases := []struct {
 		name               string
@@ -333,7 +333,7 @@ func TestWithdrawServiceImport_MultiImports(t *testing.T) {
 					Finalizers: []string{internalSvcImportCleanupFinalizer},
 				},
 			},
-			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceInUseByAnnotationKey],
+			wantSvcInUseByData: fulfilledServiceImport().Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy],
 		},
 	}
 
@@ -362,7 +362,7 @@ func TestWithdrawServiceImport_MultiImports(t *testing.T) {
 				t.Fatalf("serviceImport finalizers, got %v, want %v", svcImport.Finalizers, []string{svcImportCleanupFinalizer})
 			}
 
-			data, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]
+			data, ok := svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]
 			if !ok {
 				t.Fatalf("serviceInUseBy annotation is absent, want presence")
 			}
@@ -551,7 +551,7 @@ func TestAnnotateServiceImportWithServiceInUseByInfo(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						objectmeta.ServiceInUseByAnnotationKey: "xyz",
+						objectmeta.ServiceImportAnnotationServiceInUseBy: "xyz",
 					},
 				},
 			},
@@ -581,9 +581,9 @@ func TestAnnotateServiceImportWithServiceInUseByInfo(t *testing.T) {
 			}
 
 			wantSvcInUseByAnnotation := fulfilledSvcInUseByAnnotationString()
-			if !cmp.Equal(svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation) {
+			if !cmp.Equal(svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy], wantSvcInUseByAnnotation) {
 				t.Fatalf("serviceImport ServiceInUseBy annotation, got %s, want %s",
-					svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey], wantSvcInUseByAnnotation)
+					svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy], wantSvcInUseByAnnotation)
 			}
 		})
 	}
@@ -673,7 +673,7 @@ func TestClearServiceInUseByInfoFromServiceImport(t *testing.T) {
 				t.Fatalf("serviceImport finalizers, got %v, want no finalizers", svcImport.Finalizers)
 			}
 
-			if _, ok := svcImport.Annotations[objectmeta.ServiceInUseByAnnotationKey]; ok {
+			if _, ok := svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy]; ok {
 				t.Fatalf("serviceImport ServiceInUseBy annotation is present")
 			}
 		})
