@@ -16,18 +16,21 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
-- apiGroups:
-  - ""
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -45,6 +48,8 @@ rules:
   resources:
   - endpointslices
   verbs:
+  - list
+  - watch
   - create
   - delete
   - get
