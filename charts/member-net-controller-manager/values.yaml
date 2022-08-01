@@ -10,7 +10,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "v0.1.0"
 
-namespace:  fleet-system
+fleetSystemNamespace:  fleet-system
 
 logVerbosity: 2
 
