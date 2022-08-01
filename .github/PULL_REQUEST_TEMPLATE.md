@@ -30,6 +30,7 @@ Fixes #
 
 **Requirements**:
 
+- [ ] run `make reviewable` for basic local test
 - [ ] Read and followed fleet-networking's [Code of conduct](https://github.com/Azure/fleet-networking/blob/main/CODE_OF_CONDUCT.md).
 - [ ] uses [conventional commit messages](https://www.conventionalcommits.org/)
   <!-- Common commit types:
