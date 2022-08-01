@@ -9,13 +9,18 @@ Make sure hub cluster has [managed Azure AD integration and Azure RBAC enabled.]
 ```bash
 MEMBER_CLUSTER_NAME=membercluster-sample
 SERVICE_PRINCIPAL_ID=<principle_id_of_member_cluster_agentpool_managed_identity>
-```
 
-```yaml
+# create namespace
+kubectl create ns fleet-member-$MEMBER_CLUSTER_NAME
+
+# create rbac in hub cluster for member-net-controller-manager to
+# access hub cluster resources
+cat <<EOF | kubectl apply --filename -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: fleet-role-$MEMBER_CLUSTER_NAME
+  namespace: fleet-member-$MEMBER_CLUSTER_NAME
 rules:
 - apiGroups:
   - coordination.k8s.io
@@ -26,6 +31,17 @@ rules:
   - get
   - list
   - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
 - apiGroups: 
   - networking.fleet.azure.com
   resources: ["*"]
@@ -43,6 +59,7 @@ roleRef:
 subjects:
   - kind: User
     name: $SERVICE_PRINCIPAL_ID
+EOF
 ```
 
 ## Install CRD in member cluster
@@ -62,8 +79,8 @@ CLIENT_ID=<client_id_of_member_cluster_agentpool_managed_identity>
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set config.hubURL=$HUB_CLUSTER_ENDPOINT \
     --set config.provider=azure \
-    --set config.memberClusterName $MEMBER_CLUSTER_NAME \
-    --set azure.clientid=$clientid
+    --set config.memberClusterName=$MEMBER_CLUSTER_NAME \
+    --set azure.clientid=$CLIENT_ID
 ```
 
 _See [helm install](https://helm.sh/docs/helm/helm_install/) for command documentation._
