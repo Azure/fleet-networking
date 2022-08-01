@@ -1,11 +1,16 @@
 # Source of reference: https://github.com/Azure/fleet/blob/main/Makefile
 REGISTRY ?= ghcr.io/azure
+
+ifndef TAG
+	TAG ?= $(shell git rev-parse --short=7 HEAD)
+endif
+HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
-HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
-MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
-MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))

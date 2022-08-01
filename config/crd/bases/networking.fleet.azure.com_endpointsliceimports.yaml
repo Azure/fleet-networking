@@ -69,6 +69,9 @@ spec:
                   namespace:
                     description: The namespace of the referred object.
                     type: string
+                  namespacedName:
+                    description: The namespaced name of the referred object.
+                    type: string
                   resourceVersion:
                     description: The resource version of the referred object.
                     type: string
@@ -81,6 +84,7 @@ spec:
                 - kind
                 - name
                 - namespace
+                - namespacedName
                 - resourceVersion
                 - uid
                 type: object
@@ -104,7 +108,7 @@ spec:
                 type: array
                 x-kubernetes-list-type: atomic
               ownerServiceReference:
-                description: The reference to the owner Service
+                description: The reference to the owner Service.
                 properties:
                   name:
                     description: The name of the owner Service.
@@ -112,9 +116,13 @@ spec:
                   namespace:
                     description: The namespace of the owner Service.
                     type: string
+                  namespacedName:
+                    description: The namespaced name (key) of the owner Service.
+                    type: string
                 required:
                 - name
                 - namespace
+                - namespacedName
                 type: object
               ports:
                 description: The list of ports exported by each endpoint in this EndpointSliceExport.
@@ -166,8 +174,6 @@ spec:
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
 status:
   acceptedNames:
     kind: ""
