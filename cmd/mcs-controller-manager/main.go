@@ -24,7 +24,6 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/util"
 	"go.goms.io/fleet-networking/pkg/controllers/multiclusterservice"
 )
 
@@ -49,10 +48,16 @@ func init() {
 func main() {
 	flag.Parse()
 
-	deferredFunc := func() {
+	handleExitFunc := func() {
 		klog.Flush()
 	}
-	defer deferredFunc()
+
+	exitWithErrorFunc := func() {
+		handleExitFunc()
+		os.Exit(1)
+	}
+
+	defer handleExitFunc()
 
 	flag.VisitAll(func(f *flag.Flag) {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
@@ -68,7 +73,7 @@ func main() {
 	})
 	if err != nil {
 		klog.ErrorS(err, "unable to start manager")
-		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
+		exitWithErrorFunc()
 	}
 
 	//+kubebuilder:scaffold:builder
@@ -78,22 +83,22 @@ func main() {
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create mcs controller")
-		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
+		exitWithErrorFunc()
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "unable to set up health check")
-		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
+		exitWithErrorFunc()
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "unable to set up ready check")
-		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
+		exitWithErrorFunc()
 	}
 
 	klog.V(1).Info("starting mcs controller manager")
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.ErrorS(err, "problem running manager")
-		os.Exit(util.BeforeProgramExitWithError(deferredFunc))
+		exitWithErrorFunc()
 	}
 }

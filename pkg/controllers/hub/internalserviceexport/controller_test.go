@@ -44,8 +44,8 @@ var (
 		APIVersion: fleetNetworkingAPIVersion,
 	}
 
-	serviceImportSpecProcessTime = 200 * time.Millisecond
-	appProtocol                  = "app-protocol"
+	internalserviceexportRetryInterval = 200 * time.Millisecond
+	appProtocol                        = "app-protocol"
 )
 
 func internalServiceExportScheme(t *testing.T) *runtime.Scheme {
@@ -93,8 +93,8 @@ func internalServiceExportForTest() *fleetnetv1alpha1.InternalServiceExport {
 
 func internalServiceExportReconciler(client client.Client) *Reconciler {
 	return &Reconciler{
-		Client:                       client,
-		ServiceImportSpecProcessTime: serviceImportSpecProcessTime,
+		Client:                             client,
+		InternalserviceexportRetryInterval: internalserviceexportRetryInterval,
 	}
 }
 
@@ -353,7 +353,7 @@ func TestHandleDelete_EmptyServiceImportSpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to handle delete: %v", err)
 	}
-	want := ctrl.Result{RequeueAfter: serviceImportSpecProcessTime}
+	want := ctrl.Result{RequeueAfter: internalserviceexportRetryInterval}
 	if !cmp.Equal(got, want) {
 		t.Errorf("handleDelete() = %+v, want %+v", got, want)
 	}
@@ -433,7 +433,7 @@ func TestHandleUpdate(t *testing.T) {
 					},
 				},
 			},
-			want: ctrl.Result{RequeueAfter: serviceImportSpecProcessTime},
+			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testName,
@@ -882,7 +882,7 @@ func TestHandleUpdate(t *testing.T) {
 					Type: fleetnetv1alpha1.ClusterSetIP,
 				},
 			},
-			want: ctrl.Result{RequeueAfter: serviceImportSpecProcessTime},
+			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testName,

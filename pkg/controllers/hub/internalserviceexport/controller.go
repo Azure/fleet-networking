@@ -29,9 +29,9 @@ import (
 // Reconciler reconciles a InternalServiceExport object.
 type Reconciler struct {
 	client.Client
-	// ServiceImportSpecProcessTime is the wait time for the controller to requeue the request and to wait for the
+	// InternalserviceexportRetryInterval is the wait time for the controller to requeue the request and to wait for the
 	// ServiceImport controller to resolve the service Spec.
-	ServiceImportSpecProcessTime time.Duration
+	InternalserviceexportRetryInterval time.Duration
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -96,7 +96,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fl
 		// In case serviceImport picks the same spec as the deleting one at the same time and controller misses removing
 		// the clusterID from the serviceImport.
 		klog.V(2).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
-		return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+		return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
 	}
 
 	oldStatus := serviceImport.Status.DeepCopy()
@@ -203,7 +203,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 	if len(serviceImport.Status.Ports) == 0 {
 		// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
 		klog.V(3).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
-		return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+		return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
 	}
 
 	oldStatus := serviceImport.Status.DeepCopy()
@@ -221,7 +221,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 		if len(serviceImport.Status.Ports) == 0 {
 			klog.V(3).InfoS("Removed the cluster and waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
 			// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
-			return ctrl.Result{RequeueAfter: r.ServiceImportSpecProcessTime}, nil
+			return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
 		}
 		return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, true)
 	}
