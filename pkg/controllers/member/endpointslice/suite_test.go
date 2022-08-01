@@ -54,7 +54,7 @@ func setUpResources() {
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "EndpointSliceExport Controller Suite")
+	RunSpecs(t, "EndpointSlice Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -115,6 +115,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	defer klog.Flush()
 	cancel()
 
 	By("tearing down the test environment")

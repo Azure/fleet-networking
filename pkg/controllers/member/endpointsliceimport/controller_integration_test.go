@@ -50,7 +50,7 @@ func fulfilledMultiClusterSvc() *fleetnetv1alpha1.MultiClusterService {
 			Namespace: memberUserNS,
 			Name:      multiClusterSvcName,
 			Labels: map[string]string{
-				objectmeta.DerivedServiceLabel: derivedSvcName,
+				objectmeta.MultiClusterServiceLabelDerivedService: derivedSvcName,
 			},
 		},
 		Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -152,7 +152,7 @@ var _ = Describe("endpointsliceimport controller", func() {
 
 			multiClusterSvc = fulfilledMultiClusterSvc()
 			multiClusterSvc.Labels = map[string]string{
-				objectmeta.DerivedServiceLabel: "",
+				objectmeta.MultiClusterServiceLabelDerivedService: "",
 			}
 			Expect(memberClient.Create(ctx, multiClusterSvc)).Should(Succeed())
 		})
