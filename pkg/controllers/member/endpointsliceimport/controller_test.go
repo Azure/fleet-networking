@@ -284,9 +284,9 @@ func TestIsDerivedServiceValid(t *testing.T) {
 			fakeMemberClient := fakeMemberClientBuilder.Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{
-				memberClient:         fakeMemberClient,
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				MemberClient:         fakeMemberClient,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if got, err := reconciler.isDerivedServiceValid(ctx, tc.derivedSvcName); got != tc.want || err != nil {
@@ -349,9 +349,9 @@ func TestUnimportEndpointSlice_WithFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceImport).
 				Build()
 			reconciler := Reconciler{
-				memberClient:         fakeMemberClient,
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				MemberClient:         fakeMemberClient,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.unimportEndpointSlice(ctx, tc.endpointSliceImport); err != nil {
@@ -408,9 +408,9 @@ func TestUnimportEndpointSlice_WithoutFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceImport).
 				Build()
 			reconciler := Reconciler{
-				memberClient:         fakeMemberClient,
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				MemberClient:         fakeMemberClient,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.unimportEndpointSlice(ctx, tc.endpointSliceImport); err != nil {
@@ -465,9 +465,9 @@ func TestAddEndpointSliceImportCleanupFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceImport).
 				Build()
 			reconciler := Reconciler{
-				memberClient:         fakeMemberClient,
-				hubClient:            fakeHubClient,
-				fleetSystemNamespace: fleetSystemNS,
+				MemberClient:         fakeMemberClient,
+				HubClient:            fakeHubClient,
+				FleetSystemNamespace: fleetSystemNS,
 			}
 
 			if err := reconciler.addEndpointSliceImportCleanupFinalizer(ctx, tc.endpointSliceImport); err != nil {

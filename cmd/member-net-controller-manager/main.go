@@ -32,6 +32,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
+	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/serviceexport"
@@ -58,6 +59,7 @@ var (
 	probeAddr            = flag.String("member-health-probe-bind-address", ":8082", "The address of member controller manager the probe endpoint binds to.")
 	metricsAddr          = flag.String("member-metrics-bind-address", ":8090", "The address of member controller manager the metric endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
@@ -296,6 +298,16 @@ func setupControllersWithManager(hubMgr, memberMgr manager.Manager) error {
 		HubClient:    hubClient,
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointsliceexport reconciler")
+		return err
+	}
+
+	klog.InfoS("Create endpointsliceimport reconciler")
+	if err := (&endpointsliceimport.Reconciler{
+		MemberClient:         memberClient,
+		HubClient:            hubClient,
+		FleetSystemNamespace: *fleetSystemNamespace,
+	}).SetupWithManager(memberMgr, hubMgr); err != nil {
+		klog.ErrorS(err, "Unable to create endpointsliceimport reconciler")
 		return err
 	}
 

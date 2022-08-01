@@ -38,10 +38,10 @@ const (
 
 // Reconciler reconciles an EndpointSliceImport.
 type Reconciler struct {
-	memberClient client.Client
-	hubClient    client.Client
+	MemberClient client.Client
+	HubClient    client.Client
 	// The namespace reserved for fleet resources in the member cluster.
-	fleetSystemNamespace string
+	FleetSystemNamespace string
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch
@@ -61,7 +61,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the EndpointSliceImport.
 	endpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
-	if err := r.hubClient.Get(ctx, req.NamespacedName, endpointSliceImport); err != nil {
+	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceImport); err != nil {
 		klog.ErrorS(err, "Failed to get endpoint slice import", "endpointSliceImport", endpointSliceImportRef)
 		// Skip the reconciliation if the EndpointSliceImport does not exist; this should only happen when an
 		// EndpointSliceImport is deleted before the controller gets a chance to reconcile it, which
@@ -72,7 +72,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Check if the EndpointSliceImport has been deleted and needs cleanup (unimport EndpointSlice).
 	// An EndpointSliceImport needs cleanup when it has the EndpointSliceImport cleanup finalizer added;
 	// the absence of this finalizer guarantees that the EndpointSliceImport has never been imported.
-	endpointSliceRef := klog.KRef(r.fleetSystemNamespace, req.Name)
+	endpointSliceRef := klog.KRef(r.FleetSystemNamespace, req.Name)
 	if endpointSliceImport.DeletionTimestamp != nil {
 		klog.V(2).InfoS("EndpointSliceImport is deleted; unimport EndpointSlice",
 			"endpointSliceImport", endpointSliceImportRef,
@@ -94,7 +94,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	multiClusterSvcList := &fleetnetv1alpha1.MultiClusterServiceList{}
 	ownerSvcNS := endpointSliceImport.Spec.OwnerServiceReference.Namespace
 	ownerSvcName := endpointSliceImport.Spec.OwnerServiceReference.Name
-	err := r.memberClient.List(ctx,
+	err := r.MemberClient.List(ctx,
 		multiClusterSvcList,
 		client.InNamespace(ownerSvcNS),
 		client.MatchingFields{mcsServiceImportRefFieldKey: ownerSvcName})
@@ -172,11 +172,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.V(2).InfoS("Import the EndpointSlice", "endpointSlice", endpointSliceRef)
 	endpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.fleetSystemNamespace,
+			Namespace: r.FleetSystemNamespace,
 			Name:      endpointSliceImport.Name,
 		},
 	}
-	if op, err := controllerutil.CreateOrUpdate(ctx, r.memberClient, endpointSlice, func() error {
+	if op, err := controllerutil.CreateOrUpdate(ctx, r.MemberClient, endpointSlice, func() error {
 		formatEndpointSliceFromImport(endpointSlice, derivedSvcName, endpointSliceImport)
 		return nil
 	}); err != nil {
@@ -224,11 +224,11 @@ func (r *Reconciler) unimportEndpointSlice(ctx context.Context, endpointSliceImp
 	// Unimport the EndpointSlice.
 	endpointSlice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.fleetSystemNamespace,
+			Namespace: r.FleetSystemNamespace,
 			Name:      endpointSliceImport.Name,
 		},
 	}
-	if err := r.memberClient.Delete(ctx, endpointSlice); err != nil && !errors.IsNotFound(err) {
+	if err := r.MemberClient.Delete(ctx, endpointSlice); err != nil && !errors.IsNotFound(err) {
 		// It is guaranteed that a finalizer is always added before an EndpointSlice is imported; in some rare
 		// occasions it could happen that an EndpointSliceImport has a finalizer added yet the corresponding
 		// EndpointSlice has not been imported in the member cluster. It is an expected behavior and no action
@@ -238,14 +238,14 @@ func (r *Reconciler) unimportEndpointSlice(ctx context.Context, endpointSliceImp
 
 	// Remove the EndpointSliceImport cleanup finalizer.
 	controllerutil.RemoveFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer)
-	return r.hubClient.Update(ctx, endpointSliceImport)
+	return r.HubClient.Update(ctx, endpointSliceImport)
 }
 
 // addEndpointSliceImportCleanupFinalizer adds the cleanup finalizer to an EndpointSliceImport.
 func (r *Reconciler) addEndpointSliceImportCleanupFinalizer(ctx context.Context, endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport) error {
 	if !controllerutil.ContainsFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer) {
 		controllerutil.AddFinalizer(endpointSliceImport, endpointSliceImportCleanupFinalizer)
-		return r.hubClient.Update(ctx, endpointSliceImport)
+		return r.HubClient.Update(ctx, endpointSliceImport)
 	}
 	return nil
 }
@@ -261,8 +261,8 @@ func (r *Reconciler) isDerivedServiceValid(ctx context.Context, derivedSvcName s
 	// The derived Service label is added before the actual Service is created; in some (highly unlikely) scenarios it
 	// could happen that the controller sees a derived Service label yet cannot find the corresponding Service.
 	derivedSvc := &corev1.Service{}
-	derivedSvcKey := types.NamespacedName{Namespace: r.fleetSystemNamespace, Name: derivedSvcName}
-	if err := r.memberClient.Get(ctx, derivedSvcKey, derivedSvc); err != nil {
+	derivedSvcKey := types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: derivedSvcName}
+	if err := r.MemberClient.Get(ctx, derivedSvcKey, derivedSvc); err != nil {
 		return false, client.IgnoreNotFound(err)
 	}
 	return derivedSvc.DeletionTimestamp == nil, nil
