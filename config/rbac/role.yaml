@@ -27,18 +27,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - discovery
   resources:
   - endpointslices
@@ -75,6 +63,8 @@ rules:
   resources:
   - endpointsliceimports
   verbs:
+  - create
+  - delete
   - get
   - list
   - patch

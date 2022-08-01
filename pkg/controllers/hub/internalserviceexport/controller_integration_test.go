@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,7 +22,7 @@ import (
 var _ = Describe("Test InternalServiceExport Controller", func() {
 	const (
 		timeout  = time.Second * 10
-		duration = time.Second * 10
+		duration = time.Second * 2
 		interval = time.Millisecond * 250
 	)
 
@@ -30,14 +31,14 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 		importServicePorts = []fleetnetv1alpha1.ServicePort{
 			{
 				Name:        "portA",
-				Protocol:    "TCP",
+				Protocol:    corev1.ProtocolTCP,
 				Port:        8080,
 				AppProtocol: &appProtocol,
 				TargetPort:  intstr.IntOrString{IntVal: 8080},
 			},
 			{
 				Name:       "portB",
-				Protocol:   "TCP",
+				Protocol:   corev1.ProtocolTCP,
 				Port:       9090,
 				TargetPort: intstr.IntOrString{IntVal: 9090},
 			},
@@ -348,7 +349,7 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 				Ports: []fleetnetv1alpha1.ServicePort{
 					{
 						Name:        "portA",
-						Protocol:    "TCP",
+						Protocol:    corev1.ProtocolTCP,
 						Port:        8080,
 						AppProtocol: &appProtocol,
 						TargetPort:  intstr.IntOrString{IntVal: 8080},

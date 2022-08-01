@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -146,14 +147,14 @@ func TestHandleDelete(t *testing.T) {
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
 			Name:        "portA",
-			Protocol:    "TCP",
+			Protocol:    corev1.ProtocolTCP,
 			Port:        8080,
 			AppProtocol: &appProtocol,
 			TargetPort:  intstr.IntOrString{IntVal: 8080},
 		},
 		{
 			Name:       "portB",
-			Protocol:   "TCP",
+			Protocol:   corev1.ProtocolTCP,
 			Port:       9090,
 			TargetPort: intstr.IntOrString{IntVal: 9090},
 		},
@@ -239,7 +240,7 @@ func TestHandleDelete(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        7777,
 							AppProtocol: &appProtocol,
 						},
@@ -262,7 +263,7 @@ func TestHandleDelete(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        7777,
 							AppProtocol: &appProtocol,
 						},
@@ -381,14 +382,14 @@ func TestHandleUpdate(t *testing.T) {
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
 			Name:        "portA",
-			Protocol:    "TCP",
+			Protocol:    corev1.ProtocolTCP,
 			Port:        8080,
 			AppProtocol: &appProtocol,
 			TargetPort:  intstr.IntOrString{IntVal: 8080},
 		},
 		{
 			Name:       "portB",
-			Protocol:   "TCP",
+			Protocol:   corev1.ProtocolTCP,
 			Port:       9090,
 			TargetPort: intstr.IntOrString{IntVal: 9090},
 		},
@@ -412,14 +413,14 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
 						},
 						{
 							Name:       "portB",
-							Protocol:   "TCP",
+							Protocol:   corev1.ProtocolTCP,
 							Port:       9090,
 							TargetPort: intstr.IntOrString{IntVal: 9090},
 						},
@@ -446,14 +447,14 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
 						},
 						{
 							Name:       "portB",
-							Protocol:   "TCP",
+							Protocol:   corev1.ProtocolTCP,
 							Port:       9090,
 							TargetPort: intstr.IntOrString{IntVal: 9090},
 						},
@@ -568,7 +569,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -611,7 +612,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -661,7 +662,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -712,7 +713,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -847,7 +848,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -895,7 +896,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
