@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -89,6 +88,7 @@ func main() {
 	flag.VisitAll(func(f *flag.Flag) {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
+
 	hubConfig, hubOptions, err := prepareHubParameters()
 	if err != nil {
 		exitWithErrorFunc()
@@ -96,7 +96,85 @@ func main() {
 
 	memberConfig, memberOptions := prepareMemberParameters()
 
-	if err := startControllerManagers(hubConfig, memberConfig, hubOptions, memberOptions); err != nil {
+	// Setup hub controller manager.
+	hubMgr, err := ctrl.NewManager(hubConfig, *hubOptions)
+	if err != nil {
+		klog.ErrorS(err, "Unable to start hub manager")
+		exitWithErrorFunc()
+	}
+	if err := hubMgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Unable to set up health check for hub manager")
+		exitWithErrorFunc()
+	}
+	if err := hubMgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Unable to set up ready check for hub manager")
+		exitWithErrorFunc()
+	}
+
+	// Setup member controller manager.
+	memberMgr, err := ctrl.NewManager(memberConfig, *memberOptions)
+	if err != nil {
+		klog.ErrorS(err, "Unable to start member manager")
+		exitWithErrorFunc()
+	}
+	if err := memberMgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Unable to set up health check for member manager")
+		exitWithErrorFunc()
+	}
+	if err := memberMgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Unable to set up ready check for member manager")
+		exitWithErrorFunc()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	klog.V(1).InfoS("Setup controllers with controller manager")
+	if err := setupControllersWithManager(ctx, hubMgr, memberMgr); err != nil {
+		klog.ErrorS(err, "Unable to setup controllers with manager")
+		exitWithErrorFunc()
+	}
+
+	// All managers should stop if either of them is dead or Linux SIGTERM or SIGINT signal is received
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ch
+		klog.Info("Received termination, signaling shutdown ServiceExportImport controller manager")
+		cancel()
+	}()
+
+	var startErrors []error
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		klog.V(1).InfoS("Starting hub manager for ServiceExportImport controller manager")
+		defer func() {
+			wg.Done()
+			klog.V(1).InfoS("Shutting down hub manager")
+			cancel()
+		}()
+		if err := hubMgr.Start(ctx); err != nil {
+			klog.ErrorS(err, "Failed to start hub manager")
+			startErrors = append(startErrors, err)
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		klog.V(1).InfoS("Starting member manager for ServiceExportImport controller manager")
+		defer func() {
+			klog.V(1).InfoS("Shutting down member manager")
+			wg.Done()
+			cancel()
+		}()
+		if err = memberMgr.Start(ctx); err != nil {
+			klog.ErrorS(err, "Failed to start member manager")
+			startErrors = append(startErrors, err)
+		}
+	}()
+
+	wg.Wait()
+
+	if len(startErrors) > 0 {
 		exitWithErrorFunc()
 	}
 }
@@ -154,7 +232,7 @@ func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 		}
 	}
 
-	mcHubNamespace, err := getMemberClusterHubNamespaceName()
+	mcHubNamespace, err := fetchMemberClusterHubNamespaceName()
 	if err != nil {
 		klog.ErrorS(err, "Failed to get member cluster hub namespace")
 		return nil, nil, err
@@ -185,98 +263,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 	return ctrl.GetConfigOrDie(), memberOpts
 }
 
-func startControllerManagers(hubConfig, memberConfig *rest.Config, hubOptions, memberOptions *ctrl.Options) error {
-	if hubConfig == nil || memberConfig == nil || hubOptions == nil || memberOptions == nil {
-		return errors.New("config or options cannot be nil")
-	}
-
-	// Setup hub controller manager.
-	hubMgr, err := ctrl.NewManager(hubConfig, *hubOptions)
-	if err != nil {
-		klog.ErrorS(err, "Unable to start hub manager")
-		return err
-	}
-	if err := hubMgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "Unable to set up health check for hub manager")
-		return err
-	}
-	if err := hubMgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "Unable to set up ready check for hub manager")
-		return err
-	}
-
-	// Setup member controller manager.
-	memberMgr, err := ctrl.NewManager(memberConfig, *memberOptions)
-	if err != nil {
-		klog.ErrorS(err, "Unable to start member manager")
-		return err
-	}
-	if err := memberMgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "Unable to set up health check for member manager")
-		return err
-	}
-	if err := memberMgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		klog.ErrorS(err, "Unable to set up ready check for member manager")
-		return err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	klog.V(1).InfoS("Setup controllers with controller manager")
-	if err := setupControllersWithManager(ctx, hubMgr, memberMgr); err != nil {
-		klog.ErrorS(err, "Unable to setup controllers with manager")
-		return err
-	}
-
-	// All managers should stop if either of them is dead or Linux SIGTERM or SIGINT signal is received
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ch
-		klog.Info("Received termination, signaling shutdown")
-		cancel()
-	}()
-
-	var startErrors []error
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		klog.V(1).InfoS("Starting hub manager")
-		defer func() {
-			wg.Done()
-			klog.V(1).InfoS("Shutting down hub manager")
-			cancel()
-		}()
-		if err := hubMgr.Start(ctx); err != nil {
-			klog.ErrorS(err, "Failed to start hub manager")
-			hubMgrStartErr := fmt.Errorf("hub manager start failure: %s", err.Error())
-			startErrors = append(startErrors, hubMgrStartErr)
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		klog.V(1).InfoS("Starting member manager")
-		defer func() {
-			klog.V(1).InfoS("Shutting down member manager")
-			wg.Done()
-			cancel()
-		}()
-		if err = memberMgr.Start(ctx); err != nil {
-			klog.ErrorS(err, "Failed to start member manager")
-			memberMgrStartErr := fmt.Errorf("member manager start failure: %s", err.Error())
-			startErrors = append(startErrors, memberMgrStartErr)
-		}
-	}()
-
-	wg.Wait()
-
-	if len(startErrors) > 0 {
-		return fmt.Errorf("%s", startErrors)
-	}
-	return nil
-}
-
-func getMemberClusterHubNamespaceName() (string, error) {
+func fetchMemberClusterHubNamespaceName() (string, error) {
 	mcName, err := envOrError(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
@@ -294,7 +281,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		return err
 	}
 
-	mcHubNamespace, err := getMemberClusterHubNamespaceName()
+	mcHubNamespace, err := fetchMemberClusterHubNamespaceName()
 	if err != nil {
 		klog.ErrorS(err, "Failed to get member cluster hub namespace")
 		return err
