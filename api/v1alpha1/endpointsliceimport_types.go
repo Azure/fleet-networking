@@ -30,7 +30,7 @@ type EndpointSliceImportList struct {
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// +listType=set
-	Items []EndpointSliceExport `json:"items"`
+	Items []EndpointSliceImport `json:"items"`
 }
 
 func init() {
