@@ -1,6 +1,6 @@
 # Azure Fleet MultiClusterService Controller Manager Helm Chart
 
-## Install CRD
+## Install CRD in member cluster
 
 ```bash
 # Go to root folder of fleet-networking repo
@@ -8,7 +8,7 @@ cd <REPO_DIRECTORY>/fleet-networking
 kubectl apply -f config/crd/*
 ```
 
-## Install Chart
+## Install Chart in member cluster
 
 ```bash
 # Helm install under root directory of fleet-networking repo
@@ -17,7 +17,7 @@ helm install mcs-controller-manager ./charts/mcs-controller-manager/
 
 _See [helm install](https://helm.sh/docs/helm/helm_install/) for command documentation._
 
-## Upgrade Chart
+## Upgrade Chart in member cluster
 
 ```bash
 # Helm upgrade under root directory of fleet-networking repo

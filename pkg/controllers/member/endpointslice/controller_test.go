@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -131,6 +133,66 @@ func TestIsEndpointSlicePermanentlyUnexportable(t *testing.T) {
 	}
 }
 
+// TestExtractEndpointsFromEndpointSlice tests the extractEndpointsFromEndpointSlice function.
+func TestExtractEndpointsFromEndpointSlice(t *testing.T) {
+	isReady := true
+	isNotReady := false
+	readyAddress := "1.2.3.4"
+	unknownStateAddress := "2.3.4.5"
+	notReadyAddress := "3.4.5.6"
+
+	testCases := []struct {
+		name              string
+		endpointSlice     *discoveryv1.EndpointSlice
+		expectedEndpoints []fleetnetv1alpha1.Endpoint
+	}{
+		{
+			name: "should extract ready endpoints only",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+				},
+				Endpoints: []discoveryv1.Endpoint{
+					{
+						Addresses: []string{readyAddress},
+						Conditions: discoveryv1.EndpointConditions{
+							Ready: &isReady,
+						},
+					},
+					{
+						Addresses:  []string{unknownStateAddress},
+						Conditions: discoveryv1.EndpointConditions{},
+					},
+					{
+						Addresses: []string{notReadyAddress},
+						Conditions: discoveryv1.EndpointConditions{
+							Ready: &isNotReady,
+						},
+					},
+				},
+			},
+			expectedEndpoints: []fleetnetv1alpha1.Endpoint{
+				{
+					Addresses: []string{readyAddress},
+				},
+				{
+					Addresses: []string{unknownStateAddress},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			extractedEndpoints := extractEndpointsFromEndpointSlice(tc.endpointSlice)
+			if !cmp.Equal(extractedEndpoints, tc.expectedEndpoints) {
+				t.Fatalf("extractEndpointsFromEndpointSlice(%+v) = %+v, want %+v", tc.endpointSlice, extractedEndpoints, tc.expectedEndpoints)
+			}
+		})
+	}
+}
+
 // TestUnexportLinkedEndpointSlice tests the *Reconciler.unexportEndpointSlice and the
 // *Reconciler.deleteEndpointSliceIfLinked method.
 func TestUnexportLinkedEndpointSlice(t *testing.T) {
@@ -197,9 +259,9 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.unexportEndpointSlice(ctx, tc.endpointSlice); err != nil {
@@ -211,7 +273,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 				Namespace: tc.endpointSlice.Namespace,
 				Name:      tc.endpointSlice.Name,
 			}
-			if err := reconciler.memberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
+			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
 				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
 			}
 			if _, ok := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
@@ -225,7 +287,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 				Namespace: tc.endpointSliceExport.Namespace,
 				Name:      tc.endpointSliceExport.Name,
 			}
-			if err := reconciler.hubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); !errors.IsNotFound(err) {
+			if err := reconciler.HubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); !errors.IsNotFound(err) {
 				t.Fatalf("endpointSliceExport Get(%+v), got %v, want not found error", tc.endpointSliceExport, err)
 			}
 		})
@@ -285,9 +347,9 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 				WithScheme(scheme.Scheme).
 				Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			if err := reconciler.unexportEndpointSlice(ctx, tc.endpointSlice); err != nil {
@@ -299,7 +361,7 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 				Namespace: tc.endpointSlice.Namespace,
 				Name:      tc.endpointSlice.Name,
 			}
-			if err := reconciler.memberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
+			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
 				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
 			}
 			if _, ok := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
@@ -310,8 +372,62 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 				Namespace: tc.endpointSliceExport.Namespace,
 				Name:      tc.endpointSliceExport.Name,
 			}
-			if err := reconciler.hubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); err != nil {
+			if err := reconciler.HubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); err != nil {
 				t.Fatalf("endpointSliceExport Get(%+v), got %v, want no error", tc.endpointSliceExport, err)
+			}
+		})
+	}
+}
+
+// TestAssignUniqueNameAsLabel tests the *Reconciler.assignUniqueNameAsLabel method.
+func TestAssignUniqueNameAsLabel(t *testing.T) {
+	testCases := []struct {
+		name           string
+		endpointSlice  *discoveryv1.EndpointSlice
+		expectedPrefix string
+	}{
+		{
+			name: "should assign unique name label",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      endpointSliceName,
+				},
+			},
+			expectedPrefix: fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName),
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.endpointSlice).
+				Build()
+			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
+			reconciler := &Reconciler{
+				MemberClusterID: memberClusterID,
+				MemberClient:    fakeMemberClient,
+				HubClient:       fakeHubClient,
+				HubNamespace:    hubNSForMember,
+			}
+
+			uniqueName, err := reconciler.assignUniqueNameAsLabel(ctx, tc.endpointSlice)
+			if err != nil {
+				t.Fatalf("assignUniqueNameAsLabel(%+v), got %v, want no error", tc.endpointSlice, err)
+			}
+			if !strings.HasPrefix(uniqueName, tc.expectedPrefix) {
+				t.Fatalf("assignUniqueNameAsLabel(%+v) = %s, want prefix %s", tc.endpointSlice, uniqueName, tc.expectedPrefix)
+			}
+
+			var updatedEndpointSlice = discoveryv1.EndpointSlice{}
+			updatedEndpointSliceKey := types.NamespacedName{Namespace: memberUserNS, Name: endpointSliceName}
+			if err := fakeMemberClient.Get(ctx, updatedEndpointSliceKey, &updatedEndpointSlice); err != nil {
+				t.Fatalf("endpointSlice Get(), got %v, want no error", err)
+			}
+			if setUniqueName := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; !strings.HasPrefix(setUniqueName, tc.expectedPrefix) {
+				t.Fatalf("unique name label, got %s, want %s", setUniqueName, tc.expectedPrefix)
 			}
 		})
 	}
@@ -400,9 +516,9 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			op, err := reconciler.shouldSkipOrUnexportEndpointSlice(ctx, tc.endpointSlice)
@@ -597,9 +713,9 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			op, err := reconciler.shouldSkipOrUnexportEndpointSlice(ctx, tc.endpointSlice)
@@ -706,9 +822,9 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{
-				memberClient: fakeMemberClient,
-				hubClient:    fakeHubClient,
-				hubNamespace: hubNSForMember,
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
 			}
 
 			op, err := reconciler.shouldSkipOrUnexportEndpointSlice(ctx, tc.endpointSlice)

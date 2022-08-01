@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -27,6 +29,9 @@ const (
 	testMemberNamespace       = "member-1-ns"
 	testClusterID             = "member-1"
 	fleetNetworkingAPIVersion = "networking.fleet.azure.com/v1alpha1"
+
+	conditionReasonNoConflictFound = "NoConflictFound"
+	conditionReasonConflictFound   = "ConflictFound"
 )
 
 var (
@@ -40,8 +45,8 @@ var (
 		APIVersion: fleetNetworkingAPIVersion,
 	}
 
-	serviceImportSpecProcessTime = 200 * time.Millisecond
-	appProtocol                  = "app-protocol"
+	internalserviceexportRetryInterval = 200 * time.Millisecond
+	appProtocol                        = "app-protocol"
 )
 
 func internalServiceExportScheme(t *testing.T) *runtime.Scheme {
@@ -89,9 +94,8 @@ func internalServiceExportForTest() *fleetnetv1alpha1.InternalServiceExport {
 
 func internalServiceExportReconciler(client client.Client) *Reconciler {
 	return &Reconciler{
-		Client:                       client,
-		Scheme:                       client.Scheme(),
-		ServiceImportSpecProcessTime: serviceImportSpecProcessTime,
+		Client:                             client,
+		InternalserviceexportRetryInterval: internalserviceexportRetryInterval,
 	}
 }
 
@@ -128,6 +132,7 @@ func TestReconciler_NotFound(t *testing.T) {
 		Namespace: testMemberNamespace,
 		Name:      testName,
 	}
+
 	got, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: name})
 	if err != nil {
 		t.Fatalf("failed to reconcile: %v", err)
@@ -142,14 +147,14 @@ func TestHandleDelete(t *testing.T) {
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
 			Name:        "portA",
-			Protocol:    "TCP",
+			Protocol:    corev1.ProtocolTCP,
 			Port:        8080,
 			AppProtocol: &appProtocol,
 			TargetPort:  intstr.IntOrString{IntVal: 8080},
 		},
 		{
 			Name:       "portB",
-			Protocol:   "TCP",
+			Protocol:   corev1.ProtocolTCP,
 			Port:       9090,
 			TargetPort: intstr.IntOrString{IntVal: 9090},
 		},
@@ -176,6 +181,7 @@ func TestHandleDelete(t *testing.T) {
 							Cluster: testClusterID,
 						},
 					},
+					Type: fleetnetv1alpha1.ClusterSetIP,
 				},
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
@@ -234,7 +240,7 @@ func TestHandleDelete(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        7777,
 							AppProtocol: &appProtocol,
 						},
@@ -257,7 +263,7 @@ func TestHandleDelete(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        7777,
 							AppProtocol: &appProtocol,
 						},
@@ -278,7 +284,7 @@ func TestHandleDelete(t *testing.T) {
 			ctx := context.Background()
 
 			internalSvcExportObj := internalServiceExportForTest()
-			internalSvcExportObj.Finalizers = []string{internalServiceExportFinalizer}
+			internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
 			now := metav1.Now()
 			internalSvcExportObj.DeletionTimestamp = &now
 			objects := []client.Object{internalSvcExportObj}
@@ -324,18 +330,66 @@ func TestHandleDelete(t *testing.T) {
 	}
 }
 
+func TestHandleDelete_EmptyServiceImportSpec(t *testing.T) {
+	serviceImport := &fleetnetv1alpha1.ServiceImport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testServiceName,
+			Namespace: testNamespace,
+		},
+		Status: fleetnetv1alpha1.ServiceImportStatus{},
+	}
+
+	ctx := context.Background()
+
+	internalSvcExportObj := internalServiceExportForTest()
+	internalSvcExportObj.Finalizers = []string{objectmeta.InternalServiceExportFinalizer}
+	now := metav1.Now()
+	internalSvcExportObj.DeletionTimestamp = &now
+	objects := []client.Object{internalSvcExportObj, serviceImport}
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(internalServiceExportScheme(t)).
+		WithObjects(objects...).
+		Build()
+
+	r := internalServiceExportReconciler(fakeClient)
+	got, err := r.handleDelete(ctx, internalSvcExportObj)
+	if err != nil {
+		t.Fatalf("failed to handle delete: %v", err)
+	}
+	want := ctrl.Result{RequeueAfter: internalserviceexportRetryInterval}
+	if !cmp.Equal(got, want) {
+		t.Errorf("handleDelete() = %+v, want %+v", got, want)
+	}
+	options := []cmp.Option{
+		cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
+		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime"),
+	}
+	internalSvcExport := fleetnetv1alpha1.InternalServiceExport{}
+	if err := fakeClient.Get(ctx, types.NamespacedName{Namespace: testMemberNamespace, Name: testName}, &internalSvcExport); err != nil {
+		t.Errorf("InternalServiceExport Get() got error %v, want no error", err)
+	}
+	gotServiceImport := fleetnetv1alpha1.ServiceImport{}
+	if err = fakeClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: testServiceName}, &gotServiceImport); err != nil {
+		t.Errorf("ServiceImport Get() got error %v, want no error", err)
+	}
+	wantStatus := fleetnetv1alpha1.ServiceImportStatus{}
+	if diff := cmp.Diff(wantStatus, gotServiceImport.Status, options...); diff != "" {
+		t.Errorf("ServiceImportStatus mismatch (-want, +got):\n%s", diff)
+	}
+}
+
 func TestHandleUpdate(t *testing.T) {
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
 			Name:        "portA",
-			Protocol:    "TCP",
+			Protocol:    corev1.ProtocolTCP,
 			Port:        8080,
 			AppProtocol: &appProtocol,
 			TargetPort:  intstr.IntOrString{IntVal: 8080},
 		},
 		{
 			Name:       "portB",
-			Protocol:   "TCP",
+			Protocol:   corev1.ProtocolTCP,
 			Port:       9090,
 			TargetPort: intstr.IntOrString{IntVal: 9090},
 		},
@@ -359,14 +413,14 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
 						},
 						{
 							Name:       "portB",
-							Protocol:   "TCP",
+							Protocol:   corev1.ProtocolTCP,
 							Port:       9090,
 							TargetPort: intstr.IntOrString{IntVal: 9090},
 						},
@@ -382,7 +436,7 @@ func TestHandleUpdate(t *testing.T) {
 					},
 				},
 			},
-			want: ctrl.Result{RequeueAfter: serviceImportSpecProcessTime},
+			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testName,
@@ -393,14 +447,14 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
 						},
 						{
 							Name:       "portB",
-							Protocol:   "TCP",
+							Protocol:   corev1.ProtocolTCP,
 							Port:       9090,
 							TargetPort: intstr.IntOrString{IntVal: 9090},
 						},
@@ -515,7 +569,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -558,7 +612,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -608,7 +662,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -659,7 +713,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -794,7 +848,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},
@@ -831,7 +885,7 @@ func TestHandleUpdate(t *testing.T) {
 					Type: fleetnetv1alpha1.ClusterSetIP,
 				},
 			},
-			want: ctrl.Result{RequeueAfter: serviceImportSpecProcessTime},
+			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testName,
@@ -842,7 +896,7 @@ func TestHandleUpdate(t *testing.T) {
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
 							Name:        "portA",
-							Protocol:    "TCP",
+							Protocol:    corev1.ProtocolTCP,
 							Port:        8080,
 							AppProtocol: &appProtocol,
 							TargetPort:  intstr.IntOrString{IntVal: 8080},

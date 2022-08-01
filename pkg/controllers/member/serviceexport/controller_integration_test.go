@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	memberClusterID  = "bravelion"
+	MemberClusterID  = "bravelion"
 	svcPortName      = "port1"
 	svcPort          = 80
 	targetPort       = 8080
@@ -112,16 +112,16 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid + should not export service", func() {
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -136,7 +136,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Consistently(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -151,17 +151,17 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -169,7 +169,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -178,10 +178,10 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -202,7 +202,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -215,7 +215,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -231,17 +231,17 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -249,7 +249,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -258,10 +258,10 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -282,7 +282,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -295,7 +295,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -314,20 +314,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -335,7 +335,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -345,7 +345,7 @@ var _ = Describe("serviceexport controller", func() {
 		It("should update the exported service", func() {
 			By("confirm that the service has been exported")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -366,7 +366,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -379,7 +379,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -388,7 +388,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			By("update the service")
-			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
+			Expect(MemberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
 			svc.Spec.Ports = []corev1.ServicePort{
 				{
 					Name:       svcPortName,
@@ -401,12 +401,12 @@ var _ = Describe("serviceexport controller", func() {
 					TargetPort: intstr.FromInt(altTargetPort),
 				},
 			}
-			Expect(memberClient.Update(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Update(ctx, svc)).Should(Succeed())
 
 			By("confirm that the exported service has been updated")
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -426,7 +426,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -442,20 +442,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 		})
 
 		It("should unexport the service when service export is deleted", func() {
 			By("confirm that the service has been exported")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -476,7 +476,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -489,7 +489,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -498,12 +498,12 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			By("delete the service export")
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
 
 			By("confirm that the service has been unexported")
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -518,20 +518,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
 		})
 
 		It("should unexport the service when service is deleted", func() {
 			By("confirm that the service has been exported")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -552,7 +552,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -565,7 +565,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -574,12 +574,12 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			By("delete the service")
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 
 			By("confirm that the service has been unexported")
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -587,14 +587,14 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err == nil || !errors.IsNotFound(err) {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svc); err == nil || !errors.IsNotFound(err) {
 					return false
 				}
 				return true
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -615,20 +615,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = headlessService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should not export headless service", func() {
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -643,7 +643,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Consistently(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -658,20 +658,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = externalNameService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should not export external name service", func() {
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -686,7 +686,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Consistently(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -701,21 +701,21 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = clusterIPService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should unexport the service", func() {
 			By("confirm that the service has been exported")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -736,7 +736,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -749,7 +749,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),
@@ -758,16 +758,16 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			By("update the service; set it to an external name service")
-			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
+			Expect(MemberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
 			svc.Spec.Type = corev1.ServiceTypeExternalName
 			svc.Spec.Ports = []corev1.ServicePort{}
 			svc.Spec.ExternalName = externalNameAddr
-			Expect(memberClient.Update(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Update(ctx, svc)).Should(Succeed())
 
 			By("confirm that the service has been unexported")
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -775,7 +775,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -796,20 +796,20 @@ var _ = Describe("serviceexport controller", func() {
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
-			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			svc = externalNameService()
-			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Create(ctx, svc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(MemberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
 			Eventually(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -817,7 +817,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err == nil || !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -828,7 +828,7 @@ var _ = Describe("serviceexport controller", func() {
 			By("confirm that the service has not been exported")
 			Consistently(func() bool {
 				internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
-				if err := hubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
+				if err := HubClient.List(ctx, internalSvcExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
 					return false
 				}
 
@@ -836,7 +836,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -850,7 +850,7 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			By("update the service; set it as a cluster IP service")
-			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
+			Expect(MemberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
 			svc.Spec.Type = corev1.ServiceTypeClusterIP
 			svc.Spec.ExternalName = ""
 			svc.Spec.Ports = []corev1.ServicePort{
@@ -859,11 +859,11 @@ var _ = Describe("serviceexport controller", func() {
 					TargetPort: intstr.FromInt(targetPort),
 				},
 			}
-			Expect(memberClient.Update(ctx, svc)).Should(Succeed())
+			Expect(MemberClient.Update(ctx, svc)).Should(Succeed())
 
 			By("confirm that the service has been exported")
 			Eventually(func() bool {
-				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				if err := MemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return false
 				}
 
@@ -884,7 +884,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			Eventually(func() bool {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				if err := HubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 					return false
 				}
 
@@ -897,7 +897,7 @@ var _ = Describe("serviceexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.FromMetaObjects(
-						memberClusterID,
+						MemberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
 					),

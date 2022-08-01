@@ -1,4 +1,9 @@
-// Package multiclusterservice features the mcs controller to multiclusterservice CRD.
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+// Package multiclusterservice features the mcs controller to reconcile multiclusterservice CRD.
 // The controller could be installed in either hub cluster or member clusters.
 package multiclusterservice
 
@@ -23,12 +28,12 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
 	// multiClusterService label
 	multiClusterServiceFinalizer          = "networking.fleet.azure.com/service-resources-cleanup"
-	multiClusterServiceLabelService       = "networking.fleet.azure.com/derived-service"
 	multiClusterServiceLabelServiceImport = "networking.fleet.azure.com/service-import"
 
 	// service label
@@ -140,7 +145,7 @@ func (r *Reconciler) deleteServiceImport(ctx context.Context, serviceImportName 
 
 // mcs-controller will record derived service name as the label to make sure the derived name is unique.
 func (r *Reconciler) derivedServiceFromLabel(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
-	if val, ok := mcs.GetLabels()[multiClusterServiceLabelService]; ok {
+	if val, ok := mcs.GetLabels()[objectmeta.MultiClusterServiceLabelDerivedService]; ok {
 		return &types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: val}
 	}
 	return nil
@@ -198,7 +203,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		serviceName = r.generateDerivedServiceName(mcs)
 	}
 	// update mcs service label first to prevent the controller abort before we create the resource
-	if err := r.updateMultiClusterLabel(ctx, mcs, multiClusterServiceLabelService, serviceName.Name); err != nil {
+	if err := r.updateMultiClusterLabel(ctx, mcs, objectmeta.MultiClusterServiceLabelDerivedService, serviceName.Name); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -244,7 +249,7 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 		return err
 	}
 	// update mcs label
-	delete(mcs.GetLabels(), multiClusterServiceLabelService)
+	delete(mcs.GetLabels(), objectmeta.MultiClusterServiceLabelDerivedService)
 	if err := r.Client.Update(ctx, mcs); err != nil {
 		klog.ErrorS(err, "Failed to update the derived service label of mcs", "multiClusterService", mcsKObj)
 		return err

@@ -1,11 +1,16 @@
 # Source of reference: https://github.com/Azure/fleet/blob/main/Makefile
 REGISTRY ?= ghcr.io/azure
+
+ifndef TAG
+	TAG ?= $(shell git rev-parse --short=7 HEAD)
+endif
+HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
-HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
-MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
-MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= v0.1.0
 
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -27,7 +32,7 @@ GOIMPORTS_VER := latest
 GOIMPORTS_BIN := goimports
 GOIMPORTS := $(abspath $(TOOLS_BIN_DIR)/$(GOIMPORTS_BIN)-$(GOIMPORTS_VER))
 
-GOLANGCI_LINT_VER := v1.41.1
+GOLANGCI_LINT_VER := v1.46.2
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 

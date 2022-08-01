@@ -1,6 +1,6 @@
 module go.goms.io/fleet-networking
 
-go 1.17
+go 1.18
 
 require (
 	github.com/google/go-cmp v0.5.5
@@ -9,7 +9,7 @@ require (
 	k8s.io/api v0.24.2
 	k8s.io/apimachinery v0.24.2
 	k8s.io/client-go v0.24.2
-	k8s.io/klog/v2 v2.70.0
+	k8s.io/klog/v2 v2.70.1
 	sigs.k8s.io/controller-runtime v0.12.1
 )
 
