@@ -121,13 +121,15 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 				return cmp.Diff(want, serviceImport.Status, options...)
 			}, duration, interval).Should(BeEmpty())
 
-			By("Checking internalServiceExport")
+			By("Checking internalServiceExport and Controller will requeue the request")
 			Eventually(func() bool {
 				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
 				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
 					return false
 				}
-				return controllerutil.ContainsFinalizer(internalServiceExportA, objectmeta.InternalServiceExportFinalizer)
+				want := fleetnetv1alpha1.InternalServiceExportStatus{}
+				return controllerutil.ContainsFinalizer(internalServiceExportA, objectmeta.InternalServiceExportFinalizer) &&
+					cmp.Diff(want, internalServiceExportA.Status, options...) == ""
 			}, timeout, interval).Should(BeTrue())
 
 			By("Updating serviceImport status (the resolved spec is the same as internalServiceImport)")
@@ -450,7 +452,7 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 			By("Deleting the internalServiceExport")
 			Expect(k8sClient.Delete(ctx, internalServiceExportA)).Should(Succeed())
 
-			By("Checking internalServiceExportA status")
+			By("Checking internalServiceExportA status and Controller will requeue the request")
 			Consistently(func() string {
 				want := fleetnetv1alpha1.InternalServiceExportStatus{}
 				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
