@@ -18,4 +18,3 @@ jobs:
           # this will show detailed HTTP status for checked links
           use-verbose-mode: 'yes'
           config-file: '.github/workflows/markdown.links.config.json'
-          check-modified-files-only: 'yes'
