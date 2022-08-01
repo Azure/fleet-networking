@@ -45,8 +45,21 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
+// beforeProgramExit is collection of deferred functions of the main function.
+// `os.Exit` does not honor `defer`, so we wrap the deferred function(s) in `beforeProgramExit`,
+// and pass beforeProgramExitWithError to `os.Exit`.
+// Panic can also be used instead to honour `defer`, but `os.Exit` is to follow the pattern of
+// the package controller-runtime.
+func beforeProgramExit() {
+	klog.Flush()
+}
+func beforeProgramExitWithError() int {
+	beforeProgramExit()
+	return 1
+}
+
 func main() {
-	defer klog.Flush()
+	defer beforeProgramExit()
 
 	flag.Parse()
 	flag.VisitAll(func(f *flag.Flag) {
@@ -63,18 +76,18 @@ func main() {
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to start manager")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "Unable to set up health check")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		klog.ErrorS(err, "Unable to set up ready check")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 
 	klog.V(1).InfoS("Start to setup InternalServicEexport controller")
@@ -83,7 +96,7 @@ func main() {
 		ServiceImportSpecProcessTime: *serviceImportSpecProcessTime,
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create mcs controller")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 
 	klog.V(1).InfoS("Start to setup ServiceImport controller")
@@ -91,12 +104,12 @@ func main() {
 		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create mcs controller")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 
 	klog.V(1).InfoS("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.ErrorS(err, "Problem running manager")
-		os.Exit(1)
+		os.Exit(beforeProgramExitWithError())
 	}
 }
