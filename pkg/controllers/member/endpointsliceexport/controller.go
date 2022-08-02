@@ -31,7 +31,7 @@ type Reconciler struct {
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;delete
-//+kubebuilder:rbac:groups=core,resources=endpointslices,verbs=get;list;watch
+//+kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 
 // Reconcile verifies if an EndpointSliceExport in the hub cluster matches with a exported EndpointSlice from
 // the current member cluster, and will clean up EndpointSliceExports that fail to match.

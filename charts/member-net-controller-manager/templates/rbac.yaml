@@ -29,13 +29,6 @@ rules:
   resources:
   - services
   verbs:
-  - get
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
   - create
   - delete
   - get
@@ -48,13 +41,13 @@ rules:
   resources:
   - endpointslices
   verbs:
-  - list
-  - watch
   - create
   - delete
   - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
   - networking.fleet.azure.com
   resources:
@@ -167,7 +160,6 @@ rules:
   - get
   - patch
   - update
-
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
