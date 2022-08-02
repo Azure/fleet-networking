@@ -57,10 +57,10 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	svcRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("Reconciliation starts", "service", svcRef)
+	klog.V(2).InfoS("Reconciliation starts", "serviceExport", svcRef)
 	defer func() {
 		latency := time.Since(startTime).Milliseconds()
-		klog.V(2).InfoS("Reconciliation ends", "service", svcRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "serviceExport", svcRef, "latency", latency)
 	}()
 
 	// Retrieve the ServiceExport object.

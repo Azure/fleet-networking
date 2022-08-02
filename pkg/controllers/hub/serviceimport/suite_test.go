@@ -118,7 +118,7 @@ var _ = BeforeSuite(func() {
 
 	err = (&Reconciler{
 		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr)
+	}).SetupWithManager(ctx, mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	ctx, cancel = context.WithCancel(context.TODO())
