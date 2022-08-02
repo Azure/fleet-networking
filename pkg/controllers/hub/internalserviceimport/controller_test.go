@@ -29,6 +29,7 @@ const (
 	clusterIDForMemberA   = "0"
 	hubNSForMemberB       = "highflyingcat"
 	clusterIDForMemberB   = "1"
+	hubNSForMemberC       = "singingbutterfly"
 	clusterIDForMemberC   = "2"
 	memberUserNS          = "work"
 	svcName               = "app"
@@ -38,6 +39,8 @@ const (
 var (
 	svcImportKey          = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 	internalSvcImportAKey = types.NamespacedName{Namespace: hubNSForMemberA, Name: internalSvcImportName}
+	internalSvcImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: internalSvcImportName}
+	internalSvcImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: internalSvcImportName}
 
 	httpPortName        = "http"
 	httpPort            = int32(80)

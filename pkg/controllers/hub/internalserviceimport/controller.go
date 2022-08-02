@@ -234,7 +234,7 @@ func (r *Reconciler) withdrawServiceImport(ctx context.Context,
 		case len(svcInUseBy.MemberClusters) > 0:
 			// There are still member clusters importing the Service after the withdrawal; the ServiceInUseBy
 			// annotation will be updated. Note that with current semantics (one import only across the fleet)
-			// this branch will not run.
+			// this branch should not run.
 			if err := r.annotateServiceImportWithServiceInUseByInfo(ctx, svcImport, svcInUseBy); err != nil {
 				klog.ErrorS(err, "Failed to annotate ServiceImport with ServiceInUseBy info",
 					"serviceImport", klog.KObj(svcImport),
@@ -321,7 +321,7 @@ func (r *Reconciler) annotateServiceImportWithServiceInUseByInfo(ctx context.Con
 
 	svcImport.Annotations[objectmeta.ServiceImportAnnotationServiceInUseBy] = string(data)
 	controllerutil.AddFinalizer(svcImport, svcImportCleanupFinalizer)
-	return r.HubClient.Status().Update(ctx, svcImport)
+	return r.HubClient.Update(ctx, svcImport)
 }
 
 // clearServiceInUseByInfoFromServiceImport clears the ServiceInUseBy annotation from a ServiceImport, and its
