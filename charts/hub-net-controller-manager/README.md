@@ -1,4 +1,4 @@
-# Azure Fleet MultiClusterService Controller Manager Helm Chart
+# Azure Fleet Hub Net Controller Manager Helm Chart
 
 ## Install CRD in hub cluster
 

@@ -28,9 +28,12 @@ spec:
             - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
             - --v={{ .Values.logVerbosity }}
           ports:
-            - name: healthz
-              containerPort: 8081
-              protocol: TCP
+          - name: metrics
+            containerPort: 8080
+            protocol: TCP
+          - name: healthz
+            containerPort: 8081
+            protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz

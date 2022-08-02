@@ -1,0 +1,175 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: {{ include "member-net-controller-manager.fullname" . }}-role
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceimports
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - multiclusterservices
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/finalizers
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "member-net-controller-manager.fullname" . }}-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "member-net-controller-manager.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "member-net-controller-manager.fullname" . }}-sa
+    namespace: {{ .Values.fleetSystemNamespace }}
