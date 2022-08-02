@@ -55,10 +55,10 @@ const (
 var (
 	scheme               = runtime.NewScheme()
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
-	hubProbeAddr         = flag.String("hub-health-probe-bind-address", ":8081", "The address of hub controller manager the probe endpoint binds to.")
 	hubMetricsAddr       = flag.String("hub-metrics-bind-address", ":8080", "The address of hub controller manager the metric endpoint binds to.")
-	probeAddr            = flag.String("member-health-probe-bind-address", ":8082", "The address of member controller manager the probe endpoint binds to.")
+	hubProbeAddr         = flag.String("hub-health-probe-bind-address", ":8081", "The address of hub controller manager the probe endpoint binds to.")
 	metricsAddr          = flag.String("member-metrics-bind-address", ":8090", "The address of member controller manager the metric endpoint binds to.")
+	probeAddr            = flag.String("member-health-probe-bind-address", ":8091", "The address of member controller manager the probe endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )

@@ -31,10 +31,16 @@ spec:
             - --tls-insecure={{ .Values.tlsClientInsecure }}
             - --v={{ .Values.logVerbosity }}
           ports:
+          - containerPort: 8080
+            name: hubmetrics
+            protocol: TCP
           - containerPort: 8081
             name: hubhealthz
             protocol: TCP
-          - containerPort: 8082
+          - containerPort: 8090
+            name: membermetrics
+            protocol: TCP
+          - containerPort: 8091
             name: memberhealthz
             protocol: TCP
           livenessProbe:
