@@ -123,7 +123,7 @@ func fulfillServiceImport(svcImport *fleetnetv1alpha1.ServiceImport) {
 	}
 }
 
-var _ = Describe("internalserviceimport controller", func() {
+var _ = Describe("internalserviceimport controller", Ordered, func() {
 	Context("new internalserviceimport (serviceimport does not exist)", func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 
