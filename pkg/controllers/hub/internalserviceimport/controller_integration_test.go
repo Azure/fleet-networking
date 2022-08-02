@@ -207,92 +207,6 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("fulfilled internalserviceimport (serviceimport is being processed)", func() {
-		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
-		var svcImport *fleetnetv1alpha1.ServiceImport
-
-		fulfilledInternalSvcImport := unfulfilledInternalServiceImport()
-		fulfillInternalServiceImport(fulfilledInternalSvcImport)
-		expectedInternalSvcImportStatus := fulfilledInternalSvcImport.Status
-
-		BeforeEach(func() {
-			svcImport = unfulfilledAndRequestedServiceImport()
-			Expect(hubClient.Create(ctx, svcImport)).Should(Succeed())
-
-			internalSvcImport = unfulfilledInternalServiceImport()
-			Expect(hubClient.Create(ctx, internalSvcImport)).Should(Succeed())
-			internalSvcImport.Finalizers = []string{internalSvcImportCleanupFinalizer}
-			Expect(hubClient.Update(ctx, internalSvcImport)).Should(Succeed())
-
-			// Retry to solve potential conflicts caused by concurrent modifications.
-			Eventually(func() bool {
-				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
-					return false
-				}
-
-				fulfillInternalServiceImport(internalSvcImport)
-				if err := hubClient.Status().Update(ctx, internalSvcImport); err != nil {
-					return false
-				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-		})
-
-		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, internalSvcImport)).Should(Succeed())
-			// Confirm that InternalServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() bool {
-				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
-				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil && errors.IsNotFound(err) {
-					return true
-				}
-				return false
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-		})
-
-		It("should requeue until serviceimport is processed + should clear internalserviceimport when serviceimport is deleted", func() {
-			// Check if no action is taken on InternalServiceImport when ServiceImport is being processed.
-			Consistently(func() bool {
-				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
-				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
-					return false
-				}
-
-				if !cmp.Equal(internalSvcImport.Finalizers, []string{internalSvcImportCleanupFinalizer}) {
-					return false
-				}
-
-				return cmp.Equal(internalSvcImport.Status, expectedInternalSvcImportStatus)
-			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
-
-			// Process (delete) ServiceImport.
-			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-
-			// Check if InternalServiceImport is cleared.
-			Eventually(func() bool {
-				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
-				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
-					return false
-				}
-
-				if len(internalSvcImport.Finalizers) != 0 {
-					return false
-				}
-
-				return cmp.Equal(internalSvcImport.Status, fleetnetv1alpha1.ServiceImportStatus{})
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-
-			// Check if ServiceImport cleanup finalizer has been removed (and the object is deleted).
-			Eventually(func() bool {
-				svcImport := &fleetnetv1alpha1.ServiceImport{}
-				if err := hubClient.Get(ctx, svcImportKey, svcImport); err != nil && errors.IsNotFound(err) {
-					return true
-				}
-				return false
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-		})
-	})
-
 	Context("unfulfilled internalserviceimport that has claimed a service import + deleted internalserviceimport", func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
@@ -1035,6 +949,92 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 				}
 
 				return cmp.Equal(internalSvcImport.Status, expectedUpdatedInternalSvcImportStatus)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+		})
+	})
+
+	Context("fulfilled internalserviceimport (serviceimport is being processed)", func() {
+		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
+		var svcImport *fleetnetv1alpha1.ServiceImport
+
+		fulfilledInternalSvcImport := unfulfilledInternalServiceImport()
+		fulfillInternalServiceImport(fulfilledInternalSvcImport)
+		expectedInternalSvcImportStatus := fulfilledInternalSvcImport.Status
+
+		BeforeEach(func() {
+			svcImport = unfulfilledAndRequestedServiceImport()
+			Expect(hubClient.Create(ctx, svcImport)).Should(Succeed())
+
+			internalSvcImport = unfulfilledInternalServiceImport()
+			Expect(hubClient.Create(ctx, internalSvcImport)).Should(Succeed())
+			internalSvcImport.Finalizers = []string{internalSvcImportCleanupFinalizer}
+			Expect(hubClient.Update(ctx, internalSvcImport)).Should(Succeed())
+
+			// Retry to solve potential conflicts caused by concurrent modifications.
+			Eventually(func() bool {
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
+					return false
+				}
+
+				fulfillInternalServiceImport(internalSvcImport)
+				if err := hubClient.Status().Update(ctx, internalSvcImport); err != nil {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+		})
+
+		AfterEach(func() {
+			Expect(hubClient.Delete(ctx, internalSvcImport)).Should(Succeed())
+			// Confirm that InternalServiceImport is deleted; this helps make the test less flaky.
+			Eventually(func() bool {
+				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil && errors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+		})
+
+		It("should requeue until serviceimport is processed + should clear internalserviceimport when serviceimport is deleted", func() {
+			// Check if no action is taken on InternalServiceImport when ServiceImport is being processed.
+			Consistently(func() bool {
+				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(internalSvcImport.Finalizers, []string{internalSvcImportCleanupFinalizer}) {
+					return false
+				}
+
+				return cmp.Equal(internalSvcImport.Status, expectedInternalSvcImportStatus)
+			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+
+			// Process (delete) ServiceImport.
+			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
+
+			// Check if InternalServiceImport is cleared.
+			Eventually(func() bool {
+				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
+					return false
+				}
+
+				if len(internalSvcImport.Finalizers) != 0 {
+					return false
+				}
+
+				return cmp.Equal(internalSvcImport.Status, fleetnetv1alpha1.ServiceImportStatus{})
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if ServiceImport cleanup finalizer has been removed (and the object is deleted).
+			Eventually(func() bool {
+				svcImport := &fleetnetv1alpha1.ServiceImport{}
+				if err := hubClient.Get(ctx, svcImportKey, svcImport); err != nil && errors.IsNotFound(err) {
+					return true
+				}
+				return false
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
