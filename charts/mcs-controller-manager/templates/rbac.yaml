@@ -16,6 +16,17 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - create
@@ -25,17 +36,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-  - patch
 - apiGroups:
   - networking.fleet.azure.com
   resources:
