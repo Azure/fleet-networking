@@ -124,7 +124,7 @@ func fulfillServiceImport(svcImport *fleetnetv1alpha1.ServiceImport) {
 }
 
 var _ = Describe("internalserviceimport controller", Ordered, func() {
-	Context("new internalserviceimport (serviceimport does not exist)", func() {
+	Context("new internalserviceimport (serviceimport does not exist)", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 
 		BeforeEach(func() {
@@ -156,7 +156,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("fulfilled internalserviceimport (serviceimport does not exist)", func() {
+	Context("fulfilled internalserviceimport (serviceimport does not exist)", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 
 		BeforeEach(func() {
@@ -207,7 +207,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("unfulfilled internalserviceimport that has claimed a service import + deleted internalserviceimport", func() {
+	Context("unfulfilled internalserviceimport that has claimed a service import + deleted internalserviceimport", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
 
@@ -281,7 +281,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("new internalserviceimport", func() {
+	Context("new internalserviceimport", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
 
@@ -357,7 +357,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("new internalserviceimport (service already imported by another cluster)", func() {
+	Context("new internalserviceimport (service already imported by another cluster)", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
 
@@ -429,7 +429,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("serviceimport is created (with pre-existing internalserviceimports)", func() {
+	Context("serviceimport is created (with pre-existing internalserviceimports)", FlakeAttempts(3), func() {
 		var internalSvcImportB *fleetnetv1alpha1.InternalServiceImport
 		var internalSvcImportC *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
@@ -581,7 +581,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 
 	// Note that with current semantics (a service can only be imported once across the fleet) this is a test
 	// case that should not happen in normal operations.
-	Context("deleted internalserviceimport (with other remaining internalserviceimport having claimed the service", func() {
+	Context("deleted internalserviceimport (with other remaining internalserviceimport having claimed the service", FlakeAttempts(3), func() {
 		var internalSvcImportA *fleetnetv1alpha1.InternalServiceImport
 		var internalSvcImportB *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
@@ -703,7 +703,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("deleted internalserviceimport (with backup internalserviceimport)", func() {
+	Context("deleted internalserviceimport (with backup internalserviceimport)", FlakeAttempts(3), func() {
 		var internalSvcImportA *fleetnetv1alpha1.InternalServiceImport
 		var internalSvcImportB *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
@@ -844,7 +844,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("serviceimport status updated", func() {
+	Context("serviceimport status updated", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
 
