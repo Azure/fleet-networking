@@ -966,9 +966,8 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 			Expect(hubClient.Create(ctx, svcImport)).Should(Succeed())
 
 			internalSvcImport = unfulfilledInternalServiceImport()
-			Expect(hubClient.Create(ctx, internalSvcImport)).Should(Succeed())
 			internalSvcImport.Finalizers = []string{internalSvcImportCleanupFinalizer}
-			Expect(hubClient.Update(ctx, internalSvcImport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, internalSvcImport)).Should(Succeed())
 
 			// Retry to solve potential conflicts caused by concurrent modifications.
 			Eventually(func() bool {
@@ -998,6 +997,19 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 
 		It("should requeue until serviceimport is processed + should clear internalserviceimport when serviceimport is deleted", func() {
 			// Check if no action is taken on InternalServiceImport when ServiceImport is being processed.
+			Eventually(func() bool {
+				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(internalSvcImport.Finalizers, []string{internalSvcImportCleanupFinalizer}) {
+					return false
+				}
+
+				return cmp.Equal(internalSvcImport.Status, expectedInternalSvcImportStatus)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Consistently(func() bool {
 				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
 				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
