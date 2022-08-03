@@ -25,8 +25,6 @@ config:
   memberClusterName: <member_cluster_name>
   hubCA: <certificate_authority_data>
 
-fleetSystemNamespace: fleet-system
-
 secret:
   name: "hub-kubeconfig-secret"
   namespace: "default"
