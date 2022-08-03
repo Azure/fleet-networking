@@ -43,7 +43,7 @@ var (
 	}
 )
 
-func managedIPv4EndpointSliceWithoutUniqueNameLabel() *discoveryv1.EndpointSlice {
+func managedIPv4EndpointSliceWithoutUniqueNameAnnotation() *discoveryv1.EndpointSlice {
 	return &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
@@ -142,7 +142,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -198,7 +198,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -210,7 +210,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		var endpointSlice *discoveryv1.EndpointSlice
 
 		BeforeEach(func() {
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -224,7 +224,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -239,7 +239,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		)
 
 		BeforeEach(func() {
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			svcExport = notYetFulfilledServiceExport()
@@ -263,7 +263,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -278,7 +278,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		)
 
 		BeforeEach(func() {
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			svcExport = notYetFulfilledServiceExport()
@@ -302,7 +302,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -351,7 +351,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					// Must add the unique name label later; controller may reconcile too quickly for the desired
+					// Must add the unique name annotation later; controller may reconcile too quickly for the desired
 					// test case to happen.
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -376,9 +376,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
-			// Add the unique name label now.
-			endpointSlice.Labels = map[string]string{
-				endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+			// Add the unique name annotation now.
+			endpointSlice.Annotations = map[string]string{
+				endpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -399,7 +399,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
+				if _, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]; ok {
 					return false
 				}
 				return true
@@ -414,9 +414,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		)
 
 		BeforeEach(func() {
-			// Must add the unique name label later; controller may reconcile too quickly for the desired
+			// Must add the unique name annotation later; controller may reconcile too quickly for the desired
 			// test case to happen.
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
@@ -428,9 +428,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
-			// Add the unique name label now.
-			endpointSlice.Labels = map[string]string{
-				endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+			// Add the unique name annotation now.
+			endpointSlice.Annotations = map[string]string{
+				endpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -451,7 +451,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
+				if _, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]; ok {
 					return false
 				}
 				return true
@@ -467,9 +467,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		)
 
 		BeforeEach(func() {
-			// Must add the unique name label later; controller may reconcile too quickly for the desired
+			// Must add the unique name annotation later; controller may reconcile too quickly for the desired
 			// test case to happen.
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			endpointSliceExport = endpointSliceExportTemplate.DeepCopy()
@@ -485,9 +485,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportInvalidNotFoundCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			// Add the unique name label now.
-			endpointSlice.Labels = map[string]string{
-				endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+			// Add the unique name annotation now.
+			endpointSlice.Annotations = map[string]string{
+				endpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -509,7 +509,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
+				if _, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]; ok {
 					return false
 				}
 				return true
@@ -525,9 +525,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		)
 
 		BeforeEach(func() {
-			// Must add the unique name label later; controller may reconcile too quickly for the desired
+			// Must add the unique name annotation later; controller may reconcile too quickly for the desired
 			// test case to happen.
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			endpointSliceExport = endpointSliceExportTemplate.DeepCopy()
@@ -543,9 +543,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportConflictedCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			// Add the unique name label now.
-			endpointSlice.Labels = map[string]string{
-				endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+			// Add the unique name annotation now.
+			endpointSlice.Annotations = map[string]string{
+				endpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -567,7 +567,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
+				if _, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]; ok {
 					return false
 				}
 				return true
@@ -583,9 +583,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		)
 
 		BeforeEach(func() {
-			// Must add the unique name label later; controller may reconcile too quickly for the desired
+			// Must add the unique name annotation later; controller may reconcile too quickly for the desired
 			// test case to happen.
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			endpointSliceExport = endpointSliceExportTemplate.DeepCopy()
@@ -621,9 +621,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		})
 
 		It("should remove exported but deleted endpointslice", func() {
-			// Add the unique name label now; a finalizer is also added to prevent premature deletion.
-			endpointSlice.Labels = map[string]string{
-				endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+			// Add the unique name annotation now; a finalizer is also added to prevent premature deletion.
+			endpointSlice.Annotations = map[string]string{
+				endpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
 			}
 			endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
@@ -655,7 +655,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -671,7 +671,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -714,7 +714,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -731,7 +731,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -790,7 +790,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		})
 	})
 
-	Context("exported endpointslice with tampered invalid unique name label", func() {
+	Context("exported endpointslice with tampered invalid unique name annotation", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
@@ -803,7 +803,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -813,14 +813,14 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 		})
 
-		It("should export the endpointslice with the invalid label again with a new assigned unique name", func() {
+		It("should export the endpointslice with the invalid unique name annotation again with a new assigned unique name", func() {
 			// Verify first that the EndpointSlice has been exported.
 			Eventually(func() bool {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -850,8 +850,8 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				return true
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
-			// Tamper with the unique name label.
-			endpointSlice.Labels[endpointSliceUniqueNameLabel] = "x_y" // "x_y" is not a valid DNS subdomain.
+			// Tamper with the unique name annotation.
+			endpointSlice.Annotations[endpointSliceUniqueNameAnnotation] = "x_y" // "x_y" is not a valid DNS subdomain.
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
@@ -868,7 +868,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+			newEndpointSliceExportName := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -884,7 +884,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		})
 	})
 
-	Context("exported endpointslice with tampered used unique name label", func() {
+	Context("exported endpointslice with tampered used unique name annotation", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
@@ -929,7 +929,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			Expect(hubClient.Create(ctx, altEndpointSliceExport)).Should(Succeed())
@@ -941,14 +941,14 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 		})
 
-		It("should export the endpointslice with the used label again with a new assigned unique name", func() {
+		It("should export the endpointslice with the used unique name annotation again with a new assigned unique name", func() {
 			// Verify first that the EndpointSlice has been exported.
 			Eventually(func() bool {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -981,8 +981,8 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				return originalEndpointSliceExport != nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
-			// Tamper with the unique name label.
-			endpointSlice.Labels[endpointSliceUniqueNameLabel] = endpointSliceUniqueName
+			// Tamper with the unique name annotation.
+			endpointSlice.Annotations[endpointSliceUniqueNameAnnotation] = endpointSliceUniqueName
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
@@ -999,7 +999,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+			newEndpointSliceExportName := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -1046,7 +1046,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		var svcExport *fleetnetv1alpha1.ServiceExport
 
 		BeforeEach(func() {
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 
 			Expect(memberClient.Create(ctx, altEndpointSlice)).Should(Succeed())
@@ -1071,7 +1071,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -1087,7 +1087,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := altEndpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := altEndpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -1125,7 +1125,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -1141,7 +1141,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -1179,7 +1179,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
@@ -1207,7 +1207,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameLabel()
+			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
 			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
 		})
 
@@ -1223,7 +1223,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				uniqueName, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				if !ok {
 					return false
 				}
@@ -1261,7 +1261,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				_, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+				_, ok := endpointSlice.Annotations[endpointSliceUniqueNameAnnotation]
 				return !ok
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
