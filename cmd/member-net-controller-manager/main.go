@@ -315,7 +315,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
 		FleetSystemNamespace: *fleetSystemNamespace,
-	}).SetupWithManager(memberMgr, hubMgr); err != nil {
+	}).SetupWithManager(ctx, memberMgr, hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointsliceimport controller")
 		return err
 	}

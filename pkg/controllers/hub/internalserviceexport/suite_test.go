@@ -107,8 +107,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		Client:                             mgr.GetClient(),
-		InternalserviceexportRetryInterval: 10 * time.Millisecond,
+		Client:        mgr.GetClient(),
+		RetryInternal: 10 * time.Millisecond,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

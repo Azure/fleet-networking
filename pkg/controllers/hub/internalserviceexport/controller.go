@@ -29,9 +29,9 @@ import (
 // Reconciler reconciles a InternalServiceExport object.
 type Reconciler struct {
 	client.Client
-	// InternalserviceexportRetryInterval is the wait time for the controller to requeue the request and to wait for the
+	// RetryInternal is the wait time for the controller to requeue the request and to wait for the
 	// ServiceImport controller to resolve the service Spec.
-	InternalserviceexportRetryInterval time.Duration
+	RetryInternal time.Duration
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -49,6 +49,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	name := req.NamespacedName
 	internalServiceExport := fleetnetv1alpha1.InternalServiceExport{}
 	internalServiceExportKRef := klog.KRef(name.Namespace, name.Name)
+
+	startTime := time.Now()
+	klog.V(2).InfoS("Reconciliation starts", "internalServiceExport", internalServiceExportKRef)
+	defer func() {
+		latency := time.Since(startTime).Milliseconds()
+		klog.V(2).InfoS("Reconciliation ends", "internalServiceExport", internalServiceExportKRef, "latency", latency)
+	}()
+
 	if err := r.Client.Get(ctx, name, &internalServiceExport); err != nil {
 		klog.ErrorS(err, "Failed to get internalServiceExport", "internalServiceExport", internalServiceExportKRef)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -96,7 +104,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, internalServiceExport *fl
 		// In case serviceImport picks the same spec as the deleting one at the same time and controller misses removing
 		// the clusterID from the serviceImport.
 		klog.V(2).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
-		return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
+		return ctrl.Result{RequeueAfter: r.RetryInternal}, nil
 	}
 
 	oldStatus := serviceImport.Status.DeepCopy()
@@ -203,7 +211,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 	if len(serviceImport.Status.Ports) == 0 {
 		// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
 		klog.V(3).InfoS("Waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
-		return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
+		return ctrl.Result{RequeueAfter: r.RetryInternal}, nil
 	}
 
 	oldStatus := serviceImport.Status.DeepCopy()
@@ -221,7 +229,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, internalServiceExport *fl
 		if len(serviceImport.Status.Ports) == 0 {
 			klog.V(3).InfoS("Removed the cluster and waiting for serviceImport controller to resolve the spec", "serviceImport", serviceImportKRef, "internalServiceExport", internalServiceExportKObj)
 			// Requeue the request and waiting for the ServiceImport controller to resolve the spec.
-			return ctrl.Result{RequeueAfter: r.InternalserviceexportRetryInterval}, nil
+			return ctrl.Result{RequeueAfter: r.RetryInternal}, nil
 		}
 		return ctrl.Result{}, r.updateInternalServiceExportStatus(ctx, internalServiceExport, true)
 	}

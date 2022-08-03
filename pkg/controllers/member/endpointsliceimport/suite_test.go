@@ -115,7 +115,7 @@ var _ = BeforeSuite(func() {
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
 		FleetSystemNamespace: fleetSystemNS,
-	}).SetupWithManager(memberCtrlMgr, hubCtrlMgr)
+	}).SetupWithManager(ctx, memberCtrlMgr, hubCtrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	go func() {

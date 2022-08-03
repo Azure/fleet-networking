@@ -189,7 +189,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
-func (r *Reconciler) SetupWithManager(memberCtrlMgr, hubCtrlMgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(ctx context.Context, memberCtrlMgr, hubCtrlMgr ctrl.Manager) error {
 	// Set up an index for efficient MCS lookup **on the controller manager for member cluster controllers**.
 	indexerFunc := func(o client.Object) []string {
 		multiClusterSvc, ok := o.(*fleetnetv1alpha1.MultiClusterService)
@@ -198,7 +198,7 @@ func (r *Reconciler) SetupWithManager(memberCtrlMgr, hubCtrlMgr ctrl.Manager) er
 		}
 		return []string{multiClusterSvc.Spec.ServiceImport.Name}
 	}
-	if err := memberCtrlMgr.GetFieldIndexer().IndexField(context.Background(),
+	if err := memberCtrlMgr.GetFieldIndexer().IndexField(ctx,
 		&fleetnetv1alpha1.MultiClusterService{},
 		mcsServiceImportRefFieldKey,
 		indexerFunc,

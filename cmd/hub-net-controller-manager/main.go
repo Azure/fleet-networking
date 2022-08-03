@@ -37,8 +37,9 @@ var (
 	enableLeaderElection = flag.Bool("leader-elect", true,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fleetSystemNamespace               = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
-	internalserviceexportRetryInterval = flag.Duration("internalserviceexport-retry-interval", 2*time.Second, "The wait time for the controller to requeue the request and to wait for the"+
-		"ServiceImport controller to resolve the service Spec")
+	internalServiceExportRetryInterval = flag.Duration("internalserviceexport-retry-interval", 2*time.Second,
+		"The wait time for the internalserviceexport controller to requeue the request and to wait for the"+
+			"ServiceImport controller to resolve the service Spec")
 )
 
 func init() {
@@ -103,8 +104,8 @@ func main() {
 
 	klog.V(1).InfoS("Start to setup InternalServiceExport controller")
 	if err := (&internalserviceexport.Reconciler{
-		Client:                             mgr.GetClient(),
-		InternalserviceexportRetryInterval: *internalserviceexportRetryInterval,
+		Client:        mgr.GetClient(),
+		RetryInternal: *internalServiceExportRetryInterval,
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create InternalServiceExport controller")
 		exitWithErrorFunc()
@@ -121,7 +122,7 @@ func main() {
 	klog.V(1).InfoS("Start to setup ServiceImport controller")
 	if err := (&serviceimport.Reconciler{
 		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create ServiceImport controller")
 		exitWithErrorFunc()
 	}

@@ -10,6 +10,7 @@ package multiclusterservice
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -62,6 +63,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	name := req.NamespacedName
 	mcs := fleetnetv1alpha1.MultiClusterService{}
 	mcsKRef := klog.KRef(name.Namespace, name.Name)
+
+	startTime := time.Now()
+	klog.V(2).InfoS("Reconciliation starts", "multiClusterService", mcsKRef)
+	defer func() {
+		latency := time.Since(startTime).Milliseconds()
+		klog.V(2).InfoS("Reconciliation ends", "multiClusterService", mcsKRef, "latency", latency)
+	}()
+
 	if err := r.Client.Get(ctx, name, &mcs); err != nil {
 		klog.ErrorS(err, "Failed to get mcs", "multiClusterService", mcsKRef)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -185,10 +194,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	// 1) Create a serviceImport if not exists.
 	// OR 2) Update a serviceImport if the desired state does not match with current state.
 	// OR 3) Get a serviceImport when ServiceImport status change triggers the MCS reconcile.
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, serviceImport, func() error {
+	if op, err := controllerutil.CreateOrUpdate(ctx, r.Client, serviceImport, func() error {
 		return r.ensureServiceImport(serviceImport, mcs)
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update service import of mcs", "multiClusterService", mcsKObj, "serviceImport", klog.KObj(serviceImport))
+		klog.ErrorS(err, "Failed to create or update service import of mcs", "multiClusterService", mcsKObj, "serviceImport", klog.KObj(serviceImport), "op", op)
 		return ctrl.Result{}, err
 	}
 
@@ -217,10 +226,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	// 1) Create a service if not exists.
 	// OR 2) Update a service if the desired state does not match with current state.
 	// OR 3) Get a service when Service status change triggers the MCS reconcile.
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+	if op, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		return r.ensureDerivedService(mcs, serviceImport, service)
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update derived service of mcs", "multiClusterService", mcsKObj, "service", klog.KObj(service))
+		klog.ErrorS(err, "Failed to create or update derived service of mcs", "multiClusterService", mcsKObj, "service", klog.KObj(service), "op", op)
 		return ctrl.Result{}, err
 	}
 

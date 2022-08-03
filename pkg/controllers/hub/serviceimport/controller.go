@@ -192,8 +192,7 @@ func (r *Reconciler) deleteServiceImport(ctx context.Context, serviceImport *fle
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ctx := context.Background()
+func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	// add index to quickly query internalServiceExport list by service
 	extractFunc := func(o client.Object) []string {
 		name := o.(*fleetnetv1alpha1.InternalServiceExport).Spec.ServiceReference.NamespacedName

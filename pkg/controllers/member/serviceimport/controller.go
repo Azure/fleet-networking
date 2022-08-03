@@ -48,10 +48,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	serviceImport := &fleetnetv1alpha1.ServiceImport{}
 	serviceImportRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("Reconciliation starts", "ServiceImport", serviceImportRef)
+	klog.V(2).InfoS("Reconciliation starts", "serviceImport", serviceImportRef)
 	defer func() {
 		latency := time.Since(startTime).Milliseconds()
-		klog.V(2).InfoS("Reconciliation ends", "ServiceImport", serviceImportRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "serviceImport", serviceImportRef, "latency", latency)
 	}()
 
 	if err := r.MemberClient.Get(ctx, req.NamespacedName, serviceImport); err != nil {
@@ -101,7 +101,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	klog.V(2).InfoS("Create or update internal service import", "InternalServiceImport", internalServiceImportRef)
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.HubClient, internalServiceImport, func() error {
+	if op, err := controllerutil.CreateOrUpdate(ctx, r.HubClient, internalServiceImport, func() error {
 		if internalServiceImport.CreationTimestamp.IsZero() {
 			// Set the ServiceReference only when the InternalServiceImport is created; most of the fields in
 			// an ExportedObjectReference should be immutable.
@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta)
 		return nil
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef)
+		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef, "op", op)
 		return ctrl.Result{}, err
 	}
 
