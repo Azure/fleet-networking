@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -1091,15 +1092,17 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 			// Check if a local copy has been kept.
 			expectedEndpointSlice := ipv4EndpointSlice()
+			ignoreOptions := []cmp.Option{
+				cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "TypeMeta"),
+				cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "ObjectMeta"),
+			}
 			Eventually(func() bool {
 				endpointSlice := &discoveryv1.EndpointSlice{}
 				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoreOptions...) {
 					return false
 				}
 				return true
