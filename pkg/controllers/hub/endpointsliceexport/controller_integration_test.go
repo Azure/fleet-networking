@@ -34,6 +34,11 @@ var (
 	svcImportKey            = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 	endpointSliceImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
 	endpointSliceImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: endpointSliceExportName}
+
+	ignoredEndpointSliceFieldsOptions = []cmp.Option{
+		cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "TypeMeta"),
+		cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "ObjectMeta"),
+	}
 )
 
 // fulfilledSvcInUseByAnnotation returns a fulfilled ServiceInUseBy for annotation use.
@@ -245,9 +250,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -334,9 +337,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -423,9 +424,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -514,9 +513,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -603,9 +600,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -702,9 +697,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -818,9 +811,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -887,9 +878,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -986,9 +975,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -1092,17 +1079,13 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 			// Check if a local copy has been kept.
 			expectedEndpointSlice := ipv4EndpointSlice()
-			ignoreOptions := []cmp.Option{
-				cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "TypeMeta"),
-				cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "ObjectMeta"),
-			}
 			Eventually(func() bool {
 				endpointSlice := &discoveryv1.EndpointSlice{}
 				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoreOptions...) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -1186,9 +1169,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(endpointSlice.AddressType, expectedEndpointSlice.AddressType) ||
-					!cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints) ||
-					!cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
