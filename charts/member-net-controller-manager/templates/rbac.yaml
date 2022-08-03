@@ -55,6 +55,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - networking.fleet.azure.com
   resources:
