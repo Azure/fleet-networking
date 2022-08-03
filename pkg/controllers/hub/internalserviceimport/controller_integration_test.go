@@ -953,7 +953,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 	})
 
-	Context("fulfilled internalserviceimport (serviceimport is being processed)", func() {
+	Context("fulfilled internalserviceimport (serviceimport is being processed)", FlakeAttempts(3), func() {
 		var internalSvcImport *fleetnetv1alpha1.InternalServiceImport
 		var svcImport *fleetnetv1alpha1.ServiceImport
 
