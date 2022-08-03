@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -58,15 +59,15 @@ func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: endpointSliceExportName,
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceExportName,
 					},
 				},
 			},
 			want: true,
 		},
 		{
-			name: "should deny link (no unique name label)",
+			name: "should deny link (no unique name annotation)",
 			endpointSliceExport: &fleetnetv1alpha1.EndpointSliceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: hubNSForMember,
@@ -93,8 +94,8 @@ func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: "app-endpointsliceexport-1",
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceUniqueNameAnnotation: "app-endpointsliceexport-1",
 					},
 				},
 			},

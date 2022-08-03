@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -155,8 +156,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: endpointSliceExportName,
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceExportName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
