@@ -143,7 +143,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -199,7 +199,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -225,7 +225,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -264,7 +264,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -303,7 +303,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
@@ -379,7 +379,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
+				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -400,7 +400,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]; ok {
+				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
 					return false
 				}
 				return true
@@ -431,7 +431,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
+				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -452,7 +452,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]; ok {
+				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
 					return false
 				}
 				return true
@@ -488,7 +488,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
+				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -510,7 +510,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]; ok {
+				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
 					return false
 				}
 				return true
@@ -546,7 +546,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
+				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -568,7 +568,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return false
 				}
 
-				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]; ok {
+				if _, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
 					return false
 				}
 				return true
@@ -624,7 +624,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		It("should remove exported but deleted endpointslice", func() {
 			// Add the unique name annotation now; a finalizer is also added to prevent premature deletion.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceUniqueName,
+				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 			}
 			endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
@@ -672,7 +672,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -732,7 +732,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -821,7 +821,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -852,7 +852,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			// Tamper with the unique name annotation.
-			endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation] = "x_y" // "x_y" is not a valid DNS subdomain.
+			endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = "x_y" // "x_y" is not a valid DNS subdomain.
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
@@ -869,7 +869,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -949,7 +949,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -983,7 +983,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			// Tamper with the unique name annotation.
-			endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation] = endpointSliceUniqueName
+			endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = endpointSliceUniqueName
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
@@ -1000,7 +1000,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -1072,7 +1072,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -1088,7 +1088,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := altEndpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := altEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -1142,7 +1142,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -1180,7 +1180,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
@@ -1224,7 +1224,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				if !ok {
 					return false
 				}
@@ -1262,7 +1262,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return false
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 				return !ok
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 

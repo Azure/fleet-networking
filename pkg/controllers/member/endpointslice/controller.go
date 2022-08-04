@@ -107,7 +107,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the unique name assigned; if none has been assigned, or the one assigned is not valid, possibly due
 	// to user tampering with the annotation, assign a new unique name.
-	fleetUniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+	fleetUniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 	if !ok || !isUniqueNameValid(fleetUniqueName) {
 		klog.V(2).InfoS("The endpoint slice does not have a unique name assigned or the one assigned is not valid; a new one will be assigned",
 			"endpointSlice", endpointSliceRef)
@@ -168,7 +168,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case errors.IsAlreadyExists(err):
 		// Remove the unique name annotation; a new one will be assigned in future reciliation attempts.
 		klog.V(2).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
-		delete(endpointSlice.Annotations, objectmeta.EndpointSliceUniqueNameAnnotation)
+		delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 		if err := r.MemberClient.Update(ctx, &endpointSlice); err != nil {
 			klog.ErrorS(err, "Failed to remove endpointslice unique name annotation", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
@@ -248,7 +248,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	svcName, hasSvcNameLabel := endpointSlice.Labels[discoveryv1.LabelServiceName]
 	// It is guaranteed that if there is no unique name assigned to an EndpointSlice as an annotation, no attempt has
 	// been made to export an EndpointSlice.
-	_, hasUniqueNameAnnotation := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+	_, hasUniqueNameAnnotation := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 
 	if !hasSvcNameLabel {
 		if !hasUniqueNameAnnotation {
@@ -318,13 +318,13 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 	}
 
 	// Remove the unique name annotation; this must happen after the EndpointSliceExport has been deleted.
-	delete(endpointSlice.Annotations, objectmeta.EndpointSliceUniqueNameAnnotation)
+	delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 	return r.MemberClient.Update(ctx, endpointSlice)
 }
 
 // deleteEndpointSliceExportIfLinked deletes an exported EndpointSlice.
 func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
-	fleetUniqueName := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+	fleetUniqueName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 
 	// Skip the deletion if the unique name assigned as an annotation is not a valid DNS subdomain name; this
 	// helps guard against user tampering with the annotation.
@@ -388,6 +388,6 @@ func (r *Reconciler) assignUniqueNameAsAnnotation(ctx context.Context, endpointS
 	if updatedEndpointSlice.Annotations == nil {
 		updatedEndpointSlice.Annotations = map[string]string{}
 	}
-	updatedEndpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation] = fleetUniqueName
+	updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = fleetUniqueName
 	return fleetUniqueName, r.MemberClient.Update(ctx, updatedEndpointSlice)
 }

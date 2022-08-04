@@ -106,7 +106,7 @@ func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context, endpointSlic
 // isEndpointSliceExportLinkedWithEndpointSlice returns if an EndpointSliceExport's name matches with the
 // unique name for export assigned to an exported EndpointSlice.
 func isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport, endpointSlice *discoveryv1.EndpointSlice) bool {
-	uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceUniqueNameAnnotation]
+	uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 	if !ok || uniqueName != endpointSliceExport.Name {
 		return false
 	}

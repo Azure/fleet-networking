@@ -157,7 +157,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceUniqueNameAnnotation: endpointSliceExportName,
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceExportName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
