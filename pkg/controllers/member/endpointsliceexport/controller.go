@@ -19,10 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-)
-
-const (
-	endpointSliceUniqueNameLabel = "networking.fleet.azure.com/fleet-unique-name"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 type Reconciler struct {
@@ -109,7 +106,7 @@ func (r *Reconciler) deleteEndpointSliceExport(ctx context.Context, endpointSlic
 // isEndpointSliceExportLinkedWithEndpointSlice returns if an EndpointSliceExport's name matches with the
 // unique name for export assigned to an exported EndpointSlice.
 func isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport, endpointSlice *discoveryv1.EndpointSlice) bool {
-	uniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+	uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 	if !ok || uniqueName != endpointSliceExport.Name {
 		return false
 	}

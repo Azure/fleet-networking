@@ -27,11 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
-)
-
-const (
-	endpointSliceUniqueNameLabel = "networking.fleet.azure.com/fleet-unique-name"
 )
 
 // skipOrUnexportEndpointSliceOp describes the op the controller should take on an EndpointSlice, specifically
@@ -109,16 +106,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Retrieve the unique name assigned; if none has been assigned, or the one assigned is not valid, possibly due
-	// to user tampering with the label, assign a new unique name.
-	fleetUniqueName, ok := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+	// to user tampering with the annotation, assign a new unique name.
+	fleetUniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 	if !ok || !isUniqueNameValid(fleetUniqueName) {
 		klog.V(2).InfoS("The endpoint slice does not have a unique name assigned or the one assigned is not valid; a new one will be assigned",
 			"endpointSlice", endpointSliceRef)
 		var err error
-		// Unique name label must be added before an EndpointSlice is exported.
-		fleetUniqueName, err = r.assignUniqueNameAsLabel(ctx, &endpointSlice)
+		// Unique name annotation must be added before an EndpointSlice is exported.
+		fleetUniqueName, err = r.assignUniqueNameAsAnnotation(ctx, &endpointSlice)
 		if err != nil {
-			klog.ErrorS(err, "Failed to assign unique name as a label", "endpointSlice", endpointSliceRef)
+			klog.ErrorS(err, "Failed to assign unique name as an annotation", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
 		}
 	}
@@ -169,11 +166,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	})
 	switch {
 	case errors.IsAlreadyExists(err):
-		// Remove the unique name label; a new one will be assigned in future reciliation attempts.
+		// Remove the unique name annotation; a new one will be assigned in future reciliation attempts.
 		klog.V(2).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
-		delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
+		delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 		if err := r.MemberClient.Update(ctx, &endpointSlice); err != nil {
-			klog.ErrorS(err, "Failed to remove endpointslice unique name label", "endpointSlice", endpointSliceRef)
+			klog.ErrorS(err, "Failed to remove endpointslice unique name annotation", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -249,17 +246,17 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	// If the Service name label is absent, the EndpointSlice is not in use by a Service and thus cannot
 	// be exported.
 	svcName, hasSvcNameLabel := endpointSlice.Labels[discoveryv1.LabelServiceName]
-	// It is guaranteed that if there is no unique name assigned to an EndpointSlice as a label, no attempt has
+	// It is guaranteed that if there is no unique name assigned to an EndpointSlice as an annotation, no attempt has
 	// been made to export an EndpointSlice.
-	_, hasUniqueNameLabel := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+	_, hasUniqueNameAnnotation := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 
 	if !hasSvcNameLabel {
-		if !hasUniqueNameLabel {
-			// The Service is not in use by a Service and does not have a unique name label (i.e. it has not been
+		if !hasUniqueNameAnnotation {
+			// The Service is not in use by a Service and does not have a unique name annotation (i.e. it has not been
 			// exported before); it should be skipped for further processing.
 			return shouldSkipEndpointSliceOp, nil
 		}
-		// The Service is not in use by a Service but has a unique name label (i.e. it might have been exported);
+		// The Service is not in use by a Service but has a unique name annotation (i.e. it might have been exported);
 		// this could happen on an orphaned exported EndpointSlice, which should be unexported.
 		return shouldUnexportEndpointSliceOp, nil
 	}
@@ -268,12 +265,12 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	svcExport := &fleetnetv1alpha1.ServiceExport{}
 	err := r.MemberClient.Get(ctx, types.NamespacedName{Namespace: endpointSlice.Namespace, Name: svcName}, svcExport)
 	switch {
-	case errors.IsNotFound(err) && hasUniqueNameLabel:
-		// The Service using the EndpointSlice is not exported but the EndpointSlice has a unique name label
+	case errors.IsNotFound(err) && hasUniqueNameAnnotation:
+		// The Service using the EndpointSlice is not exported but the EndpointSlice has a unique name annotation
 		// present (i.e. it might have been exported); the EndpointSlice should be unexported.
 		return shouldUnexportEndpointSliceOp, nil
-	case errors.IsNotFound(err) && !hasUniqueNameLabel:
-		// The Service using the EndpointSlice is not exported and the EndpointSlice has no unique name label
+	case errors.IsNotFound(err) && !hasUniqueNameAnnotation:
+		// The Service using the EndpointSlice is not exported and the EndpointSlice has no unique name annotation
 		// present (i.e. it has not been exported before); the EndpointSlice should be skipped for further processing.
 		return shouldSkipEndpointSliceOp, nil
 	case err != nil:
@@ -283,27 +280,27 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 
 	// Check if the ServiceExport is valid with no conflicts.
 	if !isServiceExportValidWithNoConflict(svcExport) {
-		if hasUniqueNameLabel {
+		if hasUniqueNameAnnotation {
 			// The Service using the EndpointSlice is not valid for export or has conflicts with other exported
-			// Services, but the EndpointSlice has a unique name label present (i.e. it might have been
+			// Services, but the EndpointSlice has a unique name annotation present (i.e. it might have been
 			// exported before); the EndpointSlice should be unexported.
 			return shouldUnexportEndpointSliceOp, nil
 		}
 		// The Service using the EndpointSlice is not valid for export or has conflicts with other exported
-		// Services, and the EndpointSlice has no unique name label present (i.e. it has not been
+		// Services, and the EndpointSlice has no unique name annoation present (i.e. it has not been
 		// exported before); the EndpointSlice should be skipped for further processing.
 		return shouldSkipEndpointSliceOp, nil
 	}
 
 	if endpointSlice.DeletionTimestamp != nil {
-		if hasUniqueNameLabel {
+		if hasUniqueNameAnnotation {
 			// The Service using the EndpointSlice is exported with no conflicts, and the EndpointSlice has a unique
-			// name label (i.e. it might have been exported), but it has been deleted; as a result,
+			// name annotation (i.e. it might have been exported), but it has been deleted; as a result,
 			// the EndpointSlice should be unexported.
 			return shouldUnexportEndpointSliceOp, nil
 		}
 		// The Service using the EndpointSlice is exported with no conflicts, but the EndpointSlice does not have a
-		// unique name label (i.e. it has not been exported), and it has been deleted; as a result,
+		// unique name annotation (i.e. it has not been exported), and it has been deleted; as a result,
 		// the EndpointSlice should be skipped.
 		return shouldSkipEndpointSliceOp, nil
 	}
@@ -320,19 +317,19 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 		return err
 	}
 
-	// Remove the unique name label; this must happen after the EndpointSliceExport has been deleted.
-	delete(endpointSlice.Labels, endpointSliceUniqueNameLabel)
+	// Remove the unique name annotation; this must happen after the EndpointSliceExport has been deleted.
+	delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 	return r.MemberClient.Update(ctx, endpointSlice)
 }
 
 // deleteEndpointSliceExportIfLinked deletes an exported EndpointSlice.
 func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
-	fleetUniqueName := endpointSlice.Labels[endpointSliceUniqueNameLabel]
+	fleetUniqueName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 
-	// Skip the deletion if the unique name assigned as a label is not a valid DNS subdomain name; this
-	// helps guard against user tampering with the label.
+	// Skip the deletion if the unique name assigned as an annotation is not a valid DNS subdomain name; this
+	// helps guard against user tampering with the annotation.
 	if !isUniqueNameValid(fleetUniqueName) {
-		klog.V(2).InfoS("The unique name label for exporting the EndpointSlice is not valid; unexport is skipped",
+		klog.V(2).InfoS("The unique name annotation for exporting the EndpointSlice is not valid; unexport is skipped",
 			"endpointSlice", klog.KObj(endpointSlice),
 			"uniqueName", fleetUniqueName)
 		return nil
@@ -348,8 +345,8 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 	err := r.HubClient.Get(ctx, endpointSliceExportKey, &endpointSliceExport)
 	switch {
 	case errors.IsNotFound(err):
-		// It is guaranteed that a unique name label is always added before an EndpointSlice is exported; and
-		// in some rare occasions it could happen that an EndpointSlice has a unique name label present yet has
+		// It is guaranteed that a unique name annotation is always added before an EndpointSlice is exported; and
+		// in some rare occasions it could happen that an EndpointSlice has a unique name annotation present yet has
 		// not been exported to the hub cluster. It is an expected behavior and no action is needed on this controller's
 		// end.
 		return nil
@@ -359,8 +356,8 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 	}
 
 	if !isEndpointSliceExportLinkedWithEndpointSlice(&endpointSliceExport, endpointSlice) {
-		// The EndpointSliceExport to which the unique name label on the EndpointSlice refers is not actually
-		// linked with the EndpointSlice. This could happen if direct manipulation forces unique name labels
+		// The EndpointSliceExport to which the unique name annotation on the EndpointSlice refers is not actually
+		// linked with the EndpointSlice. This could happen if direct manipulation forces unique name annotations
 		// on two different EndpointSlices to point to the same EndpointSliceExport. In this case the
 		// EndpointSliceExport will not be deleted.
 		return nil
@@ -373,8 +370,8 @@ func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endp
 	return nil
 }
 
-// assignUniqueNameAsLabel assigns a new unique name as a label.
-func (r *Reconciler) assignUniqueNameAsLabel(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) (string, error) {
+// assignUniqueNameAsAnnotation assigns a new unique name as an annotation.
+func (r *Reconciler) assignUniqueNameAsAnnotation(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) (string, error) {
 	fleetUniqueName, err := uniquename.FleetScopedUniqueName(uniquename.DNS1123Subdomain,
 		r.MemberClusterID,
 		endpointSlice.Namespace,
@@ -387,10 +384,10 @@ func (r *Reconciler) assignUniqueNameAsLabel(ctx context.Context, endpointSlice 
 		fleetUniqueName = uniquename.RandomLowerCaseAlphabeticString(25)
 	}
 	updatedEndpointSlice := endpointSlice.DeepCopy()
-	// Initialize the labels field if no labels are present.
-	if updatedEndpointSlice.Labels == nil {
-		updatedEndpointSlice.Labels = map[string]string{}
+	// Initialize the annotations field if no annotations are present.
+	if updatedEndpointSlice.Annotations == nil {
+		updatedEndpointSlice.Annotations = map[string]string{}
 	}
-	updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel] = fleetUniqueName
+	updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = fleetUniqueName
 	return fleetUniqueName, r.MemberClient.Update(ctx, updatedEndpointSlice)
 }

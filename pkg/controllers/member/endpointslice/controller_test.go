@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
@@ -207,8 +208,8 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 					UID: "1",
 				},
@@ -237,8 +238,8 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: fmt.Sprintf("%s-%s-%s-%s",
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: fmt.Sprintf("%s-%s-%s-%s",
 							memberClusterID, memberUserNS, endpointSliceName, uniquename.RandomLowerCaseAlphabeticString(5)),
 					},
 				},
@@ -276,8 +277,8 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
 				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
 			}
-			if _, ok := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
-				t.Fatalf("endpointSlice labels, got %+v, want no %s label", updatedEndpointSlice.Labels, endpointSliceUniqueNameLabel)
+			if _, ok := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
+				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 			}
 
 			if tc.endpointSliceExport == nil {
@@ -308,8 +309,8 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 					UID: "2",
 				},
@@ -364,8 +365,8 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
 				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
 			}
-			if _, ok := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; ok {
-				t.Fatalf("endpointSlice labels, got %+v, want no %s label", updatedEndpointSlice.Labels, endpointSliceUniqueNameLabel)
+			if _, ok := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
+				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
 			}
 
 			endpointSliceExportKey := types.NamespacedName{
@@ -379,15 +380,15 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 	}
 }
 
-// TestAssignUniqueNameAsLabel tests the *Reconciler.assignUniqueNameAsLabel method.
-func TestAssignUniqueNameAsLabel(t *testing.T) {
+// TestAssignUniqueNameAsAnnotation tests the *Reconciler.assignUniqueNameAsAnnotation method.
+func TestAssignUniqueNameAsAnnotation(t *testing.T) {
 	testCases := []struct {
 		name           string
 		endpointSlice  *discoveryv1.EndpointSlice
 		expectedPrefix string
 	}{
 		{
-			name: "should assign unique name label",
+			name: "should assign unique name annotation",
 			endpointSlice: &discoveryv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -413,12 +414,12 @@ func TestAssignUniqueNameAsLabel(t *testing.T) {
 				HubNamespace:    hubNSForMember,
 			}
 
-			uniqueName, err := reconciler.assignUniqueNameAsLabel(ctx, tc.endpointSlice)
+			uniqueName, err := reconciler.assignUniqueNameAsAnnotation(ctx, tc.endpointSlice)
 			if err != nil {
-				t.Fatalf("assignUniqueNameAsLabel(%+v), got %v, want no error", tc.endpointSlice, err)
+				t.Fatalf("assignUniqueNameAsAnnotation(%+v), got %v, want no error", tc.endpointSlice, err)
 			}
 			if !strings.HasPrefix(uniqueName, tc.expectedPrefix) {
-				t.Fatalf("assignUniqueNameAsLabel(%+v) = %s, want prefix %s", tc.endpointSlice, uniqueName, tc.expectedPrefix)
+				t.Fatalf("assignUniqueNameAsAnnotation(%+v) = %s, want prefix %s", tc.endpointSlice, uniqueName, tc.expectedPrefix)
 			}
 
 			var updatedEndpointSlice = discoveryv1.EndpointSlice{}
@@ -426,8 +427,8 @@ func TestAssignUniqueNameAsLabel(t *testing.T) {
 			if err := fakeMemberClient.Get(ctx, updatedEndpointSliceKey, &updatedEndpointSlice); err != nil {
 				t.Fatalf("endpointSlice Get(), got %v, want no error", err)
 			}
-			if setUniqueName := updatedEndpointSlice.Labels[endpointSliceUniqueNameLabel]; !strings.HasPrefix(setUniqueName, tc.expectedPrefix) {
-				t.Fatalf("unique name label, got %s, want %s", setUniqueName, tc.expectedPrefix)
+			if setUniqueName := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; !strings.HasPrefix(setUniqueName, tc.expectedPrefix) {
+				t.Fatalf("unique name annotation, got %s, want %s", setUniqueName, tc.expectedPrefix)
 			}
 		})
 	}
@@ -468,8 +469,8 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
-					Labels: map[string]string{
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -498,7 +499,9 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -551,7 +554,9 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -577,7 +582,9 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -604,7 +611,9 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -759,7 +768,9 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 					Name:      endpointSliceName,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -789,7 +800,9 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 					DeletionTimestamp: &deletionTimestamp,
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
-						endpointSliceUniqueNameLabel: endpointSliceUniqueName,
+					},
+					Annotations: map[string]string{
+						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
