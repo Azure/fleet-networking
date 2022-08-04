@@ -12,6 +12,13 @@ HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
 
+# Kind cluster
+KIND_IMAGE ?= kindest/node:v1.23.3
+HUB_KIND_CLUSTER_NAME = hub-testing
+MEMBER_KIND_CLUSTER_NAME = member-testing
+CLUSTER_CONFIG := $(abspath test/e2e/kind-config.yaml)
+KUBECONFIG ?= $(HOME)/.kube/config
+
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOOLS_DIR := hack/tools
@@ -94,6 +101,28 @@ fmt:  $(GOIMPORTS) ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: reviewable # run reviewable to local basic test and code format.
+reviewable: fmt vet lint staticcheck
+	go mod tidy
+
+## --------------------------------------
+## Kind
+## --------------------------------------
+
+create-hub-kind-cluster:
+	kind create cluster --name $(HUB_KIND_CLUSTER_NAME) --image=$(KIND_IMAGE) --config=$(CLUSTER_CONFIG) --kubeconfig=$(KUBECONFIG)
+
+create-member-kind-cluster:
+	kind create cluster --name $(MEMBER_KIND_CLUSTER_NAME) --image=$(KIND_IMAGE) --config=$(CLUSTER_CONFIG) --kubeconfig=$(KUBECONFIG)
+
+load-hub-docker-image:
+	kind load docker-image  --name $(HUB_KIND_CLUSTER_NAME) $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION)
+
+load-member-docker-image:
+	kind load docker-image  --name $(MEMBER_KIND_CLUSTER_NAME) \
+		$(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		$(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION)
+
 ## --------------------------------------
 ## test
 ## --------------------------------------
@@ -105,13 +134,62 @@ test: manifests generate fmt vet local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -race -coverprofile=coverage.xml -covermode=atomic -v
 
+install-hub-controller-manager-helm:
+	kind export kubeconfig --name $(HUB_KIND_CLUSTER_NAME)
+	kubectl apply -f ./config/crd/*
+	helm install hub-net-controller-manager ./charts/hub-net-controller-manager/ \
+		--set image.pullPolicy=Never \
+		--set image.repository=$(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME) \
+		--set image.tag=$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--set secretTokenForMember.enabled=true \
+		--namespace fleet-system --create-namespace
+
+.PHONY: e2e-hub-kubeconfig-secret
+e2e-hub-kubeconfig-secret:
+	kind export kubeconfig --name $(HUB_KIND_CLUSTER_NAME); \
+	TOKEN=$$(kubectl get secret hub-kubeconfig-secret -n fleet-system -o jsonpath='{.data.token}' | base64 -d); \
+	kind export kubeconfig --name $(MEMBER_KIND_CLUSTER_NAME); \
+	kubectl create namespace fleet-system; \
+	kubectl delete secret hub-kubeconfig-secret -n fleet-system --ignore-not-found; \
+	kubectl create secret generic hub-kubeconfig-secret -n fleet-system --from-literal=kubeconfig=$$TOKEN
+
+install-member-controller-manager-helm: e2e-hub-kubeconfig-secret
+	kind export kubeconfig --name $(HUB_KIND_CLUSTER_NAME); \
+	# Create member cluster namesapce in hub cluster.; \
+	MEMBER_CLUSTER_NAME="kind-$(MEMBER_KIND_CLUSTER_NAME)"; \
+	HUB_MEMBER_NAMESAPCE="fleet-member-$$MEMBER_CLUSTER_NAME"; \
+	kubectl get namespace $$HUB_MEMBER_NAMESAPCE || kubectl create namespace $$HUB_MEMBER_NAMESAPCE; \
+	# Get kind cluster IP that docker uses internally so we can talk to the other cluster. the port is the default one.; \
+	HUB_SERVER_URL="https://$$(docker inspect $(HUB_KIND_CLUSTER_NAME)-control-plane --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):6443"; \
+	kind export kubeconfig --name $(MEMBER_KIND_CLUSTER_NAME); \
+	kubectl apply -f ./config/crd/*; \
+	helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
+		--set config.hubURL=$$HUB_SERVER_URL \
+		--set image.repository=$(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME) \
+		--set image.tag=$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--set image.pullPolicy=Never \
+		--set refreshtoken.repository=ghcr.io/azure/fleet/refresh-token \
+		--set refreshtoken.tag=v0.1.0 \
+		--set config.memberClusterName=$$MEMBER_CLUSTER_NAME \
+		--set secret.name=hub-kubeconfig-secret \
+		--set secret.namespace=fleet-system \
+		--namespace fleet-system --create-namespace; \
+	helm install mcs-controller-manager ./charts/mcs-controller-manager/ \
+		--set image.repository=$(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME) \
+		--set image.tag=$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--set image.pullPolicy=Never \
+		--namespace fleet-system --create-namespace; \
+	# to make sure member-agent reads the token file.
+	kubectl delete pod --all -n fleet-system
+
+build-e2e:
+	go test -c ./test/e2e
+
+run-e2e: build-e2e
+	KUBECONFIG=$(KUBECONFIG) HUB_SERVER_URL="https://$$(docker inspect $(HUB_KIND_CLUSTER_NAME)-control-plane --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):6443" ./e2e.test -test.v -ginkgo.v
+
 .PHONY: e2e-tests
-e2e-tests:
-	go test -tags=e2e -v ./test/e2e
-
-
-reviewable: fmt vet lint staticcheck
-	go mod tidy
+e2e-tests: create-hub-kind-cluster create-member-kind-cluster load-hub-docker-image load-member-docker-image install-hub-controller-manager-helm install-member-controller-manager-helm run-e2e
 
 ## --------------------------------------
 ## Code Generation
@@ -204,3 +282,30 @@ docker-build-mcs-controller-manager: docker-buildx-builder
 clean-bin: ## Remove all generated binaries
 	rm -rf $(TOOLS_BIN_DIR)
 	rm -rf ./bin
+
+.PHONY: uninstall-helm-charts
+uninstall-helm-charts:
+	kind export kubeconfig --name $(HUB_KIND_CLUSTER_NAME)
+	helm status hub-net-controller-manager -n fleet-system && helm uninstall hub-net-controller-manager -n fleet-system
+
+	kind export kubeconfig --name $(MEMBER_KIND_CLUSTER_NAME)
+	helm status member-net-controller-manager -n fleet-system && helm uninstall member-net-controller-manager -n fleet-system
+	helm status mcs-controller-manager -n fleet-system && helm uninstall mcs-controller-manager -n fleet-system
+
+.PHONY: clean-testing-kind-clusters-resources
+clean-testing-kind-clusters-resources: uninstall-helm-charts
+	kind export kubeconfig --name $(HUB_KIND_CLUSTER_NAME)
+	MEMBER_CLUSTER_NAME="kind-$(MEMBER_KIND_CLUSTER_NAME)"; \
+	HUB_MEMBER_NAMESAPCE="fleet-member-$$MEMBER_CLUSTER_NAME"; \
+	kubectl delete ns $$HUB_MEMBER_NAMESAPCE --ignore-not-found
+	kubectl delete -f ./config/crd/*
+	kubectl delete namespace fleet-system
+
+	kind export kubeconfig --name $(MEMBER_KIND_CLUSTER_NAME)
+	kubectl delete -f ./config/crd/*
+	kubectl delete namespace fleet-system
+
+.PHONY: clean-e2e-tests
+clean-e2e-tests: ## Remove
+	kind delete cluster --name $(HUB_KIND_CLUSTER_NAME)
+	kind delete cluster --name $(MEMBER_KIND_CLUSTER_NAME)
