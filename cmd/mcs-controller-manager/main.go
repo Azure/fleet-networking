@@ -79,6 +79,7 @@ func main() {
 	//+kubebuilder:scaffold:builder
 	r := &multiclusterservice.Reconciler{
 		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
