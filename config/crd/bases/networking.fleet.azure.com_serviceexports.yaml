@@ -21,13 +21,13 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.conditions[?(@.type=="ServiceExportValid")].status
-      name: IsValid
+    - jsonPath: '{.status.conditions[?(@.type==''Valid'')].status}].status'
+      name: Is-Valid
       type: string
-    - jsonPath: .status.conditions[?(@.type=="ServiceExportConflict")].status
-      name: IsConflicted
+    - jsonPath: '{.status.conditions[?(@.type==''Conflict'')].status}'
+      name: Is-Conflicted
       type: string
-    - jsonPath: .metadata.creationTimestamp
+    - jsonPath: '{.metadata.creationTimestamp}'
       name: Age
       type: date
     name: v1alpha1

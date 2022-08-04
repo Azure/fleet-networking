@@ -57,10 +57,10 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=mcs
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:JSONPath=`.spec.serviceImport.name`,name="Service-Import",type=string
-// +kubebuilder:printcolumn:JSONPath=`.status.loadBalancer.ingress.ip`,name="External-IP",type=string
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="MultiClusterServiceValid")].status`,name="IsValid",type=string
-// +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
+// +kubebuilder:printcolumn:JSONPath=`{.spec.serviceImport.name}`,name="Service-Import",type=string
+// +kubebuilder:printcolumn:JSONPath=`{.status.loadBalancer.ingress[0].ip}`,name="External-IP",type=string
+// +kubebuilder:printcolumn:JSONPath=`{.status.conditions[?(@.type=='Valid')].status}`,name="Is-Valid",type=string
+// +kubebuilder:printcolumn:JSONPath=`{.metadata.creationTimestamp}`,name="Age",type=date
 
 // MultiClusterService is the Schema for creating north-south L4 load balancer to consume services across clusters.
 type MultiClusterService struct {
