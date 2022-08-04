@@ -62,3 +62,25 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           ## Comma-separated list of files to upload
           files: ./coverage.xml
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [
+      detect-noop,
+    ]
+    if: needs.detect-noop.outputs.noop != 'true'
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+
+      - name: Run e2e tests
+        run: |
+          OUTPUT_TYPE=type=docker make docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager e2e-tests
+        env:
+          KUBECONFIG: '/home/runner/.kube/config'
+          HUB_SERVER_URL: 'https://172.19.0.2:6443'
