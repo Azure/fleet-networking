@@ -4,6 +4,14 @@ metadata:
   creationTimestamp: null
   name: {{ include "member-net-controller-manager.fullname" . }}-role
 rules:
+{{ if eq .Values.config.provider "secret" }}
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+{{ end }}
 - apiGroups:
   - coordination.k8s.io
   resources:

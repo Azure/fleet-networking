@@ -105,7 +105,7 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | azure.clientid | Azure AAD client ID to obtain token to request hub cluster, required when config.provider is `azure` | `[]` |
 | secret.name | The name of Kuberentes Secret storing credential to hub cluster, required when config.provider is `secret` | `[]` |
-| secret.namespace | The namespace of Kuberentes Secret storing credential to hub cluster, required when config.provider is `secret` | `[]` |
+| secret.namespace | The namespace of Kuberentes Secret storing credential to hub cluster, required when config.provider is `secret` | `default` |
 | config.provider | Auth token provider to request hub cluster, can be either `azure` or `secret` | `secret` |
 | config.hubURL | Hub cluster endpoint in format `https://<hub_cluster_api_server_ip>:<hub_cluster_port` | `""` |
 | config.memberClusterName | Unique identifier of the member cluster  | `""` |
