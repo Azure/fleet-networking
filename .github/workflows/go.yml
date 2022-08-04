@@ -15,6 +15,9 @@ on:
 env:
   # Common versions
   GO_VERSION: '1.18'
+  GOPROXY: ${{ secrets.GOPROXY }}
+  GOPRIVATE: ${{ secrets.GOPRIVATE }}
+  GONOPROXY: none
 
 jobs:
 
