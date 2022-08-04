@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	MemberClusterID = "bravelion"
+	memberClusterID = "bravelion"
 	svcPort         = 80
 
 	eventuallyTimeout  = time.Second * 10
@@ -45,7 +45,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "Service",
 						Namespace:       memberUserNS,
 						Name:            svcName,
@@ -55,7 +55,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					},
 				},
 			}
-			Expect(HubClient.Create(ctx, danglingInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, danglingInternalSvcExport)).Should(Succeed())
 		})
 
 		It("should remove dangling internalsvcexport", func() {
@@ -64,7 +64,7 @@ var _ = Describe("internalsvcexport controller", func() {
 				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 			}
 			Eventually(func() bool {
-				return errors.IsNotFound(HubClient.Get(ctx, internalSvcExportKey, danglingInternalSvcExport))
+				return errors.IsNotFound(hubClient.Get(ctx, internalSvcExportKey, danglingInternalSvcExport))
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
@@ -80,7 +80,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					Name:      svcName,
 				},
 			}
-			Expect(MemberClient.Create(ctx, svcExport)).Should(Succeed())
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
 
 			internalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -94,7 +94,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "Service",
 						Namespace:       memberUserNS,
 						Name:            svcName,
@@ -104,18 +104,18 @@ var _ = Describe("internalsvcexport controller", func() {
 					},
 				},
 			}
-			Expect(HubClient.Create(ctx, internalSvcExport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(HubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
-			Expect(MemberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 		})
 
 		It("should not report back any conflict resolution result", func() {
 			svcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 			Eventually(func() []metav1.Condition {
-				Expect(MemberClient.Get(ctx, svcExportKey, svcExport)).Should(Succeed())
+				Expect(memberClient.Get(ctx, svcExportKey, svcExport)).Should(Succeed())
 				return svcExport.Status.Conditions
 			}).Should(BeNil())
 		})
@@ -132,7 +132,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					Name:      svcName,
 				},
 			}
-			Expect(MemberClient.Create(ctx, unconflictedSvcExport)).Should(Succeed())
+			Expect(memberClient.Create(ctx, unconflictedSvcExport)).Should(Succeed())
 
 			unconflictedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -146,7 +146,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "Service",
 						Namespace:       memberUserNS,
 						Name:            svcName,
@@ -156,25 +156,25 @@ var _ = Describe("internalsvcexport controller", func() {
 					},
 				},
 			}
-			Expect(HubClient.Create(ctx, unconflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, unconflictedInternalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(HubClient.Delete(ctx, unconflictedInternalSvcExport)).Should(Succeed())
-			Expect(MemberClient.Delete(ctx, unconflictedSvcExport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, unconflictedInternalSvcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, unconflictedSvcExport)).Should(Succeed())
 		})
 
 		It("should report back conflict condition (no conflict found)", func() {
 			// Add a no conflict condition
 			meta.SetStatusCondition(&unconflictedInternalSvcExport.Status.Conditions,
 				unconflictedServiceExportConflictCondition(memberUserNS, svcName))
-			Expect(HubClient.Status().Update(ctx, unconflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Status().Update(ctx, unconflictedInternalSvcExport)).Should(Succeed())
 
 			unconflictedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 			// TO-DO (chenyu1): newer gomega versions offer BeComparableTo function, which automatically
 			// calls cmp package for diffs.
 			Eventually(func() string {
-				Expect(MemberClient.Get(ctx, unconflictedSvcExportKey, unconflictedSvcExport)).Should(Succeed())
+				Expect(memberClient.Get(ctx, unconflictedSvcExportKey, unconflictedSvcExport)).Should(Succeed())
 				return cmp.Diff(
 					unconflictedSvcExport.Status.Conditions,
 					[]metav1.Condition{
@@ -196,7 +196,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					Name:      svcName,
 				},
 			}
-			Expect(MemberClient.Create(ctx, conflictedSvcExport)).Should(Succeed())
+			Expect(memberClient.Create(ctx, conflictedSvcExport)).Should(Succeed())
 
 			conflictedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -210,7 +210,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						},
 					},
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       MemberClusterID,
+						ClusterID:       memberClusterID,
 						Kind:            "Service",
 						Namespace:       memberUserNS,
 						Name:            svcName,
@@ -220,25 +220,25 @@ var _ = Describe("internalsvcexport controller", func() {
 					},
 				},
 			}
-			Expect(HubClient.Create(ctx, conflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Create(ctx, conflictedInternalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(HubClient.Delete(ctx, conflictedInternalSvcExport)).Should(Succeed())
-			Expect(MemberClient.Delete(ctx, conflictedSvcExport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, conflictedInternalSvcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, conflictedSvcExport)).Should(Succeed())
 		})
 
 		It("should report back conflict condition (conflict found)", func() {
 			// Add a no conflict condition
 			meta.SetStatusCondition(&conflictedInternalSvcExport.Status.Conditions,
 				conflictedServiceExportConflictCondition(memberUserNS, svcName))
-			Expect(HubClient.Status().Update(ctx, conflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Status().Update(ctx, conflictedInternalSvcExport)).Should(Succeed())
 
 			conflictedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 			// TO-DO (chenyu1): newer gomega versions offer BeComparableTo function, which automatically
 			// calls cmp package for diffs.
 			Eventually(func() string {
-				Expect(MemberClient.Get(ctx, conflictedSvcExportKey, conflictedSvcExport)).Should(Succeed())
+				Expect(memberClient.Get(ctx, conflictedSvcExportKey, conflictedSvcExport)).Should(Succeed())
 				return cmp.Diff(
 					conflictedSvcExport.Status.Conditions,
 					[]metav1.Condition{

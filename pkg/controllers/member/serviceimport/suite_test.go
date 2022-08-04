@@ -28,8 +28,8 @@ import (
 var (
 	memberTestEnv *envtest.Environment
 	hubTestEnv    *envtest.Environment
-	MemberClient  client.Client
-	HubClient     client.Client
+	memberClient  client.Client
+	hubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
 )
@@ -77,12 +77,12 @@ var _ = BeforeSuite(func() {
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	// Set up clients for member and hub clusters.
-	MemberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
+	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(MemberClient).NotTo(BeNil())
-	HubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(memberClient).NotTo(BeNil())
+	hubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(HubClient).NotTo(BeNil())
+	Expect(hubClient).NotTo(BeNil())
 
 	By("starting the controller manager")
 
@@ -95,8 +95,8 @@ var _ = BeforeSuite(func() {
 	err = (&Reconciler{
 		MemberClusterID: MemberClusterID,
 		HubNamespace:    HubNamespace,
-		MemberClient:    MemberClient,
-		HubClient:       HubClient,
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -118,7 +118,7 @@ func setupResources() {
 			Name: HubNamespace,
 		},
 	}
-	Expect(HubClient.Create(ctx, &hubNS)).Should(Succeed())
+	Expect(hubClient.Create(ctx, &hubNS)).Should(Succeed())
 }
 
 var _ = AfterSuite(func() {
