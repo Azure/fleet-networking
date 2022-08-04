@@ -46,7 +46,7 @@ type Reconciler struct {
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;create;update;patch;delete
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list
 
 // Reconcile imports an EndpointSlice from hub cluster.
