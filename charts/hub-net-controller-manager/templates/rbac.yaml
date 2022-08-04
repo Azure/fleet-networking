@@ -93,6 +93,16 @@ rules:
   - get
   - list
   - watch
+  - update
+  - patch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
