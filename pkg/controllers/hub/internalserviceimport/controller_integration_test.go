@@ -145,6 +145,15 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 
 		It("should not fulfill internalserviceimport", func() {
+			Eventually(func() bool {
+				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
+				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
+					return false
+				}
+
+				return cmp.Equal(internalSvcImport.Status, fleetnetv1alpha1.ServiceImportStatus{})
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Consistently(func() bool {
 				internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
 				if err := hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport); err != nil {
