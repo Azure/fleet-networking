@@ -34,6 +34,9 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 | image.tag | The image tag to use | `v0.1.0` |
 | logVerbosity | Log level. Uses V logs (klog) | `2` |
 | fleetSystemNamespace | Namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
+| secretTokenForMember.name | The secret name containing service account token for member cluster controllers to access hub cluster resources | `hub-kubeconfig-secret` |
+| secretTokenForMember.namespace | The secret namespace containing service account token for member cluster controllers to access hub cluster resources | `fleet-system` |
+| secretTokenForMember.enabled | Enable this to create secret containing service account token for member cluster controllers to access hub cluster resources | `false` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |

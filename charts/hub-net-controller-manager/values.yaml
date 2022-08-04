@@ -22,6 +22,12 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+# the secret containing service account token for member cluster controllers to access hub cluster resources
+secretTokenForMember:
+  name: hub-kubeconfig-secret
+  namespace: fleet-system
+  enabled: false
+
 podAnnotations: {}
 
 nodeSelector: {}
