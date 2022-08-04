@@ -81,6 +81,3 @@ jobs:
       - name: Run e2e tests
         run: |
           OUTPUT_TYPE=type=docker make docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager e2e-tests
-        env:
-          KUBECONFIG: '/home/runner/.kube/config'
-          HUB_SERVER_URL: 'https://172.19.0.2:6443'
