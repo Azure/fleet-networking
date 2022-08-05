@@ -123,4 +123,6 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := memberTestEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+	err = hubTestEnv.Stop()
+	Expect(err).NotTo(HaveOccurred())
 })

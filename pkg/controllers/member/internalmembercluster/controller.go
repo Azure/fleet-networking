@@ -12,10 +12,10 @@ import (
 	"errors"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,7 +24,6 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/apiretry"
-	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -41,8 +40,8 @@ type Reconciler struct {
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalmemberclusters,verbs=get;list;watch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalmemberclusters/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=list
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list;delete
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;delete
 
 // Reconcile handles join/leave for the member cluster controllers and updates its heartbeats.
 // For the MCS controller, it needs to delete created serviceImport in the member clusters.
@@ -75,13 +74,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			},
 			LastReceivedHeartbeat: metav1.NewTime(time.Now()),
 		}
-		if err := r.updateStatus(ctx, &imc, agentStatus); err != nil {
+		if err := r.updateAgentStatus(ctx, &imc, agentStatus); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: time.Second * time.Duration(imc.Spec.HeartbeatPeriodSeconds)}, nil
 	case fleetv1alpha1.ClusterStateLeave:
 		if r.AgentType == fleetv1alpha1.MultiClusterServiceAgent {
-			if err := r.cleanupMCSCreatedResources(ctx); err != nil {
+			if err := r.cleanupMCSRelatedResources(ctx); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		if r.AgentType == fleetv1alpha1.ServiceExportImportAgent {
+			if err := r.cleanupServiceExportRelatedResources(ctx); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -96,7 +100,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				},
 			},
 		}
-		return ctrl.Result{}, r.updateStatus(ctx, &imc, agentStatus)
+		return ctrl.Result{}, r.updateAgentStatus(ctx, &imc, agentStatus)
 	default:
 		klog.ErrorS(errors.New("unknown state"), "internalMemberCluster", imcKRef, "state", imc.Spec.State)
 	}
@@ -134,57 +138,93 @@ func setAgentStatus(status *[]fleetv1alpha1.AgentStatus, newStatus fleetv1alpha1
 	existingStatus.LastReceivedHeartbeat = newStatus.LastReceivedHeartbeat
 }
 
-func (r *Reconciler) updateStatus(ctx context.Context, imc *fleetv1alpha1.InternalMemberCluster, desiredAgentStatus fleetv1alpha1.AgentStatus) error {
+func (r *Reconciler) updateAgentStatus(ctx context.Context, imc *fleetv1alpha1.InternalMemberCluster, desiredAgentStatus fleetv1alpha1.AgentStatus) error {
 	oldStatus := imc.Status.DeepCopy()
-	// TODO to be deleted after fleet changes the API
-	imc.Status = fleetv1alpha1.InternalMemberClusterStatus{
-		Conditions:    []metav1.Condition{},
-		Capacity:      corev1.ResourceList{},
-		Allocatable:   corev1.ResourceList{},
-		ResourceUsage: fleetv1alpha1.ResourceUsage{},
-		AgentStatus:   imc.Status.AgentStatus,
-	}
 	setAgentStatus(&imc.Status.AgentStatus, desiredAgentStatus)
 
 	imcKObj := klog.KObj(imc)
 	klog.V(2).InfoS("Updating internalMemberCluster status", "internalMemberCluster", imcKObj, "agentStatus", imc.Status.AgentStatus, "oldAgentStatus", oldStatus.AgentStatus)
-	updateFunc := func() error {
-		return r.HubClient.Status().Update(ctx, imc)
-	}
-	if err := apiretry.Do(updateFunc); err != nil {
+	if err := r.HubClient.Status().Update(ctx, imc); err != nil {
 		klog.ErrorS(err, "Failed to update internalMemberCluster status", "internalMemberCluster", klog.KObj(imc), "status", imc.Status)
 		return err
 	}
 	return nil
 }
 
-// cleanupMCSCreatedResources deletes the serviceImport created by the MCS controller.
-func (r *Reconciler) cleanupMCSCreatedResources(ctx context.Context) error {
+// cleanupMCSRelatedResources deletes the MCS related resources.
+// Ideally it should stop the controllers.
+// For now, it tries its best to delete the existing MCS and won't handle the newly created resources for now.
+func (r *Reconciler) cleanupMCSRelatedResources(ctx context.Context) error {
 	list := &fleetnetv1alpha1.MultiClusterServiceList{}
 	if err := r.MemberClient.List(ctx, list); err != nil {
 		klog.ErrorS(err, "Failed to list multiClusterService")
 		return err
 	}
-	for _, v := range list.Items {
-		name, ok := v.Labels[objectmeta.MultiClusterServiceLabelServiceImport]
-		if !ok {
+	for i := range list.Items {
+		if list.Items[i].ObjectMeta.DeletionTimestamp != nil {
 			continue
 		}
-		serviceImport := &fleetnetv1alpha1.ServiceImport{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: v.Namespace,
-				Name:      name,
-			},
-		}
 		deleteFunc := func() error {
-			return r.MemberClient.Delete(ctx, serviceImport)
+			return r.MemberClient.Delete(ctx, &list.Items[i])
 		}
 		if err := apiretry.Do(deleteFunc); err != nil && !apierrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to delete serviceImport", "serviceImport", klog.KObj(serviceImport))
+			klog.ErrorS(err, "Failed to delete multiClusterService", "multiClusterService", klog.KObj(&list.Items[i]))
 			return err
 		}
 	}
-	klog.V(2).InfoS("Completed cleanup mcs created resources", "mcsCounter", len(list.Items))
+
+	for i := range list.Items {
+		name := types.NamespacedName{Namespace: list.Items[i].GetNamespace(), Name: list.Items[i].GetName()}
+		mcs := fleetnetv1alpha1.MultiClusterService{}
+		getFunc := func() error {
+			err := r.MemberClient.Get(ctx, name, &mcs)
+			return err
+		}
+		if err := apiretry.WaitUntilObjectDeleted(ctx, getFunc); err != nil {
+			klog.ErrorS(err, "Wait the multiClusterService to be deleted", "multiClusterService", name)
+			return err
+		}
+	}
+
+	klog.V(2).InfoS("Completed cleanup mcs related resources", "mcsCounter", len(list.Items))
+	return nil
+}
+
+// cleanupServiceExportRelatedResources deletes the serviceExport related resources.
+// Ideally it should stop the controllers.
+// For now, it tries its best to delete the existing serviceExport and won't handle the newly created resources for now.
+func (r *Reconciler) cleanupServiceExportRelatedResources(ctx context.Context) error {
+	list := &fleetnetv1alpha1.ServiceExportList{}
+	if err := r.MemberClient.List(ctx, list); err != nil {
+		klog.ErrorS(err, "Failed to list serviceExport")
+		return err
+	}
+	for i := range list.Items {
+		if list.Items[i].ObjectMeta.DeletionTimestamp != nil {
+			continue
+		}
+		deleteFunc := func() error {
+			return r.MemberClient.Delete(ctx, &list.Items[i])
+		}
+		if err := apiretry.Do(deleteFunc); err != nil && !apierrors.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to delete serviceExport", "serviceExport", klog.KObj(&list.Items[i]))
+			return err
+		}
+	}
+
+	for i := range list.Items {
+		name := types.NamespacedName{Namespace: list.Items[i].GetNamespace(), Name: list.Items[i].GetName()}
+		svcExport := fleetnetv1alpha1.ServiceExport{}
+		getFunc := func() error {
+			return r.MemberClient.Get(ctx, name, &svcExport)
+		}
+		if err := apiretry.WaitUntilObjectDeleted(ctx, getFunc); err != nil {
+			klog.ErrorS(err, "Failed to get the serviceExport", "serviceExport", name)
+			return err
+		}
+	}
+
+	klog.V(2).InfoS("Completed cleanup serviceExport related resources", "serviceExportCounter", len(list.Items))
 	return nil
 }
 

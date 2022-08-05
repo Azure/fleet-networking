@@ -75,7 +75,7 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				if err := k8sClient.Get(ctx, mcsLookupKey, createdMultiClusterService); err != nil {
 					return false
 				}
-				return createdMultiClusterService.GetLabels()[objectmeta.MultiClusterServiceLabelServiceImport] == testServiceName
+				return createdMultiClusterService.GetLabels()[multiClusterServiceLabelServiceImport] == testServiceName
 			}, timeout, interval).Should(BeTrue())
 
 			By("By checking mcs condition and expecting unknown")

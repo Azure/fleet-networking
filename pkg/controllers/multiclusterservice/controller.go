@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	// multiClusterService finalizer
-	multiClusterServiceFinalizer = "networking.fleet.azure.com/service-resources-cleanup"
+	// multiClusterService label
+	multiClusterServiceFinalizer          = "networking.fleet.azure.com/service-resources-cleanup"
+	multiClusterServiceLabelServiceImport = "networking.fleet.azure.com/service-import"
 
 	// service label
 	serviceLabelMCSName      = "networking.fleet.azure.com/multi-cluster-service-name"
@@ -161,7 +162,7 @@ func (r *Reconciler) derivedServiceFromLabel(mcs *fleetnetv1alpha1.MultiClusterS
 
 // mcs-controller will record service import name as the label when it successfully creates the service import.
 func (r *Reconciler) serviceImportFromLabel(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
-	if val, ok := mcs.GetLabels()[objectmeta.MultiClusterServiceLabelServiceImport]; ok {
+	if val, ok := mcs.GetLabels()[multiClusterServiceLabelServiceImport]; ok {
 		return &types.NamespacedName{Namespace: mcs.Namespace, Name: val}
 	}
 	return nil
@@ -180,7 +181,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		}
 	}
 	// update mcs service import label first to prevent the controller abort before we create the resource
-	if err := r.updateMultiClusterLabel(ctx, mcs, objectmeta.MultiClusterServiceLabelServiceImport, desiredServiceImportName.Name); err != nil {
+	if err := r.updateMultiClusterLabel(ctx, mcs, multiClusterServiceLabelServiceImport, desiredServiceImportName.Name); err != nil {
 		return ctrl.Result{}, err
 	}
 	serviceImport := &fleetnetv1alpha1.ServiceImport{
