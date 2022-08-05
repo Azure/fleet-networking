@@ -45,7 +45,7 @@ type statusChange struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports/finalizers,verbs=update
-//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=list
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;watch;list
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports/status,verbs=get;update;patch
 
 // Reconcile resolves the service spec when the serviceImport status is empty and updates the status of internalServiceExports.
