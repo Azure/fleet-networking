@@ -3,6 +3,7 @@ package apiretry
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -55,7 +56,7 @@ func WaitUntilObjectDeleted(ctx context.Context, get func() error) error {
 			return false, err
 		}
 	})
-	if err == wait.ErrWaitTimeout {
+	if errors.Is(err, wait.ErrWaitTimeout) {
 		if lastErr == nil {
 			return wait.ErrWaitTimeout
 		}
