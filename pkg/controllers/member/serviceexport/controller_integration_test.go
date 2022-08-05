@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -186,7 +185,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -266,7 +265,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -350,7 +349,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -460,7 +459,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -536,7 +535,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -720,7 +719,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
@@ -868,7 +867,7 @@ var _ = Describe("serviceexport controller", func() {
 					return false
 				}
 
-				if !cmp.Equal(svcExport.Finalizers, []string{objectmeta.ServiceExportCleanupFinalizer}) {
+				if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
 					return false
 				}
 
