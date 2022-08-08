@@ -4,7 +4,7 @@ Licensed under the MIT license.
 */
 
 // Package internalmembercluster features internalmembercluster controller to report its heartbeat to the hub by updating
-// internalMemberCluster.
+// internalMemberCluster and cleanup the resources before leave.
 package internalmembercluster
 
 import (
@@ -44,7 +44,8 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;delete
 
 // Reconcile handles join/leave for the member cluster controllers and updates its heartbeats.
-// For the MCS controller, it needs to delete created serviceImport in the member clusters.
+// For the MCS controller, it needs to delete created MCS related in the member clusters.
+// For the ServiceExportImport controllers, it needs to delete created serviceExported related in the member clusters.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	imcKRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
