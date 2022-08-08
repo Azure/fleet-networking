@@ -8,9 +8,9 @@ package hubconfig
 import (
 	"encoding/base64"
 	"os"
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/client-go/rest"
 )
 
@@ -33,38 +33,38 @@ func TestPrepareHubConfig(t *testing.T) {
 	testCases := []struct {
 		name                 string
 		environmentVariables map[string]string
-		raiseError           bool
 		tlsClientInsecure    bool
+		raiseError           bool
 	}{
 		{
 			name:                 "environment variable `HUB_SERVER_URL` is not present",
 			environmentVariables: map[string]string{tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
-			raiseError:           true,
 			tlsClientInsecure:    false,
+			raiseError:           true,
 		},
 		{
 			name:                 "environment variable `CONFIG_PATH` is not present",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
-			raiseError:           true,
 			tlsClientInsecure:    false,
+			raiseError:           true,
 		},
 		{
 			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
-			raiseError:           true,
 			tlsClientInsecure:    false,
+			raiseError:           true,
 		},
 		{
 			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
-			raiseError:           false,
 			tlsClientInsecure:    true,
+			raiseError:           false,
 		},
 		{
 			name:                 "hub configuration preparation is done when all requirements meet",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
-			raiseError:           false,
 			tlsClientInsecure:    false,
+			raiseError:           false,
 		},
 	}
 
@@ -103,15 +103,15 @@ func TestPrepareHubConfig(t *testing.T) {
 						Insecure: tc.tlsClientInsecure,
 					},
 				}
-				if !reflect.DeepEqual(*hubConfig, *expectedHubConfig) {
-					t.Errorf("expected hub config: %s, actual: %s", expectedHubConfig, hubConfig)
+				if !cmp.Equal(*hubConfig, *expectedHubConfig) {
+					t.Errorf("PrepareHubConfig() got hub config: %s, want: %s", expectedHubConfig, hubConfig)
 				}
 			}
 
 			if !tc.tlsClientInsecure {
 				decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(fakeCerhubCAEnvVal)
 				if err != nil {
-					t.Errorf("failed to base-encode hub CA, error: %s", err.Error())
+					t.Fatalf("failed to base-encode hub CA, error: %s", err.Error())
 				}
 				expectedHubConfig := &rest.Config{
 					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
@@ -122,8 +122,8 @@ func TestPrepareHubConfig(t *testing.T) {
 					},
 				}
 
-				if !reflect.DeepEqual(hubConfig, expectedHubConfig) {
-					t.Errorf("expected hub config: %s, actual: %s", expectedHubConfig, hubConfig)
+				if !cmp.Equal(hubConfig, expectedHubConfig) {
+					t.Errorf("PrepareHubConfig() got hub config: %s, want: %s", expectedHubConfig, hubConfig)
 				}
 			}
 		})
