@@ -22,6 +22,11 @@ env:
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
   MCS_CONTROLLER_MANAGER_IMAGE_VERSION: main
 
+  # TODO: once fleet repo is public, we could remove these env variables.
+  GOPROXY: ${{ secrets.GOPROXY }}
+  GOPRIVATE: ${{ secrets.GOPRIVATE }}
+  GONOPROXY: none
+
 jobs:
   export-registry:
     runs-on: ubuntu-20.04

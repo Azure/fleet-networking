@@ -161,6 +161,10 @@ OUTPUT_TYPE ?= type=registry
 BUILDX_BUILDER_NAME ?= img-builder
 QEMU_VERSION ?= 5.2.0-2
 
+.PHONY: vendor
+vendor:
+	go mod tidy && go mod vendor
+
 .PHONY: docker-buildx-builder
 docker-buildx-builder:
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
@@ -170,7 +174,7 @@ docker-buildx-builder:
 	fi
 
 .PHONY: docker-build-hub-net-controller-manager
-docker-build-hub-net-controller-manager: docker-buildx-builder
+docker-build-hub-net-controller-manager: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
@@ -179,7 +183,7 @@ docker-build-hub-net-controller-manager: docker-buildx-builder
 		--tag $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
 .PHONY: docker-build-member-net-controller-manager
-docker-build-member-net-controller-manager: docker-buildx-builder
+docker-build-member-net-controller-manager: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
@@ -188,7 +192,7 @@ docker-build-member-net-controller-manager: docker-buildx-builder
 		--tag $(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
 .PHONY: docker-build-mcs-controller-manager
-docker-build-mcs-controller-manager: docker-buildx-builder
+docker-build-mcs-controller-manager: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
