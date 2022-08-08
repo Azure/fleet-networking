@@ -17,7 +17,7 @@ import (
 func TestPrepareHubConfig(t *testing.T) {
 	var (
 		fakeHubhubServerURLEnvVal       = "fake-hub-server-url"
-		fakeConfigtokenConfigPathEnvVal = "fake-config-path"
+		fakeConfigtokenConfigPathEnvVal = "fake-config-path" //nolint:gosec
 		fakeCerhubCAEnvVal              = base64.StdEncoding.EncodeToString([]byte("fake-certificate-authority"))
 	)
 
@@ -76,7 +76,9 @@ func TestPrepareHubConfig(t *testing.T) {
 			for envKey, envVal := range tc.environmentVariables {
 				os.Setenv(envKey, envVal)
 				if envKey == tokenConfigPathEnvKey {
-					os.Create(fakeConfigtokenConfigPathEnvVal)
+					if _, err := os.Create(fakeConfigtokenConfigPathEnvVal); err != nil {
+						t.Errorf("failed to create file %s, err: %s", fakeConfigtokenConfigPathEnvVal, err.Error())
+					}
 				}
 			}
 
@@ -123,7 +125,6 @@ func TestPrepareHubConfig(t *testing.T) {
 				if !reflect.DeepEqual(hubConfig, expectedHubConfig) {
 					t.Errorf("expected hub config: %s, actual: %s", expectedHubConfig, hubConfig)
 				}
-
 			}
 		})
 	}
