@@ -11,6 +11,7 @@ import (
 	"os"
 )
 
+// EnvOrError returns environment variable when found otherwise error will be returned.
 func EnvOrError(envKey string) (string, error) {
 	value, ok := os.LookupEnv(envKey)
 	if !ok {
