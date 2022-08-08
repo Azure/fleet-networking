@@ -84,11 +84,11 @@ func TestPrepareHubConfig(t *testing.T) {
 
 			hubConfig, err := PrepareHubConfig(tc.tlsClientInsecure)
 			if tc.raiseError && err == nil {
-				t.Errorf("error should be raised")
+				t.Errorf("got no error, want error")
 			}
 
 			if !tc.raiseError && err != nil {
-				t.Errorf("error should not be raised, but got err: %s", err.Error())
+				t.Errorf("got err: %s,  want no error", err.Error())
 			}
 
 			if tc.raiseError {
@@ -104,7 +104,7 @@ func TestPrepareHubConfig(t *testing.T) {
 					},
 				}
 				if !cmp.Equal(*hubConfig, *expectedHubConfig) {
-					t.Errorf("PrepareHubConfig() got hub config: %s, want: %s", expectedHubConfig, hubConfig)
+					t.Errorf("got hub config: %s, want: %s", expectedHubConfig, hubConfig)
 				}
 			}
 
@@ -123,7 +123,7 @@ func TestPrepareHubConfig(t *testing.T) {
 				}
 
 				if !cmp.Equal(hubConfig, expectedHubConfig) {
-					t.Errorf("PrepareHubConfig() got hub config: %s, want: %s", expectedHubConfig, hubConfig)
+					t.Errorf("got hub config: %s, want: %s", expectedHubConfig, hubConfig)
 				}
 			}
 		})
