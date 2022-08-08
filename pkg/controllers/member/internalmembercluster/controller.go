@@ -5,6 +5,8 @@ Licensed under the MIT license.
 
 // Package internalmembercluster features internalmembercluster controller to report its heartbeat to the hub by updating
 // internalMemberCluster and cleanup the resources before leave.
+// For example, MCS agent needs to report the heartbeat after join and cleanup the created MCSes before leave.
+// For now, there are two kinds of agents exist in the member cluster: MCS agent and ServiceExportImport agent.
 package internalmembercluster
 
 import (
