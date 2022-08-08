@@ -34,37 +34,37 @@ func TestPrepareHubConfig(t *testing.T) {
 		name                 string
 		environmentVariables map[string]string
 		tlsClientInsecure    bool
-		raiseError           bool
+		wantErr              bool
 	}{
 		{
 			name:                 "environment variable `HUB_SERVER_URL` is not present",
 			environmentVariables: map[string]string{tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			raiseError:           true,
+			wantErr:              true,
 		},
 		{
 			name:                 "environment variable `CONFIG_PATH` is not present",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			raiseError:           true,
+			wantErr:              true,
 		},
 		{
 			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    false,
-			raiseError:           true,
+			wantErr:              true,
 		},
 		{
 			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    true,
-			raiseError:           false,
+			wantErr:              false,
 		},
 		{
 			name:                 "hub configuration preparation is done when all requirements meet",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			raiseError:           false,
+			wantErr:              false,
 		},
 	}
 
@@ -83,15 +83,11 @@ func TestPrepareHubConfig(t *testing.T) {
 			}
 
 			hubConfig, err := PrepareHubConfig(tc.tlsClientInsecure)
-			if tc.raiseError && err == nil {
-				t.Errorf("got no error, want error")
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("PrepareHubConfig() error = %v, wantErr %t", err, tc.wantErr)
 			}
 
-			if !tc.raiseError && err != nil {
-				t.Errorf("got err: %s,  want no error", err.Error())
-			}
-
-			if tc.raiseError {
+			if tc.wantErr {
 				return
 			}
 
@@ -104,7 +100,7 @@ func TestPrepareHubConfig(t *testing.T) {
 					},
 				}
 				if !cmp.Equal(*hubConfig, *expectedHubConfig) {
-					t.Errorf("got hub config: %s, want: %s", expectedHubConfig, hubConfig)
+					t.Errorf("PrepareHubConfig() got hub config: %v, want: %v", expectedHubConfig, hubConfig)
 				}
 			}
 
@@ -123,7 +119,7 @@ func TestPrepareHubConfig(t *testing.T) {
 				}
 
 				if !cmp.Equal(hubConfig, expectedHubConfig) {
-					t.Errorf("got hub config: %s, want: %s", expectedHubConfig, hubConfig)
+					t.Errorf("PrepareHubConfig() got hub config: %v, want: %v", expectedHubConfig, hubConfig)
 				}
 			}
 		})
