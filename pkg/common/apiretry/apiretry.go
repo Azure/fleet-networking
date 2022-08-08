@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// Do will retry the get func only when the error is transient.
+// Do will retry the do func only when the error is transient.
 func Do(do func() error) error {
 	backOffPeriod := retry.DefaultBackoff
 	backOffPeriod.Cap = time.Second * 1
