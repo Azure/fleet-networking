@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
-	"go.goms.io/fleet-networking/pkg/env"
+	"go.goms.io/fleet-networking/pkg/common/env"
 )
 
 const (
