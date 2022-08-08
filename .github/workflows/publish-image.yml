@@ -22,6 +22,13 @@ env:
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
   MCS_CONTROLLER_MANAGER_IMAGE_VERSION: main
 
+  GO_VERSION: '1.18'
+
+  # TODO: once fleet repo is public, we could remove these env variables.
+  GOPROXY: ${{ secrets.GOPROXY }}
+  GOPRIVATE: ${{ secrets.GOPRIVATE }}
+  GONOPROXY: none
+
 jobs:
   export-registry:
     runs-on: ubuntu-20.04
@@ -38,6 +45,10 @@ jobs:
       REGISTRY: ${{ needs.export-registry.outputs.registry }}
     runs-on: ubuntu-20.04
     steps:
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
       - uses: actions/checkout@v3
       - name: Set image version for a new release
         if: startsWith(github.ref, 'refs/tags/')
