@@ -3,7 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package util
+// Package env provides shared functions to handle environment variables.
+package env
 
 import (
 	"fmt"

@@ -3,7 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package util
+// package hubconfig provides common functionalities for hub configuration.
+package hubconfig
 
 import (
 	"encoding/base64"
@@ -12,6 +13,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
+
+	"go.goms.io/fleet-networking/pkg/env"
 )
 
 const (
@@ -24,13 +27,13 @@ const (
 // PrepareHubConfig return the config holding attributes for a Kubernetes client to request hub cluster.
 // Called must make sure all required environment variables are well set.
 func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
-	hubURL, err := EnvOrError(hubServerURLEnvKey)
+	hubURL, err := env.EnvOrError(hubServerURLEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Hub cluster endpoint URL cannot be empty")
 		return nil, err
 	}
 
-	tokenFilePath, err := EnvOrError(tokenConfigPathEnvKey)
+	tokenFilePath, err := env.EnvOrError(tokenConfigPathEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Hub token file path cannot be empty")
 		return nil, err
@@ -57,9 +60,10 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 			},
 		}
 	} else {
-		hubCA, err := EnvOrError(hubCAEnvKey)
+		hubCA, err := env.EnvOrError(hubCAEnvKey)
 		if err != nil {
 			klog.ErrorS(err, "Hub certificate authority cannot be empty")
+			return nil, err
 		}
 		decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(hubCA)
 		if err != nil {

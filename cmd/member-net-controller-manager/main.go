@@ -29,7 +29,8 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/util"
+	"go.goms.io/fleet-networking/pkg/common/env"
+	"go.goms.io/fleet-networking/pkg/common/hubconfig"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
@@ -176,7 +177,7 @@ func main() {
 }
 
 func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
-	hubConfig, err := util.PrepareHubConfig(*tlsClientInsecure)
+	hubConfig, err := hubconfig.PrepareHubConfig(*tlsClientInsecure)
 	if err != nil {
 		klog.ErrorS(err, "Failed to get hub config")
 		return nil, nil, err
@@ -214,7 +215,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 }
 
 func fetchMemberClusterHubNamespaceName() (string, error) {
-	mcName, err := util.EnvOrError(memberClusterNameEnvKey)
+	mcName, err := env.EnvOrError(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return "", err
@@ -225,7 +226,7 @@ func fetchMemberClusterHubNamespaceName() (string, error) {
 func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
 	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
-	mcName, err := util.EnvOrError(memberClusterNameEnvKey)
+	mcName, err := env.EnvOrError(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return err
