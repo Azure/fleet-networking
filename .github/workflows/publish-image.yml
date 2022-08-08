@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   create:
      # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
@@ -14,6 +17,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  OUTPUT_TYPE: docker
+
   # TODO: to use the real tag/image version later
   HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME : hub-net-controller-manager
   HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: main
