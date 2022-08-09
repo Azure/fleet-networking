@@ -28,13 +28,16 @@ import (
 )
 
 var (
-	scheme               = runtime.NewScheme()
-	metricsAddr          = flag.String("metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	scheme = runtime.NewScheme()
+
+	metricsAddr = flag.String("metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	probeAddr   = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+
 	enableLeaderElection = flag.Bool("leader-elect", true,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace in which the leader election resource will be created.")
-	fleetSystemNamespace    = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
+
+	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
