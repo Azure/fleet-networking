@@ -15,6 +15,26 @@ logVerbosity: 2
 fleetSystemNamespace: fleet-system
 leaderElectionNamespace: fleet-system
 
+refreshtoken:
+  repository: ghcr.io/azure/fleet/refresh-token
+  pullPolicy: Always
+  tag: v0.1.0
+
+config:
+  provider: secret
+  hubURL : https://<hub_cluster_api_server_ip>:<hub_cluster_port>
+  memberClusterName: <member_cluster_name>
+  hubCA: <certificate_authority_data>
+
+secret:
+  name: "hub-kubeconfig-secret"
+  namespace: "default"
+
+azure:
+  clientid: <member_cluster_clientID>
+
+tlsClientInsecure: true #TODO should be false in the production
+
 resources:
   limits:
     cpu: 500m
