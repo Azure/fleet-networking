@@ -1,4 +1,4 @@
-# Fleet Networking Getting Started Tutorial Hub Cluster Resources Chart
+# Fleet Networking Getting Started Tutorial Member Cluster Resources Chart
 
 ## Before you begin
 
@@ -7,20 +7,15 @@ Install [Helm](https://helm.sh).
 ## Install the chart
 
 ```bash
-helm install getting-started-tutorial-hub-resources \
-    ./examples/getting-started/charts/hub \
-    --set principalIDForMember1=YOUR-PRINCIPAL-ID-FOR-MEMBER-1 \
-    --set principalIDForMember2=YOUR-PRINCIPAL-ID-FOR-MEMBER-2 \
-    --set userNS=YOUR-USER-NS
+helm install getting-started-tutorial-member-resources \
+    ./examples/getting-started/charts/members \
+    --set memberID=YOUR-MEMBER-CLUSTER
 ```
 
 ## Parameters
 
 | Parameter | Description | Default |
 |:-|:-|:-|
-| `userNS` | The namespace for user workloads | `` |
+| `userNS` | The namespace for user workloads | `work` |
 | `systemNS` | The namespace reserved for Fleet controllers and resources | `fleet-system` |
-| `member1ID` | The ID of member cluster 1. | `member-1` |
-| `member2ID` | The ID of member cluster 2. | `member-2` |
-| `principalIDForMember1` | The principal ID of member cluster 1. | N/A |
-| `principalIDForMember2` | The principal ID of member cluster 2. | N/A |
+| `memberID` | The ID of the member cluster. | N/A |

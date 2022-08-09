@@ -3,11 +3,11 @@
 # Declare variables to be passed into your templates.
 
 # The namespace for user-end workloads.
-userNS:
+userNS: work
 
 # The namespace for Fleet controllers and resources.
 systemNS: fleet-system
 
 # The ID of member clusters.
-member1ID: member-1
-member2ID: member-2
+memberAID: member-1
+memberBID: member-2

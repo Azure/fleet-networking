@@ -1,9 +1,7 @@
-{{- if not .Values.userNS }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: member-cluster-id
-  namespace: {{ .Values.userNS }}
+  namespace: {{ required "A valid user namespace is required" .Values.userNS }}
 data:
   id: {{ required "A valid member ID is required" .Values.memberID }}
-{{- end -}}

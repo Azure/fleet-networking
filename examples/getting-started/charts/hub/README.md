@@ -9,18 +9,17 @@ Install [Helm](https://helm.sh).
 ```bash
 helm install getting-started-tutorial-hub-resources \
     ./examples/getting-started/charts/hub \
-    --set principalIDForMember1=YOUR-PRINCIPAL-ID-FOR-MEMBER-1 \
-    --set principalIDForMember2=YOUR-PRINCIPAL-ID-FOR-MEMBER-2 \
-    --set userNS=YOUR-USER-NS
+    --set principalIDForMemberA=YOUR-PRINCIPAL-ID-FOR-MEMBER-1 \
+    --set principalIDForMemberB=YOUR-PRINCIPAL-ID-FOR-MEMBER-2
 ```
 
 ## Parameters
 
 | Parameter | Description | Default |
 |:-|:-|:-|
-| `userNS` | The namespace for user workloads | `` |
+| `userNS` | The namespace for user workloads | `work` |
 | `systemNS` | The namespace reserved for Fleet controllers and resources | `fleet-system` |
-| `member1ID` | The ID of member cluster 1. | `member-1` |
-| `member2ID` | The ID of member cluster 2. | `member-2` |
-| `principalIDForMember1` | The principal ID of member cluster 1. | N/A |
-| `principalIDForMember2` | The principal ID of member cluster 2. | N/A |
+| `memberAID` | The ID of member cluster 1. | `member-1` |
+| `memberBID` | The ID of member cluster 2. | `member-2` |
+| `principalIDForMemberA` | The principal ID of member cluster 1. | N/A |
+| `principalIDForMemberB` | The principal ID of member cluster 2. | N/A |

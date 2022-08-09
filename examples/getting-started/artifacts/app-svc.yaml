@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: work
+  labels:
+    app: hello-world
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-world
+  template:
+    metadata:
+      labels:
+        app: hello-world
+    spec:
+      containers:
+        - name: python
+          image: bravelion.azurecr.io/app
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8080
+          env:
+          - name: MEMBER_CLUSTER_ID
+            valueFrom:
+              configMapKeyRef:
+                name: member-cluster-id
+                key: id
+          resources:
+            requests:
+              cpu: "0.2"
+              memory: "400M"
+            limits:
+              cpu: "0.2"
+              memory: "400M"
+          volumeMounts:
+            - mountPath: /etc/podinfo
+              name: podinfo
+      volumes:
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: "name"
+                fieldRef:
+                  fieldPath: metadata.name
+              - path: "namespace"
+                fieldRef:
+                  fieldPath: metadata.namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: work
+spec:
+  type: LoadBalancer
+  selector:
+    app: hello-world
+  ports:
+  - port: 80
+    targetPort: 8080

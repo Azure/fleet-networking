@@ -1,0 +1,8 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: MultiClusterService
+metadata:
+  name: app
+  namespace: work
+spec:
+  serviceImport:
+    name: app

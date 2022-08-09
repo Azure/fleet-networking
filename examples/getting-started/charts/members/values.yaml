@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # The namespace for user-end workloads.
-userNS:
+userNS: work
 
 # The namespace for Fleet controllers and resources.
 systemNS: fleet-system
