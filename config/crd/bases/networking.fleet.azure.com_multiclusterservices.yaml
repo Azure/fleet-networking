@@ -24,11 +24,11 @@ spec:
     - jsonPath: .spec.serviceImport.name
       name: Service-Import
       type: string
-    - jsonPath: .status.loadBalancer.ingress.ip
+    - jsonPath: .status.loadBalancer.ingress[0].ip
       name: External-IP
       type: string
-    - jsonPath: .status.conditions[?(@.type=="MultiClusterServiceValid")].status
-      name: IsValid
+    - jsonPath: .status.conditions[?(@.type=='Valid')].status
+      name: Is-Valid
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age

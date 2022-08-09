@@ -36,8 +36,8 @@ type ServiceExportStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=svcexport
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportValid")].status`,name="IsValid",type=string
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ServiceExportConflict")].status`,name="IsConflicted",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Valid')].status`,name="Is-Valid",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Conflict')].status`,name="Is-Conflicted",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // ServiceExport declares that the associated service should be exported to other clusters.

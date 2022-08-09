@@ -623,11 +623,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 		It("should remove exported but deleted endpointslice", func() {
 			// Add the unique name annotation now; a finalizer is also added to prevent premature deletion.
-			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
-			}
-			endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
-			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return err
+				}
+				endpointSlice.Annotations = map[string]string{
+					objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+				}
+				endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
+				return memberClient.Update(ctx, endpointSlice)
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			// Set the deletion timestamp.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
