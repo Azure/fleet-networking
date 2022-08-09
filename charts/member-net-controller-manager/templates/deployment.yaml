@@ -27,6 +27,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
             - --tls-insecure={{ .Values.tlsClientInsecure }}
             - --v={{ .Values.logVerbosity }}

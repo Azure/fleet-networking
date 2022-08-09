@@ -11,6 +11,7 @@ image:
   tag: "v0.1.0"
 
 fleetSystemNamespace:  fleet-system
+leaderElectionNamespace: fleet-system
 
 logVerbosity: 2
 
