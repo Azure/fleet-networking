@@ -34,6 +34,7 @@ helm upgrade mcs-controller-manager ./charts/mcs-controller-manager/
 | image.tag | The image tag to use | `v0.1.0` |
 | logVerbosity | Log level. Uses V logs (klog) | `2` |
 | fleetSystemNamespace | Namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
+| leaderElectionNamespace | The namespace in which the leader election resource will be created. | `fleet-system` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |

@@ -102,6 +102,7 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | image.tag | The image tag to use | `v0.1.0` |
 | logVerbosity | Log level. Uses V logs (klog) | `2` |
 | fleetSystemNamespace | Namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
+| leaderElectionNamespace | The namespace in which the leader election resource will be created. | `fleet-system` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | azure.clientid | Azure AAD client ID to obtain token to request hub cluster, required when config.provider is `azure` | `[]` |
 | secret.name | The name of Kuberentes Secret storing credential to hub cluster, required when config.provider is `secret` | `[]` |

@@ -50,13 +50,17 @@ const (
 )
 
 var (
-	scheme               = runtime.NewScheme()
+	scheme = runtime.NewScheme()
+
+	hubMetricsAddr = flag.String("hub-metrics-bind-address", ":8080", "The address of hub controller manager the metric endpoint binds to.")
+	hubProbeAddr   = flag.String("hub-health-probe-bind-address", ":8081", "The address of hub controller manager the probe endpoint binds to.")
+	metricsAddr    = flag.String("member-metrics-bind-address", ":8090", "The address of member controller manager the metric endpoint binds to.")
+	probeAddr      = flag.String("member-health-probe-bind-address", ":8091", "The address of member controller manager the probe endpoint binds to.")
+
+	enableLeaderElection    = flag.Bool("leader-elect", true, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace in which the leader election resource will be created.")
+
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
-	hubMetricsAddr       = flag.String("hub-metrics-bind-address", ":8080", "The address of hub controller manager the metric endpoint binds to.")
-	hubProbeAddr         = flag.String("hub-health-probe-bind-address", ":8081", "The address of hub controller manager the probe endpoint binds to.")
-	metricsAddr          = flag.String("member-metrics-bind-address", ":8090", "The address of member controller manager the metric endpoint binds to.")
-	probeAddr            = flag.String("member-health-probe-bind-address", ":8091", "The address of member controller manager the probe endpoint binds to.")
-	enableLeaderElection = flag.Bool("leader-elect", true, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
@@ -204,12 +208,13 @@ func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 
 func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 	memberOpts := &ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     *metricsAddr,
-		Port:                   8443,
-		HealthProbeBindAddress: *probeAddr,
-		LeaderElection:         *enableLeaderElection,
-		LeaderElectionID:       "2bf2b407.member.networking.fleet.azure.com",
+		Scheme:                  scheme,
+		MetricsBindAddress:      *metricsAddr,
+		Port:                    8443,
+		HealthProbeBindAddress:  *probeAddr,
+		LeaderElection:          *enableLeaderElection,
+		LeaderElectionNamespace: *leaderElectionNamespace,
+		LeaderElectionID:        "2bf2b407.member.networking.fleet.azure.com",
 	}
 	return ctrl.GetConfigOrDie(), memberOpts
 }
