@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -22,7 +21,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -31,6 +29,8 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/env"
+	"go.goms.io/fleet-networking/pkg/common/hubconfig"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
@@ -43,9 +43,6 @@ import (
 const (
 	// Environment variable keys
 	memberClusterNameEnvKey = "MEMBER_CLUSTER_NAME"
-	hubServerURLEnvKey      = "HUB_SERVER_URL"
-	tokenConfigPathEnvKey   = "CONFIG_PATH" //nolint:gosec
-	hubCAEnvKey             = "HUB_CERTIFICATE_AUTHORITY"
 
 	// Naming pattern of member cluster namespace in hub cluster, should be the same as value as defined in
 	// https://github.com/Azure/fleet/blob/main/pkg/utils/common.go
@@ -180,56 +177,10 @@ func main() {
 }
 
 func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
-	hubURL, err := envOrError(hubServerURLEnvKey)
+	hubConfig, err := hubconfig.PrepareHubConfig(*tlsClientInsecure)
 	if err != nil {
-		klog.ErrorS(err, "Hub cluster endpoint URL cannot be empty")
+		klog.ErrorS(err, "Failed to get hub config")
 		return nil, nil, err
-	}
-
-	tokenFilePath, err := envOrError(tokenConfigPathEnvKey)
-	if err != nil {
-		klog.ErrorS(err, "Hub token file path cannot be empty")
-		return nil, nil, err
-	}
-
-	// Retry on obtaining token file as it is created asynchronously by token-refesher container
-	if err := retry.OnError(retry.DefaultRetry, func(e error) bool {
-		return true
-	}, func() error {
-		// Stat returns file info. It will return an error if there is no file.
-		_, err := os.Stat(tokenFilePath)
-		return err
-	}); err != nil {
-		klog.ErrorS(err, "Cannot retrieve token file from the path %s", tokenFilePath)
-		return nil, nil, err
-	}
-	var hubConfig *rest.Config
-	if *tlsClientInsecure {
-		hubConfig = &rest.Config{
-			BearerTokenFile: tokenFilePath,
-			Host:            hubURL,
-			TLSClientConfig: rest.TLSClientConfig{
-				Insecure: *tlsClientInsecure,
-			},
-		}
-	} else {
-		hubCA, err := envOrError(hubCAEnvKey)
-		if err != nil {
-			klog.ErrorS(err, "Hub certificate authority cannot be empty")
-		}
-		decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(hubCA)
-		if err != nil {
-			klog.ErrorS(err, "Cannot decode hub cluster certificate authority data")
-			return nil, nil, err
-		}
-		hubConfig = &rest.Config{
-			BearerTokenFile: tokenFilePath,
-			Host:            hubURL,
-			TLSClientConfig: rest.TLSClientConfig{
-				Insecure: *tlsClientInsecure,
-				CAData:   decodedClusterCaCertificate,
-			},
-		}
 	}
 
 	mcHubNamespace, err := fetchMemberClusterHubNamespaceName()
@@ -264,7 +215,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 }
 
 func fetchMemberClusterHubNamespaceName() (string, error) {
-	mcName, err := envOrError(memberClusterNameEnvKey)
+	mcName, err := env.Lookup(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return "", err
@@ -275,7 +226,7 @@ func fetchMemberClusterHubNamespaceName() (string, error) {
 func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
 	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
-	mcName, err := envOrError(memberClusterNameEnvKey)
+	mcName, err := env.Lookup(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return err
@@ -362,12 +313,4 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")
 	return nil
-}
-
-func envOrError(envKey string) (string, error) {
-	value, ok := os.LookupEnv(envKey)
-	if !ok {
-		return "", fmt.Errorf("failed to retrieve the environment variable value from %s", envKey)
-	}
-	return value, nil
 }
