@@ -8,12 +8,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,19 +34,11 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/serviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/serviceimport"
-)
-
-const (
-	// Environment variable keys
-	memberClusterNameEnvKey = "MEMBER_CLUSTER_NAME"
-
-	// Naming pattern of member cluster namespace in hub cluster, should be the same as value as defined in
-	// https://github.com/Azure/fleet/blob/main/pkg/utils/common.go
-	hubNamespaceNameFormat = "fleet-member-%s"
 )
 
 var (
@@ -140,7 +132,7 @@ func main() {
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-ch
-		klog.Info("Received termination, signaling shutdown ServiceExportImport controller manager")
+		klog.Info("Received termination, signaling shutdown ServiceExportImport agent")
 		cancel()
 	}()
 
@@ -148,7 +140,7 @@ func main() {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		klog.V(1).InfoS("Starting hub manager for ServiceExportImport controller manager")
+		klog.V(1).InfoS("Starting hub manager for ServiceExportImport agent")
 		defer func() {
 			wg.Done()
 			klog.V(1).InfoS("Shutting down hub manager")
@@ -161,7 +153,7 @@ func main() {
 	}()
 	wg.Add(1)
 	go func() {
-		klog.V(1).InfoS("Starting member manager for ServiceExportImport controller manager")
+		klog.V(1).InfoS("Starting member manager for ServiceExportImport agent")
 		defer func() {
 			klog.V(1).InfoS("Shutting down member manager")
 			wg.Done()
@@ -187,7 +179,7 @@ func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 		return nil, nil, err
 	}
 
-	mcHubNamespace, err := fetchMemberClusterHubNamespaceName()
+	mcHubNamespace, err := hubconfig.FetchMemberClusterNamespace()
 	if err != nil {
 		klog.ErrorS(err, "Failed to get member cluster hub namespace")
 		return nil, nil, err
@@ -219,25 +211,16 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 	return ctrl.GetConfigOrDie(), memberOpts
 }
 
-func fetchMemberClusterHubNamespaceName() (string, error) {
-	mcName, err := env.Lookup(memberClusterNameEnvKey)
-	if err != nil {
-		klog.ErrorS(err, "Member cluster name cannot be empty")
-		return "", err
-	}
-	return fmt.Sprintf(hubNamespaceNameFormat, mcName), nil
-}
-
 func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
 	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
-	mcName, err := env.Lookup(memberClusterNameEnvKey)
+	mcName, err := env.LookupMemberClusterName()
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return err
 	}
 
-	mcHubNamespace, err := fetchMemberClusterHubNamespaceName()
+	mcHubNamespace, err := hubconfig.FetchMemberClusterNamespace()
 	if err != nil {
 		klog.ErrorS(err, "Failed to get member cluster hub namespace")
 		return err
@@ -313,6 +296,16 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubNamespace:    mcHubNamespace,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceimport reconciler")
+		return err
+	}
+
+	klog.V(1).InfoS("Create internalmembercluster reconciler")
+	if err := (&internalmembercluster.Reconciler{
+		MemberClient: memberClient,
+		HubClient:    hubClient,
+		AgentType:    fleetv1alpha1.ServiceExportImportAgent,
+	}).SetupWithManager(hubMgr); err != nil {
+		klog.ErrorS(err, "Unable to create internalmembercluster reconciler")
 		return err
 	}
 

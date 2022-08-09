@@ -7,6 +7,7 @@ package hubconfig
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 	"testing"
 
@@ -121,6 +122,52 @@ func TestPrepareHubConfig(t *testing.T) {
 				if !cmp.Equal(hubConfig, expectedHubConfig) {
 					t.Errorf("PrepareHubConfig() got hub config: %v, want: %v", expectedHubConfig, hubConfig)
 				}
+			}
+		})
+	}
+}
+
+func TestFetchMemberClusterNamespace(t *testing.T) {
+	memberCluster := "cluster-a"
+	testCases := []struct {
+		name     string
+		envKey   string
+		envValue string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "environment variable is present",
+			envKey:   "MEMBER_CLUSTER_NAME",
+			envValue: memberCluster,
+			want:     fmt.Sprintf(hubNamespaceNameFormat, memberCluster),
+			wantErr:  false,
+		},
+		{
+			name:    "environment variable is not present",
+			envKey:  "MEMBER_CLUSTER_NAME",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.envValue) == 0 {
+				os.Unsetenv(tc.envKey)
+			} else {
+				os.Setenv(tc.envKey, tc.envValue)
+			}
+			got, err := FetchMemberClusterNamespace()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("FetchMemberClusterNamespace() got err %v, want err %v", err, tc.wantErr)
+			}
+
+			if tc.wantErr {
+				return
+			}
+
+			if got != tc.want {
+				t.Errorf("FetchMemberClusterNamespace() = %v, want %v", got, tc.want)
 			}
 		})
 	}

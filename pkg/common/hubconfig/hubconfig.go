@@ -8,6 +8,7 @@ package hubconfig
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 
 	"k8s.io/client-go/rest"
@@ -22,6 +23,10 @@ const (
 	hubServerURLEnvKey    = "HUB_SERVER_URL"
 	tokenConfigPathEnvKey = "CONFIG_PATH" //nolint:gosec
 	hubCAEnvKey           = "HUB_CERTIFICATE_AUTHORITY"
+
+	// Naming pattern of member cluster namespace in hub cluster, should be the same as envValue as defined in
+	// https://github.com/Azure/fleet/blob/main/pkg/utils/common.go
+	hubNamespaceNameFormat = "fleet-member-%s"
 )
 
 // PrepareHubConfig return the config holding attributes for a Kubernetes client to request hub cluster.
@@ -81,4 +86,14 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 	}
 
 	return hubConfig, nil
+}
+
+// FetchMemberClusterNamespace gets the assigned namespace for the member cluster in the hub.
+func FetchMemberClusterNamespace() (string, error) {
+	mcName, err := env.LookupMemberClusterName()
+	if err != nil {
+		klog.ErrorS(err, "Member cluster name cannot be empty")
+		return "", err
+	}
+	return fmt.Sprintf(hubNamespaceNameFormat, mcName), nil
 }
