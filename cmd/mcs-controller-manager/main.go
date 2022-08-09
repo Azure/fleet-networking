@@ -33,7 +33,8 @@ var (
 	probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	enableLeaderElection = flag.Bool("leader-elect", true,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
+	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace in which the leader election resource will be created.")
+	fleetSystemNamespace    = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 )
 
 func init() {
@@ -64,12 +65,13 @@ func main() {
 	})
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     *metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: *probeAddr,
-		LeaderElection:         *enableLeaderElection,
-		LeaderElectionID:       "2bf2b407.mcs.networking.fleet.azure.com",
+		Scheme:                  scheme,
+		MetricsBindAddress:      *metricsAddr,
+		Port:                    9443,
+		HealthProbeBindAddress:  *probeAddr,
+		LeaderElection:          *enableLeaderElection,
+		LeaderElectionNamespace: *leaderElectionNamespace,
+		LeaderElectionID:        "2bf2b407.mcs.networking.fleet.azure.com",
 	})
 	if err != nil {
 		klog.ErrorS(err, "unable to start manager")
