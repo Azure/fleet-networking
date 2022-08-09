@@ -12,7 +12,7 @@ import (
 )
 
 // Lookup returns environment variable when found otherwise error will be returned.
-func Lookup(envKey string) (string, error) { //nolint:revive
+func Lookup(envKey string) (string, error) {
 	value, ok := os.LookupEnv(envKey)
 	if !ok {
 		return "", fmt.Errorf("failed to retrieve the environment variable value from %s", envKey)
