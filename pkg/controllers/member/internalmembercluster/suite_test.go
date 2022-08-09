@@ -78,7 +78,7 @@ var _ = BeforeSuite(func() {
 			filepath.Join("../../../../", "config", "crd", "bases"),
 			// need to make sure the version matches the one in the go.mod
 			// workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.0.0-20220803041437-e43467c4292b", "config", "crd", "bases"),
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.3.0", "config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}

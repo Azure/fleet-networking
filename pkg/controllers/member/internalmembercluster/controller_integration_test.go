@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -85,15 +84,6 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 				},
 			}
 			Expect(hubClient.Create(ctx, &imc)).Should(Succeed())
-
-			// TODO, need to removed once the fleet api is updated
-			imc.Status = fleetv1alpha1.InternalMemberClusterStatus{
-				Conditions:    []metav1.Condition{},
-				Capacity:      corev1.ResourceList{},
-				Allocatable:   corev1.ResourceList{},
-				ResourceUsage: fleetv1alpha1.ResourceUsage{},
-			}
-			Expect(hubClient.Status().Update(ctx, &imc)).Should(Succeed())
 
 			By("Checking internalMemberCluster status")
 			var joinLastTransitionTime metav1.Time
@@ -225,15 +215,6 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 				},
 			}
 			Expect(hubClient.Create(ctx, &imc)).Should(Succeed())
-
-			// TODO, need to removed once the fleet api is updated
-			imc.Status = fleetv1alpha1.InternalMemberClusterStatus{
-				Conditions:    []metav1.Condition{},
-				Capacity:      corev1.ResourceList{},
-				Allocatable:   corev1.ResourceList{},
-				ResourceUsage: fleetv1alpha1.ResourceUsage{},
-			}
-			Expect(hubClient.Status().Update(ctx, &imc)).Should(Succeed())
 
 			By("Checking internalMemberCluster status")
 			var joinLastTransitionTime metav1.Time
@@ -443,15 +424,6 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 			}
 			Expect(hubClient.Create(ctx, &imc)).Should(Succeed())
 
-			// TODO, need to removed once the fleet api is updated
-			imc.Status = fleetv1alpha1.InternalMemberClusterStatus{
-				Conditions:    []metav1.Condition{},
-				Capacity:      corev1.ResourceList{},
-				Allocatable:   corev1.ResourceList{},
-				ResourceUsage: fleetv1alpha1.ResourceUsage{},
-			}
-			Expect(hubClient.Status().Update(ctx, &imc)).Should(Succeed())
-
 			By("Checking internalMemberCluster status")
 			var joinLastTransitionTime metav1.Time
 			var heartbeatReceivedTime metav1.Time
@@ -597,15 +569,6 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 				},
 			}
 			Expect(hubClient.Create(ctx, &imc)).Should(Succeed())
-
-			// TODO, need to removed once the fleet api is updated
-			imc.Status = fleetv1alpha1.InternalMemberClusterStatus{
-				Conditions:    []metav1.Condition{},
-				Capacity:      corev1.ResourceList{},
-				Allocatable:   corev1.ResourceList{},
-				ResourceUsage: fleetv1alpha1.ResourceUsage{},
-			}
-			Expect(hubClient.Status().Update(ctx, &imc)).Should(Succeed())
 
 			By("Checking internalMemberCluster status")
 			var joinLastTransitionTime metav1.Time

@@ -11,6 +11,11 @@ import (
 	"os"
 )
 
+const (
+	// Environment variable keys
+	memberClusterNameEnvKey = "MEMBER_CLUSTER_NAME"
+)
+
 // Lookup returns environment variable when found otherwise error will be returned.
 func Lookup(envKey string) (string, error) {
 	value, ok := os.LookupEnv(envKey)
@@ -18,4 +23,9 @@ func Lookup(envKey string) (string, error) {
 		return "", fmt.Errorf("failed to retrieve the environment variable value from %s", envKey)
 	}
 	return value, nil
+}
+
+// LookupMemberClusterName returns the member cluster name.
+func LookupMemberClusterName() (string, error) {
+	return Lookup(memberClusterNameEnvKey)
 }
