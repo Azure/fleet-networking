@@ -242,7 +242,7 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 			Expect(client.IgnoreNotFound(hubClient.Delete(ctx, internalSvcImport))).Should(Succeed())
 			Eventually(func() error {
 				return client.IgnoreNotFound(hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport))
-			}, eventuallyTimeout, eventuallyInterval)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
