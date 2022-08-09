@@ -10,45 +10,88 @@ import (
 	"testing"
 )
 
-func TestEnvOrError(t *testing.T) {
+func TestLookup(t *testing.T) {
 	testCases := []struct {
-		name             string
-		environmentKey   string
-		environmentValue string
-		foundEnv         bool
+		name    string
+		key     string
+		value   string
+		wantErr bool
 	}{
 		{
-			name:             "environment variable is present",
-			environmentKey:   "test-env-present",
-			environmentValue: "test-value",
-			foundEnv:         true,
+			name:    "environment variable is present",
+			key:     "test-env-present",
+			value:   "test-value",
+			wantErr: false,
 		},
 		{
-			name:             "environment variable is not present",
-			environmentKey:   "test-env-not-present",
-			environmentValue: "",
-			foundEnv:         false,
+			name:    "environment variable is not present",
+			key:     "test-env-not-present",
+			value:   "",
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if len(tc.environmentValue) == 0 {
-				os.Unsetenv(tc.environmentKey)
+			if len(tc.value) == 0 {
+				os.Unsetenv(tc.key)
 			} else {
-				os.Setenv(tc.environmentKey, tc.environmentValue)
+				os.Setenv(tc.key, tc.value)
 			}
-			val, err := Lookup(tc.environmentKey)
-			if tc.foundEnv && err != nil {
-				t.Errorf("environment variable %s should be present, err: %s", tc.environmentKey, err.Error())
-			}
-
-			if tc.foundEnv && err == nil && val != tc.environmentValue {
-				t.Errorf("environment variable %s obtained is not expected, want: %s, actual: %s", tc.environmentKey, tc.environmentValue, val)
+			val, err := Lookup(tc.key)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("Lookup(%v) got err %v, want err %v", tc.key, err, tc.wantErr)
 			}
 
-			if !tc.foundEnv && err == nil {
-				t.Errorf("environment variable %s should not be present", tc.environmentKey)
+			if tc.wantErr {
+				return
+			}
+
+			if val != tc.value {
+				t.Errorf("Lookup(%v) = %v, want %v", tc.key, tc.value, val)
+			}
+		})
+	}
+}
+
+func TestLookupMemberClusterName(t *testing.T) {
+	testCases := []struct {
+		name    string
+		key     string
+		value   string
+		wantErr bool
+	}{
+		{
+			name:    "environment variable is present",
+			key:     memberClusterNameEnvKey,
+			value:   "test-value",
+			wantErr: false,
+		},
+		{
+			name:    "environment variable is not present",
+			key:     memberClusterNameEnvKey,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.value) == 0 {
+				os.Unsetenv(tc.key)
+			} else {
+				os.Setenv(tc.key, tc.value)
+			}
+			val, err := LookupMemberClusterName()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("LookupMemberClusterName() got err %v, want err %v", err, tc.wantErr)
+			}
+
+			if tc.wantErr {
+				return
+			}
+
+			if val != tc.value {
+				t.Errorf("LookupMemberClusterName() = %v, want %v", tc.value, val)
 			}
 		})
 	}
