@@ -215,7 +215,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 }
 
 func fetchMemberClusterHubNamespaceName() (string, error) {
-	mcName, err := env.EnvOrError(memberClusterNameEnvKey)
+	mcName, err := env.Lookup(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return "", err
@@ -226,7 +226,7 @@ func fetchMemberClusterHubNamespaceName() (string, error) {
 func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
 	klog.V(1).InfoS("Begin to setup controllers with controller manager")
 
-	mcName, err := env.EnvOrError(memberClusterNameEnvKey)
+	mcName, err := env.Lookup(memberClusterNameEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return err

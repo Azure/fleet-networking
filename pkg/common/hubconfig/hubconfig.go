@@ -27,13 +27,13 @@ const (
 // PrepareHubConfig return the config holding attributes for a Kubernetes client to request hub cluster.
 // Called must make sure all required environment variables are well set.
 func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
-	hubURL, err := env.EnvOrError(hubServerURLEnvKey)
+	hubURL, err := env.Lookup(hubServerURLEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Hub cluster endpoint URL cannot be empty")
 		return nil, err
 	}
 
-	tokenFilePath, err := env.EnvOrError(tokenConfigPathEnvKey)
+	tokenFilePath, err := env.Lookup(tokenConfigPathEnvKey)
 	if err != nil {
 		klog.ErrorS(err, "Hub token file path cannot be empty")
 		return nil, err
@@ -60,7 +60,7 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 			},
 		}
 	} else {
-		hubCA, err := env.EnvOrError(hubCAEnvKey)
+		hubCA, err := env.Lookup(hubCAEnvKey)
 		if err != nil {
 			klog.ErrorS(err, "Hub certificate authority cannot be empty")
 			return nil, err

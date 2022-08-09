@@ -38,7 +38,7 @@ func TestEnvOrError(t *testing.T) {
 			} else {
 				os.Setenv(tc.environmentKey, tc.environmentValue)
 			}
-			val, err := EnvOrError(tc.environmentKey)
+			val, err := Lookup(tc.environmentKey)
 			if tc.foundEnv && err != nil {
 				t.Errorf("environment variable %s should be present, err: %s", tc.environmentKey, err.Error())
 			}
