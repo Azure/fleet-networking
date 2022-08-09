@@ -16,7 +16,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -33,7 +32,6 @@ const (
 	hubNSForMemberC         = "singingbutterfly"
 	clusterIDForMemberC     = "2"
 	memberUserNS            = "work"
-	fleetSystemNS           = "fleet-system"
 	svcName                 = "app"
 	endpointSliceName       = "app-endpointslice"
 	endpointSliceExportName = "work-app-endpointslice-1a2bc"
@@ -42,7 +40,6 @@ const (
 )
 
 var (
-	endpointSliceKey       = types.NamespacedName{Namespace: fleetSystemNS, Name: endpointSliceExportName}
 	endpointSliceExportKey = types.NamespacedName{Namespace: hubNSForMemberA, Name: endpointSliceExportName}
 
 	httpPortName        = "http"
@@ -107,39 +104,6 @@ func ipv4EndpointSliceExport() *fleetnetv1alpha1.EndpointSliceExport {
 	}
 }
 
-// ipv4EndpointSlice returns an IPv4 EndpointSlice.
-func ipv4EndpointSlice() *discoveryv1.EndpointSlice {
-	return &discoveryv1.EndpointSlice{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: fleetSystemNS,
-			Name:      endpointSliceExportName,
-		},
-		AddressType: discoveryv1.AddressTypeIPv4,
-		Endpoints: []discoveryv1.Endpoint{
-			{
-				Addresses: []string{ipAddr},
-			},
-			{
-				Addresses: []string{altIPAddr},
-			},
-		},
-		Ports: []discoveryv1.EndpointPort{
-			{
-				Name:        &httpPortName,
-				Protocol:    &httpPortProtocol,
-				Port:        &httpPort,
-				AppProtocol: &httpPortAppProtocol,
-			},
-			{
-				Name:        &udpPortName,
-				Protocol:    &udpPortProtocol,
-				Port:        &udpPort,
-				AppProtocol: &udpPortAppProtocol,
-			},
-		},
-	}
-}
-
 // TestMain bootstraps the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme.
@@ -148,37 +112,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
-}
-
-// TestFormatEndpointSliceFromExport tests the formatEndpointSliceFromExport function.
-func TestFormatEndpointSliceFromExport(t *testing.T) {
-	testCases := []struct {
-		name                string
-		endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-		endpointSlice       *discoveryv1.EndpointSlice
-	}{
-		{
-			name:                "should format endpointslice",
-			endpointSliceExport: ipv4EndpointSliceExport(),
-			endpointSlice:       ipv4EndpointSlice(),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			endpointSlice := &discoveryv1.EndpointSlice{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: fleetSystemNS,
-					Name:      endpointSliceExportName,
-				},
-			}
-			formatEndpointSliceFromExport(endpointSlice, tc.endpointSliceExport)
-
-			if diff := cmp.Diff(endpointSlice, tc.endpointSlice); diff != "" {
-				t.Fatalf("endpointSlice mismatch (-got, +want)\n%s", diff)
-			}
-		})
-	}
 }
 
 // TestWithdrawAllEndpointSliceImports tests the Reconciler.withdrawAllEndpointSliceImports method.
@@ -228,8 +161,7 @@ func TestWithdrawAllEndpointSliceImports(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
+				HubClient: fakeHubClient,
 			}
 
 			if err := reconciler.withdrawAllEndpointSliceImports(ctx, tc.endpointSliceExport); err != nil {
@@ -244,52 +176,6 @@ func TestWithdrawAllEndpointSliceImports(t *testing.T) {
 			if len(endpointSliceImportList.Items) != 0 {
 				t.Fatalf("endpointSliceImportList.Items, got %+v, want empty list", endpointSliceImportList.Items)
 			}
-		})
-	}
-}
-
-// TestRemoveHubEndpointSliceCopyAndCleanupFinalizer tests the Reconciler.removeHubEndpointSliceCopyAndCleanupFinalizer method.
-func TestRemoveHubEndpointSliceCopyAndCleanupFinalizer(t *testing.T) {
-	testCases := []struct {
-		name                string
-		endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-		endpointSlice       *discoveryv1.EndpointSlice
-	}{
-		{
-			name:                "should remove endpointslice copy in the hub and cleanup finalizer on endpointsliceexport",
-			endpointSliceExport: ipv4EndpointSliceExport(),
-			endpointSlice:       ipv4EndpointSlice(),
-		},
-		{
-			name:                "should remove cleanup finalizer on endpointsliceexport (no endpointslice copy)",
-			endpointSliceExport: ipv4EndpointSliceExport(),
-		},
-	}
-
-	ctx := context.Background()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			fakeHubClientBuilder := fake.NewClientBuilder().
-				WithScheme(scheme.Scheme).
-				WithObjects(tc.endpointSliceExport)
-			if tc.endpointSlice != nil {
-				fakeHubClientBuilder.WithObjects(tc.endpointSlice)
-			}
-			fakeHubClient := fakeHubClientBuilder.Build()
-			reconciler := Reconciler{
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
-			}
-
-			if err := reconciler.removeHubEndpointSliceCopyAndCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
-				t.Fatalf("removeHubEndpointSliceCopyAndCleanupFinalizer(%+v), got %v, want no error", tc.endpointSliceExport, err)
-			}
-
-			endpointSlice := &discoveryv1.EndpointSlice{}
-			if err := fakeHubClient.Get(ctx, endpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
-				t.Fatalf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
-			}
 
 			endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
 			if err := fakeHubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil {
@@ -297,7 +183,7 @@ func TestRemoveHubEndpointSliceCopyAndCleanupFinalizer(t *testing.T) {
 			}
 
 			if len(endpointSliceExport.Finalizers) != 0 {
-				t.Fatalf("endpointSliceExport finalizers, got %v, want no finalizers", endpointSliceExport.Finalizers)
+				t.Fatalf("endpointSliceExport.Finalizers, got %v, want empty list", endpointSliceExport.Finalizers)
 			}
 		})
 	}
@@ -324,8 +210,7 @@ func TestRemoveEndpointSliceExportCleanupFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceExport).
 				Build()
 			reconciler := Reconciler{
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
+				HubClient: fakeHubClient,
 			}
 
 			if err := reconciler.removeEndpointSliceExportCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
@@ -363,8 +248,7 @@ func TestAddEndpointSliceExportCleanupFinalizer(t *testing.T) {
 				WithObjects(tc.endpointSliceExport).
 				Build()
 			reconciler := Reconciler{
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
+				HubClient: fakeHubClient,
 			}
 
 			if err := reconciler.addEndpointSliceExportCleanupFinalizer(ctx, tc.endpointSliceExport); err != nil {
@@ -528,8 +412,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 			}
 			fakeHubClient := fakeHubClientBuilder.Build()
 			reconciler := Reconciler{
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
+				HubClient: fakeHubClient,
 			}
 
 			toWithdraw, toCreateOrUpdate, err := reconciler.scanForEndpointSliceImports(ctx, tc.endpointSliceExport, tc.svcInUseBy)

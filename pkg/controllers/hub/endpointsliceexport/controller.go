@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,8 +40,7 @@ const (
 
 // Reconciler reconciles the distribution of EndpointSlices across the fleet.
 type Reconciler struct {
-	HubClient            client.Client
-	FleetSystemNamespace string
+	HubClient client.Client
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;create;update;patch
@@ -82,9 +80,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if err := r.withdrawAllEndpointSliceImports(ctx, endpointSliceExport); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.removeHubEndpointSliceCopyAndCleanupFinalizer(ctx, endpointSliceExport); err != nil {
-				return ctrl.Result{}, err
-			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, nil
@@ -98,29 +93,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	// Keep one copy of EndpointSlice in the hub cluster for reference. This will always happen even if its owner
-	// Service has not been imported by any member cluster yet.
-	klog.V(2).InfoS("Create/update the local EndpointSlice copy",
-		"endpointSlice", klog.KRef(r.FleetSystemNamespace, endpointSliceExport.Name),
-		"endpointSliceExport", endpointSliceExportRef)
-	endpointSlice := &discoveryv1.EndpointSlice{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.FleetSystemNamespace,
-			Name:      endpointSliceExport.Name,
-		},
-	}
-	op, err := controllerutil.CreateOrUpdate(ctx, r.HubClient, endpointSlice, func() error {
-		formatEndpointSliceFromExport(endpointSlice, endpointSliceExport)
-		return nil
-	})
-	if err != nil {
-		klog.ErrorS(err, "Failed to create or update EndpointSlice",
-			"endpointSlice", klog.KObj(endpointSlice),
-			"endpointSliceExport", endpointSliceExportRef,
-			"op", op)
-		return ctrl.Result{}, err
-	}
-
 	// Inquire the corresponding ServiceImport to find out which member clusters the EndpointSlice should be
 	// distributed to.
 	ownerSvcNS := endpointSliceExport.Spec.OwnerServiceReference.Namespace
@@ -131,7 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.V(2).InfoS("Inquire ServceImport to find out which member clusters have requested the EndpointSlice",
 		"serviceImport", svcImportRef,
 		"endpointSliceExport", endpointSliceExportRef)
-	err = r.HubClient.Get(ctx, svcImportKey, svcImport)
+	err := r.HubClient.Get(ctx, svcImportKey, svcImport)
 	switch {
 	case err != nil && errors.IsNotFound(err):
 		// The corresponding ServiceImport does not exist; normally this will never happen as an EndpointSlice can
@@ -350,24 +322,6 @@ func (r *Reconciler) withdrawAllEndpointSliceImports(ctx context.Context, endpoi
 			return err
 		}
 	}
-	return nil
-}
-
-// removeHubEndpointSliceCopyAndCleanupFinalizer removes the EndpointSlice copy kept in the hub cluster
-// and the cleanup finalizer on the EndpointSliceExport.
-func (r *Reconciler) removeHubEndpointSliceCopyAndCleanupFinalizer(ctx context.Context, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) error {
-	endpointSlice := &discoveryv1.EndpointSlice{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.FleetSystemNamespace,
-			Name:      endpointSliceExport.Name,
-		},
-	}
-	if err := r.HubClient.Delete(ctx, endpointSlice); err != nil && !errors.IsNotFound(err) {
-		klog.ErrorS(err, "Failed to remove EndpointSlice copy in the hub cluster",
-			"endpointSlice", klog.KObj(endpointSlice),
-			"endpointSliceExport", klog.KObj(endpointSliceExport))
-		return err
-	}
 
 	// Remove the EndpointSliceExport cleanup finalizer.
 	if err := r.removeEndpointSliceExportCleanupFinalizer(ctx, endpointSliceExport); err != nil {
@@ -443,18 +397,4 @@ func (r *Reconciler) scanForEndpointSliceImports(
 		endpointSliceImportsToCreateOrUpdate = append(endpointSliceImportsToCreateOrUpdate, endpointSliceImport)
 	}
 	return endpointSliceImportsToWithdraw, endpointSliceImportsToCreateOrUpdate, nil
-}
-
-// formatEndpointSliceFromExport formats an EndpointSlice using an EndpointSliceExport.
-func formatEndpointSliceFromExport(endpointSlice *discoveryv1.EndpointSlice, endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport) {
-	endpointSlice.AddressType = endpointSliceExport.Spec.AddressType
-	endpointSlice.Ports = endpointSliceExport.Spec.Ports
-
-	endpoints := make([]discoveryv1.Endpoint, 0, len(endpointSliceExport.Spec.Endpoints))
-	for _, importedEndpoint := range endpointSliceExport.Spec.Endpoints {
-		endpoints = append(endpoints, discoveryv1.Endpoint{
-			Addresses: importedEndpoint.Addresses,
-		})
-	}
-	endpointSlice.Endpoints = endpoints
 }

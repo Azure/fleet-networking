@@ -26,7 +26,6 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
-            - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
             - --v={{ .Values.logVerbosity }}
           ports:
           - name: metrics
