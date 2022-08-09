@@ -85,14 +85,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	// Add cleanup finalizer to the EndpointSliceExport; this must happen before EndpointSlice is distributed.
-	if !controllerutil.ContainsFinalizer(endpointSliceExport, endpointSliceExportCleanupFinalizer) {
-		if err := r.addEndpointSliceExportCleanupFinalizer(ctx, endpointSliceExport); err != nil {
-			klog.ErrorS(err, "Failed to add cleanup finalizer to EndpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
-			return ctrl.Result{}, err
-		}
-	}
-
 	// Inquire the corresponding ServiceImport to find out which member clusters the EndpointSlice should be
 	// distributed to.
 	ownerSvcNS := endpointSliceExport.Spec.OwnerServiceReference.Namespace
@@ -155,6 +147,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Distribute the EndpointSlices.
+
+	// Add cleanup finalizer to the EndpointSliceExport; this must happen before EndpointSlice is distributed.
+	if !controllerutil.ContainsFinalizer(endpointSliceExport, endpointSliceExportCleanupFinalizer) {
+		if err := r.addEndpointSliceExportCleanupFinalizer(ctx, endpointSliceExport); err != nil {
+			klog.ErrorS(err, "Failed to add cleanup finalizer to EndpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
+			return ctrl.Result{}, err
+		}
+	}
 
 	// Scan for EndpointSlices to withdraw and EndpointSlices to create or update.
 	klog.V(2).InfoS("Scan for EndpointSliceImports to withdraw and to create/update",

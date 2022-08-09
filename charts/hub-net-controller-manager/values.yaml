@@ -12,7 +12,6 @@ image:
 
 logVerbosity: 2
 
-fleetSystemNamespace: fleet-system
 leaderElectionNamespace: fleet-system
 
 resources:
