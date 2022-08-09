@@ -39,6 +39,7 @@ var (
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace in which the leader election resource will be created.")
 
+	fleetSystemNamespace               = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 	internalServiceExportRetryInterval = flag.Duration("internalserviceexport-retry-interval", 2*time.Second,
 		"The wait time for the internalserviceexport controller to requeue the request and to wait for the"+
 			"ServiceImport controller to resolve the service Spec")
@@ -98,7 +99,8 @@ func main() {
 
 	klog.V(1).InfoS("Start to setup EndpointsliceExport controller")
 	if err := (&endpointsliceexport.Reconciler{
-		HubClient: mgr.GetClient(),
+		HubClient:            mgr.GetClient(),
+		FleetSystemNamespace: *fleetSystemNamespace,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create EndpointsliceExport controller")
 		exitWithErrorFunc()

@@ -55,6 +55,13 @@ func setUpResources() {
 	}
 	Expect(hubClient.Create(ctx, &hubNSC)).Should(Succeed())
 
+	hubFleetSystemNS := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fleetSystemNS,
+		},
+	}
+	Expect(hubClient.Create(ctx, &hubFleetSystemNS)).Should(Succeed())
+
 	memberNSInHub := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: memberUserNS,
@@ -102,7 +109,8 @@ var _ = BeforeSuite(func() {
 	Expect(hubClient).NotTo(BeNil())
 
 	err = (&Reconciler{
-		HubClient: hubClient,
+		HubClient:            hubClient,
+		FleetSystemNamespace: fleetSystemNS,
 	}).SetupWithManager(ctx, hubCtrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,6 +34,11 @@ var (
 	svcImportKey            = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 	endpointSliceImportBKey = types.NamespacedName{Namespace: hubNSForMemberB, Name: endpointSliceExportName}
 	endpointSliceImportCKey = types.NamespacedName{Namespace: hubNSForMemberC, Name: endpointSliceExportName}
+
+	ignoredEndpointSliceFieldsOptions = []cmp.Option{
+		cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "TypeMeta"),
+		cmpopts.IgnoreFields(discoveryv1.EndpointSlice{}, "ObjectMeta"),
+	}
 )
 
 // fulfilledSvcInUseByAnnotation returns a fulfilled ServiceInUseBy for annotation use.
@@ -101,6 +108,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 			svcImport            *fleetnetv1alpha1.ServiceImport
 			endpointSliceImportB *fleetnetv1alpha1.EndpointSliceImport
 			endpointSliceImportC *fleetnetv1alpha1.EndpointSliceImport
+			endpointSlice        *discoveryv1.EndpointSlice
 		)
 
 		BeforeEach(func() {
@@ -125,6 +133,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}
 			Expect(hubClient.Create(ctx, endpointSliceImportC)).Should(Succeed())
 
+			endpointSlice = ipv4EndpointSlice()
+			Expect(hubClient.Create(ctx, endpointSlice)).Should(Succeed())
+
 			svcImport = unfulfilledAndRequestedServiceImport()
 			Expect(hubClient.Create(ctx, svcImport)).Should(Succeed())
 			fulfillSvcImport(svcImport)
@@ -136,13 +147,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should withdraw all endpointsliceimports", func() {
+		It("should withdraw all endpointsliceimports + should withdraw local endpointslice copy", func() {
 			// Check if all EndpointSliceImports has been withdrawn.
 			Eventually(func() bool {
 				if err := hubClient.Get(ctx, endpointSliceImportBKey, endpointSliceImportB); err != nil && errors.IsNotFound(err) {
@@ -153,6 +160,14 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if the local EndpointSlice copy has been withdraw.
+			Eventually(func() bool {
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil && errors.IsNotFound(err) {
+					return true
+				}
+				return false
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			// Check if the cleanup finalizer has been removed.
@@ -176,7 +191,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport related resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -187,6 +203,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -194,7 +219,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
-		It("should not distribute endpointslice to member clusters", func() {
+		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if no EndpointSlice has been distributed.
 			Consistently(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -216,6 +241,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 				return cmp.Equal(endpointSliceExport.Finalizers, []string{endpointSliceExportCleanupFinalizer})
 			})
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -237,7 +276,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport related resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -248,6 +288,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -255,13 +304,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should not distribute endpointslice to member clusters", func() {
+		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if no EndpointSlice has been distributed.
 			Consistently(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -283,6 +328,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 				return cmp.Equal(endpointSliceExport.Finalizers, []string{endpointSliceExportCleanupFinalizer})
 			})
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -304,7 +363,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -315,6 +375,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -322,13 +391,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should not distribute endpointslice to member clusters", func() {
+		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if no EndpointSlice has been distributed.
 			Consistently(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -350,6 +415,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 				return cmp.Equal(endpointSliceExport.Finalizers, []string{endpointSliceExportCleanupFinalizer})
 			})
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -373,7 +452,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -384,6 +464,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -391,13 +480,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should not distribute endpointslice to member clusters", func() {
+		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if no EndpointSlice has been distributed.
 			Consistently(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -419,6 +504,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 				return cmp.Equal(endpointSliceExport.Finalizers, []string{endpointSliceExportCleanupFinalizer})
 			})
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -440,7 +539,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport related resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -451,6 +551,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -458,13 +567,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should not distribute endpointslice to member clusters", func() {
+		It("should not distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if no EndpointSlice has been distributed.
 			Consistently(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -486,6 +591,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 				return cmp.Equal(endpointSliceExport.Finalizers, []string{endpointSliceExportCleanupFinalizer})
 			})
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -506,7 +625,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -517,6 +637,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -524,13 +653,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should distribute endpointslice to member clusters", func() {
+		It("should distribute endpointslice to member clusters + a copy should be kept in the hub", func() {
 			// Check if the EndpointSlice has been distributed.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -559,6 +684,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 				if endpointSliceImportC == nil || !cmp.Equal(endpointSliceImportC.Spec, endpointSliceExport.Spec) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -600,7 +739,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport related resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -611,6 +751,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -618,13 +767,9 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
-		It("should update distributed endpointslices", func() {
+		It("should update distributed and local endpointslice copies", func() {
 			// Check if the EndpointSlice has been distributed.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
@@ -653,6 +798,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 				if endpointSliceImportC == nil || !cmp.Equal(endpointSliceImportC.Spec, endpointSliceExport.Spec) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -709,6 +868,21 @@ var _ = Describe("endpointsliceexport controller", func() {
 				}
 				return true
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if the update has been applied to the local EndpointSlice copy.
+			expectedEndpointSlice = ipv4EndpointSlice()
+			expectedEndpointSlice.Endpoints[0].Addresses = []string{newIPAddr}
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -729,7 +903,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceExport)).Should(Succeed())
-			// Wait until all EndpointSliceExport related resources are cleaned up; this helps make the test less flaky.
+
+			// Wait until all resources are cleaned up; this helps make the test less flaky.
 			Eventually(func() bool {
 				endpointSliceImportList := &fleetnetv1alpha1.EndpointSliceImportList{}
 				if err := hubClient.List(ctx, endpointSliceImportList); err != nil {
@@ -740,6 +915,15 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				if err := hubClient.List(ctx, endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				if len(endpointSliceList.Items) != 0 {
+					return false
+				}
+
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
@@ -747,10 +931,6 @@ var _ = Describe("endpointsliceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
-			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
-			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should re-distribute endpointslice copies (unimports + new imports)", func() {
@@ -782,6 +962,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 				if endpointSliceImportC == nil || !cmp.Equal(endpointSliceImportC.Spec, endpointSliceExport.Spec) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
@@ -883,6 +1077,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 				return true
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			// Check if the cleanup finalizer has been added.
 			Eventually(func() bool {
 				endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
@@ -948,6 +1156,20 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 				if endpointSliceImportC == nil || !cmp.Equal(endpointSliceImportC.Spec, endpointSliceExport.Spec) {
+					return false
+				}
+				return true
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			// Check if a local copy has been kept.
+			expectedEndpointSlice := ipv4EndpointSlice()
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := hubClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice, expectedEndpointSlice, ignoredEndpointSliceFieldsOptions...) {
 					return false
 				}
 				return true
