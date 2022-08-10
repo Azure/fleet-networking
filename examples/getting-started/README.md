@@ -58,7 +58,8 @@ export LOCATION=eastus
 # `bravelion` rather than `bravelion.azurecr.io`.
 export REGISTRY=YOUR-CONTAINER-REGISTRY
 chmod +x ./examples/getting-started/bootstrap.sh
-./examples/getting-started/bootstrap.sh
+# Run the script within existing shell as it sets a few variables that will be used in later steps.
+. ./examples/getting-started/bootstrap.sh
 ```
 
 After the script completes successfully, **skip** to the [Set up Kubernetes resources](#set-up-kubernetes-resources)
@@ -421,7 +422,8 @@ below:
 
     ```sh
     chmod +x ./examples/getting-started/build-install.sh
-    ./examples/getting-started/build-install.sh
+    # Run the script within existing shell as it sets a few variables that will be used in later steps.
+    . ./examples/getting-started/build-install.sh
     ```
 
 After the script completes successfully, **skip** to the [Export services from member clusters](#export-services-from-member-clusters) section below.
