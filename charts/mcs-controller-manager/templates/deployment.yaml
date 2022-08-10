@@ -27,24 +27,63 @@ spec:
           args:
             - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
+            - --tls-insecure={{ .Values.tlsClientInsecure }}
             - --v={{ .Values.logVerbosity }}
           ports:
           - containerPort: 8080
-            name: metrics
+            name: hubmetrics
             protocol: TCP
           - containerPort: 8081
-            name: healthz
+            name: hubhealthz
+            protocol: TCP
+          - containerPort: 8090
+            name: membermetrics
+            protocol: TCP
+          - containerPort: 8091
+            name: memberhealthz
             protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
-              port: healthz
+              port: hubhealthz
           readinessProbe:
             httpGet:
               path: /readyz
-              port: healthz
+              port: hubhealthz
+          env:
+          - name: HUB_SERVER_URL
+            value: "{{ .Values.config.hubURL }}"
+          - name: CONFIG_PATH
+            value: "/config/token"
+          - name: MEMBER_CLUSTER_NAME
+            value: "{{ .Values.config.memberClusterName }}"
+          - name: HUB_CERTIFICATE_AUTHORITY
+            value: "{{ .Values.config.hubCA }}"
+          volumeMounts:
+          - name: provider-token
+            mountPath: /config
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        - name: refresh-token
+          image: "{{ .Values.refreshtoken.repository }}:{{ .Values.refreshtoken.tag }}"
+          imagePullPolicy: {{ .Values.refreshtoken.pullPolicy }}
+          args:
+            {{ $provider := .Values.config.provider }}
+            - {{ $provider }}
+            {{ range $key, $value := (index .Values $provider) }}
+            - --{{ $key }}={{ $value }}
+            {{ end }}
+          ports:
+            - name: http
+              containerPort: 4000
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - name: provider-token
+            mountPath: /config
+      volumes:
+      - name: provider-token
+        emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
