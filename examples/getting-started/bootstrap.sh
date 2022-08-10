@@ -1,3 +1,8 @@
+if [ -z ${SUBSCRIPTION_ID+x} ]; then
+    echo "Subscription ID is not set; to use the script, set the SUBSCRIPTION_ID variable."
+    exit 1
+fi
+
 if [ -z ${RESOURCE_GROUP+x} ]; then
     echo "Resource group is not set; to use the script, set the RESOURCE_GROUP variable."
     exit 1

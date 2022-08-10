@@ -51,6 +51,12 @@ communicate directly with each other using their assigned Pod IP addresses.
 the Azure resources needed**. To use the script, run
 
 ```sh
+# You can use other resource group names and locations as you see fit.
+export RESOURCE_GROUP=fleet-networking-tutorial
+export LOCATION=eastus
+# Replace YOUR-CONTAINER-REGISTRY with a name of your own; do NOT use the full URL, i.e. specify
+# `bravelion` rather than `bravelion.azurecr.io`.
+export REGISTRY=YOUR-CONTAINER-REGISTRY
 chmod +x ./examples/getting-started/bootstrap.sh
 ./examples/getting-started/bootstrap.sh
 ```
@@ -360,7 +366,7 @@ kubectl create configmap member-cluster-id --from-literal=id=$MEMBER_CLUSTER_2
 
 ## Build and install artifacts
 
-Fleet networking consists of a number of custom resource defintions (CRDs) and controllers, some running in the
+Fleet networking consists of a number of custom resource definitions (CRDs) and controllers, some running in the
 member clusters and some in the hub cluster. This tutorial also features a simple Python web application, which
 helps showcase how endpoints are exposed from member clusters via a multi-cluster service.
 
@@ -378,7 +384,7 @@ below:
     # To check if yq is available, run `which yq` in the shell. A path to the yq executable should be printed
     # out if yq is present in your system.
     export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
-    # Verify that the URL has been retrieved
+    # Verify that the URL has been retrieved.
     echo $HUB_URL
     ```
 
