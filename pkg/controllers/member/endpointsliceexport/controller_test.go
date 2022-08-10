@@ -29,6 +29,11 @@ const (
 	endpointSliceExportName = "app-endpointsliceexport"
 )
 
+var (
+	endpointSliceKey       = types.NamespacedName{Namespace: memberUserNS, Name: endpointSliceName}
+	endpointSliceExportKey = types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceExportName}
+)
+
 // TestMain bootstraps the test environment.
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
@@ -152,7 +157,6 @@ func TestDeleteEndpointSliceExport(t *testing.T) {
 			}
 
 			endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
-			endpointSliceExportKey := types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceExportName}
 			if err := fakeHubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil && !errors.IsNotFound(err) {
 				t.Fatalf("endpoint slice export Get(%+v), got %v, want not found error", endpointSliceExportKey, err)
 			}
