@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -236,6 +237,13 @@ var _ = Describe("internalserviceimport controller", Ordered, func() {
 		})
 
 		AfterEach(func() {
+			// Normally InternalServiceImport should have already been cleaned up after a successful test run;
+			// add this additional cleanup function to make the test less flaky.
+			Expect(client.IgnoreNotFound(hubClient.Delete(ctx, internalSvcImport))).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(hubClient.Get(ctx, internalSvcImportAKey, internalSvcImport))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() bool {
