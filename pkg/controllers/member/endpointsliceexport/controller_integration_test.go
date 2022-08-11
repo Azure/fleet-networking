@@ -134,13 +134,13 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, unlinkedEndpointSlice)).Should(Succeed())
+			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
+			Eventually(func() bool {
+				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceKey, unlinkedEndpointSlice))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove unlinked endpointsliceexport", func() {
-			endpointSliceExportKey := types.NamespacedName{
-				Namespace: hubNSForMember,
-				Name:      endpointSliceExportName,
-			}
 			Eventually(func() bool {
 				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, unlinkedEndpointSliceExport))
 			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
@@ -207,15 +207,24 @@ var _ = Describe("endpointsliceexport controller", func() {
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, linkedEndpointSliceExport)).Should(Succeed())
+			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
+			Eventually(func() bool {
+				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, linkedEndpointSliceExport))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
 			Expect(memberClient.Delete(ctx, linkedEndpointSlice)).Should(Succeed())
+			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
+			Eventually(func() bool {
+				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceKey, linkedEndpointSlice))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should keep linked endpointsliceexport", func() {
+			Eventually(func() error {
+				return hubClient.Get(ctx, endpointSliceExportKey, linkedEndpointSliceExport)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
 			Consistently(func() error {
-				endpointSliceExportKey := types.NamespacedName{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceExportName,
-				}
 				return hubClient.Get(ctx, endpointSliceExportKey, linkedEndpointSliceExport)
 			}, consistentlyDuration, ConsistentlyInterval).Should(BeNil())
 		})

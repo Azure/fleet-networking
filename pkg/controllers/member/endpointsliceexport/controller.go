@@ -22,6 +22,10 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
+const (
+	endpointSliceExportRetryInterval = time.Minute * 5
+)
+
 type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
@@ -44,7 +48,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the EndpointSliceExport object.
 	endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
 	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
-		klog.ErrorS(err, "Failed to get endpoint slice export", "endpointSliceExport", endpointSliceExportRef)
+		klog.ErrorS(err, "Failed to get endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
 		// Skip the reconciliation if the EndpointSliceExport does not exist; this should only happen when an
 		// EndpointSliceExport is deleted before the controller gets a chance to reconcile it;
 		// this requires no action to take on this controller's end.
@@ -62,14 +66,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch {
 	case errors.IsNotFound(err):
 		// The matching EndpointSlice is not found; the EndpointSliceExport should be deleted.
-		klog.V(2).InfoS("Referred endpoint slice is not found; delete the endpoint slice export",
+		klog.V(2).InfoS("Referred endpointSlice is not found; delete the endpointSliceExport",
 			"endpointSliceExport", endpointSliceExportRef,
 			"endpointSlice", endpointSliceRef,
 		)
 		return r.deleteEndpointSliceExport(ctx, endpointSliceExport)
 	case err != nil:
 		// An unexpected error has occurred.
-		klog.ErrorS(err, "Failed to get endpoint slice", "endpointSlice", endpointSliceRef)
+		klog.ErrorS(err, "Failed to get endpointSlice",
+			"endpointSliceExport", endpointSliceExportRef,
+			"endpointSlice", endpointSliceRef)
 		return ctrl.Result{}, err
 	}
 
@@ -82,7 +88,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if !isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport, endpointSlice) {
 		return r.deleteEndpointSliceExport(ctx, endpointSliceExport)
 	}
-	return ctrl.Result{}, nil
+
+	// Periodically re-scan EndpointSliceExports; this help addresses corner cases where an EndpointSlice
+	// is deleted without the EndpointSlice controller getting a chance to withdraw it from the hub cluster.
+	return ctrl.Result{RequeueAfter: endpointSliceExportRetryInterval}, nil
 }
 
 // SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
