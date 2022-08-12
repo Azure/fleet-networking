@@ -54,7 +54,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.V(2).InfoS("Reconciliation starts", "internalMemberCluster", imcKRef)
 	defer func() {
 		latency := time.Since(startTime).Milliseconds()
-		klog.V(2).InfoS("Reconciliation ends", "internalServiceImport", imcKRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "internalMemberCluster", imcKRef, "latency", latency)
 	}()
 
 	var imc fleetv1alpha1.InternalMemberCluster
