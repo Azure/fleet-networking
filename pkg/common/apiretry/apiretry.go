@@ -1,3 +1,8 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
 // Package apiretry provides the retry func shared between networking controllers.
 package apiretry
 
