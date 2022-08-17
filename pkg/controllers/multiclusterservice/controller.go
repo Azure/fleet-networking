@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +44,9 @@ const (
 
 	conditionReasonUnknownServiceImport = "UnknownServiceImport"
 	conditionReasonFoundServiceImport   = "FoundServiceImport"
+
+	// ControllerName is the name of the Reconciler.
+	ControllerName = "multiclusterservice-controller"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -50,6 +54,7 @@ type Reconciler struct {
 	client.Client
 	Scheme               *runtime.Scheme
 	FleetSystemNamespace string // reserved fleet namespace
+	Recorder             record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -57,6 +62,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile triggers a single reconcile round.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -96,10 +102,11 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	mcsKObj := klog.KObj(mcs)
 	// The mcs is being deleted
 	if !controllerutil.ContainsFinalizer(mcs, multiClusterServiceFinalizer) {
+		klog.V(4).InfoS("multiClusterService is being deleted", mcs, mcsKObj)
 		return ctrl.Result{}, nil
 	}
 
-	klog.V(2).InfoS("Removing mcs", "multiClusterService", mcsKObj)
+	klog.V(2).InfoS("Removing mcs", "controller", "multiClusterService", mcsKObj)
 
 	// delete derived service in the fleet-system namespace
 	serviceName := r.derivedServiceFromLabel(mcs)
@@ -117,6 +124,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			return ctrl.Result{}, err
 		}
 	}
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "UnimportedService", "Unimported service %v", serviceImportName)
 
 	controllerutil.RemoveFinalizer(mcs, multiClusterServiceFinalizer)
 	if err := r.Client.Update(ctx, mcs); err != nil {
@@ -207,9 +215,12 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		// it will do nothing.
 		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs, serviceImport)
 	}
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "FoundValidService", "Found valid service %v and importing", serviceImport.Name)
+
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
 		serviceName = r.generateDerivedServiceName(mcs)
+		klog.V(4).InfoS("Generated derived service name", "multiClusterService", mcsKObj, "service", serviceName)
 	}
 	// update mcs service label first to prevent the controller abort before we create the resource
 	if err := r.updateMultiClusterLabel(ctx, mcs, objectmeta.MultiClusterServiceLabelDerivedService, serviceName.Name); err != nil {
@@ -232,8 +243,11 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		klog.ErrorS(err, "Failed to create or update derived service of mcs", "multiClusterService", mcsKObj, "service", klog.KObj(service), "op", op)
 		return ctrl.Result{}, err
 	}
-
-	return ctrl.Result{}, r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service)
+	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service); err != nil {
+		return ctrl.Result{}, err
+	}
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Imported %v service and updated %v status", serviceImport.Name, mcs.Name)
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) ensureServiceImport(serviceImport *fleetnetv1alpha1.ServiceImport, mcs *fleetnetv1alpha1.MultiClusterService) error {
@@ -246,12 +260,14 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, &corev1.Service{}); err != nil {
 		return err
 	}
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Importing %v service and updated %v status", serviceImport.Name, mcs.Name)
 
 	serviceName := r.derivedServiceFromLabel(mcs)
+	mcsKObj := klog.KObj(mcs)
 	if serviceName == nil {
+		klog.V(4).InfoS("Skipping deleting derived service", "multiClusterService", mcsKObj)
 		return nil // do nothing
 	}
-	mcsKObj := klog.KObj(mcs)
 	svcKRef := klog.KRef(serviceName.Namespace, serviceName.Name)
 	if err := r.deleteDerivedService(ctx, serviceName); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj, "service", svcKRef)
@@ -268,8 +284,10 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 
 func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService, key, value string) error {
 	labels := mcs.GetLabels()
+	mcsKObj := klog.KObj(mcs)
 	if v, ok := labels[key]; ok && v == value {
 		// no need to update the mcs
+		klog.V(4).InfoS("No need to update the mcs label", "multiClusterService", mcsKObj)
 		return nil
 	}
 	if labels == nil { // in case labels map is nil and causes the panic
@@ -277,7 +295,7 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 	}
 	mcs.Labels[key] = value
 	if err := r.Client.Update(ctx, mcs); err != nil {
-		klog.ErrorS(err, "Failed to add label to mcs", "multiClusterService", klog.KObj(mcs), "key", key, "value", value)
+		klog.ErrorS(err, "Failed to add label to mcs", "multiClusterService", mcsKObj, "key", key, "value", value)
 		return err
 	}
 	return nil
@@ -328,18 +346,18 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 		}
 	}
 
+	mcsKObj := klog.KObj(mcs)
 	if equality.Semantic.DeepEqual(mcs.Status.LoadBalancer, service.Status.LoadBalancer) &&
 		condition.EqualCondition(currentCond, desiredCond) {
+		klog.V(4).InfoS("Status is in the desired state and skipping updating status", "multiClusterService", mcsKObj)
 		return nil
 	}
-	mcsKObj := klog.KObj(mcs)
-	oldStatus := mcs.Status.DeepCopy()
 	mcs.Status.LoadBalancer = service.Status.LoadBalancer
 	meta.SetStatusCondition(&mcs.Status.Conditions, *desiredCond)
 
-	klog.V(2).InfoS("Updating mcs status", "multiClusterService", mcsKObj, "status", mcs.Status, "oldStatus", oldStatus)
+	klog.V(2).InfoS("Updating mcs status", "multiClusterService", mcsKObj)
 	if err := r.Status().Update(ctx, mcs); err != nil {
-		klog.ErrorS(err, "Failed to update mcs status", "multiClusterService", mcsKObj, "status", mcs.Status, "oldStatus", oldStatus)
+		klog.ErrorS(err, "Failed to update mcs status", "multiClusterService", mcsKObj)
 		return err
 	}
 	return nil
