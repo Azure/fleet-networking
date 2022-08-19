@@ -124,7 +124,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			return ctrl.Result{}, err
 		}
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "UnimportedService", "Unimported service %v", serviceImportName)
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "UnimportedService", "Unimported service %s", serviceImportName)
 
 	controllerutil.RemoveFinalizer(mcs, multiClusterServiceFinalizer)
 	if err := r.Client.Update(ctx, mcs); err != nil {
@@ -215,7 +215,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		// it will do nothing.
 		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs, serviceImport)
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "FoundValidService", "Found valid service %v and importing", serviceImport.Name)
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "FoundValidService", "Found valid service %s and importing", serviceImport.Name)
 
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
@@ -246,7 +246,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service); err != nil {
 		return ctrl.Result{}, err
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Imported %v service and updated %v status", serviceImport.Name, mcs.Name)
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Imported %s service and updated %s status", serviceImport.Name, mcs.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -260,7 +260,7 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, &corev1.Service{}); err != nil {
 		return err
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Importing %v service and updated %v status", serviceImport.Name, mcs.Name)
+	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Importing %s service and updated %s status", serviceImport.Name, mcs.Name)
 
 	serviceName := r.derivedServiceFromLabel(mcs)
 	mcsKObj := klog.KObj(mcs)
