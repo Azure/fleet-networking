@@ -3,6 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Binary member-net-controller-manager watches fleet-networking CRDs in the member cluster to export/import multi-cluster
+// services.
 package main
 
 import (

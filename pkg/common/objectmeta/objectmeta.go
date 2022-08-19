@@ -1,3 +1,8 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
 // Package objectmeta defines shared meta const used by the networking objects.
 package objectmeta
 
