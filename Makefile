@@ -105,10 +105,12 @@ test: manifests generate fmt vet local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -race -coverprofile=coverage.xml -covermode=atomic -v
 
-.PHONY: e2e-tests
-e2e-tests:
-	go test -tags=e2e -v ./test/e2e
+.PHONY: e2e-setup
+	bash test/scripts/bootstrap.sh
 
+.PHONY: e2e-tests
+e2e-tests: e2e-setup
+	go test -tags=e2e -v ./test/e2e
 
 reviewable: fmt vet lint staticcheck
 	go mod tidy

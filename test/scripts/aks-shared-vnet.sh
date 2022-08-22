@@ -42,7 +42,7 @@ az aks create \
     --enable-aad \
     --enable-azure-rbac \
     --network-plugin azure \
-    --vnet-subnet-id "/subscriptions/$E2E_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$HUB_SUBNET" \
+    --vnet-subnet-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$HUB_SUBNET" \
     --yes
 
 # create aks member cluster1
@@ -56,7 +56,7 @@ az aks create \
     --enable-aad \
     --enable-azure-rbac \
     --network-plugin azure \
-    --vnet-subnet-id "/subscriptions/$E2E_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
+    --vnet-subnet-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
     --yes
 
 # create aks member cluster2

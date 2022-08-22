@@ -5,14 +5,14 @@ set -o pipefail
 set -x
 
 # check required variables
-[[ -z "${E2E_AZURE_CLIENT_ID}" ]] && echo "E2E_AZURE_CLIENT_ID is not set" && exit 1
-[[ -z "${E2E_AZURE_CLIENT_SECRET}" ]] && echo "E2E_AZURE_CLIENT_SECRET is not set" && exit 1
+[[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
+[[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
 [[ -z "${AZURE_TENANT_ID}" ]] && echo "AZURE_TENANT_ID is not set" && exit 1
-[[ -z "${E2E_SUBSCRIPTION_ID}" ]] && echo "E2E_SUBSCRIPTION_ID is not set" && exit 1
+[[ -z "${SUBSCRIPTION_ID}" ]] && echo "SUBSCRIPTION_ID is not set" && exit 1
 
 # az login
-az login --service-principal -u "${E2E_AZURE_CLIENT_ID}" -p "${E2E_AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
-az account set -s ${E2E_SUBSCRIPTION_ID}
+az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
+az account set -s ${SUBSCRIPTION_ID}
 
 # create resource group
 # RANDOM ID promises workflow runs don't interface one another.
