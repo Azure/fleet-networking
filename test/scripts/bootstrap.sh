@@ -4,6 +4,8 @@ set -o nounset
 set -o pipefail
 set -x
 
+docker buildx version
+
 # check required variables
 [[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
 [[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
