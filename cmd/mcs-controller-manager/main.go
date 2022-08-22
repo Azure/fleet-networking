@@ -219,6 +219,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		Client:               memberClient,
 		Scheme:               memberMgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
+		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
 		return err

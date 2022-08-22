@@ -28,9 +28,6 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
 var (
 	cfg       *rest.Config
 	mgr       manager.Manager
@@ -87,6 +84,7 @@ var _ = BeforeSuite(func() {
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		FleetSystemNamespace: "fleet-system",
+		Recorder:             mgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

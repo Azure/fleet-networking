@@ -27,6 +27,7 @@ spec:
           args:
             - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --v={{ .Values.logVerbosity }}
+            - --add_dir_header
           ports:
           - name: metrics
             containerPort: 8080
