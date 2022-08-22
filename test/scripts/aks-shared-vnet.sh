@@ -6,7 +6,6 @@ set -x
 
 # create virutal network
 export VNET=fleet
-export HUB_SUBNET=hub
 export MEMBER_1_SUBNET=member-1
 export MEMBER_2_SUBNET=member-2
 
@@ -14,11 +13,7 @@ az network vnet create \
     --name $VNET \
     -g $RESOURCE_GROUP \
     --address-prefixes 10.0.0.0/8
-az network vnet subnet create \
-    --vnet-name $VNET \
-    --name $HUB_SUBNET \
-    -g $RESOURCE_GROUP \
-    --address-prefixes 10.1.0.0/16
+
 az network vnet subnet create \
     --vnet-name $VNET \
     --name $MEMBER_1_SUBNET \
@@ -41,7 +36,6 @@ az aks create \
     --enable-aad \
     --enable-azure-rbac \
     --network-plugin azure \
-    --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$HUB_SUBNET" \
     --no-wait
 
 # create aks member cluster1
@@ -65,4 +59,3 @@ az aks create \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
     --no-wait
-

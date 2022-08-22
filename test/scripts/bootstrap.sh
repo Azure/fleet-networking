@@ -56,6 +56,12 @@ case $AZURE_NETWORK_SETTING in
         shared-vnet)
                 bash test/scripts/aks-shared-vnet.sh
                 ;;
+        dynamic-ip-allocation)
+                bash test/scripts/aks-dynamic-ip-allocation.sh
+                ;;
+        peered-vnet)
+                bash test/scripts/aks-peered-vnet.sh
+                ;;
         *)
                 echo "$AZURE_NETWORK_SETTING is supported"
                 exit 1
