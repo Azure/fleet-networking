@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: member-cluster-id
+  namespace: {{ required "A valid user namespace is required" .Values.userNS }}
+data:
+  id: {{ required "A valid member ID is required" .Values.memberID }}
