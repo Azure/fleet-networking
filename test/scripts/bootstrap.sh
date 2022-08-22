@@ -10,11 +10,11 @@ docker buildx version
 [[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
 [[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
 [[ -z "${AZURE_TENANT_ID}" ]] && echo "AZURE_TENANT_ID is not set" && exit 1
-[[ -z "${SUBSCRIPTION_ID}" ]] && echo "SUBSCRIPTION_ID is not set" && exit 1
+[[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
 # az login
 az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
-az account set -s ${SUBSCRIPTION_ID}
+az account set -s ${AZURE_SUBSCRIPTION_ID}
 
 # create resource group to host hub and member clusters
 # RANDOM ID promises workflow runs don't interface one another.
@@ -45,13 +45,13 @@ export HUB_CLUSTER=hub
 export MEMBER_CLUSTER_1=member-1
 export MEMBER_CLUSTER_2=member-2
 
-NETWORK_SETTING="${NETWORK_SETTING:-shared-vnet}"
-case $NETWORK_SETTING in
+AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
+case $AZURE_NETWORK_SETTING in
         shared-vnet)
                 bash test/scripts/aks-shared-vnet.sh
                 ;;
         *)
-                echo "$NETWORK_SETTING is supported"
+                echo "$AZURE_NETWORK_SETTING is supported"
                 exit 1
                 ;;
 esac

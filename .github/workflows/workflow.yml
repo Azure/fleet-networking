@@ -86,5 +86,5 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.E2E_AZURE_CLIENT_ID}}
           AZURE_CLIENT_SECRET: ${{ secrets.E2E_AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
-          NETWORK_SETTING: aks-shared-vnet
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+          AZURE_NETWORK_SETTING: shared-vnet
