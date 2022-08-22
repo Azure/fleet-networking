@@ -6,7 +6,6 @@ Licensed under the MIT license.
 package e2e
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -49,9 +48,6 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	Expect(kubeconfig).ShouldNot(BeEmpty())
-
 	// hub setup
 	framework.GetClusterClient(HubCluster)
 

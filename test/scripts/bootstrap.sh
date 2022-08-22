@@ -6,7 +6,7 @@ set -x
 
 docker buildx version
 
-# check required variables
+# Check required variables.
 [[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
 [[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
 [[ -z "${AZURE_TENANT_ID}" ]] && echo "AZURE_TENANT_ID is not set" && exit 1
@@ -16,23 +16,29 @@ docker buildx version
 az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
 az account set -s ${AZURE_SUBSCRIPTION_ID}
 
-# create resource group to host hub and member clusters
+# Create resource group to host hub and member clusters.
 # RANDOM ID promises workflow runs don't interface one another.
 export RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"
 export LOCATION=eastus
 az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
 
-# defer function to recycle created Azure resource
+# Defer function to recycle created Azure resource.
 function cleanup {
     az group delete -n $RESOURCE_GROUP --no-wait --yes
 }
 trap cleanup EXIT
 
-# pubilsh fleet networking agent images
-# TODO(mainred): once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry
-# registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
+# Pubilsh fleet networking agent images.
+# TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
+# Registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
 export REGISTRY_NAME="fleetnetworkinge2e$RANDOM"
-az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku basic --tags "source=fleet-networking"
+az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source=fleet-networking"
+# Enable anonymous to not wait for the long-running AKS creation.
+# When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
+# succeeds, and as AuthN and AuthZ for member cluster agents to hub cluster in our test requires managed identity,
+# we enable anonymous pull access to the registry instead of enabling attach-acr.
+
+az acr update --name $REGISTRY_NAME --anonymous-pull-enabled
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
 export TAG=`git rev-parse --short=7 HEAD`
@@ -40,7 +46,7 @@ make docker-build-hub-net-controller-manager
 make docker-build-member-net-controller-manager
 make docker-build-mcs-controller-manager
 
-# create hub and member clusters and wait until all clusters are ready
+# Create hub and member clusters and wait until all clusters are ready.
 export HUB_CLUSTER=hub
 export MEMBER_CLUSTER_1=member-1
 export MEMBER_CLUSTER_2=member-2
@@ -60,13 +66,13 @@ az aks wait --created --interval 10 --name $HUB_CLUSTER --resource-group $RESOUR
 az aks wait --created --interval 10 --name $MEMBER_CLUSTER_1 --resource-group $RESOURCE_GROUP --timeout 1800
 az aks wait --created --interval 10 --name $MEMBER_CLUSTER_2 --resource-group $RESOURCE_GROUP --timeout 1800
 
-# export kubeconfig
+# Export kubeconfig.
 az aks get-credentials --name $HUB_CLUSTER -g $RESOURCE_GROUP --admin
 az aks get-credentials --name $MEMBER_CLUSTER_1 -g $RESOURCE_GROUP --admin
 az aks get-credentials --name $MEMBER_CLUSTER_2 -g $RESOURCE_GROUP --admin
 export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
 
-# setup hub cluster credentials
+# Setup hub cluster credentials.
 export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
 export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
 export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
@@ -88,7 +94,7 @@ helm install e2e-member-resources \
     ./test/charts/member \
     --set memberID=$MEMBER_CLUSTER_2
 
-# helm install charts for hub cluster
+# Helm install charts for hub cluster.
 kubectl config use-context $HUB_CLUSTER-admin
 kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
@@ -96,8 +102,7 @@ helm install hub-net-controller-manager \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
     --set image.tag=$TAG
 
-# TODO: apply internalmembercluster CRDs
-# helm install charts for member clusters
+# Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 kubectl apply -f config/crd/*
 helm install mcs-controller-manager \
