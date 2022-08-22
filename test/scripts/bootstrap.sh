@@ -14,7 +14,7 @@ set -x
 az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
 az account set -s ${SUBSCRIPTION_ID}
 
-# create resource group
+# create resource group to host hub and member clusters
 # RANDOM ID promises workflow runs don't interface one another.
 export RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"
 export LOCATION=eastus
@@ -22,14 +22,13 @@ az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet
 
 # defer function to recycle created Azure resource
 function cleanup {
-    #az group delete -n $RESOURCE_GROUP --no-wait --yes
-    echo "resource group name $RESOURCE_GROUP"
+    az group delete -n $RESOURCE_GROUP --no-wait --yes
 }
 trap cleanup EXIT
 
-# pubilsh image
-# TODO(mainred): once we have a specific Azure sub for fleet networking e2e test, we can reuse this registry
-# Parameter 'registry_name' must conform to the following pattern: '^[a-zA-Z0-9]*$'.
+# pubilsh fleet networking agent images
+# TODO(mainred): once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry
+# registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
 export REGISTRY_NAME="fleetnetworkinge2e$RANDOM"
 az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku basic --tags "source=fleet-networking"
 az acr login -n $REGISTRY_NAME
