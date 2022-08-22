@@ -102,11 +102,11 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	mcsKObj := klog.KObj(mcs)
 	// The mcs is being deleted
 	if !controllerutil.ContainsFinalizer(mcs, multiClusterServiceFinalizer) {
-		klog.V(4).InfoS("multiClusterService is being deleted", mcs, mcsKObj)
+		klog.V(4).InfoS("multiClusterService is being deleted", "multiClusterService", mcsKObj)
 		return ctrl.Result{}, nil
 	}
 
-	klog.V(2).InfoS("Removing mcs", "controller", "multiClusterService", mcsKObj)
+	klog.V(2).InfoS("Removing mcs", "multiClusterService", mcsKObj)
 
 	// delete derived service in the fleet-system namespace
 	serviceName := r.derivedServiceFromLabel(mcs)
