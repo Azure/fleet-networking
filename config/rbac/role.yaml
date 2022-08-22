@@ -31,6 +31,22 @@ rules:
   - update
   - watch
 - apiGroups:
+  - fleet.azure.com
+  resources:
+  - internalmemberclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fleet.azure.com
+  resources:
+  - internalmemberclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.fleet.azure.com
   resources:
   - endpointsliceexports
@@ -54,22 +70,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalmemberclusters
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalmemberclusters/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
