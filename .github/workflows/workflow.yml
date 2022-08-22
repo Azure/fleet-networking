@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release-*
+      - set-e2e-env
   workflow_dispatch:
     inputs:
       releaseTag:
