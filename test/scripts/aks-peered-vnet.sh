@@ -4,10 +4,13 @@ set -o nounset
 set -o pipefail
 set -x
 
+# Reference of the vnet peer setup:
+# https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
+
 MEMBER_1_LOCATION="${MEMBER_2_LOCATION:-eastus}"
 MEMBER_2_LOCATION="${MEMBER_2_LOCATION:-westus}"
 
-# create virutal network
+# Create virutal network and subnet for both member clusters.
 export MEMBER_1_TO_MEMBER_2=member-1-to-member-2
 export MEMBER_2_TO_MEMBER_1=member-2-to-member-1
 export MEMBER_1_VNET=member-1-vnet
@@ -30,7 +33,6 @@ az network vnet create \
     --resource-group $RESOURCE_GROUP \
     --subnet-name $MEMBER_2_SUBNET \
     --subnet-prefixes 10.1.0.0/24
-
 
 # Get the id for MEMBER_1_VNET.
 MEMBER_1_VNET_ID=$(az network vnet show \
@@ -59,20 +61,7 @@ az network vnet peering create \
   --remote-vnet $MEMBER_1_VNET_ID \
   --allow-vnet-access
 
-export NODE_COUNT=2
-# create aks hub cluster
-az aks create \
-    --location $LOCATION \
-    --resource-group $RESOURCE_GROUP \
-    --name $HUB_CLUSTER \
-    --node-count $NODE_COUNT \
-    --generate-ssh-keys \
-    --enable-aad \
-    --enable-azure-rbac \
-    --network-plugin azure \
-    --no-wait
-
-# create aks member cluster1
+# Create aks member cluster1.
 az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
@@ -83,7 +72,7 @@ az aks create \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$MEMBER_1_VNET/subnets/$MEMBER_1_SUBNET" \
     --no-wait
 
-# create aks member cluster2
+# Create aks member cluster2.
 az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \

@@ -4,8 +4,6 @@ set -o nounset
 set -o pipefail
 set -x
 
-docker buildx version
-
 # Check required variables.
 [[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
 [[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
@@ -50,6 +48,19 @@ make docker-build-mcs-controller-manager
 export HUB_CLUSTER=hub
 export MEMBER_CLUSTER_1=member-1
 export MEMBER_CLUSTER_2=member-2
+export NODE_COUNT=2
+
+# Create aks hub cluster
+az aks create \
+    --location $LOCATION \
+    --resource-group $RESOURCE_GROUP \
+    --name $HUB_CLUSTER \
+    --node-count $NODE_COUNT \
+    --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
+    --network-plugin azure \
+    --no-wait
 
 AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
 case $AZURE_NETWORK_SETTING in

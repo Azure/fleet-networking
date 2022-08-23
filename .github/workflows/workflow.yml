@@ -5,12 +5,7 @@ on:
     branches:
       - main
       - release-*
-      - set-e2e-env
-  workflow_dispatch:
-    inputs:
-      releaseTag:
-        description: 'Release tag to publish images, defaults to the latest one'
-        type: string
+  workflow_dispatch: {}
   pull_request:
     branches:
       - main
