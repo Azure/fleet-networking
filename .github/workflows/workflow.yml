@@ -61,6 +61,7 @@ jobs:
 
   e2e-tests:
     strategy:
+      fail-fast: false
       matrix:
         network-setting: [shared-vnet, peered-vnet,  dynamic-ip-allocation]
     runs-on: ubuntu-latest

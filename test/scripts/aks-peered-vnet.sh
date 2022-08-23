@@ -7,9 +7,6 @@ set -x
 # Reference of the vnet peer setup:
 # https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
 
-MEMBER_1_LOCATION="${MEMBER_2_LOCATION:-eastus}"
-MEMBER_2_LOCATION="${MEMBER_2_LOCATION:-westus}"
-
 # Create virutal network and subnet for both member clusters.
 export MEMBER_1_TO_MEMBER_2=member-1-to-member-2
 export MEMBER_2_TO_MEMBER_1=member-2-to-member-1

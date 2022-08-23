@@ -64,12 +64,18 @@ az aks create \
 AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
 case $AZURE_NETWORK_SETTING in
         shared-vnet)
+                export MEMBER_1_LOCATION="${LOCATION}"
+                export MEMBER_2_LOCATION="${LOCATION}"
                 bash test/scripts/aks-shared-vnet.sh
                 ;;
         dynamic-ip-allocation)
+                export MEMBER_1_LOCATION="${LOCATION}"
+                export MEMBER_2_LOCATION="${LOCATION}"
                 bash test/scripts/aks-dynamic-ip-allocation.sh
                 ;;
         peered-vnet)
+                export MEMBER_1_LOCATION="${MEMBER_1_LOCATION:-eastus}"
+                export MEMBER_2_LOCATION="${MEMBER_2_LOCATION:-westus}"
                 bash test/scripts/aks-peered-vnet.sh
                 ;;
         *)
@@ -89,10 +95,10 @@ az aks get-credentials --name $MEMBER_CLUSTER_2 -g $RESOURCE_GROUP --admin --ove
 export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
 
 # Setup hub cluster credentials.
-export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
-export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
 
 kubectl config use-context $HUB_CLUSTER-admin
 helm install e2e-hub-resources \

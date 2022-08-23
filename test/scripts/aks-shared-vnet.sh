@@ -11,7 +11,7 @@ export MEMBER_2_SUBNET=member-2
 
 az network vnet create \
     --name $VNET \
-    --location $LOCATION \
+    --location $MEMBER_1_LOCATION \
     -g $RESOURCE_GROUP \
     --address-prefixes 10.0.0.0/8
 
@@ -28,7 +28,7 @@ az network vnet subnet create \
 
 # Create aks member cluster1.
 az aks create \
-    --location $LOCATION \
+    --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_1 \
     --node-count $NODE_COUNT \
@@ -39,7 +39,7 @@ az aks create \
 
 # Create aks member cluster2.
 az aks create \
-    --location $LOCATION \
+    --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_2 \
     --node-count $NODE_COUNT \
