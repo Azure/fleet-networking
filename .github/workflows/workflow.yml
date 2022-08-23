@@ -77,10 +77,9 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
 
-      - name: Prepare e2e
+      - name: Prepare e2e variables
         run: |
-          AZURE_RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"
-          echo "::set-env name=AZURE_RESOURCE_GROUP::$AZURE_RESOURCE_GROUP"
+          echo "AZURE_RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"" >> $GITHUB_ENV
         env:
           AZURE_CLIENT_ID: ${{ secrets.E2E_AZURE_CLIENT_ID}}
           AZURE_CLIENT_SECRET: ${{ secrets.E2E_AZURE_CLIENT_SECRET }}
