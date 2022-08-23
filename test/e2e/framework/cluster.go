@@ -2,6 +2,8 @@
 Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
+
+// Package framework provides common functionalities for handling a Kubernertes cluster.
 package framework
 
 import (
@@ -24,39 +26,42 @@ var (
 	PollTimeout = 30 * time.Second
 )
 
+// Cluster represents a Kubernetes cluster.
 type Cluster struct {
 	Scheme      *runtime.Scheme
 	KubeClient  client.Client
 	ClusterName string
 }
 
-func NewCluster(name string, scheme *runtime.Scheme) *Cluster {
-	return &Cluster{
+// GetCluster returns a cluster from the cluster name.
+func GetCluster(name string, scheme *runtime.Scheme) *Cluster {
+	cluster := &Cluster{
 		Scheme:      scheme,
 		ClusterName: name,
 	}
+	cluster.initClusterClient()
+	return cluster
 }
 
-// GetClusterClient returns a Cluster client for the cluster.
-func GetClusterClient(cluster *Cluster) {
-	clusterConfig := GetClientConfig(cluster)
+func (c *Cluster) initClusterClient() {
+	clusterConfig := c.getClientConfig()
 
 	restConfig, err := clusterConfig.ClientConfig()
 	if err != nil {
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	}
 
-	client, err := client.New(restConfig, client.Options{Scheme: cluster.Scheme})
+	client, err := client.New(restConfig, client.Options{Scheme: c.Scheme})
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	cluster.KubeClient = client
+	c.KubeClient = client
 }
 
-func GetClientConfig(cluster *Cluster) clientcmd.ClientConfig {
+func (c *Cluster) getClientConfig() clientcmd.ClientConfig {
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: getKubeConfig()},
 		&clientcmd.ConfigOverrides{
-			CurrentContext: fmt.Sprintf("%s-admin", cluster.ClusterName),
+			CurrentContext: fmt.Sprintf("%s-admin", c.ClusterName),
 		})
 }
 

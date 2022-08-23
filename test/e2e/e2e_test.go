@@ -24,16 +24,16 @@ const (
 	eventuallyInterval = time.Millisecond * 250
 
 	hubClusterName       = "hub"
-	memberCluster1Name   = "member-1"
-	memberCluster2Name   = "member-1"
+	memberClusterOneName = "member-1"
+	memberClusterTwoName = "member-2"
 	fleetSystemNamespace = "fleet-system"
 )
 
 var (
-	HubCluster     = framework.NewCluster(hubClusterName, scheme)
-	memberCluster1 = framework.NewCluster(memberCluster1Name, scheme)
-	memberCluster2 = framework.NewCluster(memberCluster2Name, scheme)
-	scheme         = runtime.NewScheme()
+	hubCluster       *framework.Cluster
+	memberClusterOne *framework.Cluster
+	memberClusterTwo *framework.Cluster
+	scheme           = runtime.NewScheme()
 )
 
 func init() {
@@ -47,10 +47,10 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// hub setup
-	framework.GetClusterClient(HubCluster)
+	// hub cluster setup
+	hubCluster = framework.GetCluster(hubClusterName, scheme)
 
-	//member setup
-	framework.GetClusterClient(memberCluster1)
-	framework.GetClusterClient(memberCluster2)
+	//member cluster setup
+	memberClusterOne = framework.GetCluster(memberClusterOneName, scheme)
+	memberClusterTwo = framework.GetCluster(memberClusterTwoName, scheme)
 })
