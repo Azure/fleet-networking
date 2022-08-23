@@ -122,7 +122,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		Client: mgr.GetClient(),
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(ctx, mgr)
 	Expect(err).ToNot(HaveOccurred())
 
