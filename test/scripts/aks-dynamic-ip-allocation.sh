@@ -4,7 +4,14 @@ set -o nounset
 set -o pipefail
 set -x
 
-# Reference of the setting up:
+# dynamic-ip-allocation creates two member clusters using dynamic allocation of IPs and enhanced subnet support.
+
+# Member cluster setup steps:
+# 1. Create one virtual network then node subnets and node subnets for both member clusters
+# 2. Create member cluster 1 with Azure CNI and `vnet-subnet-id` and `pod-subnet-id`
+# 3. Create member cluster 2 with Azure CNI and `vnet-subnet-id` and `pod-subnet-id`
+
+# Reference of the setup:
 # https://docs.microsoft.com/en-us/azure/aks/configure-azure-cni#configure-networking---cli-with-dynamic-allocation-of-ips-and-enhanced-subnet-support
 
 # Create virutal network and podsubnet and nodesubnet for both member clusters.

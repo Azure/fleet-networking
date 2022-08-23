@@ -110,7 +110,7 @@ e2e-setup:
 	bash test/scripts/bootstrap.sh
 
 .PHONY: e2e-tests
-e2e-tests: e2e-setup
+e2e-tests:
 	go test -tags=e2e -v ./test/e2e
 
 .PHONY: e2e-cleanup

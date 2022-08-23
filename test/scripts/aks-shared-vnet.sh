@@ -4,6 +4,16 @@ set -o nounset
 set -o pipefail
 set -x
 
+# shared-vnet creates two member clusters from subnets within one vnet.
+
+# Member cluster setup steps:
+# 1. Create one virtual network and two subnets, each for one member cluster
+# 2. Create member cluster 1 with Azure CNI and subnet from step 1
+# 3. Create member cluster 2 with Azure CNI and the other subnet from step 1
+
+# Reference of the vnet peer setup:
+# https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
+
 # Create virutal network and subnet for both member clusters.
 export VNET=fleet
 export MEMBER_1_SUBNET=member-1

@@ -5,13 +5,8 @@ set -o pipefail
 set -x
 
 # Check required variables.
-[[ -z "${AZURE_CLIENT_ID}" ]] && echo "AZURE_CLIENT_ID is not set" && exit 1
-[[ -z "${AZURE_CLIENT_SECRET}" ]] && echo "AZURE_CLIENT_SECRET is not set" && exit 1
-[[ -z "${AZURE_TENANT_ID}" ]] && echo "AZURE_TENANT_ID is not set" && exit 1
 [[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
-# az login
-az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}"
 az account set -s ${AZURE_SUBSCRIPTION_ID}
 
 # Create resource group to host hub and member clusters.
@@ -102,18 +97,18 @@ export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBE
 
 kubectl config use-context $HUB_CLUSTER-admin
 helm install e2e-hub-resources \
-    ./test/charts/hub \
+    ./examples/getting-started/charts/hub \
     --set principalIDForMemberA=$PRINCIPAL_FOR_MEMBER_1 \
     --set principalIDForMemberB=$PRINCIPAL_FOR_MEMBER_2
 
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 helm install e2e-member-resources \
-    ./test/charts/member \
+    ./examples/getting-started/charts/members \
     --set memberID=$MEMBER_CLUSTER_1
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
 helm install e2e-member-resources \
-    ./test/charts/member \
+    ./examples/getting-started/charts/members \
     --set memberID=$MEMBER_CLUSTER_2
 
 # Helm install charts for hub cluster.
@@ -127,6 +122,7 @@ helm install hub-net-controller-manager \
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 kubectl apply -f config/crd/*
+kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -145,6 +141,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
 kubectl apply -f config/crd/*
+kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \

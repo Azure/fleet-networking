@@ -4,6 +4,16 @@ set -o nounset
 set -o pipefail
 set -x
 
+
+# peered-vnet creates two member clusters with network peered by virtual network peering, also the vnet and member clusters
+# are hosted in different regions.
+
+# Member cluster setup steps:
+# 1. Create one virtual network and one subnet for each member cluster
+# 2. Create a virtual network peering connection to peer the above two virtual networks
+# 3. Create member cluster 1 with Azure CNI and subnet from step 1
+# 4. Create member cluster 2 with Azure CNI and subnet from step 1
+
 # Reference of the vnet peer setup:
 # https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
 
