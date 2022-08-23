@@ -34,7 +34,6 @@ var (
 	memberCluster1 = framework.NewCluster(memberCluster1Name, scheme)
 	memberCluster2 = framework.NewCluster(memberCluster2Name, scheme)
 	scheme         = runtime.NewScheme()
-	hubURL         string
 )
 
 func init() {

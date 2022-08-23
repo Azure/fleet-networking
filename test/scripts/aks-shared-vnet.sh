@@ -11,6 +11,7 @@ export MEMBER_2_SUBNET=member-2
 
 az network vnet create \
     --name $VNET \
+    --location $LOCATION \
     -g $RESOURCE_GROUP \
     --address-prefixes 10.0.0.0/8
 
