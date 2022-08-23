@@ -19,12 +19,12 @@ az network vnet subnet create \
     --vnet-name $VNET \
     --name $MEMBER_1_SUBNET \
     -g $RESOURCE_GROUP \
-    --address-prefixes 10.2.0.0/16
+    --address-prefixes 10.1.0.0/16
 az network vnet subnet create \
     --vnet-name $VNET \
     --name $MEMBER_2_SUBNET \
     -g $RESOURCE_GROUP \
-    --address-prefixes 10.3.0.0/16
+    --address-prefixes 10.2.0.0/16
 
 # Create aks member cluster1.
 az aks create \

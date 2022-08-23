@@ -16,7 +16,7 @@ az account set -s ${AZURE_SUBSCRIPTION_ID}
 
 # Create resource group to host hub and member clusters.
 # RANDOM ID promises workflow runs don't interface one another.
-export RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"
+export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-fleet-networking-e2e-$RANDOM}"
 export LOCATION=eastus
 az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
 
@@ -24,7 +24,7 @@ az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet
 function cleanup {
     az group delete -n $RESOURCE_GROUP --no-wait --yes
 }
-trap cleanup EXIT
+trap cleanup INT TERM
 
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
@@ -35,7 +35,6 @@ az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source
 # When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
 # succeeds, and as AuthN and AuthZ for member cluster agents to hub cluster in our test requires managed identity,
 # we enable anonymous pull access to the registry instead of enabling attach-acr.
-
 az acr update --name $REGISTRY_NAME --anonymous-pull-enabled
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
@@ -84,9 +83,9 @@ az aks wait --created --interval 10 --name $MEMBER_CLUSTER_1 --resource-group $R
 az aks wait --created --interval 10 --name $MEMBER_CLUSTER_2 --resource-group $RESOURCE_GROUP --timeout 1800
 
 # Export kubeconfig.
-az aks get-credentials --name $HUB_CLUSTER -g $RESOURCE_GROUP --admin
-az aks get-credentials --name $MEMBER_CLUSTER_1 -g $RESOURCE_GROUP --admin
-az aks get-credentials --name $MEMBER_CLUSTER_2 -g $RESOURCE_GROUP --admin
+az aks get-credentials --name $HUB_CLUSTER -g $RESOURCE_GROUP --admin --overwrite-existing
+az aks get-credentials --name $MEMBER_CLUSTER_1 -g $RESOURCE_GROUP --admin --overwrite-existing
+az aks get-credentials --name $MEMBER_CLUSTER_2 -g $RESOURCE_GROUP --admin --overwrite-existing
 export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
 
 # Setup hub cluster credentials.

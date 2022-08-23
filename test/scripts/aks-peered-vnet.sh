@@ -20,19 +20,19 @@ export MEMBER_2_SUBNET=member-2-subnet
 
 az network vnet create \
     --location $MEMBER_1_LOCATION \
-    --address-prefixes 10.0.0.0/16 \
+    --address-prefixes 10.1.0.0/16 \
     --name $MEMBER_1_VNET \
     --resource-group $RESOURCE_GROUP \
     --subnet-name $MEMBER_1_SUBNET \
-    --subnet-prefixes 10.0.0.0/24
+    --subnet-prefixes 10.1.0.0/24
 
 az network vnet create \
     --location $MEMBER_2_LOCATION \
-    --address-prefixes 10.1.0.0/16 \
+    --address-prefixes 10.2.0.0/16 \
     --name $MEMBER_2_VNET \
     --resource-group $RESOURCE_GROUP \
     --subnet-name $MEMBER_2_SUBNET \
-    --subnet-prefixes 10.1.0.0/24
+    --subnet-prefixes 10.2.0.0/24
 
 # Get the id for MEMBER_1_VNET.
 MEMBER_1_VNET_ID=$(az network vnet show \

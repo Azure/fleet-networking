@@ -13,11 +13,11 @@ export MEMBER_1_NODE_SUBNET=member-1-node
 export MEMBER_1_POD_SUBNET=member-1-pod
 export MEMBER_2_NODE_SUBNET=member-2-node
 export MEMBER_2_POD_SUBNET=member-2-pod
-az network vnet create -g $RESOURCE_GROUP --location $LOCATION --name $VNET --address-prefixes 10.0.0.0/8 -o none 
-az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $vnet --name $MEMBER_1_NODE_SUBNET --address-prefixes 10.242.0.0/16 -o none 
-az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $vnet --name $MEMBER_1_POD_SUBNET --address-prefixes 10.243.0.0/16 -o none 
-az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $vnet --name $MEMBER_2_NODE_SUBNET --address-prefixes 10.244.0.0/16 -o none 
-az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $vnet --name $MEMBER_2_POD_SUBNET --address-prefixes 10.245.0.0/16 -o none 
+az network vnet create -g $RESOURCE_GROUP --location $LOCATION --name $VNET --address-prefixes 10.0.0.0/8 -o none
+az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_1_NODE_SUBNET --address-prefixes 10.242.0.0/16 -o none
+az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_1_POD_SUBNET --address-prefixes 10.243.0.0/16 -o none
+az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_2_NODE_SUBNET --address-prefixes 10.244.0.0/16 -o none
+az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_2_POD_SUBNET --address-prefixes 10.245.0.0/16 -o none
 
 # Create aks member cluster1
 az aks create \

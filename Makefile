@@ -113,6 +113,10 @@ e2e-setup:
 e2e-tests: e2e-setup
 	go test -tags=e2e -v ./test/e2e
 
+.PHONY: e2e-cleanup
+e2e-cleanup:
+	bash test/scripts/cleanup.sh
+
 reviewable: fmt vet lint staticcheck
 	go mod tidy
 
