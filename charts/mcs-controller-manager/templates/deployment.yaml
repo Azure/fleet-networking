@@ -29,6 +29,7 @@ spec:
             - --fleet-system-namespace={{ .Values.fleetSystemNamespace }}
             - --tls-insecure={{ .Values.tlsClientInsecure }}
             - --v={{ .Values.logVerbosity }}
+            - --add_dir_header
           ports:
           - containerPort: 8080
             name: hubmetrics

@@ -2,7 +2,7 @@
 Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
-// Binary mcs-controller-manager features the mcs controller to multiclusterservice CRD.
+// Binary mcs-controller-manager watches multiclusterservice CRD to expose the multi-cluster service via load balancer.
 // The controller could be installed in either hub cluster or member clusters.
 package main
 
@@ -219,6 +219,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		Client:               memberClient,
 		Scheme:               memberMgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
+		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
 		return err
