@@ -19,7 +19,7 @@ import (
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/test/e2e/framework"
+	"go.goms.io/fleet-networking/test/framework"
 )
 
 const (
@@ -30,6 +30,9 @@ const (
 )
 
 var (
+	hubClusterName     = "hub"
+	memberClusterNames = []string{"member-1", "member-2"}
+
 	hubCluster     *framework.Cluster
 	memberClusters []*framework.Cluster
 	scheme         = runtime.NewScheme()
@@ -47,9 +50,17 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	var err error
+
 	// hub cluster setup
-	hubCluster = framework.HubCluster(scheme)
+	hubCluster, err = framework.NewCluster(hubClusterName, scheme)
+	Expect(err).Should(Succeed(), "failed to initialize hubCluster")
 
 	//member cluster setup
-	memberClusters = framework.MemberClusters(scheme)
+	memberClusters = make([]*framework.Cluster, 0, len(memberClusterNames))
+	for _, m := range memberClusterNames {
+		cluster, err := framework.NewCluster(hubClusterName, scheme)
+		Expect(err).Should(Succeed(), "failed to initialize memberCluster %s", m)
+		memberClusters = append(memberClusters, cluster)
+	}
 })

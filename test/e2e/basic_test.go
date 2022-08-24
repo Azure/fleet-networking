@@ -32,7 +32,7 @@ var _ = Describe("test", func() {
 					}),
 					Namespace: fleetSystemNamespace,
 				}
-				err := memberClusters[0].KubeClient.List(ctx, podList, &listOpts)
+				err := memberClusters[0].kubeClient.List(ctx, podList, &listOpts)
 				if err != nil || len(podList.Items) == 0 {
 					return false
 				}
@@ -54,7 +54,7 @@ var _ = Describe("test", func() {
 					}),
 					Namespace: fleetSystemNamespace,
 				}
-				err := memberClusters[0].KubeClient.List(ctx, podList, &listOpts)
+				err := memberClusters[0].kubeClient.List(ctx, podList, &listOpts)
 				if err != nil || len(podList.Items) == 0 {
 					return false
 				}
@@ -78,7 +78,7 @@ var _ = Describe("test", func() {
 					}),
 					Namespace: fleetSystemNamespace,
 				}
-				err := hubCluster.KubeClient.List(ctx, podList, &listOpts)
+				err := hubCluster.kubeClient.List(ctx, podList, &listOpts)
 				if err != nil || len(podList.Items) == 0 {
 					return false
 				}

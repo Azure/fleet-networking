@@ -122,6 +122,8 @@ helm install hub-net-controller-manager \
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 kubectl apply -f config/crd/*
+# need to make sure the version matches the one in the go.mod
+# workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
@@ -141,6 +143,8 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
 kubectl apply -f config/crd/*
+# need to make sure the version matches the one in the go.mod
+# workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
