@@ -3,6 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package e2e hosts e2e tests.
 package e2e
 
 import (
@@ -23,15 +24,12 @@ const (
 	eventuallyTimeout  = time.Second * 10
 	eventuallyInterval = time.Millisecond * 250
 
-	hubClusterName       = "hub"
-	memberClusterOneName = "member-1"
-	memberClusterTwoName = "member-2"
 	fleetSystemNamespace = "fleet-system"
 )
 
 var (
 	hubCluster       *framework.Cluster
-	memberClusterOne *framework.Cluster
+	memberClusters   []*framework.Cluster
 	memberClusterTwo *framework.Cluster
 	scheme           = runtime.NewScheme()
 )
@@ -48,9 +46,8 @@ func TestE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// hub cluster setup
-	hubCluster = framework.GetCluster(hubClusterName, scheme)
+	hubCluster = framework.GetHubCluster(scheme)
 
 	//member cluster setup
-	memberClusterOne = framework.GetCluster(memberClusterOneName, scheme)
-	memberClusterTwo = framework.GetCluster(memberClusterTwoName, scheme)
+	memberClusters = framework.GetMemberClusters(scheme)
 })

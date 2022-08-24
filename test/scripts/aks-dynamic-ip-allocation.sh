@@ -4,7 +4,7 @@ set -o nounset
 set -o pipefail
 set -x
 
-# dynamic-ip-allocation creates two member clusters using dynamic allocation of IPs and enhanced subnet support.
+# dynamic-ip-allocation creates two member clusters using dynamic allocation of IPs and enhanced subnet support in the same vnet.
 
 # Member cluster setup steps:
 # 1. Create one virtual network then node subnets and node subnets for both member clusters

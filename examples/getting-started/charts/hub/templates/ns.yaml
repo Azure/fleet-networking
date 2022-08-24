@@ -13,9 +13,9 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: fleet-member-{{ required "A valid member ID is required" .Values.memberAID }}
+  name: fleet-member-{{ required "A valid member ID is required" .Values.member1ID }}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: fleet-member-{{ required "A valid member ID is required" .Values.memberBID }}
+  name: fleet-member-{{ required "A valid member ID is required" .Values.member2ID }}

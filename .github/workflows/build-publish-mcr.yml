@@ -58,6 +58,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: ${{ needs.prepare-variables.outputs.release_tag }}
+      # reference: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure
       - name: 'OIDC Login to Azure Public Cloud'
         uses: azure/login@v1
         with:

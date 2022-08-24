@@ -98,8 +98,8 @@ export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBE
 kubectl config use-context $HUB_CLUSTER-admin
 helm install e2e-hub-resources \
     ./examples/getting-started/charts/hub \
-    --set principalIDForMemberA=$PRINCIPAL_FOR_MEMBER_1 \
-    --set principalIDForMemberB=$PRINCIPAL_FOR_MEMBER_2
+    --set principalIDForMember1=$PRINCIPAL_FOR_MEMBER_1 \
+    --set principalIDForMember2=$PRINCIPAL_FOR_MEMBER_2
 
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 helm install e2e-member-resources \

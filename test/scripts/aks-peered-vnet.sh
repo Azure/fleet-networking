@@ -5,7 +5,7 @@ set -o pipefail
 set -x
 
 
-# peered-vnet creates two member clusters with network peered by virtual network peering, also the vnet and member clusters
+# peered-vnet creates two member clusters with network peered by virtual network peering. The vnet and member clusters
 # are hosted in different regions.
 
 # Member cluster setup steps:

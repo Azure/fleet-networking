@@ -24,6 +24,9 @@ var (
 	PollInterval = 5 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
 	PollTimeout = 30 * time.Second
+
+	hubClusterName     = "hub"
+	memberClusterNames = []string{"member-1", "member-2"}
 )
 
 // Cluster represents a Kubernetes cluster.
@@ -31,6 +34,28 @@ type Cluster struct {
 	Scheme      *runtime.Scheme
 	KubeClient  client.Client
 	ClusterName string
+}
+
+func GetHubCluster(scheme *runtime.Scheme) *Cluster {
+	cluster := &Cluster{
+		Scheme:      scheme,
+		ClusterName: hubClusterName,
+	}
+	cluster.initClusterClient()
+	return cluster
+}
+
+func GetMemberClusters(scheme *runtime.Scheme) []*Cluster {
+	var memberClusters []*Cluster
+	for _, memberClusterName := range memberClusterNames {
+		cluster := &Cluster{
+			Scheme:      scheme,
+			ClusterName: memberClusterName,
+		}
+		cluster.initClusterClient()
+		memberClusters = append(memberClusters, cluster)
+	}
+	return memberClusters
 }
 
 // GetCluster returns a cluster from the cluster name.
