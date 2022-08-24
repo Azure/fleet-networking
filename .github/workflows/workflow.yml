@@ -12,6 +12,10 @@ on:
       - release-*
     paths-ignore: [docs/**, "**.md", "**.mdx", "**.png", "**.jpg"]
 
+permissions:
+      id-token: write
+      contents: read
+
 env:
   GO_VERSION: '1.18'
 
@@ -61,6 +65,8 @@ jobs:
 
   e2e-tests:
     strategy:
+      # disable fail-fast to continue the in-progress pipeline when one failed job is detected to
+      # get test results for all scenarios.
       fail-fast: false
       matrix:
         network-setting: [shared-vnet, peered-vnet,  dynamic-ip-allocation]
