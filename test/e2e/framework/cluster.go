@@ -36,6 +36,7 @@ type Cluster struct {
 	ClusterName string
 }
 
+// GetHubCluster return hub cluster.
 func GetHubCluster(scheme *runtime.Scheme) *Cluster {
 	cluster := &Cluster{
 		Scheme:      scheme,
@@ -45,6 +46,7 @@ func GetHubCluster(scheme *runtime.Scheme) *Cluster {
 	return cluster
 }
 
+// GetMemberClusters return all member clusters.
 func GetMemberClusters(scheme *runtime.Scheme) []*Cluster {
 	var memberClusters []*Cluster
 	for _, memberClusterName := range memberClusterNames {
@@ -56,16 +58,6 @@ func GetMemberClusters(scheme *runtime.Scheme) []*Cluster {
 		memberClusters = append(memberClusters, cluster)
 	}
 	return memberClusters
-}
-
-// GetCluster returns a cluster from the cluster name.
-func GetCluster(name string, scheme *runtime.Scheme) *Cluster {
-	cluster := &Cluster{
-		Scheme:      scheme,
-		ClusterName: name,
-	}
-	cluster.initClusterClient()
-	return cluster
 }
 
 func (c *Cluster) initClusterClient() {
