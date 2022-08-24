@@ -28,10 +28,9 @@ const (
 )
 
 var (
-	hubCluster       *framework.Cluster
-	memberClusters   []*framework.Cluster
-	memberClusterTwo *framework.Cluster
-	scheme           = runtime.NewScheme()
+	hubCluster     *framework.Cluster
+	memberClusters []*framework.Cluster
+	scheme         = runtime.NewScheme()
 )
 
 func init() {

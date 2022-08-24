@@ -48,7 +48,7 @@ func GetHubCluster(scheme *runtime.Scheme) *Cluster {
 
 // GetMemberClusters return all member clusters.
 func GetMemberClusters(scheme *runtime.Scheme) []*Cluster {
-	var memberClusters []*Cluster
+	memberClusters := make([]*Cluster, 0, len(memberClusterNames))
 	for _, memberClusterName := range memberClusterNames {
 		cluster := &Cluster{
 			Scheme:      scheme,
