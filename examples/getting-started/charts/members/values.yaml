@@ -1,0 +1,9 @@
+# Default values for fleet-networking-getting-started-tutorial-hub-resources.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The namespace for user-end workloads.
+userNS:
+
+# The namespace for Fleet controllers and resources.
+systemNS: fleet-system
