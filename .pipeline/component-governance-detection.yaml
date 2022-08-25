@@ -7,5 +7,5 @@ pool:
 
 steps:
   - bash: |
-      echo "This task does nothing."
-    displayName: Dummy Task
+      echo "This task is used to trigger code base scan."
+    displayName: ADO Task
