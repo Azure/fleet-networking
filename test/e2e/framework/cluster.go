@@ -96,7 +96,7 @@ func fetchKubeConfig() (string, error) {
 		kubeConfigPath = filepath.Join(homeDir, "/.kube/config")
 	}
 	if _, err := os.Stat(kubeConfigPath); err != nil {
-		return "", fmt.Errorf("failed to find kubeconfig file %s: %v", kubeConfigPath, err)
+		return "", fmt.Errorf("failed to find kubeconfig file %s: %w", kubeConfigPath, err)
 	}
 	return kubeConfigPath, nil
 }
