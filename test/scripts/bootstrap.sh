@@ -30,7 +30,7 @@ az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source
 # When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
 # succeeds, and as AuthN and AuthZ for member cluster agents to hub cluster in our test requires managed identity,
 # we enable anonymous pull access to the registry instead of enabling attach-acr.
-az acr update --name $REGISTRY_NAME --anonymous-pull-enabled
+az acr update --name $REGISTRY_NAME --anonymous-pull-enabled -g $RESOURCE_GROUP
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
 export TAG=`git rev-parse --short=7 HEAD`
@@ -113,6 +113,9 @@ helm install e2e-member-resources \
 
 # Helm install charts for hub cluster.
 kubectl config use-context $HUB_CLUSTER-admin
+# need to make sure the version matches the one in the go.mod
+# workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
+kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
@@ -122,9 +125,6 @@ helm install hub-net-controller-manager \
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 kubectl apply -f config/crd/*
-# need to make sure the version matches the one in the go.mod
-# workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -143,9 +143,6 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
 kubectl apply -f config/crd/*
-# need to make sure the version matches the one in the go.mod
-# workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \

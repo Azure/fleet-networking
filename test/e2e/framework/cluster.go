@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package framework provides common functionalities for handling a Kubernertes cluster.
+// Package framework provides common functionalities for e2e tests.
 package framework
 
 import (
@@ -32,7 +32,7 @@ type Cluster struct {
 	name       string
 }
 
-// NewCluster creates Cluster and initalizes its kubernetes client.
+// NewCluster creates Cluster and initializes its kubernetes client.
 func NewCluster(name string, scheme *runtime.Scheme) (*Cluster, error) {
 	cluster := &Cluster{
 		scheme: scheme,
@@ -55,7 +55,7 @@ func (c *Cluster) Client() client.Client {
 }
 
 func (c *Cluster) initClusterClient() error {
-	clusterConfig, err := c.fetchClientConfig()
+	clusterConfig, err := c.buildClientConfig()
 	if err != nil {
 		return err
 	}
@@ -73,22 +73,21 @@ func (c *Cluster) initClusterClient() error {
 	return nil
 }
 
-func (c *Cluster) fetchClientConfig() (clientcmd.ClientConfig, error) {
-	kubeConfig, err := kubeConfig()
+func (c *Cluster) buildClientConfig() (clientcmd.ClientConfig, error) {
+	kubeConfig, err := fetchKubeConfig()
 	if err != nil {
 		return nil, err
 	}
 	cf := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfig},
-		&clientcmd.ConfigOverrides{
-			CurrentContext: fmt.Sprintf("%s-admin", c.name),
-		})
+		&clientcmd.ConfigOverrides{CurrentContext: fmt.Sprintf("%s-admin", c.name)},
+	)
 	return cf, nil
 }
 
-func kubeConfig() (string, error) {
-	kubeconfigEnvKey := "KUBECONFIG"
-	kubeConfigPath := os.Getenv(kubeconfigEnvKey)
+func fetchKubeConfig() (string, error) {
+	kubeConfigEnvKey := "KUBECONFIG"
+	kubeConfigPath := os.Getenv(kubeConfigEnvKey)
 	if len(kubeConfigPath) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
