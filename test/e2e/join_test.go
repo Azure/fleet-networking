@@ -28,7 +28,7 @@ var _ = Describe("Test Join/Unjoin workflow", func() {
 		memberClusterNamespace = "fleet-member-" + memberClusterName
 		imcKey                 = types.NamespacedName{Namespace: memberClusterNamespace, Name: memberClusterName}
 		imc                    fleetv1alpha1.InternalMemberCluster
-		options                = []cmp.Option{
+		cmpOptions             = []cmp.Option{
 			cmpopts.IgnoreFields(fleetv1alpha1.AgentStatus{}, "LastReceivedHeartbeat"),
 			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
 			cmpopts.SortSlices(func(status1, status2 fleetv1alpha1.AgentStatus) bool { return status1.Type < status2.Type }),
@@ -60,7 +60,7 @@ var _ = Describe("Test Join/Unjoin workflow", func() {
 			Expect(hubCluster.Client().Delete(ctx, &imc)).Should(Succeed())
 			Eventually(func() bool {
 				return errors.IsNotFound(hubCluster.Client().Get(ctx, imcKey, &imc))
-			}, framework.PollTimeout, framework.PollInterval, "Failed to delete internalMemberCluster")
+			}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete internalMemberCluster")
 		})
 
 		It("InternalMemberCluster is just created with empty status", func() {
@@ -91,7 +91,7 @@ var _ = Describe("Test Join/Unjoin workflow", func() {
 						},
 					},
 				}
-				return cmp.Diff(want, imc.Status.AgentStatus, options...)
+				return cmp.Diff(want, imc.Status.AgentStatus, cmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate internalMemberCluster mismatch (-want, +got):")
 			Expect(imc.Status.AgentStatus[0].LastReceivedHeartbeat).ShouldNot(BeNil(), "heartbeat should not be nil")
 			Expect(imc.Status.AgentStatus[1].LastReceivedHeartbeat).ShouldNot(BeNil(), "heartbeat should not be nil")
