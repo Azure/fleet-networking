@@ -8,7 +8,6 @@ package e2e
 
 import (
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,14 +21,10 @@ import (
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
-const (
-	eventuallyTimeout  = time.Second * 10
-	eventuallyInterval = time.Millisecond * 250
-
-	fleetSystemNamespace = "fleet-system"
-)
-
 var (
+	hubClusterName     = "hub"
+	memberClusterNames = []string{"member-1", "member-2"}
+
 	hubCluster     *framework.Cluster
 	memberClusters []*framework.Cluster
 	scheme         = runtime.NewScheme()
@@ -47,9 +42,17 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	var err error
+
 	// hub cluster setup
-	hubCluster = framework.HubCluster(scheme)
+	hubCluster, err = framework.NewCluster(hubClusterName, scheme)
+	Expect(err).Should(Succeed(), "Failed to initialize hubCluster")
 
 	//member cluster setup
-	memberClusters = framework.MemberClusters(scheme)
+	memberClusters = make([]*framework.Cluster, 0, len(memberClusterNames))
+	for _, m := range memberClusterNames {
+		cluster, err := framework.NewCluster(m, scheme)
+		Expect(err).Should(Succeed(), "Failed to initialize memberCluster %s", m)
+		memberClusters = append(memberClusters, cluster)
+	}
 })

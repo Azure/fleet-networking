@@ -3,11 +3,10 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package framework provides common functionalities for handling a Kubernertes cluster.
+// Package framework provides common functionalities for e2e tests.
 package framework
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,78 +20,83 @@ import (
 
 var (
 	// PollInterval defines the interval time for a poll operation.
-	PollInterval = 5 * time.Second
+	PollInterval = 1 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
-	PollTimeout = 30 * time.Second
-
-	hubClusterName     = "hub"
-	memberClusterNames = []string{"member-1", "member-2"}
+	PollTimeout = 20 * time.Second
 )
 
 // Cluster represents a Kubernetes cluster.
 type Cluster struct {
-	Scheme      *runtime.Scheme
-	KubeClient  client.Client
-	ClusterName string
+	scheme     *runtime.Scheme
+	kubeClient client.Client
+	name       string
 }
 
-// HubCluster return hub cluster.
-func HubCluster(scheme *runtime.Scheme) *Cluster {
+// NewCluster creates Cluster and initializes its kubernetes client.
+func NewCluster(name string, scheme *runtime.Scheme) (*Cluster, error) {
 	cluster := &Cluster{
-		Scheme:      scheme,
-		ClusterName: hubClusterName,
+		scheme: scheme,
+		name:   name,
 	}
-	cluster.initClusterClient()
-	return cluster
+	if err := cluster.initClusterClient(); err != nil {
+		return nil, err
+	}
+	return cluster, nil
 }
 
-// MemberClusters return all member clusters.
-func MemberClusters(scheme *runtime.Scheme) []*Cluster {
-	memberClusters := make([]*Cluster, 0, len(memberClusterNames))
-	for _, memberClusterName := range memberClusterNames {
-		cluster := &Cluster{
-			Scheme:      scheme,
-			ClusterName: memberClusterName,
-		}
-		cluster.initClusterClient()
-		memberClusters = append(memberClusters, cluster)
-	}
-	return memberClusters
+// Name returns the cluster name.
+func (c *Cluster) Name() string {
+	return c.name
 }
 
-func (c *Cluster) initClusterClient() {
-	clusterConfig := c.getClientConfig()
+// Client returns the kubernetes client.
+func (c *Cluster) Client() client.Client {
+	return c.kubeClient
+}
+
+func (c *Cluster) initClusterClient() error {
+	clusterConfig, err := c.buildClientConfig()
+	if err != nil {
+		return err
+	}
 
 	restConfig, err := clusterConfig.ClientConfig()
 	if err != nil {
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	}
 
-	client, err := client.New(restConfig, client.Options{Scheme: c.Scheme})
-	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-
-	c.KubeClient = client
+	kubeClient, err := client.New(restConfig, client.Options{Scheme: c.scheme})
+	if err != nil {
+		return err
+	}
+	c.kubeClient = kubeClient
+	return nil
 }
 
-func (c *Cluster) getClientConfig() clientcmd.ClientConfig {
-	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: getKubeConfig()},
-		&clientcmd.ConfigOverrides{
-			CurrentContext: fmt.Sprintf("%s-admin", c.ClusterName),
-		})
+func (c *Cluster) buildClientConfig() (clientcmd.ClientConfig, error) {
+	kubeConfig, err := fetchKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	cf := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfig},
+		&clientcmd.ConfigOverrides{CurrentContext: fmt.Sprintf("%s-admin", c.name)},
+	)
+	return cf, nil
 }
 
-func getKubeConfig() string {
-	kubeconfigEnvKey := "KUBECONFIG"
-	kubeConfigPath := os.Getenv(kubeconfigEnvKey)
+func fetchKubeConfig() (string, error) {
+	kubeConfigEnvKey := "KUBECONFIG"
+	kubeConfigPath := os.Getenv(kubeConfigEnvKey)
 	if len(kubeConfigPath) == 0 {
 		homeDir, err := os.UserHomeDir()
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+		if err != nil {
+			return "", err
+		}
 		kubeConfigPath = filepath.Join(homeDir, "/.kube/config")
 	}
-	gomega.Expect(kubeConfigPath).ShouldNot(gomega.BeEmpty())
-	_, err := os.Stat(kubeConfigPath)
-
-	gomega.Expect(errors.Is(err, os.ErrNotExist)).Should(gomega.BeFalse(), "kubeconfig file %s does not exist", kubeConfigPath)
-	return kubeConfigPath
+	if _, err := os.Stat(kubeConfigPath); err != nil {
+		return "", fmt.Errorf("failed to find kubeconfig file %s: %w", kubeConfigPath, err)
+	}
+	return kubeConfigPath, nil
 }
