@@ -7,10 +7,13 @@ Licensed under the MIT license.
 package e2e
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -30,6 +33,10 @@ var (
 	scheme         = runtime.NewScheme()
 )
 
+const (
+	testNamespace = "my-ns"
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
@@ -43,7 +50,6 @@ func TestE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	var err error
-
 	// hub cluster setup
 	hubCluster, err = framework.NewCluster(hubClusterName, scheme)
 	Expect(err).Should(Succeed(), "Failed to initialize hubCluster")
@@ -54,5 +60,37 @@ var _ = BeforeSuite(func() {
 		cluster, err := framework.NewCluster(m, scheme)
 		Expect(err).Should(Succeed(), "Failed to initialize memberCluster %s", m)
 		memberClusters = append(memberClusters, cluster)
+	}
+	createTestNamespace(context.Background())
+})
+
+func createTestNamespace(ctx context.Context) {
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
+	}
+	Expect(hubCluster.Client().Create(ctx, &ns)).Should(Succeed(), "Failed to create namespace %s cluster %s", testNamespace, hubClusterName)
+
+	for _, m := range memberClusters {
+		ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: testNamespace,
+			},
+		} // reset ns object
+		Expect(m.Client().Create(ctx, &ns)).Should(Succeed(), "Failed to create namespace %s cluster %s", testNamespace, m.Name())
+	}
+}
+
+var _ = AfterSuite(func() {
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
+	}
+	ctx := context.Background()
+	Expect(hubCluster.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, hubClusterName)
+	for _, m := range memberClusters {
+		Expect(m.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, m.Name())
 	}
 })
