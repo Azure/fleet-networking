@@ -628,7 +628,6 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-
 		})
 
 		It("should remove exported but deleted endpointslice", func() {
