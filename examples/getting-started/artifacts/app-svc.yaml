@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: python
-          image: bravelion.azurecr.io/app
+          image: $REGISTRY/app
           imagePullPolicy: Always
           ports:
           - containerPort: 8080

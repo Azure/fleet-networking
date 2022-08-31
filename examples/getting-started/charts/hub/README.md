@@ -18,7 +18,7 @@ helm install getting-started-tutorial-hub-resources \
 
 | Parameter | Description | Default |
 |:-|:-|:-|
-| `userNS` | The namespace for user workloads | `work` |
+| `userNS` | The namespace for user workloads | `` |
 | `systemNS` | The namespace reserved for Fleet controllers and resources | `fleet-system` |
 | `member1ID` | The ID of member cluster 1. | `member-1` |
 | `member2ID` | The ID of member cluster 2. | `member-2` |

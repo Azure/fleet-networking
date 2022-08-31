@@ -543,6 +543,10 @@ service and all endpoints behind it to the hub, which other member clusters can 
 the application with a service:
 
     ```sh
+    # Replace the placeholder with the name of your container registry.
+    # If sed is not available in your environment, you can open and edit the file: replace $REGISTRY in
+    # the file with a value of your own.
+    sed -i "s/\$REGISTRY/$REGISTRY/g" examples/getting-started/artifacts/app-svc.yaml
     kubectl apply -f ./examples/getting-started/artifacts/app-svc.yaml
     ```
 
@@ -575,7 +579,8 @@ the application with a service:
 When exporting a service, Fleet networking follows the **namespace sameness** rule. That is, if two services, from
 two different member clusters, are exported **from the same namespace with the same name**, and their specifications
 are compatible, Fleet networking will consider them to be the same service. This makes it really easy to
-deploy an application across multiple clusters and consume the endpoints as while. To try this out:
+deploy an application across multiple clusters and consume all endpoints from the application as while. To try
+this out:
 
 - Switch to the second member cluster:
 
@@ -665,8 +670,6 @@ az group delete --name $RESOURCE_GROUP --yes
 
 It may take a long while before all resources used are deleted.
 
-You can learn more about Fleet networking at its [GitHub repository][fleet networking github repo].
-
 [AKS]: https://azure.microsoft.com/en-us/services/kubernetes-service/
 [AKS doc]: https://docs.microsoft.com/en-us/azure/aks/
 [git]: https://git-scm.com/
@@ -679,4 +682,3 @@ You can learn more about Fleet networking at its [GitHub repository][fleet netwo
 [jq]: https://stedolan.github.io/jq/
 [portal]: https://portal.azure.com
 [yq]: https://github.com/mikefarah/yq
-[fleet networking github repo]: https://github.com/azure/fleet-networking
