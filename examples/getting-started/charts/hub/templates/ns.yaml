@@ -1,19 +1,21 @@
+{{- if not .Values.userNS }}
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ required "A valid user namespace is required" .Values.userNS }}
+  name: {{ .Values.userNS }}
+{{- end -}}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ required "A valid user namespace is required" .Values.systemNS }}
+  name: {{ required "A valid system namespace is required" .Values.systemNS }}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: fleet-member-{{ required "A valid member ID is required" .Values.memberAID }}
+  name: fleet-member-{{ required "A valid member ID is required" .Values.member1ID }}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: fleet-member-{{ required "A valid member ID is required" .Values.memberBID }}
+  name: fleet-member-{{ required "A valid member ID is required" .Values.member2ID }}

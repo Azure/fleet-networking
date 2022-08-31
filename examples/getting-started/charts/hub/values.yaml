@@ -9,5 +9,5 @@ userNS: work
 systemNS: fleet-system
 
 # The ID of member clusters.
-memberAID: member-1
-memberBID: member-2
+member1ID: member-1
+member2ID: member-2
