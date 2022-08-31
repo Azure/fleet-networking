@@ -80,12 +80,12 @@ func main() {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
 
-	hubConfig, hubOptions, err := prepareHubParameters()
+	memberConfig, memberOptions := prepareMemberParameters()
+
+	hubConfig, hubOptions, err := prepareHubParameters(memberConfig)
 	if err != nil {
 		exitWithErrorFunc()
 	}
-
-	memberConfig, memberOptions := prepareMemberParameters()
 
 	// Setup hub controller manager.
 	hubMgr, err := ctrl.NewManager(hubConfig, *hubOptions)
@@ -170,7 +170,7 @@ func main() {
 	}
 }
 
-func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
+func prepareHubParameters(memberConfig *rest.Config) (*rest.Config, *ctrl.Options, error) {
 	hubConfig, err := hubconfig.PrepareHubConfig(*tlsClientInsecure)
 	if err != nil {
 		klog.ErrorS(err, "Failed to get hub config")
@@ -190,7 +190,8 @@ func prepareHubParameters() (*rest.Config, *ctrl.Options, error) {
 		HealthProbeBindAddress:  *hubProbeAddr,
 		LeaderElection:          *enableLeaderElection,
 		LeaderElectionID:        "2bf2b407.mcs.hub.networking.fleet.azure.com",
-		LeaderElectionNamespace: mcHubNamespace, // This requires we have access to resource "leases" in API group "coordination.k8s.io" under namespace $mcHubNamespace
+		LeaderElectionNamespace: *leaderElectionNamespace, // This requires we have access to resource "leases" in API group "coordination.k8s.io" under leaderElectionNamespace.
+		LeaderElectionConfig:    memberConfig,
 		Namespace:               mcHubNamespace, // Restricts the manager's cache to watch objects in the member hub namespace.
 	}
 	return hubConfig, hubOptions, nil
