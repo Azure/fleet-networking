@@ -1,0 +1,87 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fleet-networking-controller
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-1]
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups: 
+  - networking.fleet.azure.com
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fleet-networking-controller
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-1]
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fleet-networking-controller
+subjects:
+  - kind: User
+    name: [YOUR-MEMBER-CLUSTER-1-PRINCIPAL-ID]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fleet-networking-controller
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-2]
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups: 
+  - networking.fleet.azure.com
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fleet-networking-controller
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-2]
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fleet-networking-controller
+subjects:
+  - kind: User
+    name: [YOUR-MEMBER-CLUSTER-2-PRINCIPAL-ID]

@@ -31,4 +31,7 @@ coverage.xml
 *.swo
 *~
 
+# Python virtualenv
+examples/getting-started/app/env
+
 .vscode/

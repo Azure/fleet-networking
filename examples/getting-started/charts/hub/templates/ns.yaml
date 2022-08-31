@@ -8,7 +8,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ required "A valid user namespace is required" .Values.systemNS }}
+  name: {{ required "A valid system namespace is required" .Values.systemNS }}
 ---
 apiVersion: v1
 kind: Namespace
