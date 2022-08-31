@@ -83,30 +83,21 @@ var (
 	// EndpointSlice no longer exists.
 	noEndpointSliceGetActual = func() bool {
 		endpointSlice := &discoveryv1.EndpointSlice{}
-		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil && errors.IsNotFound(err) {
-			return true
-		}
-		return false
+		return errors.IsNotFound(memberClient.Get(ctx, endpointSliceKey, endpointSlice))
 	}
 
 	// noServiceExportGetActual runs with Eventually and Consistently assertion to make sure that a given
 	// ServiceExport no longer exists.
 	noServiceExportGetActual = func() bool {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
-		if err := memberClient.Get(ctx, svcKey, svcExport); err != nil && errors.IsNotFound(err) {
-			return true
-		}
-		return false
+		return errors.IsNotFound(memberClient.Get(ctx, svcKey, svcExport))
 	}
 
 	// noEndpointSliceExportGetActual runs with Eventually and Consistently assertion to make sure that a given
 	// EndpointSliceExport no longer exists.
 	noEndpointSliceExportGetActual = func() bool {
 		endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
-		if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
-			return false
-		}
-		return true
+		return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport))
 	}
 )
 
