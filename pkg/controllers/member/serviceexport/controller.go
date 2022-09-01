@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +37,9 @@ const (
 	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that
 	// a ServiceExport can only be deleted after its corresponding Service has been unexported from the hub cluster.
 	svcExportCleanupFinalizer = "networking.fleet.azure.com/svc-export-cleanup"
+
+	// ControllerName is the name of the Reconciler.
+	ControllerName = "serviceexport-controller"
 )
 
 // Reconciler reconciles the export of a Service.
@@ -45,6 +49,7 @@ type Reconciler struct {
 	HubClient       client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
+	Recorder     record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -52,6 +57,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/finalizers,verbs=update
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile exports a Service.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -79,12 +85,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// is needed.
 	if svcExport.DeletionTimestamp != nil {
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-			klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
+			klog.V(4).InfoS("Service export is deleted; unexport the service", "service", svcRef)
 			res, err := r.unexportService(ctx, &svcExport)
 			if err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 			}
-			return res, err
+			return res, nil
 		}
 		return ctrl.Result{}, nil
 	}
@@ -100,8 +106,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch {
 	// The Service to export does not exist or has been deleted.
 	case errors.IsNotFound(err) || svc.DeletionTimestamp != nil:
+		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotFound", "Service %s is not found or in the deleting state", svc.Name)
+
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		klog.V(2).InfoS("Service is deleted; unexport the service", "service", svcRef)
+		klog.V(4).InfoS("Service is deleted; unexport the service", "service", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
@@ -109,7 +117,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(2).InfoS("Mark service export as invalid (service not found)", "service", svcRef)
+		klog.V(4).InfoS("Mark service export as invalid (service not found)", "service", svcRef)
 		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service not found)", "service", svcRef)
 			return ctrl.Result{}, err
@@ -123,26 +131,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if the Service is eligible for export.
 	if !isServiceEligibleForExport(&svc) {
+		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotEligible", "Service %s is not eligible for exporting and please check service spec", svc.Name)
+
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-			klog.V(2).InfoS("Service is ineligible; unexport the service", "service", svcRef)
+			klog.V(4).InfoS("Service is ineligible; unexport the service", "service", svcRef)
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(2).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
-		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport)
-		if err != nil {
-			klog.ErrorS(err, "Failed to mark service export as ivalid (service ineligible)", "service", svcRef)
+		klog.V(4).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
+		if err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport); err != nil {
+			klog.ErrorS(err, "Failed to mark service export as invalid (service ineligible)", "service", svcRef)
 		}
 		return ctrl.Result{}, err
 	}
 
 	// Add the cleanup finalizer to the ServiceExport; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-		klog.V(2).InfoS("Add cleanup finalizer to service export", "service", svcRef)
+		klog.V(4).InfoS("Add cleanup finalizer to service export", "service", svcRef)
 		if err := r.addServiceExportCleanupFinalizer(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to add cleanup finalizer to svc export", "service", svcRef)
 			return ctrl.Result{}, err
@@ -150,7 +159,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Mark the ServiceExport as valid.
-	klog.V(2).InfoS("Mark service export as valid", "service", svcRef)
+	klog.V(4).InfoS("Mark service export as valid", "service", svcRef)
+	r.Recorder.Eventf(&svcExport, corev1.EventTypeNormal, "ValidService", "Service %s is valid for exporting", svc.Name)
 	if err := r.markServiceExportAsValid(ctx, &svcExport); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
@@ -266,7 +276,7 @@ func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context
 		Status:             metav1.ConditionFalse,
 		Reason:             svcExportInvalidIneligibleCondReason,
 		ObservedGeneration: svcExport.Generation,
-		Message:            fmt.Sprintf("service %s/%s is not eligible for export", svcExport.Namespace, svcExport.Name),
+		Message:            fmt.Sprintf("service %s/%s is not eligible for exporting", svcExport.Namespace, svcExport.Name),
 	}
 	if condition.EqualCondition(validCond, expectedValidCond) {
 		// A stable state has been reached; no further action is needed.
@@ -292,7 +302,7 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		Status:             metav1.ConditionTrue,
 		Reason:             svcExportValidCondReason,
 		ObservedGeneration: svcExport.Generation,
-		Message:            fmt.Sprintf("service %s/%s is valid for export", svcExport.Namespace, svcExport.Name),
+		Message:            fmt.Sprintf("service %s/%s is valid for exporting", svcExport.Namespace, svcExport.Name),
 	}
 	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 	if condition.EqualCondition(validCond, expectedValidCond) &&

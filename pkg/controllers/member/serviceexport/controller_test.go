@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -293,6 +294,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.markServiceExportAsInvalidNotFound(ctx, tc.svcExport); err != nil {
@@ -363,6 +365,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.markServiceExportAsInvalidSvcIneligible(ctx, tc.svcExport); err != nil {
@@ -473,6 +476,7 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.markServiceExportAsValid(ctx, tc.svcExport); err != nil {
@@ -525,6 +529,7 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.removeServiceExportCleanupFinalizer(ctx, tc.svcExport); err != nil {
@@ -576,6 +581,7 @@ func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.addServiceExportCleanupFinalizer(ctx, tc.svcExport); err != nil {
@@ -649,6 +655,7 @@ func TestUnexportService(t *testing.T) {
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
 				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			res, err := reconciler.unexportService(ctx, tc.svcExport)

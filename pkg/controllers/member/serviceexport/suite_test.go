@@ -107,6 +107,7 @@ var _ = BeforeSuite(func() {
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		HubNamespace:    hubNSForMember,
+		Recorder:        ctrlMgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
