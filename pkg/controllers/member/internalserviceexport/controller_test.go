@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -179,6 +180,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			reconciler := Reconciler{
 				MemberClient: fakeMemberClient,
 				HubClient:    fakeHubClient,
+				Recorder:     record.NewFakeRecorder(10),
 			}
 
 			if err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport); err != nil {
