@@ -44,7 +44,7 @@ func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 		ObservedGeneration: 0,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportValidCondReason,
-		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
+		Message:            fmt.Sprintf("service %s/%s is valid for exporting", userNS, svcName),
 	}
 }
 
@@ -68,7 +68,7 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 		ObservedGeneration: 2,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidIneligibleCondReason,
-		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
+		Message:            fmt.Sprintf("service %s/%s is not eligible for exporting", userNS, svcName),
 	}
 }
 

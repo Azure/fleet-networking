@@ -161,7 +161,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Mark the ServiceExport as valid.
 	klog.V(4).InfoS("Mark service export as valid", "service", svcRef)
-	r.Recorder.Eventf(&svcExport, corev1.EventTypeNormal, "ValidService", "Service %s is valid for exporting", svc.Name)
 	if err := r.markServiceExportAsValid(ctx, &svcExport); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
@@ -320,5 +319,6 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
 	})
+	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "PendingExportConflictResolution", "Service %s is pending export conflict resolution", svcExport.Name)
 	return r.MemberClient.Status().Update(ctx, svcExport)
 }
