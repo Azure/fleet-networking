@@ -53,9 +53,9 @@ var (
 )
 
 var (
-	// noEndpointSliceUniqueNameGetActual runs with Eventually and Consistently assertion to make sure that
+	// endpointSliceUniqueNameIsNotAssignedActual runs with Eventually and Consistently assertion to make sure that
 	// no unique name has been assigned to an EndpointSlice.
-	noEndpointSliceUniqueNameGetActual = func() bool {
+	endpointSliceUniqueNameIsNotAssignedActual = func() bool {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 			return false
@@ -64,9 +64,9 @@ var (
 		_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
 		return !ok
 	}
-	// noExportedEndpointSliceListActual runs with Eventually and Consistently assertion to make sure that no
+	// endpointSliceIsNotExportedActual runs with Eventually and Consistently assertion to make sure that no
 	// EndpointSlice has been exported.
-	noExportedEndpointSliceListActual = func() bool {
+	endpointSliceIsNotExportedActual = func() bool {
 		endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 		listOption := &client.ListOptions{Namespace: hubNSForMember}
 		if err := hubClient.List(ctx, endpointSliceExportList, listOption); err != nil {
@@ -79,23 +79,23 @@ var (
 		return true
 	}
 
-	// noEndpointSliceGetActual runs with Eventually and Consistently assertion to make sure that a given
+	// endpointSliceIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// EndpointSlice no longer exists.
-	noEndpointSliceGetActual = func() bool {
+	endpointSliceIsAbsentActual = func() bool {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		return errors.IsNotFound(memberClient.Get(ctx, endpointSliceKey, endpointSlice))
 	}
 
-	// noServiceExportGetActual runs with Eventually and Consistently assertion to make sure that a given
+	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// ServiceExport no longer exists.
-	noServiceExportGetActual = func() bool {
+	serviceExportIsAbsentActual = func() bool {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		return errors.IsNotFound(memberClient.Get(ctx, svcKey, svcExport))
 	}
 
-	// noEndpointSliceExportGetActual runs with Eventually and Consistently assertion to make sure that a given
+	// endpointSliceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// EndpointSliceExport no longer exists.
-	noEndpointSliceExportGetActual = func() bool {
+	endpointSliceExportIsAbsentActual = func() bool {
 		endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
 		return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport))
 	}
@@ -177,21 +177,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not export ipv6 endpointslice", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noEndpointSliceUniqueNameGetActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noExportedEndpointSliceListActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
@@ -235,21 +235,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not export dangling endpointslice", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noEndpointSliceUniqueNameGetActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noExportedEndpointSliceListActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
@@ -264,17 +264,17 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not export endpointslice associated with unexported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noEndpointSliceUniqueNameGetActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noExportedEndpointSliceListActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
@@ -302,21 +302,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not export endpointslice associated with invalid exported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noEndpointSliceUniqueNameGetActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noExportedEndpointSliceListActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
@@ -343,21 +343,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should not export endpointslice associated with invalid exported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noEndpointSliceUniqueNameGetActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(noExportedEndpointSliceListActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 })
@@ -433,12 +433,12 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove exported dangling endpointslice", func() {
-			Eventually(noEndpointSliceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -473,12 +473,12 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove exported endpointslice from unexported service", func() {
-			Eventually(noEndpointSliceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -518,16 +518,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove exported endpointslice from invalid service", func() {
-			Eventually(noEndpointSliceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -567,16 +567,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove exported endpointslice from conflicted exported service", func() {
-			Eventually(noEndpointSliceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(noEndpointSliceUniqueNameGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -611,14 +611,14 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			// Remove the finalizer.
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
 			endpointSlice.ObjectMeta.Finalizers = []string{}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should remove exported but deleted endpointslice", func() {
@@ -637,7 +637,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			// Set the deletion timestamp.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 
-			Eventually(noEndpointSliceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 })
@@ -663,15 +663,15 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should export the new endpointslice", func() {
@@ -730,15 +730,15 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should update exported endpointslice", func() {
@@ -827,15 +827,15 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should export the endpointslice with the invalid unique name annotation again with a new assigned unique name", func() {
@@ -963,15 +963,15 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should export the endpointslice with the used unique name annotation again with a new assigned unique name", func() {
@@ -1094,7 +1094,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, altEndpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
@@ -1108,11 +1108,11 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(noExportedEndpointSliceListActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should export endpointslices when service export becomes valid", func() {
@@ -1182,11 +1182,11 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should unexport endpointslices when service export becomes invalid", func() {
@@ -1269,11 +1269,11 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(noEndpointSliceGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(noServiceExportGetActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should unexport endpointslices when service export becomes conflicted", func() {
