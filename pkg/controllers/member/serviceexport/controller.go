@@ -90,7 +90,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 			}
-			return res, nil
+			return res, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -143,7 +143,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		// Mark the ServiceExport as invalid.
 		klog.V(4).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
-		if err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport); err != nil {
+		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport)
+		if err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service ineligible)", "service", svcRef)
 		}
 		return ctrl.Result{}, err
