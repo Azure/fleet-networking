@@ -288,6 +288,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubClient:       hubClient,
 		MemberClusterID: mcName,
 		HubNamespace:    mcHubNamespace,
+		Recorder:        memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
