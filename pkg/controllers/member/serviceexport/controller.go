@@ -276,7 +276,7 @@ func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context
 		Status:             metav1.ConditionFalse,
 		Reason:             svcExportInvalidIneligibleCondReason,
 		ObservedGeneration: svcExport.Generation,
-		Message:            fmt.Sprintf("service %s/%s is not eligible for exporting", svcExport.Namespace, svcExport.Name),
+		Message:            fmt.Sprintf("service %s/%s is not eligible for export", svcExport.Namespace, svcExport.Name),
 	}
 	if condition.EqualCondition(validCond, expectedValidCond) {
 		// A stable state has been reached; no further action is needed.
@@ -302,7 +302,7 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		Status:             metav1.ConditionTrue,
 		Reason:             svcExportValidCondReason,
 		ObservedGeneration: svcExport.Generation,
-		Message:            fmt.Sprintf("service %s/%s is valid for exporting", svcExport.Namespace, svcExport.Name),
+		Message:            fmt.Sprintf("service %s/%s is valid for export", svcExport.Namespace, svcExport.Name),
 	}
 	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 	if condition.EqualCondition(validCond, expectedValidCond) &&
@@ -319,6 +319,7 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
 	})
+	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "ValidServiceExport", "Service %s is valid for export", svcExport.Name)
 	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "PendingExportConflictResolution", "Service %s is pending export conflict resolution", svcExport.Name)
 	return r.MemberClient.Status().Update(ctx, svcExport)
 }
