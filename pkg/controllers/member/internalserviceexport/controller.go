@@ -128,10 +128,10 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	}
 
 	// Update the conditions
-	if svcExportConflictCond.Status == metav1.ConditionTrue {
+	if internalSvcExportConflictCond.Status == metav1.ConditionTrue {
 		r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "ServiceExportConflictFound", "Service %s is in conflict with other exported services", svcExport.Name)
 	}
-	if svcExportConflictCond.Status == metav1.ConditionFalse {
+	if internalSvcExportConflictCond.Status == metav1.ConditionFalse {
 		r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "NoServiceExportConflictFound", "Service %s is exported without conflict", svcExport.Name)
 	}
 	meta.SetStatusCondition(&svcExport.Status.Conditions, *internalSvcExportConflictCond)
