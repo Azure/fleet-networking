@@ -12,9 +12,12 @@ import (
 	"reflect"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,16 +25,23 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
+const (
+	// ControllerName is the name of the Reconciler.
+	ControllerName = "internalserviceexport-controller"
+)
+
 // Reconciler reconciles the update of an InternalServiceExport.
 type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
+	Recorder     record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile reports back whether an export of a Service has been accepted with no conflict detected.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -80,7 +90,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Report back conflict resolution result.
-	klog.V(2).InfoS("Report back conflict resolution result", "internalServiceExport", internalSvcExportRef)
+	klog.V(4).InfoS("Report back conflict resolution result", "internalServiceExport", internalSvcExportRef)
 	if err := r.reportBackConflictCondition(ctx, &svcExport, &internalSvcExport); err != nil {
 		klog.ErrorS(err, "Failed to report back conflict resolution result", "serviceExport", svcExportRef)
 		return ctrl.Result{}, err
@@ -118,6 +128,12 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	}
 
 	// Update the conditions
+	if internalSvcExportConflictCond.Status == metav1.ConditionTrue {
+		r.Recorder.Eventf(svcExport, corev1.EventTypeWarning, "ServiceExportConflictFound", "Service %s is in conflict with other exported services", svcExport.Name)
+	}
+	if internalSvcExportConflictCond.Status == metav1.ConditionFalse {
+		r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "NoServiceExportConflictFound", "Service %s is exported without conflict", svcExport.Name)
+	}
 	meta.SetStatusCondition(&svcExport.Status.Conditions, *internalSvcExportConflictCond)
 	return r.MemberClient.Status().Update(ctx, svcExport)
 }

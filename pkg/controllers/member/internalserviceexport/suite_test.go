@@ -112,6 +112,7 @@ var _ = BeforeSuite(func() {
 	err = (&Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
+		Recorder:     ctrlMgr.GetEventRecorderFor(ControllerName), // in main func, we use member controller manager instead
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 

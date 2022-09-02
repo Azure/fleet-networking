@@ -268,6 +268,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	if err := (&internalserviceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
+		Recorder:     memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err
