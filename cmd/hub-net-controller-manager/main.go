@@ -125,7 +125,8 @@ func main() {
 
 	klog.V(1).InfoS("Start to setup ServiceImport controller")
 	if err := (&serviceimport.Reconciler{
-		Client: mgr.GetClient(),
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor(serviceimport.ControllerName),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create ServiceImport controller")
 		exitWithErrorFunc()
