@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io/dev
+  REGISTRY: ghcr.io
   HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME : hub-net-controller-manager
   MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME: member-net-controller-manager
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
@@ -35,8 +35,9 @@ jobs:
       - id: export
         run: |
           # registry must be in lowercase
-          echo "::set-output name=registry::$(echo "${{ env.REGISTRY }}/${{ github.repository }}" | tr [:upper:] [:lower:])"
-  publish-images:
+          # store the images under dev
+          echo "::set-output name=registry::$(echo "${{ env.REGISTRY }}/${{ github.repository }}/dev" | tr [:upper:] [:lower:])"
+  scan-images:
     needs: export-registry
     env:
       REGISTRY: ${{ needs.export-registry.outputs.registry }}
