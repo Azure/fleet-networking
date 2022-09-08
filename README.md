@@ -1,14 +1,49 @@
-# Project
+# Fleet-networking
+[![CI](https://github.com/Azure/fleet-networking/actions/workflows/workflow.yml/badge.svg?branch=main)](https://github.com/Azure/fleet-networking/actions/workflows/workflow.yml?query=branch%3Amain)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/fleet-networking)](https://goreportcard.com/report/github.com/Azure/fleet-networking)
+[![Releases](https://img.shields.io/gitlab/v/release/Azure/fleet-networking)](https://github.com/Azure/fleet-networking/releases)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/fleet-networking)
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
 
-As the maintainer of this project, please make a few updates:
+ Fleet-networking provides following capabilities
+- expose a Kubernetes service from a single cluster
+- create a multi-cluster service that exposes endpoints from a number of Kubernetes clusters
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+## Architecture
+
+![Architecture](docs/arch-overview.png)
+
+The fleet networking consists of the following components:
+- hub-net-controller-manager running in the hub cluster
+- mcs-controller-manager running in the member clusters
+- member-net-controller-manager running in the member clusters
+
+The Controller Manager runs the various controllers built up on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime) by watching fleet networking resources.
+
+## Constraints
+
+- Assuming member clusters are Kubernetes clusters on the same virtual networking, 
+  - Clusters on virtual network peers (virtual networks connected within same region)
+  - Clusters on global virtual network peers (virtual networks connected across regions).
+  - Non-overlapping pod CIDRs for all the above.
+- Each member cluster could talk with hub cluster.
+
+## Concepts
+
+**Fleet**: A multi cluster solution that users use to manage Kubernetes clusters.
+
+**Hub cluster**: An Kubernetes cluster that hosts the control plane of the fleet.
+
+**Member cluster**: A Kubernetes cluster that is part of the fleet.
+
+**Fleet-system Namespace**: A reserved namespace in all clusters for running Fleet networking controllers and putting internal resources.
+
+**Reserved member cluster namespace in the hub cluster**: A reserved namespace in the hub cluster where a member cluster can access to communicate with the hub cluster.
+
+## Quick Start
+
+[This document](examples/getting-started/README.md) features a tutorial that explains how to set up and make use of the networking capabilities provided by Fleet.
+
 
 ## Contributing
 
