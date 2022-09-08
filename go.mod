@@ -15,10 +15,16 @@ require (
 
 require go.goms.io/fleet v0.3.0
 
-// CVE-2021-3121
-// An issue was discovered in GoGo Protobuf before 1.3.2. plugin/unmarshal/unmarshal.go lacks certain index validation,
-// aka the "skippy peanut butter" issue.
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+replace (
+	// https://nvd.nist.gov/vuln/detail/CVE-2022-1996
+	github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0+incompatible
+
+	// https://nvd.nist.gov/vuln/detail/cve-2021-3121
+	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+
+	// https://avd.aquasec.com/nvd/2022/cve-2022-27191/
+	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
+)
 
 require (
 	cloud.google.com/go v0.99.0 // indirect
