@@ -18,11 +18,11 @@ The fleet networking consists of the following components:
 - mcs-controller-manager running in the member clusters
 - member-net-controller-manager running in the member clusters
 
-The Controller Manager runs the various controllers by watching fleet networking resources.
+The Controller Manager runs the various controllers built up on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime) by watching fleet networking resources.
 
 ## Constraints
 
-- Assuming member clusters are AKS clusters on the same virtual networking, 
+- Assuming member clusters are Kubernetes clusters on the same virtual networking, 
   - Clusters on virtual network peers (virtual networks connected within same region)
   - Clusters on global virtual network peers (virtual networks connected across regions).
   - Non-overlapping pod CIDRs for all the above.
@@ -30,11 +30,11 @@ The Controller Manager runs the various controllers by watching fleet networking
 
 ## Concepts
 
-**Fleet**: Multi cluster solution that users use to manage Kubernetes clusters.
+**Fleet**: A multi cluster solution that users use to manage Kubernetes clusters.
 
-**Hub cluster**: An abstract kubernetes cluster that hosts the control plane of the fleet.
+**Hub cluster**: An Kubernetes cluster that hosts the control plane of the fleet.
 
-**Member cluster**: A kubernetes cluster that is part of the fleet.
+**Member cluster**: A Kubernetes cluster that is part of the fleet.
 
 **Fleet-system Namespace**: A reserved namespace in all clusters for running Fleet networking controllers and putting internal resources.
 
