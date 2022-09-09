@@ -24,6 +24,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: ${{ env.GITHUB_REPOSITORY_OWNER }}
-          container: ${{ HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME }}
+          container: ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME }}
           dry-run: true
           older-than: 1 # days
