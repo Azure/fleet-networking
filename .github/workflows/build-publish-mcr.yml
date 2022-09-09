@@ -67,21 +67,10 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: 'Login the ACR'
         run: az acr login -n ${{ secrets.AZURE_REGISTRY }}
-      - name: Build and publish hub-net-controller-manager
+      - name: Build and publish controller manager images
         run: |
-          make docker-build-hub-net-controller-manager
+          make push
         env:
-          HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
+          TAG: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
-      - name: Build and publish member-net-controller-manager
-        run: |
-          make docker-build-member-net-controller-manager
-        env:
-          MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
-          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
-      - name: Build and publish mcs-controller-manager
-        run: |
-          make docker-build-mcs-controller-manager
-        env:
-          MCS_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}
-          REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
+

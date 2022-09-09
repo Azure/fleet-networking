@@ -1,3 +1,6 @@
+# This Github Action will build and publish images to github registry automatically.
+# The image version can be either `latest` from the main branch or a tag whenever a tag is created.
+
 name: publish_images
 
 on:
@@ -14,17 +17,11 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # TODO: to use the real tag/image version later
-  HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME : hub-net-controller-manager
-  HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: main
-  MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME: member-net-controller-manager
-  MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: main
-  MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
-  MCS_CONTROLLER_MANAGER_IMAGE_VERSION: main
+  IMAGE_VERSION: latest
 
   GO_VERSION: '1.18'
 
-  # TODO: once fleet repo is public, we could remove these env variables.
+  # TODO: once fleet-networking repo is public, we could remove these env variables.
   GOPROXY: ${{ secrets.GOPROXY }}
   GOPRIVATE: ${{ secrets.GOPRIVATE }}
   GONOPROXY: none
@@ -53,33 +50,16 @@ jobs:
       - name: Set image version for a new release
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "HUB_AGENT_IMAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "MEMBER_AGENT_IMAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "REFRESH_TOKEN_IMAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          echo "IMAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Login to ${{ env.REGISTRY }}
         uses: docker/login-action@49ed152c8eca782a232dede0303416e8f356c37b
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
+      - name: Build and push controller manager images to registry
         run: |
-          make docker-build-hub-net-controller-manager
+          make push
         env:
           REGISTRY: ${{ env.REGISTRY}}
-          IMAGE_NAME: ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
-          IMAGE_VERSION: ${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION }}
-      - name: Build ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
-        run: |
-          make docker-build-member-net-controller-manager
-        env:
-          REGISTRY: ${{ env.REGISTRY}}
-          IMAGE_NAME: ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME}}
-          IMAGE_VERSION: ${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION }}
-
-      - name: Build ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME}}
-        run: |
-          make docker-build-mcs-controller-manager
-        env:
-          IMAGE_NAME: ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME}}
-          IMAGE_VERSION: ${{ env.MCS_CONTROLLER_MANAGER_IMAGE_VERSION }}
+          TAG: ${{ env.IMAGE_VERSION }}
