@@ -36,6 +36,7 @@ jobs:
         run: |
           # registry must be in lowercase
           # store the images under dev
+          # TODO: need to cleanup dev images periodically 
           echo "::set-output name=registry::$(echo "${{ env.REGISTRY }}/${{ github.repository }}/dev" | tr [:upper:] [:lower:])"
   scan-images:
     needs: export-registry
@@ -59,8 +60,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: generate image version
-        #run: echo IMAGE_VERSION=$(shell git rev-parse --short=7 HEAD) >> $GITHUB_ENV
-        run: echo IMAGE_VERSION=main-$(shell git rev-parse --short=7 HEAD) >> $GITHUB_ENV
+        run: echo IMAGE_VERSION=main-$(date +%s) >> $GITHUB_ENV
 
       - name: Build and push controller manager images to registry ${{ env.IMAGE_VERSION }}
         run: |
