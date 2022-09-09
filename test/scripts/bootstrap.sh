@@ -34,9 +34,7 @@ az acr update --name $REGISTRY_NAME --anonymous-pull-enabled -g $RESOURCE_GROUP
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
 export TAG=`git rev-parse --short=7 HEAD`
-make docker-build-hub-net-controller-manager
-make docker-build-member-net-controller-manager
-make docker-build-mcs-controller-manager
+make push
 
 # Create hub and member clusters and wait until all clusters are ready.
 export HUB_CLUSTER=hub

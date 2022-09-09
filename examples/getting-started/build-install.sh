@@ -23,18 +23,10 @@ if [ -z ${HUB_URL+x} ]; then
     exit 1
 fi
 
-echo "Building the Fleet networking controller images..."
+echo "Build and push the Fleet networking controller images..."
 export TAG=v0.1.0.test
 export REGISTRY=$REGISTRY.azurecr.io
-
-echo "Building the image for Fleet networking hub cluster controllers..."
-make docker-build-hub-net-controller-manager
-
-echo "Building the image for Fleet networking member cluster controllers..."
-make docker-build-member-net-controller-manager
-
-echo "Building the image for Fleet networking MCS controllers..."
-make docker-build-mcs-controller-manager
+make push
 
 echo "Building the Hello World web application..."
 docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $REGISTRY/app
