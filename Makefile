@@ -172,6 +172,14 @@ QEMU_VERSION ?= 5.2.0-2
 vendor:
 	go mod tidy && go mod vendor
 
+.PHONY: image
+image:
+	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+
+.PHONY: push
+push:
+	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+
 .PHONY: docker-buildx-builder
 docker-buildx-builder:
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \

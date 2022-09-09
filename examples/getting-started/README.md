@@ -446,9 +446,7 @@ registry you create:
 ```sh
 export TAG=v0.1.0.test
 export REGISTRY=$REGISTRY.azurecr.io
-make docker-build-hub-net-controller-manager
-make docker-build-member-net-controller-manager
-make docker-build-mcs-controller-manager
+make push
 ```
 
 It may take a long while before all commands complete.
