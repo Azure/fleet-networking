@@ -24,7 +24,7 @@ trap cleanup INT TERM
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
 # Registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
-export REGISTRY_NAME="echo ${RESOURCE_GROUP//-}"
+export REGISTRY_NAME="${RESOURCE_GROUP//-}"
 az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source=fleet-networking"
 # Enable anonymous to not wait for the long-running AKS creation.
 # When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
