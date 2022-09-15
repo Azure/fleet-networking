@@ -24,7 +24,7 @@ trap cleanup INT TERM
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
 # Registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
-export REGISTRY_NAME="fleetnetworkinge2e$RANDOM"
+export REGISTRY_NAME="echo ${RESOURCE_GROUP//-}"
 az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source=fleet-networking"
 # Enable anonymous to not wait for the long-running AKS creation.
 # When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
@@ -156,3 +156,9 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2
+
+# TODO(mainred): Before the app image is publicly available in MCR, we build and publish the image to the test registry.
+# Build and publish the app image dedicated for fleet networking test.
+export APP_IMAGE=$REGISTRY/app
+docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+docker push $APP_IMAGE
