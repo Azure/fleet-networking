@@ -7,10 +7,12 @@ endif
 HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+E2E_TEST_APP_IMAGE_VERSION ?= $(TAG)
 
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
+E2E_TEST_APP_IMAGE_NAME ?= e2e-test-app
 
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -206,6 +208,16 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 		--platform="linux/amd64" \
 		--pull \
 		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
+
+.PHONY: docker-build-e2e-test-app
+docker-build-e2e-test-app: docker-buildx-builder vendor
+	docker buildx build \
+		--file examples/getting-started/app/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(E2E_TEST_APP_IMAGE_NAME):$(E2E_TEST_APP_IMAGE_VERSION) \
+		examples/getting-started/app/
 
 ## -----------------------------------
 ## Cleanup
