@@ -163,7 +163,7 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 			memberCluster := memberClusters[0]
 			// NOTE(mainred): The default poll timeout is not always enough for mcs LB allocation and mcs request.
 			// We can obtain the latency from the test log to refine the timeout.
-			mcsPollTimeout := 40 * time.Second
+			mcsPollTimeout := 60 * time.Second
 			multiClusterSvcKey := types.NamespacedName{Namespace: testNamespaceUnique, Name: mcsDef.Name}
 			Expect(memberCluster.Client().Create(ctx, mcsDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", serviceExportDef.Name, memberCluster.Name())
 			Eventually(func() error {
