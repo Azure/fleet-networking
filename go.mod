@@ -24,6 +24,10 @@ replace (
 
 	// https://avd.aquasec.com/nvd/2022/cve-2022-27191/
 	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
+
+	// https://nvd.nist.gov/vuln/detail/CVE-2022-27664
+	// Reference of the fix: https://github.com/golang/go/commit/31d06b58fa2448c8e98ac78a97cc9a52dc2aa035
+	golang.org/x/net => golang.org/x/net v0.0.0-20220907013725-0a43f88f7ef0
 )
 
 require (
@@ -74,7 +78,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
+	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
