@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 	"unicode"
 
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -29,6 +30,10 @@ const (
 
 	uuidLength = 5
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // minInt returns the smaller one of two integers.
 func minInt(a, b int) int {
