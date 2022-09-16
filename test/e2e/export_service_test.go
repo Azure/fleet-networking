@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -29,13 +30,22 @@ import (
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
-var _ = Describe("Test exporting service", Serial, Ordered, func() {
+var _ = Describe("Test exporting service", func() {
 	var (
 		ctx context.Context
 
 		testNamespaceUnique string
 		deployDef           *appsv1.Deployment
 		svcDef              *corev1.Service
+
+		svcExportConditionCmpOptions = []cmp.Option{
+			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
+			cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
+		}
+		mcsConditionCmpOptions = []cmp.Option{
+			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
+			cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
+		}
 	)
 
 	BeforeEach(func() {
@@ -107,6 +117,17 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 		}
 	})
 
+	AfterEach(func() {
+		for _, m := range append(memberClusters, hubCluster) {
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testNamespaceUnique,
+				},
+			}
+			Expect(m.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespaceUnique, m.Name())
+		}
+	})
+
 	Context("Service should be exported successfully", func() {
 		It("should distribute service requests to all members", func() {
 			By("Creating service export")
@@ -122,28 +143,27 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 				serviceExporKey = types.NamespacedName{Namespace: testNamespaceUnique, Name: serviceExportDef.Name}
 
 				Expect(m.Client().Create(ctx, serviceExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", serviceExportDef.Name, m.Name())
-				Eventually(func() error {
+				Eventually(func() string {
 					if err := m.Client().Get(ctx, serviceExporKey, serviceExportDef); err != nil {
-						return err
+						return err.Error()
 					}
 
-					// Validating the exported service invalid and no conflict is detected
-					validSvcExportCondition := meta.FindStatusCondition(serviceExportDef.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-					if validSvcExportCondition == nil {
-						return fmt.Errorf("Service export condition %s is not present", fleetnetv1alpha1.ServiceExportValid)
+					wantedSvcExportConditions := []metav1.Condition{
+						{
+							Type:    string(fleetnetv1alpha1.ServiceExportValid),
+							Reason:  "ServiceIsValid",
+							Status:  metav1.ConditionTrue,
+							Message: fmt.Sprintf("service %s/%s is valid for export", testNamespaceUnique, svcDef.Name),
+						},
+						{
+							Type:    string(fleetnetv1alpha1.ServiceExportConflict),
+							Reason:  "NoConflictFound",
+							Status:  metav1.ConditionFalse,
+							Message: fmt.Sprintf("service %s/%s is exported without conflict", testNamespaceUnique, svcDef.Name),
+						},
 					}
-					if validSvcExportCondition.Status != metav1.ConditionTrue {
-						return fmt.Errorf("Service export condition %s got %s, want %s", fleetnetv1alpha1.ServiceExportValid, validSvcExportCondition.Status, metav1.ConditionTrue)
-					}
-					conflictSvcExportCondition := meta.FindStatusCondition(serviceExportDef.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-					if conflictSvcExportCondition == nil {
-						return fmt.Errorf("Service export condition %s is not present", fleetnetv1alpha1.ServiceExportConflict)
-					}
-					if conflictSvcExportCondition.Status != metav1.ConditionFalse {
-						return fmt.Errorf("Service export condition %s got %s, want %s", fleetnetv1alpha1.ServiceExportConflict, conflictSvcExportCondition.Status, metav1.ConditionFalse)
-					}
-					return nil
-				}, framework.PollTimeout, framework.PollInterval).Should(BeNil(), "Failed to get expected service export conditions")
+					return cmp.Diff(serviceExportDef.Status.Conditions, wantedSvcExportConditions, svcExportConditionCmpOptions...)
+				}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
 			}
 
 			By("Creating multi-cluster service")
@@ -166,21 +186,27 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 			mcsPollTimeout := 60 * time.Second
 			multiClusterSvcKey := types.NamespacedName{Namespace: testNamespaceUnique, Name: mcsDef.Name}
 			Expect(memberCluster.Client().Create(ctx, mcsDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", serviceExportDef.Name, memberCluster.Name())
+			Eventually(func() string {
+				if err := memberCluster.Client().Get(ctx, multiClusterSvcKey, mcsDef); err != nil {
+					return err.Error()
+				}
+				wantedMCSCondition := []metav1.Condition{
+					{
+						Type:    string(fleetnetv1alpha1.MultiClusterServiceValid),
+						Reason:  "FoundServiceImport",
+						Status:  metav1.ConditionTrue,
+						Message: "found valid service import",
+					},
+				}
+				return cmp.Diff(mcsDef.Status.Conditions, wantedMCSCondition, mcsConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
 			Eventually(func() error {
 				if err := memberCluster.Client().Get(ctx, multiClusterSvcKey, mcsDef); err != nil {
 					return err
 				}
-				mcsValidCondition := meta.FindStatusCondition(mcsDef.Status.Conditions, string(fleetnetv1alpha1.MultiClusterServiceValid))
-				if mcsValidCondition == nil {
-					return fmt.Errorf("Multi-cluster service condition %s is not present", fleetnetv1alpha1.MultiClusterServiceValid)
-				}
-				if mcsValidCondition.Status != metav1.ConditionTrue {
-					return fmt.Errorf("Multi-cluster service condition %s, got %s, want %s", fleetnetv1alpha1.MultiClusterServiceValid, mcsValidCondition.Status, metav1.ConditionTrue)
-				}
 				if len(mcsDef.Status.LoadBalancer.Ingress) != 1 {
 					return fmt.Errorf("Multi-cluster service ingress address length, got %d, want %d", 0, 1)
 				}
-
 				mcsLBAddr = mcsDef.Status.LoadBalancer.Ingress[0].IP
 				if mcsLBAddr == "" {
 					return fmt.Errorf("Multi-cluster service load balancer IP, got empty")
@@ -188,29 +214,57 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 				return nil
 			}, mcsPollTimeout, framework.PollInterval).Should(BeNil(), "Failed to retrieve multi-cluster service LB address")
 
+			By("Validating service import in hub cluster")
+			svcImportKey := types.NamespacedName{Namespace: testNamespaceUnique, Name: svcDef.Name}
+			svcImportObj := &fleetnetv1alpha1.ServiceImport{}
+			Eventually(func() string {
+				if err := hubCluster.Client().Get(ctx, svcImportKey, svcImportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcImportStatus := fleetnetv1alpha1.ServiceImportStatus{
+					Clusters: []fleetnetv1alpha1.ClusterStatus{
+						{
+							Cluster: memberClusters[0].Name(),
+						},
+						{
+							Cluster: memberClusters[1].Name(),
+						},
+					},
+					Type: fleetnetv1alpha1.ClusterSetIP,
+					Ports: []fleetnetv1alpha1.ServicePort{
+						{
+							Port:       svcDef.Spec.Ports[0].Port,
+							Protocol:   corev1.ProtocolTCP,
+							TargetPort: svcDef.Spec.Ports[0].TargetPort,
+						},
+					},
+				}
+				return cmp.Diff(svcImportObj.Status, wantedSvcImportStatus)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service import status mismatch (-want, +got):")
+
 			By("Validating multi-cluster service request distribution")
 			requestURL := fmt.Sprintf("http://%s:%d", mcsLBAddr, svcDef.Spec.Ports[0].Port)
-			clusterNames := make(map[string]struct{})
+			unrespondedClusters := make(map[string]struct{})
 			for _, m := range memberClusters {
-				clusterNames[m.Name()] = struct{}{}
+				unrespondedClusters[m.Name()] = struct{}{}
 			}
 			Eventually(func() error {
 				respBodyStr, err := fetchHTTPRequestBody(requestURL)
 				if err != nil {
 					return err
 				}
-				for clusterName := range clusterNames {
+				for clusterName := range unrespondedClusters {
 					if strings.Contains(respBodyStr, clusterName) {
-						delete(clusterNames, clusterName)
+						delete(unrespondedClusters, clusterName)
 					}
 				}
-				if len(clusterNames) == 0 {
+				if len(unrespondedClusters) == 0 {
 					return nil
 				}
-				return fmt.Errorf("Member clusters not replied the request, got %v, want empty", clusterNames)
+				return fmt.Errorf("Member clusters not replied the request, got %v, want empty", unrespondedClusters)
 			}, mcsPollTimeout, framework.PollInterval).Should(BeNil(), "Failed to distribute mcs request to all member clusters")
 
-			By("Unexporting service export")
+			By("Unexporting service")
 			for _, m := range memberClusters {
 				Expect(m.Client().Delete(ctx, serviceExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", serviceExportDef.Name, m.Name())
 				Eventually(func() bool {
@@ -218,21 +272,33 @@ var _ = Describe("Test exporting service", Serial, Ordered, func() {
 				}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete service export")
 			}
 
-			By("Validating request status and mcs LB ingress length")
-			Eventually(func() error {
-				_, err := fetchHTTPRequestBody(requestURL)
-				if !os.IsTimeout(err) {
-					return err
-				}
+			By("Validating mcs status after unexporting service")
+			Eventually(func() string {
 				if err := memberCluster.Client().Get(ctx, multiClusterSvcKey, mcsDef); err != nil {
-					return err
+					return err.Error()
 				}
-				ingressLenth := len(mcsDef.Status.LoadBalancer.Ingress)
-				if ingressLenth != 0 {
-					return fmt.Errorf("Multi-cluster service ingress address length, got %d, want 0", ingressLenth)
+
+				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:    string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Reason:  "UnknownServiceImport",
+							Status:  metav1.ConditionUnknown,
+							Message: "importing service; if the condition remains for a while, please verify that service has been exported",
+						},
+					},
+					LoadBalancer: corev1.LoadBalancerStatus{},
+				}
+				return cmp.Diff(mcsDef.Status, wantedMCSStatus, mcsConditionCmpOptions...)
+			}, mcsPollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service status mismatch (-want, +got):")
+
+			By("Validating request status after unexporting service")
+			Eventually(func() error {
+				if _, err := fetchHTTPRequestBody(requestURL); !os.IsTimeout(err) {
+					return err
 				}
 				return nil
-			}, framework.PollTimeout, framework.PollInterval).Should(BeNil(), "Failed to validate unexported service")
+			}, framework.PollTimeout, framework.PollInterval).Should(BeNil(), "Failed to validate request status after unexporting service")
 		})
 	})
 })
@@ -259,6 +325,5 @@ func fetchHTTPRequestBody(requestURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	respBodyStr := string(respBody)
-	return respBodyStr, nil
+	return string(respBody), nil
 }
