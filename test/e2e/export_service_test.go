@@ -206,7 +206,7 @@ var _ = Describe("Test exporting service", func() {
 				}
 				mcsLBAddr = mcsDef.Status.LoadBalancer.Ingress[0].IP
 				if mcsLBAddr == "" {
-					return fmt.Errorf("Multi-cluster service load balancer IP, got empty")
+					return fmt.Errorf("Multi-cluster service load balancer IP, got empty, want not empty")
 				}
 				return nil
 			}, mcsPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
