@@ -39,11 +39,11 @@ var _ = Describe("Test exporting service", func() {
 		svcDef              *corev1.Service
 
 		svcExportConditionCmpOptions = []cmp.Option{
-			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
+			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration", "Message"),
 			cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
 		}
 		mcsConditionCmpOptions = []cmp.Option{
-			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
+			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration", "Message"),
 			cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
 		}
 	)
@@ -150,16 +150,14 @@ var _ = Describe("Test exporting service", func() {
 
 					wantedSvcExportConditions := []metav1.Condition{
 						{
-							Type:    string(fleetnetv1alpha1.ServiceExportValid),
-							Reason:  "ServiceIsValid",
-							Status:  metav1.ConditionTrue,
-							Message: fmt.Sprintf("service %s/%s is valid for export", testNamespaceUnique, svcDef.Name),
+							Type:   string(fleetnetv1alpha1.ServiceExportValid),
+							Reason: "ServiceIsValid",
+							Status: metav1.ConditionTrue,
 						},
 						{
-							Type:    string(fleetnetv1alpha1.ServiceExportConflict),
-							Reason:  "NoConflictFound",
-							Status:  metav1.ConditionFalse,
-							Message: fmt.Sprintf("service %s/%s is exported without conflict", testNamespaceUnique, svcDef.Name),
+							Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+							Reason: "NoConflictFound",
+							Status: metav1.ConditionFalse,
 						},
 					}
 					return cmp.Diff(serviceExportDef.Status.Conditions, wantedSvcExportConditions, svcExportConditionCmpOptions...)
@@ -192,10 +190,9 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedMCSCondition := []metav1.Condition{
 					{
-						Type:    string(fleetnetv1alpha1.MultiClusterServiceValid),
-						Reason:  "FoundServiceImport",
-						Status:  metav1.ConditionTrue,
-						Message: "found valid service import",
+						Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+						Reason: "FoundServiceImport",
+						Status: metav1.ConditionTrue,
 					},
 				}
 				return cmp.Diff(mcsDef.Status.Conditions, wantedMCSCondition, mcsConditionCmpOptions...)
@@ -212,35 +209,32 @@ var _ = Describe("Test exporting service", func() {
 					return fmt.Errorf("Multi-cluster service load balancer IP, got empty")
 				}
 				return nil
-			}, mcsPollTimeout, framework.PollInterval).Should(BeNil(), "Failed to retrieve multi-cluster service LB address")
+			}, mcsPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
 
 			By("Validating service import in hub cluster")
 			svcImportKey := types.NamespacedName{Namespace: testNamespaceUnique, Name: svcDef.Name}
 			svcImportObj := &fleetnetv1alpha1.ServiceImport{}
-			Eventually(func() string {
-				if err := hubCluster.Client().Get(ctx, svcImportKey, svcImportObj); err != nil {
-					return err.Error()
-				}
-				wantedSvcImportStatus := fleetnetv1alpha1.ServiceImportStatus{
-					Clusters: []fleetnetv1alpha1.ClusterStatus{
-						{
-							Cluster: memberClusters[0].Name(),
-						},
-						{
-							Cluster: memberClusters[1].Name(),
-						},
+			err := hubCluster.Client().Get(ctx, svcImportKey, svcImportObj)
+			Expect(err).Should(BeNil(), "Failed to get service import")
+			wantedSvcImportStatus := fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusters[0].Name(),
 					},
-					Type: fleetnetv1alpha1.ClusterSetIP,
-					Ports: []fleetnetv1alpha1.ServicePort{
-						{
-							Port:       svcDef.Spec.Ports[0].Port,
-							Protocol:   corev1.ProtocolTCP,
-							TargetPort: svcDef.Spec.Ports[0].TargetPort,
-						},
+					{
+						Cluster: memberClusters[1].Name(),
 					},
-				}
-				return cmp.Diff(svcImportObj.Status, wantedSvcImportStatus)
-			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service import status mismatch (-want, +got):")
+				},
+				Type: fleetnetv1alpha1.ClusterSetIP,
+				Ports: []fleetnetv1alpha1.ServicePort{
+					{
+						Port:       svcDef.Spec.Ports[0].Port,
+						Protocol:   corev1.ProtocolTCP,
+						TargetPort: svcDef.Spec.Ports[0].TargetPort,
+					},
+				},
+			}
+			Expect(cmp.Diff(svcImportObj.Status, wantedSvcImportStatus)).Should(BeEmpty(), "Validate service import status mismatch (-want, +got):")
 
 			By("Validating multi-cluster service request distribution")
 			requestURL := fmt.Sprintf("http://%s:%d", mcsLBAddr, svcDef.Spec.Ports[0].Port)
@@ -262,7 +256,7 @@ var _ = Describe("Test exporting service", func() {
 					return nil
 				}
 				return fmt.Errorf("Member clusters not replied the request, got %v, want empty", unrespondedClusters)
-			}, mcsPollTimeout, framework.PollInterval).Should(BeNil(), "Failed to distribute mcs request to all member clusters")
+			}, mcsPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to distribute mcs request to all member clusters")
 
 			By("Unexporting service")
 			for _, m := range memberClusters {
@@ -281,10 +275,9 @@ var _ = Describe("Test exporting service", func() {
 				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:    string(fleetnetv1alpha1.MultiClusterServiceValid),
-							Reason:  "UnknownServiceImport",
-							Status:  metav1.ConditionUnknown,
-							Message: "importing service; if the condition remains for a while, please verify that service has been exported",
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Reason: "UnknownServiceImport",
+							Status: metav1.ConditionUnknown,
 						},
 					},
 					LoadBalancer: corev1.LoadBalancerStatus{},
@@ -298,7 +291,7 @@ var _ = Describe("Test exporting service", func() {
 					return err
 				}
 				return nil
-			}, framework.PollTimeout, framework.PollInterval).Should(BeNil(), "Failed to validate request status after unexporting service")
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate request status after unexporting service")
 		})
 	})
 })
@@ -308,8 +301,7 @@ var _ = Describe("Test exporting service", func() {
 func appImage() string {
 	resourceGroupName := os.Getenv("AZURE_RESOURCE_GROUP")
 	registryName := strings.ReplaceAll(resourceGroupName, "-", "")
-	appImage := fmt.Sprintf("%s.azurecr.io/app", registryName)
-	return appImage
+	return fmt.Sprintf("%s.azurecr.io/app", registryName)
 }
 
 func fetchHTTPRequestBody(requestURL string) (string, error) {
