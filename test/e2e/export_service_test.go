@@ -164,7 +164,7 @@ var _ = Describe("Test exporting service", func() {
 				}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
 			}
 
-			By("Creating multi-cluster service")
+			By("Creating a multiclusterservice")
 			var mcsLBAddr string
 			mcsDef := &fleetnetv1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
@@ -292,6 +292,12 @@ var _ = Describe("Test exporting service", func() {
 				}
 				return nil
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate request status after unexporting service")
+
+			By("Deleting multiclusterservice")
+			Expect(memberCluster.Client().Delete(ctx, mcsDef)).Should(Succeed(), "Failed to delete multiclusterservice", mcsDef.Name)
+			Eventually(func() bool {
+				return errors.IsNotFound(memberCluster.Client().Get(ctx, multiClusterSvcKey, mcsDef))
+			}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete multiclusterservice")
 		})
 	})
 })
