@@ -23,6 +23,10 @@ var (
 	PollInterval = 1 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
 	PollTimeout = 20 * time.Second
+
+	// MCSPollTimeout defines the time to wait for a ready MCS.
+	// As MCS depending on handling service related to cloud provider, more time is required.
+	MCSPollTimeout = 180 * time.Second
 )
 
 // Cluster represents a Kubernetes cluster.
