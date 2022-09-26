@@ -142,13 +142,16 @@ func setAgentStatus(status *[]fleetv1alpha1.AgentStatus, newStatus fleetv1alpha1
 }
 
 func (r *Reconciler) updateAgentStatus(ctx context.Context, imc *fleetv1alpha1.InternalMemberCluster, desiredAgentStatus fleetv1alpha1.AgentStatus) error {
-	oldStatus := imc.Status.DeepCopy()
 	setAgentStatus(&imc.Status.AgentStatus, desiredAgentStatus)
 
 	imcKObj := klog.KObj(imc)
-	klog.V(2).InfoS("Updating internalMemberCluster status", "internalMemberCluster", imcKObj, "agentStatus", imc.Status.AgentStatus, "oldAgentStatus", oldStatus.AgentStatus)
+	klog.V(2).InfoS("Updating internalMemberCluster status", "internalMemberCluster", imcKObj, "agentStatus", imc.Status.AgentStatus)
 	if err := r.HubClient.Status().Update(ctx, imc); err != nil {
-		klog.ErrorS(err, "Failed to update internalMemberCluster status", "internalMemberCluster", klog.KObj(imc), "status", imc.Status)
+		if apierrors.IsConflict(err) {
+			klog.V(2).InfoS("Failed to update internalMemberCluster status due to conflicts", "internalMemberCluster", klog.KObj(imc))
+		} else {
+			klog.ErrorS(err, "Failed to update internalMemberCluster status", "internalMemberCluster", klog.KObj(imc))
+		}
 		return err
 	}
 	return nil
