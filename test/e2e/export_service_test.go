@@ -159,6 +159,11 @@ var _ = Describe("Test exporting service", func() {
 			newServiceExportDef.Name = newSvcName
 			Expect(wm.ExportService(ctx, newServiceExportDef)).Should(Succeed())
 			Expect(wm.UnexportService(ctx, newServiceExportDef)).Should(Succeed())
+			for _, m := range memberClusters {
+				newSvcDef := wm.Service()
+				newSvcDef.Name = newSvcName
+				Expect(m.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", newSvcDef.Name, m.Name())
+			}
 		})
 	})
 
@@ -223,6 +228,9 @@ var _ = Describe("Test exporting service", func() {
 				}
 				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service status mismatch (-want, +got):")
+
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
 		})
 	})
 })

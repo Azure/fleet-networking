@@ -132,12 +132,12 @@ func NewWorkloadManager(clusters *Clusters) *WorkloadManager {
 	}
 }
 
-// Service returns the service.
+// Service returns the service which workload manager will deploy.
 func (wm *WorkloadManager) Service() corev1.Service {
 	return wm.service
 }
 
-// ServiceExport returns the ServiceExport.
+// ServiceExport returns the ServiceExport definition from pre-defined service name and namespace.
 func (wm *WorkloadManager) ServiceExport() fleetnetv1alpha1.ServiceExport {
 	return fleetnetv1alpha1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
@@ -147,7 +147,7 @@ func (wm *WorkloadManager) ServiceExport() fleetnetv1alpha1.ServiceExport {
 	}
 }
 
-// ServiceExport returns the MultiClusterService.
+// ServiceExport returns the MultiClusterService definition from pre-defined service name and namespace.
 func (wm *WorkloadManager) MultiClusterService() fleetnetv1alpha1.MultiClusterService {
 	return fleetnetv1alpha1.MultiClusterService{
 		ObjectMeta: metav1.ObjectMeta{
@@ -169,7 +169,7 @@ func (wm *WorkloadManager) Deployment(clusterName string) *appsv1.Deployment {
 	return &deployment
 }
 
-// DeployWorkload deploys workload to member clusters.
+// DeployWorkload deploys workload(deployment and its service) to member clusters.
 func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 	for _, m := range wm.Clusters.Clusters() {
 		nsDef := corev1.Namespace{
@@ -195,7 +195,7 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 	return nil
 }
 
-// DeployWorkload deletes workload from member clusters.
+// DeployWorkload deletes workload(deployment and its service) from member clusters.
 func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 	for _, m := range wm.Clusters.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
