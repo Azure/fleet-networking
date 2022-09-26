@@ -24,24 +24,29 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
+// Clusters is a collection of clusters for e2e tests.
 type Clusters struct {
 	memberClusters   []*Cluster
 	mcsMemberCluster *Cluster
 	hubCluster       *Cluster
 }
 
+// MemberClusters returns all member clusters.
 func (c *Clusters) MemberClusters() []*Cluster {
 	return c.memberClusters
 }
 
+// MCSMemberCluster returns a member cluster on which MCS will be hosted.
 func (c *Clusters) MCSMemberCluster() *Cluster {
 	return c.mcsMemberCluster
 }
 
+// HubCluster returns a hub cluster.
 func (c *Clusters) HubCluster() *Cluster {
 	return c.hubCluster
 }
 
+// Clusters returns all clusters including both member and hub.
 func (c *Clusters) Clusters() []*Cluster {
 	return append(c.memberClusters, c.hubCluster)
 }
