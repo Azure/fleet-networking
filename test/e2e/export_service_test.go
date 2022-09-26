@@ -110,6 +110,7 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Validating multi-cluster service request distribution")
 			requestURL := fmt.Sprintf("http://%s:%d", mcsLBAddr, svcDef.Spec.Ports[0].Port)
+			lbDistributionPollTimeout := 180 * time.Second
 			unrespondedClusters := make(map[string]struct{})
 			for _, m := range memberClusters {
 				unrespondedClusters[m.Name()] = struct{}{}
@@ -128,7 +129,7 @@ var _ = Describe("Test exporting service", func() {
 					return nil
 				}
 				return fmt.Errorf("Member clusters not replied the request, got %v, want empty", unrespondedClusters)
-			}, framework.PollTimeout*3, framework.PollInterval).Should(Succeed(), "Failed to distribute mcs request to all member clusters")
+			}, lbDistributionPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to distribute mcs request to all member clusters")
 
 			By("Unexporting service")
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
