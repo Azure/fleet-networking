@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +19,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
@@ -198,34 +200,28 @@ func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnet
 		}
 
 		// wait until service export condition is correct or raise error when the wait times out.
-		err := retry.Do(
-			func() error {
-				if err := m.Client().Get(ctx, svcExporKey, svcExportObj); err != nil {
-					return err
-				}
-				wantedSvcExportConditions := []metav1.Condition{
-					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIsValid",
-						Status: metav1.ConditionTrue,
-					},
-					{
-						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
-						Reason: "NoConflictFound",
-						Status: metav1.ConditionFalse,
-					},
-				}
-				svcExportConditionCmpRlt := cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, SvcExportConditionCmpOptions...)
-				if len(svcExportConditionCmpRlt) != 0 {
-					return fmt.Errorf("Validate service export condition mismatch (-want, +got): %s", svcExportConditionCmpRlt)
-				}
-				return nil
-			},
-			retry.Attempts(uint(PollTimeout/PollInterval)),
-			retry.Delay(PollInterval),
-			retry.DelayType(retry.FixedDelay),
-		)
-		if err != nil {
+		if err := retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
+			if err := m.Client().Get(ctx, svcExporKey, svcExportObj); err != nil {
+				return err
+			}
+			wantedSvcExportConditions := []metav1.Condition{
+				{
+					Type:   string(fleetnetv1alpha1.ServiceExportValid),
+					Reason: "ServiceIsValid",
+					Status: metav1.ConditionTrue,
+				},
+				{
+					Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+					Reason: "NoConflictFound",
+					Status: metav1.ConditionFalse,
+				},
+			}
+			svcExportConditionCmpRlt := cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, SvcExportConditionCmpOptions...)
+			if len(svcExportConditionCmpRlt) != 0 {
+				return fmt.Errorf("Validate service export condition mismatch (-want, +got): %s", svcExportConditionCmpRlt)
+			}
+			return nil
+		}); err != nil {
 			return err
 		}
 	}
@@ -240,28 +236,23 @@ func (wm *WorkloadManager) CreateMultiClusterService(ctx context.Context, mcs fl
 	if err := memberClusterMCS.Client().Create(ctx, &mcs); err != nil {
 		return fmt.Errorf("Failed to create multi-cluster service %s in cluster %s: %w", mcs.Name, memberClusterMCS.Name(), err)
 	}
-	return retry.Do(
-		func() error {
-			if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
-				return err
-			}
-			wantedMCSCondition := []metav1.Condition{
-				{
-					Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
-					Reason: "FoundServiceImport",
-					Status: metav1.ConditionTrue,
-				},
-			}
-			mcsConditionCmpRlt := cmp.Diff(wantedMCSCondition, mcsObj.Status.Conditions, MCSConditionCmpOptions...)
-			if len(mcsConditionCmpRlt) != 0 {
-				return fmt.Errorf("Validate multi-cluster service condition mismatch (-want, +got): %s", mcsConditionCmpRlt)
-			}
-			return nil
-		},
-		retry.Attempts(uint(PollTimeout/PollInterval)),
-		retry.Delay(PollInterval),
-		retry.DelayType(retry.FixedDelay),
-	)
+	return retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
+		if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+			return err
+		}
+		wantedMCSCondition := []metav1.Condition{
+			{
+				Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+				Reason: "FoundServiceImport",
+				Status: metav1.ConditionTrue,
+			},
+		}
+		mcsConditionCmpRlt := cmp.Diff(wantedMCSCondition, mcsObj.Status.Conditions, MCSConditionCmpOptions...)
+		if len(mcsConditionCmpRlt) != 0 {
+			return fmt.Errorf("Validate multi-cluster service condition mismatch (-want, +got): %s", mcsConditionCmpRlt)
+		}
+		return nil
+	})
 }
 
 // DeleteMultiClusterService deletes the mcs specified from caller and wait until the mcs is not found.
@@ -271,18 +262,13 @@ func (wm *WorkloadManager) DeleteMultiClusterService(ctx context.Context, mcs fl
 	if err := memberClusterMCS.Client().Delete(ctx, &mcs); err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("Failed to delete mcs %s in cluster %s: %w", multiClusterSvcKey, memberClusterMCS.Name(), err)
 	}
-	return retry.Do(
-		func() error {
-			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
-			if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil && !errors.IsNotFound(err) {
-				return fmt.Errorf("Failed to delete mutl-cluster service %s in cluster %s, %w", multiClusterSvcKey, memberClusterMCS.Name(), err)
-			}
-			return nil
-		},
-		retry.Attempts(uint(PollTimeout/PollInterval)),
-		retry.Delay(PollInterval),
-		retry.DelayType(retry.FixedDelay),
-	)
+	return retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
+		mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+		if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("Failed to delete mutl-cluster service %s in cluster %s, %w", multiClusterSvcKey, memberClusterMCS.Name(), err)
+		}
+		return nil
+	})
 }
 
 // UnexportService deletes the ServiceExport specified by caller and wait until the ServiceExport is not found.
@@ -292,23 +278,28 @@ func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetn
 		if err := m.Client().Delete(ctx, &svcExport); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("Failed to delete service export %s in cluster %s: %w", serviceExporKey, m.Name(), err)
 		}
-		err := retry.Do(
-			func() error {
-				serviceExportObj := &fleetnetv1alpha1.ServiceExport{}
-				if err := m.Client().Get(ctx, serviceExporKey, serviceExportObj); err != nil && !errors.IsNotFound(err) {
-					return fmt.Errorf("Failed to delete service export %s in cluster %s, %w", serviceExporKey, m.Name(), err)
-				}
-				return nil
-			},
-			retry.Attempts(uint(PollTimeout/PollInterval)),
-			retry.Delay(PollInterval),
-			retry.DelayType(retry.FixedDelay),
-		)
-		if err != nil {
+		if err := retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
+			serviceExportObj := &fleetnetv1alpha1.ServiceExport{}
+			if err := m.Client().Get(ctx, serviceExporKey, serviceExportObj); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("Failed to delete service export %s in cluster %s, %w", serviceExporKey, m.Name(), err)
+			}
+			return nil
+		}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// defaultBackOff return an exponential backoff which will add up to about 25 seconds.
+func defaultBackOff() wait.Backoff {
+	backoff := wait.Backoff{
+		Steps:    8,
+		Duration: 1 * time.Second,
+		Factor:   1.4,
+		Jitter:   0.1,
+	}
+	return backoff
 }
 
 // TODO(mainred): Before the app image is publicly available, we use the one built from e2e bootstrap.

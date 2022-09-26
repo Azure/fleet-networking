@@ -132,6 +132,7 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Unexporting service")
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+
 			By("Deleting multi-cluster service")
 			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
 		})
@@ -154,10 +155,16 @@ var _ = Describe("Test exporting service", func() {
 				newSvcDef.Name = newSvcName
 				Expect(m.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", newSvcDef.Name, m.Name())
 			}
+
+			By("Exporting the service with a different name")
 			newServiceExportDef := wm.ServiceExport()
 			newServiceExportDef.Name = newSvcName
 			Expect(wm.ExportService(ctx, newServiceExportDef)).Should(Succeed())
+
+			By("Unexporting the service with a different name")
 			Expect(wm.UnexportService(ctx, newServiceExportDef)).Should(Succeed())
+
+			By("Deleting the service with a different name")
 			for _, m := range memberClusters {
 				newSvcDef := wm.Service()
 				newSvcDef.Name = newSvcName
@@ -168,9 +175,11 @@ var _ = Describe("Test exporting service", func() {
 
 	Context("Service should be unexported successfully", func() {
 		BeforeEach(func() {
+			By("Exporting the service")
 			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 		AfterEach(func() {
+			By("Uneporting the service")
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 

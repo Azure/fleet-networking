@@ -23,7 +23,7 @@ const (
 	// As MCS depending on handling service related to cloud provider, more time is required.
 	MCSLBPollTimeout = 180 * time.Second
 
-	// TestNamespace defines the prefix of test namespaces.
+	// TestNamespacePrefix defines the prefix of test namespaces.
 	TestNamespacePrefix = "my-ns"
 )
 
