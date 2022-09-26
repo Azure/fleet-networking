@@ -35,8 +35,7 @@ var _ = Describe("Test exporting service", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 
-		clusters := framework.NewClusters(memberClusters, memberClusters[0], hubCluster)
-		wm = framework.NewWorkloadManager(clusters)
+		wm = framework.NewWorkloadManager(fleet)
 
 		By("Deploying workload")
 		Expect(wm.DeployWorkload(ctx)).Should(Succeed())
@@ -69,7 +68,7 @@ var _ = Describe("Test exporting service", func() {
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			Eventually(func() error {
-				if err := wm.Clusters.MCSMemberCluster().Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+				if err := wm.Fleet.MCSMemberCluster().Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err
 				}
 				if len(mcsObj.Status.LoadBalancer.Ingress) != 1 {
@@ -139,7 +138,7 @@ var _ = Describe("Test exporting service", func() {
 
 		It("should allow exporting services with the same name but different namespaces", func() {
 			// Each workloadmanager are initialized with resources with the same name but different namespaces.
-			wmWithDifferentNS := framework.NewWorkloadManager(wm.Clusters)
+			wmWithDifferentNS := framework.NewWorkloadManager(wm.Fleet)
 			Expect(wmWithDifferentNS.DeployWorkload(ctx)).Should(Succeed())
 			serviceExportDef := wmWithDifferentNS.ServiceExport()
 			Expect(wmWithDifferentNS.ExportService(ctx, serviceExportDef)).Should(Succeed())
@@ -184,7 +183,7 @@ var _ = Describe("Test exporting service", func() {
 			mcsDef := wm.MultiClusterService()
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
-			memberClusterMCS := wm.Clusters.MCSMemberCluster()
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 			Eventually(func() error {
 				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err

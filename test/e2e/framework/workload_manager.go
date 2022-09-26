@@ -24,52 +24,16 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
-// Clusters is a collection of clusters for e2e tests.
-type Clusters struct {
-	memberClusters   []*Cluster
-	mcsMemberCluster *Cluster
-	hubCluster       *Cluster
-}
-
-// MemberClusters returns all member clusters.
-func (c *Clusters) MemberClusters() []*Cluster {
-	return c.memberClusters
-}
-
-// MCSMemberCluster returns a member cluster on which MCS will be hosted.
-func (c *Clusters) MCSMemberCluster() *Cluster {
-	return c.mcsMemberCluster
-}
-
-// HubCluster returns a hub cluster.
-func (c *Clusters) HubCluster() *Cluster {
-	return c.hubCluster
-}
-
-// Clusters returns all clusters including both member and hub.
-func (c *Clusters) Clusters() []*Cluster {
-	return append(c.memberClusters, c.hubCluster)
-}
-
-// NewClusters returns a collection of clusters for e2e tests.
-func NewClusters(memberClusters []*Cluster, mcsMemberCluster, hubCluster *Cluster) *Clusters {
-	return &Clusters{
-		memberClusters:   memberClusters,
-		mcsMemberCluster: mcsMemberCluster,
-		hubCluster:       hubCluster,
-	}
-}
-
 // WorkloadManager represents a suite of variables of operations required to test exporting an service and more.
 type WorkloadManager struct {
-	Clusters           *Clusters
+	Fleet              *Fleet
 	namespace          string
 	service            corev1.Service
 	deploymentTemplate appsv1.Deployment
 }
 
 // NewWorkloadManager returns a workload manager with default values.
-func NewWorkloadManager(clusters *Clusters) *WorkloadManager {
+func NewWorkloadManager(fleet *Fleet) *WorkloadManager {
 	// Using unique namespace decouple tests, especially considering we have test failure, and simply cleanup stage.
 	namespaceUnique := UniqueTestNamespace()
 
@@ -125,7 +89,7 @@ func NewWorkloadManager(clusters *Clusters) *WorkloadManager {
 	}
 
 	return &WorkloadManager{
-		Clusters:           clusters,
+		Fleet:              fleet,
 		namespace:          namespaceUnique,
 		service:            svcDef,
 		deploymentTemplate: deploymentTemplateDef,
@@ -171,7 +135,7 @@ func (wm *WorkloadManager) Deployment(clusterName string) *appsv1.Deployment {
 
 // DeployWorkload deploys workload(deployment and its service) to member clusters.
 func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
-	for _, m := range wm.Clusters.Clusters() {
+	for _, m := range wm.Fleet.Clusters() {
 		nsDef := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: wm.namespace,
@@ -182,7 +146,7 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 		}
 	}
 
-	for _, m := range wm.Clusters.MemberClusters() {
+	for _, m := range wm.Fleet.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
 		serviceDef := wm.service
 		if err := m.Client().Create(ctx, deploymentDef); err != nil {
@@ -197,7 +161,7 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 
 // DeployWorkload deletes workload(deployment and its service) from member clusters.
 func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
-	for _, m := range wm.Clusters.MemberClusters() {
+	for _, m := range wm.Fleet.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
 		svcDef := wm.service
 		if err := m.Client().Delete(ctx, deploymentDef); err != nil {
@@ -208,7 +172,7 @@ func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 		}
 	}
 
-	for _, m := range wm.Clusters.Clusters() {
+	for _, m := range wm.Fleet.Clusters() {
 		nsDef := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: wm.namespace,
@@ -223,7 +187,7 @@ func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 
 // ExportService exports the service by creating a service export.
 func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnetv1alpha1.ServiceExport) error {
-	for _, m := range wm.Clusters.MemberClusters() {
+	for _, m := range wm.Fleet.MemberClusters() {
 		// NOTE: since `Create` function provided by controller-runtime will update the k8s definition variable, resuing
 		// this variable for another `Create` will raise for non-empty resourceVersion.
 		svcExportDef := svcExport
@@ -271,7 +235,7 @@ func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnet
 // CreateMultiClusterService create a mcs from caller and wait until service import is found.
 func (wm *WorkloadManager) CreateMultiClusterService(ctx context.Context, mcs fleetnetv1alpha1.MultiClusterService) error {
 	mcsObj := &fleetnetv1alpha1.MultiClusterService{}
-	memberClusterMCS := wm.Clusters.MCSMemberCluster()
+	memberClusterMCS := wm.Fleet.MCSMemberCluster()
 	multiClusterSvcKey := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Name}
 	if err := memberClusterMCS.Client().Create(ctx, &mcs); err != nil {
 		return fmt.Errorf("Failed to create multi-cluster service %s in cluster %s: %w", mcs.Name, memberClusterMCS.Name(), err)
@@ -302,7 +266,7 @@ func (wm *WorkloadManager) CreateMultiClusterService(ctx context.Context, mcs fl
 
 // DeleteMultiClusterService deletes the mcs specified from caller and wait until the mcs is not found.
 func (wm *WorkloadManager) DeleteMultiClusterService(ctx context.Context, mcs fleetnetv1alpha1.MultiClusterService) error {
-	memberClusterMCS := wm.Clusters.MCSMemberCluster()
+	memberClusterMCS := wm.Fleet.MCSMemberCluster()
 	multiClusterSvcKey := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Name}
 	if err := memberClusterMCS.Client().Delete(ctx, &mcs); err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("Failed to delete mcs %s in cluster %s: %w", multiClusterSvcKey, memberClusterMCS.Name(), err)
@@ -323,7 +287,7 @@ func (wm *WorkloadManager) DeleteMultiClusterService(ctx context.Context, mcs fl
 
 // UnexportService deletes the ServiceExport specified by caller and wait until the ServiceExport is not found.
 func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetnetv1alpha1.ServiceExport) error {
-	for _, m := range wm.Clusters.MemberClusters() {
+	for _, m := range wm.Fleet.MemberClusters() {
 		serviceExporKey := types.NamespacedName{Namespace: svcExport.Namespace, Name: svcExport.Name}
 		if err := m.Client().Delete(ctx, &svcExport); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("Failed to delete service export %s in cluster %s: %w", serviceExporKey, m.Name(), err)
