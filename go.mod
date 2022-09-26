@@ -3,6 +3,7 @@ module go.goms.io/fleet-networking
 go 1.18
 
 require (
+	github.com/avast/retry-go v2.5.0+incompatible
 	github.com/google/go-cmp v0.5.8
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0

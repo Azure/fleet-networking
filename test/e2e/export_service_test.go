@@ -10,12 +10,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -27,57 +25,51 @@ import (
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
-var (
-	svcExportConditionCmpOptions = []cmp.Option{
-		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration", "Message"),
-		cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
-	}
-	mcsConditionCmpOptions = []cmp.Option{
-		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration", "Message"),
-		cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
-	}
-)
-
 var _ = Describe("Test exporting service", func() {
 	var (
 		ctx context.Context
-		wm  *workloadManager
 
-		// memberClusterMCS is picked from member cluster list to host LBs for multi-cluster service
-		memberClusterMCS *framework.Cluster
+		wm *framework.WorkloadManager
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 
-		memberClusterMCS = memberClusters[0]
+		clusters := framework.NewClusters(memberClusters, memberClusters[0], hubCluster)
+		wm = framework.NewWorkloadManager(clusters)
 
-		wm = newWorkloadManager()
-		wm.assertDeployWorkload()
+		By("Deploying workload")
+		Expect(wm.DeployWorkload(ctx)).Should(Succeed())
 	})
 
 	AfterEach(func() {
-		wm.assertRemoveWorkload()
+		By("Removing workload")
+		Expect(wm.RemoveWorkload(ctx)).Should(Succeed())
 	})
 
 	Context("Service should be exported successfully", func() {
 		BeforeEach(func() {
-			wm.assertExportService()
+			By("Exporting service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 		AfterEach(func() {
-			wm.assertUnexportService()
+			By("Unexporting service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 
 		It("should distribute service requests to all members", func() {
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService()))
+
 			By("Fetching mcs Ingress IP address")
 			var mcsLBAddr string
-			mcsDef := wm.mcs
+			mcsDef := wm.MultiClusterService()
 			// NOTE(mainred): The default poll timeout is not always enough for mcs LB allocation and mcs request.
 			// We can obtain the latency from the test log to refine the timeout.
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			Eventually(func() error {
-				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+				if err := wm.Clusters.MCSMemberCluster().Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err
 				}
 				if len(mcsObj.Status.LoadBalancer.Ingress) != 1 {
@@ -88,10 +80,10 @@ var _ = Describe("Test exporting service", func() {
 					return fmt.Errorf("Multi-cluster service load balancer IP, got empty, want not empty")
 				}
 				return nil
-			}, framework.MCSPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
+			}, framework.MCSLBPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
 
 			By("Validating service import in hub cluster")
-			svcDef := wm.service
+			svcDef := wm.Service()
 			svcImportKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
 			svcImportObj := &fleetnetv1alpha1.ServiceImport{}
 			err := hubCluster.Client().Get(ctx, svcImportKey, svcImportObj)
@@ -136,72 +128,57 @@ var _ = Describe("Test exporting service", func() {
 					return nil
 				}
 				return fmt.Errorf("Member clusters not replied the request, got %v, want empty", unrespondedClusters)
-			}, framework.MCSPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to distribute mcs request to all member clusters")
+			}, framework.PollTimeout*3, framework.PollInterval).Should(Succeed(), "Failed to distribute mcs request to all member clusters")
 
 			By("Unexporting service")
-			serviceExportDef := wm.serviceExport
-			serviceExportObj := &fleetnetv1alpha1.ServiceExport{}
-			serviceExporKey := types.NamespacedName{Namespace: serviceExportDef.Namespace, Name: serviceExportDef.Name}
-			for _, m := range memberClusters {
-				Expect(m.Client().Delete(ctx, &serviceExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", serviceExportDef.Name, m.Name())
-				Eventually(func() bool {
-					return errors.IsNotFound(m.Client().Get(ctx, serviceExporKey, serviceExportObj))
-				}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete service export")
-			}
-
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
 			By("Deleting multi-cluster service")
-			Expect(memberClusterMCS.Client().Delete(ctx, &mcsDef)).Should(Succeed(), "Failed to delete multi-cluster service", mcsDef.Name)
-			Eventually(func() bool {
-				return errors.IsNotFound(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj))
-			}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
 		})
 
 		It("should allow exporting services with the same name but different namespaces", func() {
 			// Each workloadmanager are initialized with resources with the same name but different namespaces.
-			wmWithDifferentNS := newWorkloadManager()
-			wmWithDifferentNS.assertDeployWorkload()
-			wmWithDifferentNS.assertExportService()
-			wmWithDifferentNS.assertUnexportService()
-			wmWithDifferentNS.assertRemoveWorkload()
+			wmWithDifferentNS := framework.NewWorkloadManager(wm.Clusters)
+			Expect(wmWithDifferentNS.DeployWorkload(ctx)).Should(Succeed())
+			serviceExportDef := wmWithDifferentNS.ServiceExport()
+			Expect(wmWithDifferentNS.ExportService(ctx, serviceExportDef)).Should(Succeed())
+			Expect(wmWithDifferentNS.UnexportService(ctx, serviceExportDef)).Should(Succeed())
+			Expect(wmWithDifferentNS.RemoveWorkload(ctx)).Should(Succeed())
 		})
 
 		It("should allow exporting different services in the same namespace", func() {
-			originalServiceName := wm.service.Name
-			defer func() {
-				wm.service.Name = originalServiceName
-				wm.serviceExport.Name = originalServiceName
-				wm.mcs.Name = originalServiceName
-			}()
-			newServiceName := fmt.Sprintf("%s-new", wm.service.Name)
-			wm.service.Name = newServiceName
-
+			newSvcName := fmt.Sprintf("%s-new", wm.Service().Name)
 			By("Creating a new service sharing namespace with the existing service")
 			for _, m := range memberClusters {
-				serviceDef := wm.service
-				Expect(m.Client().Create(ctx, &serviceDef)).Should(Succeed(), "Failed to create service %s in cluster %s", serviceDef.Name, m.Name())
+				newSvcDef := wm.Service()
+				newSvcDef.Name = newSvcName
+				Expect(m.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", newSvcDef.Name, m.Name())
 			}
-			wm.serviceExport.Name = newServiceName
-			wm.mcs.Name = newServiceName
-			wm.mcs.Spec.ServiceImport.Name = newServiceName
-			wm.assertExportService()
-			wm.assertUnexportService()
+			newServiceExportDef := wm.ServiceExport()
+			newServiceExportDef.Name = newSvcName
+			Expect(wm.ExportService(ctx, newServiceExportDef)).Should(Succeed())
+			Expect(wm.UnexportService(ctx, newServiceExportDef)).Should(Succeed())
 		})
 	})
 
 	Context("Service should be unexported successfully", func() {
 		BeforeEach(func() {
-			wm.assertExportService()
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 		AfterEach(func() {
-			wm.assertUnexportService()
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 
 		It("should unexport service successfully", func() {
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+
 			By("Validating a service is exported successfully")
 			var mcsLBAddr string
-			mcsDef := wm.mcs
+			mcsDef := wm.MultiClusterService()
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			memberClusterMCS := wm.Clusters.MCSMemberCluster()
 			Eventually(func() error {
 				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err
@@ -214,16 +191,16 @@ var _ = Describe("Test exporting service", func() {
 					return fmt.Errorf("Multi-cluster service load balancer IP, got empty, want not empty")
 				}
 				return nil
-			}, framework.MCSPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
+			}, framework.MCSLBPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
 
 			By("Unexporting the service")
-			serviceExportDef := wm.serviceExport
-			serviceExportObj := &fleetnetv1alpha1.ServiceExport{}
-			serviceExporKey := types.NamespacedName{Namespace: serviceExportDef.Namespace, Name: serviceExportDef.Name}
+			svcExportDef := wm.ServiceExport()
+			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 			for _, m := range memberClusters {
-				Expect(m.Client().Delete(ctx, &serviceExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", serviceExportDef.Name, m.Name())
+				Expect(m.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportDef.Name, m.Name())
 				Eventually(func() bool {
-					return errors.IsNotFound(m.Client().Get(ctx, serviceExporKey, serviceExportObj))
+					return errors.IsNotFound(m.Client().Get(ctx, svcExporKey, svcExportObj))
 				}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete service export")
 			}
 
@@ -243,20 +220,11 @@ var _ = Describe("Test exporting service", func() {
 					},
 					LoadBalancer: corev1.LoadBalancerStatus{},
 				}
-				return cmp.Diff(wantedMCSStatus, mcsObj.Status, mcsConditionCmpOptions...)
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service status mismatch (-want, +got):")
 		})
 	})
-
 })
-
-// TODO(mainred): Before the app image is publicly available, we use the one built from e2e bootstrap.
-// The app image construction must be aligned with the steps in test/scripts/bootstrap.sh.
-func appImage() string {
-	resourceGroupName := os.Getenv("AZURE_RESOURCE_GROUP")
-	registryName := strings.ReplaceAll(resourceGroupName, "-", "")
-	return fmt.Sprintf("%s.azurecr.io/app", registryName)
-}
 
 func fetchHTTPRequestBody(requestURL string) (string, error) {
 	client := &http.Client{
