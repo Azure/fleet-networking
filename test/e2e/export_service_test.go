@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +24,10 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
+)
+
+const (
+	fleetSystemNamespace = "fleet-system"
 )
 
 var _ = Describe("Test exporting service", func() {
@@ -179,7 +184,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 		AfterEach(func() {
-			By("Uneporting the service")
+			By("Unexporting the service")
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
 		})
 
@@ -239,6 +244,255 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Deleting multi-cluster service")
 			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+	})
+
+	Context("Test multi-cluster service", func() {
+		BeforeEach(func() {
+			By("Exporting the service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+		AfterEach(func() {
+			By("Unexporting the service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+
+		validateMCSStatus := func(mcs fleetnetv1alpha1.MultiClusterService, svc corev1.Service) {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Validating the multi-cluster service is importing a service")
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Name}
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			Eventually(func() string {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err.Error()
+				}
+				wantedMCSCondition := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+						Reason: "FoundServiceImport",
+						Status: metav1.ConditionTrue,
+					},
+				}
+				return cmp.Diff(mcsObj.Status.Conditions, wantedMCSCondition, framework.MCSConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
+
+			By("Validating the multi-cluster service is taking the service spec")
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			Eventually(func() string {
+				derivedServiceKey := types.NamespacedName{Namespace: fleetSystemNamespace, Name: derivedServiceName}
+				derivedServiceObj := &corev1.Service{}
+				Expect(memberClusterMCS.Client().Get(ctx, derivedServiceKey, derivedServiceObj)).Should(Succeed(), "Failed to get derived service")
+				wantedDerivedSvcPortSpec := []corev1.ServicePort{
+					{
+						Port:       svc.Spec.Ports[0].Port,
+						TargetPort: svc.Spec.Ports[0].TargetPort,
+					},
+				}
+				derivedSvcPortSpecCmpOptions := []cmp.Option{
+					cmpopts.IgnoreFields(corev1.ServicePort{}, "NodePort", "Protocol"),
+				}
+				return cmp.Diff(wantedDerivedSvcPortSpec, derivedServiceObj.Spec.Ports, derivedSvcPortSpecCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate updated derived service (-want, +got):")
+
+			By("Validating the multi-cluster service has loadbalancer ingress IP address")
+			Eventually(func() error {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err
+				}
+				if len(mcsObj.Status.LoadBalancer.Ingress) != 1 {
+					return fmt.Errorf("Multi-cluster service ingress address length, got %d, want %d", 0, 1)
+				}
+				if mcsObj.Status.LoadBalancer.Ingress[0].IP == "" {
+					return fmt.Errorf("Multi-cluster service load balancer IP, got empty, want not empty")
+				}
+				return nil
+			}, framework.MCSLBPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
+		}
+
+		It("should allow multiple multi-cluster services to import different services", func() {
+			By("Creating and exporting a new service")
+			newSvcDef := wm.Service()
+			newSvcDef.Name = fmt.Sprintf("%s-new", newSvcDef.Name)
+			newSvcDef.Spec.Ports[0].Port = 8080
+			memberClusterNewService := wm.Fleet.MemberClusters()[0]
+			svcKey := types.NamespacedName{Namespace: newSvcDef.Namespace, Name: newSvcDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			newSvcExportDef := wm.ServiceExport()
+			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
+			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Creating a new multi-cluster service")
+			newMCSDef := wm.MultiClusterService()
+			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
+			newMCSDef.Spec.ServiceImport.Name = newSvcDef.Name
+			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Validating the new multi-cluster service is importing the new service")
+			validateMCSStatus(newMCSDef, newSvcDef)
+
+			// clean up
+			By("Deleting the newly created multi-cluster service")
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Deleting the newly created service export")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+
+			By("Deleting the newly created service")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberClusterNewService.Name())
+		})
+
+		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed", func() {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Creating a new multi-cluster service")
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			newMCSDef := wm.MultiClusterService()
+			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
+			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Validating the new multi-cluster service status is empty consistently")
+			Consistently(func() string {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err.Error()
+				}
+				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{}
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
+
+			By("Deleting the old multi-cluster service")
+			oldMCSDef := wm.MultiClusterService()
+			oldMCSKey := types.NamespacedName{Namespace: oldMCSDef.Namespace, Name: oldMCSDef.Name}
+			Expect(memberClusterMCS.Client().Delete(ctx, &oldMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
+
+			By("Validating the new multi-cluster service is importing the service after the original multi-cluster service is removed")
+			validateMCSStatus(newMCSDef, wm.Service())
+
+			// clean up
+			By("Deleting the newly created multi-cluster service")
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+		})
+
+		It("should allow multi-cluster service to import a new service", func() {
+			By("Creating a new service")
+			memberClusterNewService := wm.Fleet.MemberClusters()[0]
+			newServiceDef := wm.Service()
+			newServiceDef.Name = fmt.Sprintf("%s-new", newServiceDef.Name)
+			newServiceDef.Spec.Ports[0].Port = 8080
+			svcKey := types.NamespacedName{Namespace: newServiceDef.Namespace, Name: newServiceDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newServiceDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+
+			By("Exporting the new service")
+			newSvcExportDef := wm.ServiceExport()
+			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
+			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Updating multi-cluster service to import the new service")
+			mcsDef := wm.MultiClusterService()
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			mcsObj.Spec.ServiceImport.Name = newServiceDef.Name
+			Expect(memberClusterMCS.Client().Update(ctx, mcsObj)).Should(Succeed(), "Failed to update multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Validating the multi-cluster service is updated to import the new service")
+			validateMCSStatus(mcsDef, newServiceDef)
+
+			// clean up
+			By("Deleting the newly created service")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newServiceDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
+
+			By("Deleting the newly created service export")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+		})
+		It("should allow a multi-cluster service to import a service created later than multi-cluster service", func() {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Creating a multi-cluster service before the service is created")
+			newSvcDef := wm.Service()
+			newSvcDef.Name = fmt.Sprintf("%s-new", newSvcDef.Name)
+			newSvcDef.Spec.Ports[0].Port = 8080
+			newMCSDef := wm.MultiClusterService()
+			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
+			newMCSDef.Spec.ServiceImport.Name = newSvcDef.Name
+			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Validating the multi-cluster service is importing no service")
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			Eventually(func() string {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err.Error()
+				}
+				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Reason: "UnknownServiceImport",
+							Status: metav1.ConditionUnknown,
+						},
+					},
+					LoadBalancer: corev1.LoadBalancerStatus{},
+				}
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service status mismatch (-want, +got):")
+
+			By("Creating and exporting a new service")
+			memberClusterNewService := wm.Fleet.MemberClusters()[0]
+			svcKey := types.NamespacedName{Namespace: newSvcDef.Namespace, Name: newSvcDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			newSvcExportDef := wm.ServiceExport()
+			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
+			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+
+			By("Validating the multi-cluster service is importing the service created later than multi-cluster service")
+			validateMCSStatus(newMCSDef, newSvcDef)
+
+			// clean up
+			By("Deleting the newly multi-cluster service")
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Deleting the newly created service")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
+
+			By("Deleting the newly created service export")
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+		})
+
+		It("should allow other multi-cluster services to import the service after the multi-cluster service importing the service is deleted", func() {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Deleting the existing multi-cluster service importing the service")
+			mcsSDef := wm.MultiClusterService()
+			Expect(memberClusterMCS.Client().Delete(ctx, &mcsSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", mcsSDef.Name, memberClusterMCS.Name())
+
+			By("Creating a new multi-cluster service")
+			newMCSDef := wm.MultiClusterService()
+			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
+			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+
+			By("Validating the service can be re-imported by another multi-cluster service")
+			validateMCSStatus(newMCSDef, wm.Service())
+
+			// clean up
+			By("Deleting the newly multi-cluster service")
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 	})
 })
