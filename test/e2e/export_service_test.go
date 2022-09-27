@@ -17,12 +17,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
+)
+
+const (
+	fleetSystemNamespace = "fleet-system"
 )
 
 var _ = Describe("Test exporting service", func() {
@@ -239,6 +246,82 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Deleting multi-cluster service")
 			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+	})
+
+	Context("Test scaling up/down deployment", func() {
+		BeforeEach(func() {
+			By("Exporting service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+
+		})
+		AfterEach(func() {
+			By("Unexporting service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+
+		// assertScaleDeployment scales the deployment up or down per user-input by 1.
+		assertScaleDeployment := func(up bool) {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+			mcsClusterName := memberClusterMCS.Name()
+			scalingDeploymentDef := wm.Deployment(mcsClusterName)
+			// The default replicas should be more than 1, otherwise this test will fail.
+			replicas := *scalingDeploymentDef.Spec.Replicas - 1
+			if up {
+				replicas = *scalingDeploymentDef.Spec.Replicas + 1
+			}
+			By(fmt.Sprintf("Scaling deployment to %d from %d", replicas, *scalingDeploymentDef.Spec.Replicas))
+			scalingDeploymentDef.Spec.Replicas = &replicas
+			Expect(memberClusterMCS.Client().Update(ctx, scalingDeploymentDef)).Should(Succeed(), "Failed to scale up app deployment %s in cluster %s", scalingDeploymentDef.Name, mcsClusterName)
+
+			// The total endpoints should include addresses of Pods from all member clusters in current test env.
+			wantedEndpointNumber := int(*scalingDeploymentDef.Spec.Replicas)
+			for _, m := range wm.Fleet.MemberClusters() {
+				clusterName := m.Name()
+				if clusterName == mcsClusterName {
+					continue
+				}
+				deploymentDef := wm.Deployment(clusterName)
+				wantedEndpointNumber += int(*deploymentDef.Spec.Replicas)
+			}
+
+			By("Validating endpointslices behind mcs are updated per deployment scaling")
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			mcsDef := wm.MultiClusterService()
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get mcs %s in cluster %s", multiClusterSvcKey, mcsClusterName)
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			Eventually(func() string {
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				listOpts := client.ListOptions{
+					LabelSelector: labels.SelectorFromSet(labels.Set{
+						discoveryv1.LabelServiceName: derivedServiceName,
+					}),
+					Namespace: fleetSystemNamespace,
+				}
+				if err := memberClusterMCS.Client().List(ctx, endpointSliceList, &listOpts); err != nil {
+					return err.Error()
+				}
+				gotEndpointNum := 0
+				for _, endpointslice := range endpointSliceList.Items {
+					gotEndpointNum += len(endpointslice.Endpoints)
+				}
+				return cmp.Diff(wantedEndpointNumber, gotEndpointNum)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate endpoint number after scaling deployment (-want, +got):")
+		}
+
+		It("should add the new pod to mcs endpointslices after scaling up the deployment", func() {
+			assertScaleDeployment(true)
+		})
+
+		It("should remove the deleted pod from mcs endpointslices after scaling down the deployment", func() {
+			assertScaleDeployment(false)
 		})
 	})
 
