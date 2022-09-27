@@ -280,7 +280,7 @@ var _ = Describe("Test exporting service", func() {
 						Status: metav1.ConditionTrue,
 					},
 				}
-				return cmp.Diff(mcsObj.Status.Conditions, wantedMCSCondition, framework.MCSConditionCmpOptions...)
+				return cmp.Diff(wantedMCSCondition, mcsObj.Status.Conditions, framework.MCSConditionCmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
 
 			By("Validating the multi-cluster service is taking the service spec")
