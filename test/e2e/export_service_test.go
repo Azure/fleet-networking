@@ -268,10 +268,10 @@ var _ = Describe("Test exporting service", func() {
 
 		// assertScaleDeployment scales the deployment up or down per user-input by 1.
 		assertScaleDeployment := func(up bool) {
-			// scaling deployment in one cluster.
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 			mcsClusterName := memberClusterMCS.Name()
 			scalingDeploymentDef := wm.Deployment(mcsClusterName)
+			// The default replicas should be more than 1, otherwise this test will fail.
 			replicas := *scalingDeploymentDef.Spec.Replicas - 1
 			if up {
 				replicas = *scalingDeploymentDef.Spec.Replicas + 1
@@ -281,14 +281,14 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Update(ctx, scalingDeploymentDef)).Should(Succeed(), "Failed to scale up app deployment %s in cluster %s", scalingDeploymentDef.Name, mcsClusterName)
 
 			// The total endpoints should include addresses of Pods from all member clusters in current test env.
-			expectedEndpointNumber := int(*scalingDeploymentDef.Spec.Replicas)
+			wantedEndpointNumber := int(*scalingDeploymentDef.Spec.Replicas)
 			for _, m := range wm.Fleet.MemberClusters() {
 				clusterName := m.Name()
 				if clusterName == mcsClusterName {
 					continue
 				}
 				deploymentDef := wm.Deployment(clusterName)
-				expectedEndpointNumber += int(*deploymentDef.Spec.Replicas)
+				wantedEndpointNumber += int(*deploymentDef.Spec.Replicas)
 			}
 
 			By("Validating endpointslices behind mcs are updated per deployment scaling")
@@ -308,11 +308,11 @@ var _ = Describe("Test exporting service", func() {
 				if err := memberClusterMCS.Client().List(ctx, endpointSliceList, &listOpts); err != nil {
 					return err.Error()
 				}
-				actualEndpointNum := 0
+				gotEndpointNum := 0
 				for _, endpointslice := range endpointSliceList.Items {
-					actualEndpointNum += len(endpointslice.Endpoints)
+					gotEndpointNum += len(endpointslice.Endpoints)
 				}
-				return cmp.Diff(expectedEndpointNumber, actualEndpointNum)
+				return cmp.Diff(wantedEndpointNumber, gotEndpointNum)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate endpoint number after scaling deployment (-want, +got):")
 		}
 
