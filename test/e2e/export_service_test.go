@@ -14,15 +14,23 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
+)
+
+const (
+	fleetSystemNamespace = "fleet-system"
 )
 
 var _ = Describe("Test exporting service", func() {
@@ -165,9 +173,9 @@ var _ = Describe("Test exporting service", func() {
 			Expect(wm.UnexportService(ctx, newServiceExportDef)).Should(Succeed())
 
 			By("Deleting the service with a different name")
+			newSvcDef := wm.Service()
+			newSvcDef.Name = newSvcName
 			for _, m := range memberClusters {
-				newSvcDef := wm.Service()
-				newSvcDef.Name = newSvcName
 				Expect(m.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", newSvcDef.Name, m.Name())
 			}
 		})
@@ -239,6 +247,127 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Deleting multi-cluster service")
 			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+	})
+
+	Context("Test updating exported service", func() {
+		BeforeEach(func() {
+			By("Exporting the service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
+		})
+		AfterEach(func() {
+			By("Unexporting the service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+		})
+
+		It("should update service export successfully when no other clusters are exporting the service", func() {
+			By("Unexporting the service in member cluster two")
+			svcExportDef := wm.ServiceExport()
+			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			memberClusterTwo := wm.Fleet.MemberClusters()[1]
+			Expect(memberClusterTwo.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+
+			By("Updating service spec in member cluster one")
+			svcDef := wm.Service()
+			memberClusterUpdateService := wm.Fleet.MemberClusters()[0]
+			svcDef.Spec.Ports[0].Port = 8080
+			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
+			Expect(memberClusterUpdateService.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
+
+			By("Creating multi-cluster service")
+			mcsDef := wm.MultiClusterService()
+			Expect(wm.CreateMultiClusterService(ctx, mcsDef)).Should(Succeed())
+
+			By("Validating updating exported service successfully in member cluster one")
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			Eventually(func() string {
+				derivedServiceKey := types.NamespacedName{Namespace: fleetSystemNamespace, Name: derivedServiceName}
+				derivedServiceObj := &corev1.Service{}
+				Expect(memberClusterMCS.Client().Get(ctx, derivedServiceKey, derivedServiceObj)).Should(Succeed(), "Failed to get derived service")
+				wantedDerivedSvcPortSpec := []corev1.ServicePort{
+					{
+						Port:       svcDef.Spec.Ports[0].Port,
+						TargetPort: svcDef.Spec.Ports[0].TargetPort,
+					},
+				}
+				derivedSvcPortSpecCmpOptions := []cmp.Option{
+					cmpopts.IgnoreFields(corev1.ServicePort{}, "NodePort", "Protocol"),
+				}
+				return cmp.Diff(wantedDerivedSvcPortSpec, derivedServiceObj.Spec.Ports, derivedSvcPortSpecCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate updated derived service (-want, +got):")
+
+			// clean up
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+
+		It("should update service export unsuccessfully when the service is exported in other clusters", func() {
+			By("Updating service spec in member cluster one")
+			svcDef := wm.Service()
+			svcDef.Spec.Ports[0].Port = 8080
+			memberClusterUpdateService := memberClusters[0]
+			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
+			Expect(memberClusterUpdateService.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
+
+			By("Validating exporting the service should have conflict in member cluster one")
+			svcExportDef := wm.ServiceExport()
+			svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			Eventually(func() string {
+				if err := memberClusterUpdateService.Client().Get(ctx, svcExporKey, svcExportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcExportConditions := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportValid),
+						Reason: "ServiceIsValid",
+						Status: metav1.ConditionTrue,
+					},
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason: "ConflictFound",
+						Status: metav1.ConditionTrue,
+					},
+				}
+				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
+
+			By("Creating multi-cluster service")
+			mcsDef := wm.MultiClusterService()
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+
+			By("Validating endpointslices behind mcs are removed")
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			Eventually(func() error {
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				listOpts := client.ListOptions{
+					LabelSelector: labels.SelectorFromSet(labels.Set{
+						discoveryv1.LabelServiceName: derivedServiceName,
+					}),
+					Namespace: fleetSystemNamespace,
+				}
+				if err := memberClusterMCS.Client().List(ctx, endpointSliceList, &listOpts); err != nil {
+					return err
+				}
+				for _, endpointslice := range endpointSliceList.Items {
+					if strings.Contains(endpointslice.Name, memberClusterUpdateService.Name()) {
+						return fmt.Errorf("endpointslice %s still exists for member cluster %s", endpointslice.Name, memberClusterUpdateService.Name())
+					}
+				}
+				return nil
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Validate endpointslice should be removed (-want, +got):")
+
+			// clean up
+			By("Creating multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, mcsDef)).Should(Succeed())
 		})
 	})
 })
