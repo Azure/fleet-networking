@@ -111,7 +111,7 @@ e2e-setup:
 
 .PHONY: e2e-tests
 e2e-tests:
-	go test -tags=e2e -v ./test/e2e -args -ginkgo.v
+	go test -timeout 30m -tags=e2e -v ./test/e2e -args -ginkgo.v
 
 .PHONY: e2e-cleanup
 e2e-cleanup:
