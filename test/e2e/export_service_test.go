@@ -301,7 +301,7 @@ var _ = Describe("Test exporting service", func() {
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
 
 			// clean up
-			By("Deleting service export in member cluster one")
+			By("Unexporting the service in member cluster one")
 			Expect(memberClusterOne.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
 
 			By("Deleting service export in member cluster two")
@@ -316,7 +316,7 @@ var _ = Describe("Test exporting service", func() {
 			svcDef.Spec.Type = corev1.ServiceTypeClusterIP
 			svcDef.Spec.ClusterIP = "None"
 			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
-			Expect(memberCluster.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
+			Expect(memberCluster.Client().Create(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
 
 			By("Exporting the headless service")
 			svcExportDef := wm.ServiceExport()
@@ -341,7 +341,7 @@ var _ = Describe("Test exporting service", func() {
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
 
 			// clean up
-			By("Deleting the service export")
+			By("Unexporting the service")
 			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Deleting the service")
@@ -349,7 +349,7 @@ var _ = Describe("Test exporting service", func() {
 		})
 
 		It("should reject exporting a service of type ExternalName", func() {
-			By("Creating a service of type ExternalName")
+			By("Updating the type of service to ExternalName")
 			memberCluster := wm.Fleet.MemberClusters()[0]
 			svcDef := wm.Service()
 			svcDef.Spec.Type = corev1.ServiceTypeExternalName
@@ -379,7 +379,7 @@ var _ = Describe("Test exporting service", func() {
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
 
 			// clean up
-			By("Deleting the service export")
+			By("Unexporting the service export")
 			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
 		})
 	})
