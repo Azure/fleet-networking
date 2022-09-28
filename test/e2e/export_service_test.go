@@ -263,9 +263,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
 		})
 
-		validateMCSStatus := func(mcs fleetnetv1alpha1.MultiClusterService, svc corev1.Service) {
-			memberClusterMCS := wm.Fleet.MCSMemberCluster()
-
+		validateMCSStatus := func(memberClusterMCS *framework.Cluster, mcs fleetnetv1alpha1.MultiClusterService, svc corev1.Service) {
 			By("Validating the multi-cluster service is importing a service")
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Name}
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
@@ -339,7 +337,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service is importing the new service")
-			validateMCSStatus(newMCSDef, newSvcDef)
+			validateMCSStatus(memberClusterMCS, newMCSDef, newSvcDef)
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
@@ -352,7 +350,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberClusterNewService.Name())
 		})
 
-		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed", func() {
+		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in one member cluster", func() {
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 
 			By("Creating a new multi-cluster service")
@@ -377,11 +375,57 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Delete(ctx, &oldMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service is importing the service after the original multi-cluster service is removed")
-			validateMCSStatus(newMCSDef, wm.Service())
+			validateMCSStatus(memberClusterMCS, newMCSDef, wm.Service())
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
 			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+		})
+
+		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in different member clusters", func() {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+			var memberClusterNonDefaultMCS *framework.Cluster
+			for _, memberCluster := range wm.Fleet.MemberClusters() {
+				if memberCluster.Name() != memberClusterMCS.Name() {
+					memberClusterNonDefaultMCS = memberCluster
+				}
+			}
+
+			By("Creating a new mult-cluster service in non-default MCS member")
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			newMCSDef := wm.MultiClusterService()
+			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
+			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
+			Expect(memberClusterNonDefaultMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterNonDefaultMCS.Name())
+			By("Validating the new multi-cluster service status is unknown eventually")
+			Eventually(func() string {
+				if err := memberClusterNonDefaultMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err.Error()
+				}
+				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Reason: "UnknownServiceImport",
+							Status: metav1.ConditionUnknown,
+						},
+					},
+					LoadBalancer: corev1.LoadBalancerStatus{},
+				}
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
+
+			By("Deleting the old multi-cluster service")
+			oldMCSDef := wm.MultiClusterService()
+			oldMCSKey := types.NamespacedName{Namespace: oldMCSDef.Namespace, Name: oldMCSDef.Name}
+			Expect(memberClusterMCS.Client().Delete(ctx, &oldMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
+
+			By("Validating the new multi-cluster service is importing the service after the original multi-cluster service is removed")
+			validateMCSStatus(memberClusterNonDefaultMCS, newMCSDef, wm.Service())
+
+			// clean up
+			By("Deleting the newly created multi-cluster service")
+			Expect(memberClusterNonDefaultMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 
 		It("should allow multi-cluster service to import a new service", func() {
@@ -410,7 +454,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Update(ctx, mcsObj)).Should(Succeed(), "Failed to update multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the multi-cluster service is updated to import the new service")
-			validateMCSStatus(mcsDef, newServiceDef)
+			validateMCSStatus(memberClusterMCS, mcsDef, newServiceDef)
 
 			// clean up
 			By("Deleting the newly created service")
@@ -461,7 +505,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 
 			By("Validating the multi-cluster service is importing the service created later than multi-cluster service")
-			validateMCSStatus(newMCSDef, newSvcDef)
+			validateMCSStatus(memberClusterMCS, newMCSDef, newSvcDef)
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
@@ -488,7 +532,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the service can be re-imported by another multi-cluster service")
-			validateMCSStatus(newMCSDef, wm.Service())
+			validateMCSStatus(memberClusterMCS, newMCSDef, wm.Service())
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
