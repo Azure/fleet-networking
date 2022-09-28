@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -149,7 +150,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		// Mark the ServiceExport as invalid.
 		klog.V(4).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
-		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport)
+		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport, &svc)
 		if err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service ineligible)", "service", svcRef)
 		}
@@ -167,10 +168,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Mark the ServiceExport as valid.
 	klog.V(4).InfoS("Mark service export as valid", "service", svcRef)
-	if err := r.markServiceExportAsValid(ctx, &svcExport); err != nil {
+	if err := r.markServiceExportAsValid(ctx, &svcExport, &svc); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
 	}
+	// Use the lastTransitionTime from ServiceExportValid condition as the exportedSince timestamp; the condition
+	// is guranteed to exist at this point, with a proper lastTransitionTime value.
+	exportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
 
 	// Export the Service or update the exported Service.
 
@@ -189,22 +193,43 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if internalSvcExport.CreationTimestamp.IsZero() {
 			// Set the ServiceReference only when the InternalServiceExport is created; most of the fields in
 			// an ExportedObjectReference should be immutable.
-			internalSvcExport.Spec.ServiceReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, svc.TypeMeta, svc.ObjectMeta)
+			internalSvcExport.Spec.ServiceReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, svc.TypeMeta, svc.ObjectMeta, exportedSince)
+		}
+
+		// Return an error if an attempt is made to update an InternalServiceExport that references a different
+		// Service from the one that is being reconciled. This usually happens when a service is deleted and
+		// re-created immediately.
+		if internalSvcExport.Spec.ServiceReference.UID != svc.UID {
+			return errors.NewAlreadyExists(
+				schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "ServiceExport"},
+				internalSvcExport.Name,
+			)
 		}
 
 		internalSvcExport.Spec.Ports = svcExportPorts
-		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta)
+		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, exportedSince)
 		return nil
 	})
-	if err != nil {
+	switch {
+	case errors.IsAlreadyExists(err):
+		// An export with the same key but different UID already exists; unexport the Service first, and
+		// requeue a new attempt to export the Service.
+		if _, err := r.unexportService(ctx, &svcExport); err != nil {
+			klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+			return ctrl.Result{}, err
+		}
+		// Unexporting a Service removes the cleanup finalizer from the ServiceExport, which in normal cases
+		// will trigger another reconciliation loop automatically; for better clarity here the controller requests
+		// the new reconciliation attempt explicitly.
+		return ctrl.Result{Requeue: true}, nil
+	case err != nil:
 		klog.ErrorS(err, "Failed to create/update InternalServiceExport",
 			"internalServiceExport", klog.KObj(&internalSvcExport),
 			"service", svcRef,
 			"op", createOrUpdateOp)
 		return ctrl.Result{}, err
 	}
-
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
@@ -259,11 +284,10 @@ func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, sv
 func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
-		Status:             metav1.ConditionFalse,
-		Reason:             svcExportInvalidNotFoundCondReason,
-		ObservedGeneration: svcExport.Generation,
-		Message:            fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
+		Type:    string(fleetnetv1alpha1.ServiceExportValid),
+		Status:  metav1.ConditionFalse,
+		Reason:  svcExportInvalidNotFoundCondReason,
+		Message: fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
 	}
 	if condition.EqualCondition(validCond, expectedValidCond) {
 		// A stable state has been reached; no further action is needed.
@@ -275,13 +299,13 @@ func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svc
 }
 
 // markServiceExportAsInvalidSvcIneligible marks a ServiceExport as invalid.
-func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport, svc *corev1.Service) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		Reason:             svcExportInvalidIneligibleCondReason,
-		ObservedGeneration: svcExport.Generation,
+		ObservedGeneration: svc.Generation,
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", svcExport.Namespace, svcExport.Name),
 	}
 	if condition.EqualCondition(validCond, expectedValidCond) {
@@ -301,13 +325,13 @@ func (r *Reconciler) addServiceExportCleanupFinalizer(ctx context.Context, svcEx
 
 // markServiceExportAsValid marks a ServiceExport as valid; if no conflict condition has been added, the
 // ServiceExport will be marked as pending conflict resolution as well.
-func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport, svc *corev1.Service) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
 		Reason:             svcExportValidCondReason,
-		ObservedGeneration: svcExport.Generation,
+		ObservedGeneration: svc.Generation,
 		Message:            fmt.Sprintf("service %s/%s is valid for export", svcExport.Namespace, svcExport.Name),
 	}
 	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
@@ -321,7 +345,7 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 	meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
-		ObservedGeneration: svcExport.Generation,
+		ObservedGeneration: svc.Generation,
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
 	})

@@ -59,6 +59,7 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 				Generation:      0,
 				UID:             "0",
 				NamespacedName:  testNamespace + "/" + testServiceName,
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 			},
 		}
 		serviceImportKey = types.NamespacedName{
@@ -101,6 +102,7 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 						Generation:      0,
 						UID:             "0",
 						NamespacedName:  testNamespace + "/" + testServiceName,
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}

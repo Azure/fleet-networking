@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -94,6 +95,7 @@ func ipv4EndpointSliceExport() *fleetnetv1alpha1.EndpointSliceExport {
 				ResourceVersion: "0",
 				Generation:      1,
 				UID:             "00000000-0000-0000-0000-000000000000",
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 			},
 			OwnerServiceReference: fleetnetv1alpha1.OwnerServiceReference{
 				Namespace:      memberUserNS,
@@ -270,7 +272,7 @@ func TestAddEndpointSliceExportCleanupFinalizer(t *testing.T) {
 
 // TestScanForEndpointSliceImports tests the Reconciler.scanForEndpointSliceImports method.
 func TestScanForEndpointSliceImports(t *testing.T) {
-	endpointSliceExportSpec := ipv4EndpointSliceExport().Spec
+	endpointSliceExport := ipv4EndpointSliceExport()
 
 	testCases := []struct {
 		name                 string
@@ -282,7 +284,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 	}{
 		{
 			name:                "should withdraw endpointsliceimports",
-			endpointSliceExport: ipv4EndpointSliceExport(),
+			endpointSliceExport: endpointSliceExport,
 			svcInUseBy:          &fleetnetv1alpha1.ServiceInUseBy{},
 			endpointSliceImports: []*fleetnetv1alpha1.EndpointSliceImport{
 				{
@@ -290,7 +292,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 			wantToWithdraw: []*fleetnetv1alpha1.EndpointSliceImport{
@@ -299,13 +301,13 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 		},
 		{
 			name:                "should update endpointsliceimports",
-			endpointSliceExport: ipv4EndpointSliceExport(),
+			endpointSliceExport: endpointSliceExport,
 			svcInUseBy: &fleetnetv1alpha1.ServiceInUseBy{
 				MemberClusters: map[fleetnetv1alpha1.ClusterNamespace]fleetnetv1alpha1.ClusterID{
 					hubNSForMemberB: clusterIDForMemberB,
@@ -317,7 +319,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 			wantToCreateOrUpdate: []*fleetnetv1alpha1.EndpointSliceImport{
@@ -326,13 +328,13 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 		},
 		{
 			name:                "should create endpointsliceimports",
-			endpointSliceExport: ipv4EndpointSliceExport(),
+			endpointSliceExport: endpointSliceExport,
 			svcInUseBy: &fleetnetv1alpha1.ServiceInUseBy{
 				MemberClusters: map[fleetnetv1alpha1.ClusterNamespace]fleetnetv1alpha1.ClusterID{
 					hubNSForMemberB: clusterIDForMemberB,
@@ -350,7 +352,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 		},
 		{
 			name:                "should delete, create and update endpointsliceimports",
-			endpointSliceExport: ipv4EndpointSliceExport(),
+			endpointSliceExport: endpointSliceExport,
 			svcInUseBy: &fleetnetv1alpha1.ServiceInUseBy{
 				MemberClusters: map[fleetnetv1alpha1.ClusterNamespace]fleetnetv1alpha1.ClusterID{
 					hubNSForMemberB: clusterIDForMemberB,
@@ -363,14 +365,14 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberA,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 			wantToCreateOrUpdate: []*fleetnetv1alpha1.EndpointSliceImport{
@@ -379,7 +381,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberB,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -394,7 +396,7 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 						Namespace: hubNSForMemberA,
 						Name:      endpointSliceExportName,
 					},
-					Spec: *endpointSliceExportSpec.DeepCopy(),
+					Spec: *endpointSliceExport.Spec.DeepCopy(),
 				},
 			},
 		},

@@ -15,57 +15,102 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
-	memberClusterID = "bravelion"
-	svcPort         = 80
+	svcPort = 80
 
 	eventuallyTimeout  = time.Second * 10
 	eventuallyInterval = time.Millisecond * 250
 )
 
+var (
+	// internalServiceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that
+	// the InternalServiceExport referred by internalSvcExportKey no longer exists.
+	internalServiceExportIsAbsentActual = func() error {
+		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
+		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); !errors.IsNotFound(err) {
+			return fmt.Errorf("internalServiceExport Get(%+v), got %v, want not found", internalSvcExportKey, err)
+		}
+		return nil
+	}
+	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that
+	// the ServiceExport referred by svcExportKey no longer exists.
+	serviceExportIsAbsentActual = func() error {
+		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		if err := memberClient.Get(ctx, svcExportKey, svcExport); !errors.IsNotFound(err) {
+			return fmt.Errorf("serviceExport Get(%+v), got %v, want not found", svcExportKey, err)
+		}
+		return nil
+	}
+	// internalServiceExportHasLastObservedGenerationAnnotatedActual runs with Eventually and Consistently assertion
+	// to make sure that a last observed annotation has been added to the InternalServiceExport referred by
+	// internalSvcExportKey when a metric data point is observed.
+	internalServiceExportHasLastObservedGenerationAnnotatedActual = func() error {
+		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
+		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+			return fmt.Errorf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
+		}
+
+		lastObservedGeneration, ok := internalSvcExport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]
+		if !ok || lastObservedGeneration != fmt.Sprintf("%d", internalSvcExport.Spec.ServiceReference.Generation) {
+			return fmt.Errorf("lastObservedGeneration, got %s, want %d", lastObservedGeneration, internalSvcExport.Spec.ServiceReference.Generation)
+		}
+		return nil
+	}
+)
+
+// unfulfilledInternalServiceExport returns an unfulfilled InternalServiceExport object.
+func unfulfilledInternalServiceExport() *fleetnetv1alpha1.InternalServiceExport {
+	return &fleetnetv1alpha1.InternalServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: hubNSForMember,
+			Name:      internalSvcExportName,
+		},
+		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+			Ports: []fleetnetv1alpha1.ServicePort{
+				{
+					Port: svcPort,
+				},
+			},
+			ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+				ClusterID:       memberClusterID,
+				Kind:            "Service",
+				Namespace:       memberUserNS,
+				Name:            svcName,
+				ResourceVersion: "0",
+				Generation:      1,
+				UID:             "00000000-0000-0000-0000-000000000000",
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
+			},
+		},
+	}
+}
+
+// unfulfilledServiceExport returns an unfulfilled ServiceExport object.
+func unfulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
+	return &fleetnetv1alpha1.ServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: memberUserNS,
+			Name:      svcName,
+		},
+	}
+}
+
 var _ = Describe("internalsvcexport controller", func() {
 	Context("dangling internalsvcexport", func() {
-		var danglingInternalSvcExport *fleetnetv1alpha1.InternalServiceExport
+		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
-			danglingInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
-				},
-				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Ports: []fleetnetv1alpha1.ServicePort{
-						{
-							Port: svcPort,
-						},
-					},
-					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
-						Kind:            "Service",
-						Namespace:       memberUserNS,
-						Name:            svcName,
-						ResourceVersion: "0",
-						Generation:      0,
-						UID:             "0",
-					},
-				},
-			}
-			Expect(hubClient.Create(ctx, danglingInternalSvcExport)).Should(Succeed())
+			internalSvcExport = unfulfilledInternalServiceExport()
+			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
 		})
 
 		It("should remove dangling internalsvcexport", func() {
-			internalSvcExportKey := types.NamespacedName{
-				Namespace: hubNSForMember,
-				Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
-			}
-			Eventually(func() bool {
-				return errors.IsNotFound(hubClient.Get(ctx, internalSvcExportKey, danglingInternalSvcExport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(internalServiceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -74,178 +119,133 @@ var _ = Describe("internalsvcexport controller", func() {
 		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
-			svcExport = &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-				},
-			}
+			svcExport = unfulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
 
-			internalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
-				},
-				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Ports: []fleetnetv1alpha1.ServicePort{
-						{
-							Port: svcPort,
-						},
-					},
-					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
-						Kind:            "Service",
-						Namespace:       memberUserNS,
-						Name:            svcName,
-						ResourceVersion: "1",
-						Generation:      1,
-						UID:             "1",
-					},
-				},
-			}
+			internalSvcExport = unfulfilledInternalServiceExport()
 			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+
+			// Confirm that both ServiceExport and InternalServiceExport have been deleted;
+			// this helps make the test less flaky.
+			Eventually(internalServiceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not report back any conflict resolution result", func() {
-			svcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
-			Eventually(func() []metav1.Condition {
-				Expect(memberClient.Get(ctx, svcExportKey, svcExport)).Should(Succeed())
-				return svcExport.Status.Conditions
-			}).Should(BeNil())
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
+					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+				}
+
+				if len(svcExport.Status.Conditions) != 0 {
+					return fmt.Errorf("serviceExport conditions, got %v, want empty list", svcExport.Status.Conditions)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
+			Eventually(func() error {
+				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+					return fmt.Errorf("internalServiceExport Get(%v), got %v, want no error", internalSvcExportKey, err)
+				}
+
+				if _, ok := internalSvcExport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]; ok {
+					return fmt.Errorf("lastObservedGeneration annotation is present")
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
 	Context("no conflict detected", func() {
-		var unconflictedSvcExport *fleetnetv1alpha1.ServiceExport
-		var unconflictedInternalSvcExport *fleetnetv1alpha1.InternalServiceExport
+		var svcExport *fleetnetv1alpha1.ServiceExport
+		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
-			unconflictedSvcExport = &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-				},
-			}
-			Expect(memberClient.Create(ctx, unconflictedSvcExport)).Should(Succeed())
+			svcExport = unfulfilledServiceExport()
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
 
-			unconflictedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
-				},
-				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Ports: []fleetnetv1alpha1.ServicePort{
-						{
-							Port: svcPort,
-						},
-					},
-					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
-						Kind:            "Service",
-						Namespace:       memberUserNS,
-						Name:            svcName,
-						ResourceVersion: "2",
-						Generation:      2,
-						UID:             "2",
-					},
-				},
-			}
-			Expect(hubClient.Create(ctx, unconflictedInternalSvcExport)).Should(Succeed())
+			internalSvcExport = unfulfilledInternalServiceExport()
+			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, unconflictedInternalSvcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, unconflictedSvcExport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+
+			// Confirm that both ServiceExport and InternalServiceExport have been deleted;
+			// this helps make the test less flaky.
+			Eventually(internalServiceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should report back conflict condition (no conflict found)", func() {
-			// Add a no conflict condition
-			meta.SetStatusCondition(&unconflictedInternalSvcExport.Status.Conditions,
+			// Add a no conflict condition.
+			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
 				unconflictedServiceExportConflictCondition(memberUserNS, svcName))
-			Expect(hubClient.Status().Update(ctx, unconflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
 
-			unconflictedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
-			// TO-DO (chenyu1): newer gomega versions offer BeComparableTo function, which automatically
-			// calls cmp package for diffs.
-			Eventually(func() string {
-				Expect(memberClient.Get(ctx, unconflictedSvcExportKey, unconflictedSvcExport)).Should(Succeed())
-				return cmp.Diff(
-					unconflictedSvcExport.Status.Conditions,
-					[]metav1.Condition{
-						unconflictedServiceExportConflictCondition(memberUserNS, svcName),
-					},
-					ignoredCondFields)
-			}, eventuallyTimeout, eventuallyInterval).Should(BeEmpty())
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
+					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+				}
+
+				expectedConds := []metav1.Condition{unconflictedServiceExportConflictCondition(memberUserNS, svcName)}
+				if diff := cmp.Diff(svcExport.Status.Conditions, expectedConds, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExport conditions (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
+			Eventually(internalServiceExportHasLastObservedGenerationAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
 	Context("conflict detected", func() {
-		var conflictedSvcExport *fleetnetv1alpha1.ServiceExport
-		var conflictedInternalSvcExport *fleetnetv1alpha1.InternalServiceExport
+		var svcExport *fleetnetv1alpha1.ServiceExport
+		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
-			conflictedSvcExport = &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-				},
-			}
-			Expect(memberClient.Create(ctx, conflictedSvcExport)).Should(Succeed())
+			svcExport = unfulfilledServiceExport()
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
 
-			conflictedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
-				},
-				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Ports: []fleetnetv1alpha1.ServicePort{
-						{
-							Port: svcPort,
-						},
-					},
-					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						ClusterID:       memberClusterID,
-						Kind:            "Service",
-						Namespace:       memberUserNS,
-						Name:            svcName,
-						ResourceVersion: "3",
-						Generation:      3,
-						UID:             "3",
-					},
-				},
-			}
-			Expect(hubClient.Create(ctx, conflictedInternalSvcExport)).Should(Succeed())
+			internalSvcExport = unfulfilledInternalServiceExport()
+			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, conflictedInternalSvcExport)).Should(Succeed())
-			Expect(memberClient.Delete(ctx, conflictedSvcExport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+
+			// Confirm that both ServiceExport and InternalServiceExport have been deleted;
+			// this helps make the test less flaky.
+			Eventually(internalServiceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should report back conflict condition (conflict found)", func() {
 			// Add a no conflict condition
-			meta.SetStatusCondition(&conflictedInternalSvcExport.Status.Conditions,
+			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
 				conflictedServiceExportConflictCondition(memberUserNS, svcName))
-			Expect(hubClient.Status().Update(ctx, conflictedInternalSvcExport)).Should(Succeed())
+			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
 
-			conflictedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
-			// TO-DO (chenyu1): newer gomega versions offer BeComparableTo function, which automatically
-			// calls cmp package for diffs.
-			Eventually(func() string {
-				Expect(memberClient.Get(ctx, conflictedSvcExportKey, conflictedSvcExport)).Should(Succeed())
-				return cmp.Diff(
-					conflictedSvcExport.Status.Conditions,
-					[]metav1.Condition{
-						conflictedServiceExportConflictCondition(memberUserNS, svcName),
-					},
-					ignoredCondFields)
-			}, eventuallyTimeout, eventuallyInterval).Should(BeEmpty())
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
+					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+				}
+
+				expectedConds := []metav1.Condition{conflictedServiceExportConflictCondition(memberUserNS, svcName)}
+				if diff := cmp.Diff(svcExport.Status.Conditions, expectedConds, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExport conditions (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
+			Eventually(internalServiceExportHasLastObservedGenerationAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 })

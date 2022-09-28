@@ -40,10 +40,13 @@ type ExportedObjectReference struct {
 	// The namespaced name of the referred object.
 	// +kubebuilder:validation:Required
 	NamespacedName string `json:"namespacedName"`
+	// The timestamp from a local clock when the object is exported.
+	// +kubebuilder:validation:Required
+	ExportedSince metav1.Time `json:"exportedSince"`
 }
 
 // FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
-func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta) ExportedObjectReference {
+func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.ObjectMeta, exportedSince metav1.Time) ExportedObjectReference {
 	return ExportedObjectReference{
 		ClusterID:       clusterID,
 		APIVersion:      typeMeta.APIVersion,
@@ -54,14 +57,15 @@ func FromMetaObjects(clusterID string, typeMeta metav1.TypeMeta, objMeta metav1.
 		Generation:      objMeta.Generation,
 		UID:             objMeta.UID,
 		NamespacedName:  types.NamespacedName{Namespace: objMeta.Namespace, Name: objMeta.Name}.String(),
+		ExportedSince:   exportedSince,
 	}
 }
 
-// UpdateFromMetaObject updates an existing ExportedObjectReference using ObjectMeta fields from the
-// referenced object.
+// UpdateFromMetaObject updates an existing ExportedObjectReference.
 // Note that most fields in an ExportedObjectReference should be immutable after creation.
-func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta) {
+func (e *ExportedObjectReference) UpdateFromMetaObject(objMeta metav1.ObjectMeta, exportedSince metav1.Time) {
 	e.ResourceVersion = objMeta.ResourceVersion
+	e.ExportedSince = exportedSince
 	e.Generation = objMeta.Generation
 }
 

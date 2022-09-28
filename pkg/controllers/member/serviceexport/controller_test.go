@@ -28,20 +28,22 @@ import (
 )
 
 const (
-	memberUserNS   = "work"
-	hubNSForMember = "bravelion"
-	svcName        = "app"
+	memberUserNS                = "work"
+	hubNSForMember              = "bravelion"
+	svcName                     = "app"
+	svcObservedGenerationBefore = 1
+	svcObservedGenerationAfter  = 2
 )
 
 // ignoredCondFields are fields that should be ignored when comparing conditions.
-var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")
 
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
-func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
+func serviceExportValidCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: 0,
+		ObservedGeneration: svcObservedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportValidCondReason,
 		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
@@ -53,7 +55,6 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: 1,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidNotFoundCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not found", userNS, svcName),
@@ -61,11 +62,11 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 }
 
 // serviceExportInvalidIneligibleCondition returns a ServiceExportValid condition for exporting an ineligible Service.
-func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Condition {
+func serviceExportInvalidIneligibleCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-		ObservedGeneration: 2,
+		ObservedGeneration: svcObservedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidIneligibleCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
@@ -74,11 +75,11 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Cond
 
 // serviceExportPendingConflictResolutionCondition returns a ServiceExportConflict condition which reports that
 // a confliction resolution is in progress.
-func serviceExportPendingConflictResolutionCondition(userNS, svcName string) metav1.Condition {
+func serviceExportPendingConflictResolutionCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
-		ObservedGeneration: 3,
+		ObservedGeneration: svcObservedGeneration,
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", userNS, svcName),
 	}
@@ -86,11 +87,11 @@ func serviceExportPendingConflictResolutionCondition(userNS, svcName string) met
 
 // serviceExportNoConflictCondition returns a ServiceExportConflict condition which reports that a service is exported
 // with no conflict.
-func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
+func serviceExportNoConflictCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: 4,
+		ObservedGeneration: svcObservedGeneration,
 		Reason:             "NoConflictDetected",
 		Message:            fmt.Sprintf("service %s/%s is exported with no conflict", userNS, svcName),
 	}
@@ -271,7 +272,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 					},
 				},
 			},
@@ -319,6 +320,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 	testCases := []struct {
 		name      string
 		svcExport *fleetnetv1alpha1.ServiceExport
+		svc       *corev1.Service
 		wantConds []metav1.Condition
 	}{
 		{
@@ -329,8 +331,15 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 					Name:      svcName,
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationAfter,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
+				serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationAfter),
 			},
 		},
 		{
@@ -342,12 +351,19 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 					},
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationAfter,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
+				serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationAfter),
 			},
 		},
 	}
@@ -368,7 +384,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				Recorder:     record.NewFakeRecorder(10),
 			}
 
-			if err := reconciler.markServiceExportAsInvalidSvcIneligible(ctx, tc.svcExport); err != nil {
+			if err := reconciler.markServiceExportAsInvalidSvcIneligible(ctx, tc.svcExport, tc.svc); err != nil {
 				t.Fatalf("failed to mark svc export: %v", err)
 			}
 
@@ -390,6 +406,7 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 	testCases := []struct {
 		name      string
 		svcExport *fleetnetv1alpha1.ServiceExport
+		svc       *corev1.Service
 		wantConds []metav1.Condition
 	}{
 		{
@@ -400,13 +417,20 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 					Name:      svcName,
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationAfter,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
 			},
 		},
 		{
-			name: "should mark an invalid svc export as valid",
+			name: "should mark an invalid svc export (not found) as valid",
 			svcExport: &fleetnetv1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
@@ -418,9 +442,41 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 					},
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationAfter,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+			},
+		},
+		{
+			name: "should mark an invalid svc export (ineligible) as valid",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+					},
+				},
+			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationAfter,
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
 			},
 		},
 		{
@@ -432,14 +488,21 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 					},
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
+				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 			},
 		},
 		{
@@ -451,14 +514,21 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName),
-						serviceExportNoConflictCondition(memberUserNS, svcName),
+						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportNoConflictCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 					},
 				},
 			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName),
-				serviceExportNoConflictCondition(memberUserNS, svcName),
+				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+				serviceExportNoConflictCondition(memberUserNS, svcName, svcObservedGenerationBefore),
 			},
 		},
 	}
@@ -479,7 +549,7 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				Recorder:     record.NewFakeRecorder(10),
 			}
 
-			if err := reconciler.markServiceExportAsValid(ctx, tc.svcExport); err != nil {
+			if err := reconciler.markServiceExportAsValid(ctx, tc.svcExport, tc.svc); err != nil {
 				t.Fatalf("failed to mark svc export: %v", err)
 			}
 

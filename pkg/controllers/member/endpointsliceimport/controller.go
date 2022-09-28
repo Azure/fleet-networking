@@ -9,8 +9,10 @@ package endpointsliceimport
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -36,10 +38,38 @@ const (
 	endpointSliceImportRetryInterval = time.Second * 2
 )
 
+var (
+	// endpointSliceExportImportDuration is a Prometheus histogram metric bundle that measures the time it takes for
+	// Fleet networking controllers to export an EndpointSlice from one cluster in the fleet, distribute it, and
+	// finally import the EndpointSlice into its destination cluster in the fleet. The stopwatch starts when an
+	// EndpointSlice is ready for export (as an EndpointSliceExport in the hub cluster), and stops when the
+	// EndpointSlice is successfully imported (from an EndpointSlicdeImport in the hub cluster).
+	//
+	// Note that this measurement does not cover the time spent for Fleet networking controllers to pick EndpointSlice
+	// spec changes, as at this moment there is no way in Kubernetes API for controllers to reliably track it. Nor
+	// does it cover the time needed for load balancer to actually expose endpoints in the EndpointSlice for traffic.
+	endpointSliceExportImportDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: objectmeta.MetricsNamespace,
+			Subsystem: objectmeta.MetricsSubsystem,
+			Name:      "endpointslice_export_import_duration_milliseconds",
+			Help:      "The duration of an endpointslice export",
+			Buckets:   objectmeta.ExportDurationMillisecondsBuckets,
+		},
+		[]string{
+			// The ID of the origin cluster, which exports the Service and the EndpointSlice.
+			"originClusterID",
+			// The ID of the destination cluster, which imports the Service and the EndpointSlice.
+			"destinationClusterID",
+		},
+	)
+)
+
 // Reconciler reconciles an EndpointSliceImport.
 type Reconciler struct {
-	MemberClient client.Client
-	HubClient    client.Client
+	MemberClusterID string
+	MemberClient    client.Client
+	HubClient       client.Client
 	// The namespace reserved for fleet resources in the member cluster.
 	FleetSystemNamespace string
 }
@@ -184,7 +214,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"endpointSlice", endpointSliceRef,
 			"op", op,
 			"endpointSliceImport", endpointSliceImportRef)
+		return ctrl.Result{}, err
 	}
+
+	// Observe a data point for the EndpointSliceExportImportDuration metric.
+	if err := r.observeMetrics(ctx, endpointSliceImport, time.Now()); err != nil {
+		klog.ErrorS(err, "Failed to observe metrics", "endpointSliceImport", endpointSliceImportRef)
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -301,4 +339,56 @@ func formatEndpointSliceFromImport(endpointSlice *discoveryv1.EndpointSlice, der
 		})
 	}
 	endpointSlice.Endpoints = endpoints
+}
+
+// Observe data points for metrics.
+func (r *Reconciler) observeMetrics(ctx context.Context,
+	endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport,
+	startTime time.Time) error {
+	// Check if a metric data point has been observed for the current generation of the object; this helps guard
+	// against repeated observation of metric data points for the same generation of an object due to no-op
+	// reconciliations (e.g. resyncs, untracked changes).
+	lastObservedGeneration, ok := endpointSliceImport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]
+	currentGenerationStr := fmt.Sprintf("%d", endpointSliceImport.Spec.EndpointSliceReference.Generation)
+	if ok && lastObservedGeneration == currentGenerationStr {
+		// A data point has been observed for this generation; skip the observation.
+		return nil
+	}
+
+	// Observe a new data point.
+
+	// Annotate the object to track the last observed generation; this must happen before the actual observation.
+	if endpointSliceImport.Annotations == nil {
+		// Initialize the annotation map if it is empty.
+		endpointSliceImport.Annotations = map[string]string{}
+	}
+	endpointSliceImport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration] = currentGenerationStr
+	if err := r.HubClient.Update(ctx, endpointSliceImport); err != nil {
+		return err
+	}
+
+	timeSpent := startTime.Sub(endpointSliceImport.Spec.EndpointSliceReference.ExportedSince.Time).Milliseconds()
+	// Under some rare circumstances (such as time sync not being configured properly across clusters), it could
+	// happen that the export timestamp of an EndpointSlice appears later than its import timestamp. Unfortunately,
+	// clock discrepancies are out of Fleet networking's control and there is not an easy way to determine how
+	// much clocks drift from each other and if (when) it will recover. To avoid negative outliers affecting
+	// data analysis, this controller assigns a constant of exactly 1 second when the calculated duration does
+	// not make sense.
+	if timeSpent <= 0 {
+		timeSpent = int64(time.Second.Milliseconds()) * 1
+		klog.V(4).Info("A negative endpoint export/import duration data point has been observed; time sync might be out of order",
+			"serviceNamespacedName", endpointSliceImport.Spec.OwnerServiceReference.NamespacedName,
+			"endpointSliceNamespacedName", endpointSliceImport.Spec.EndpointSliceReference.NamespacedName,
+			"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
+			"destinationClusterID", r.MemberClusterID)
+	}
+	// Similarly, to avoid large outliers skewing the stats (e.g. averages), this controller caps the data point
+	// to a constant value.
+	if timeSpent > int64(objectmeta.ExportDurationRightBound) {
+		timeSpent = int64(objectmeta.ExportDurationRightBound)
+	}
+	endpointSliceExportImportDuration.
+		WithLabelValues(endpointSliceImport.Spec.EndpointSliceReference.ClusterID, r.MemberClusterID).
+		Observe(float64(timeSpent))
+	return nil
 }

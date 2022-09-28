@@ -53,6 +53,11 @@ spec:
                   clusterId:
                     description: The ID of the cluster where the object is exported.
                     type: string
+                  exportedSince:
+                    description: The timestamp from a local clock when the object
+                      is exported.
+                    format: date-time
+                    type: string
                   generation:
                     description: The generation of the referred object.
                     format: int64
@@ -77,6 +82,7 @@ spec:
                     type: string
                 required:
                 - clusterId
+                - exportedSince
                 - generation
                 - kind
                 - name

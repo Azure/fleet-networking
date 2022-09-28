@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -33,6 +34,12 @@ const (
 	svcName                 = "app"
 	endpointSliceName       = "app-endpointslice"
 	endpointSliceUniqueName = "bravelion-work-app-endpointslice"
+	endpointSliceGeneration = 1
+)
+
+var (
+	endpointSliceKey       = types.NamespacedName{Namespace: memberUserNS, Name: endpointSliceName}
+	endpointSliceExportKey = types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceUniqueName}
 )
 
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
@@ -209,7 +216,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 					UID: "1",
 				},
@@ -239,7 +246,7 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: fmt.Sprintf("%s-%s-%s-%s",
+						objectmeta.ExportedObjectAnnotationUniqueName: fmt.Sprintf("%s-%s-%s-%s",
 							memberClusterID, memberUserNS, endpointSliceName, uniquename.RandomLowerCaseAlphabeticString(5)),
 					},
 				},
@@ -270,23 +277,15 @@ func TestUnexportLinkedEndpointSlice(t *testing.T) {
 			}
 
 			updatedEndpointSlice := &discoveryv1.EndpointSlice{}
-			updatedEndpointSliceKey := types.NamespacedName{
-				Namespace: tc.endpointSlice.Namespace,
-				Name:      tc.endpointSlice.Name,
+			if err := reconciler.MemberClient.Get(ctx, endpointSliceKey, updatedEndpointSlice); err != nil {
+				t.Fatalf("Get(%+v), got %v, want no error", endpointSliceKey, err)
 			}
-			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
-				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
-			}
-			if _, ok := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
-				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
+			if _, ok := updatedEndpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; ok {
+				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 			}
 
 			if tc.endpointSliceExport == nil {
 				return
-			}
-			endpointSliceExportKey := types.NamespacedName{
-				Namespace: tc.endpointSliceExport.Namespace,
-				Name:      tc.endpointSliceExport.Name,
 			}
 			if err := reconciler.HubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); !errors.IsNotFound(err) {
 				t.Fatalf("endpointSliceExport Get(%+v), got %v, want not found error", tc.endpointSliceExport, err)
@@ -310,7 +309,7 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 					UID: "2",
 				},
@@ -358,21 +357,13 @@ func TestUnexportUnlinkedEndpointSlice(t *testing.T) {
 			}
 
 			updatedEndpointSlice := &discoveryv1.EndpointSlice{}
-			updatedEndpointSliceKey := types.NamespacedName{
-				Namespace: tc.endpointSlice.Namespace,
-				Name:      tc.endpointSlice.Name,
+			if err := reconciler.MemberClient.Get(ctx, endpointSliceKey, updatedEndpointSlice); err != nil {
+				t.Fatalf("Get(%+v), got %v, want no error", endpointSliceKey, err)
 			}
-			if err := reconciler.MemberClient.Get(ctx, updatedEndpointSliceKey, updatedEndpointSlice); err != nil {
-				t.Fatalf("Get(%+v), got %v, want no error", updatedEndpointSliceKey, err)
-			}
-			if _, ok := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; ok {
-				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
+			if _, ok := updatedEndpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; ok {
+				t.Fatalf("endpointSlice annotations, got %+v, want no %s annotation", updatedEndpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 			}
 
-			endpointSliceExportKey := types.NamespacedName{
-				Namespace: tc.endpointSliceExport.Namespace,
-				Name:      tc.endpointSliceExport.Name,
-			}
 			if err := reconciler.HubClient.Get(ctx, endpointSliceExportKey, tc.endpointSliceExport); err != nil {
 				t.Fatalf("endpointSliceExport Get(%+v), got %v, want no error", tc.endpointSliceExport, err)
 			}
@@ -423,11 +414,10 @@ func TestAssignUniqueNameAsAnnotation(t *testing.T) {
 			}
 
 			var updatedEndpointSlice = discoveryv1.EndpointSlice{}
-			updatedEndpointSliceKey := types.NamespacedName{Namespace: memberUserNS, Name: endpointSliceName}
-			if err := fakeMemberClient.Get(ctx, updatedEndpointSliceKey, &updatedEndpointSlice); err != nil {
+			if err := fakeMemberClient.Get(ctx, endpointSliceKey, &updatedEndpointSlice); err != nil {
 				t.Fatalf("endpointSlice Get(), got %v, want no error", err)
 			}
-			if setUniqueName := updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]; !strings.HasPrefix(setUniqueName, tc.expectedPrefix) {
+			if setUniqueName := updatedEndpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; !strings.HasPrefix(setUniqueName, tc.expectedPrefix) {
 				t.Fatalf("unique name annotation, got %s, want %s", setUniqueName, tc.expectedPrefix)
 			}
 		})
@@ -470,7 +460,7 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -501,7 +491,7 @@ func TestShouldSkipOrUnexportEndpointSlice_NoServiceExport(t *testing.T) {
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -556,7 +546,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -584,7 +574,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -613,7 +603,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -770,7 +760,7 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -802,7 +792,7 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 						discoveryv1.LabelServiceName: svcName,
 					},
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -1032,6 +1022,231 @@ func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
 			if res := isEndpointSliceExportLinkedWithEndpointSlice(tc.endpointSliceExport, tc.endpointSlice); res != tc.want {
 				t.Fatalf("isEndpointSliceExportLinkedWithEndpointSlice(%+v, %+v) = %t, want %t",
 					tc.endpointSliceExport, tc.endpointSlice, res, tc.want)
+			}
+		})
+	}
+}
+
+// TestAnnotateLastSeenGenerationAndTimestamp tests the annotateLastSeenGenerationAndTimestamp function.
+func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
+	startTime := time.Now()
+
+	testCases := []struct {
+		name            string
+		endpointSlice   *discoveryv1.EndpointSlice
+		startTime       time.Time
+		wantAnnotations map[string]string
+	}{
+		{
+			name: "endpointslice with no last seen annotations",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+					},
+				},
+			},
+			startTime: startTime,
+			wantAnnotations: map[string]string{
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.endpointSlice).
+				Build()
+			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
+			reconciler := &Reconciler{
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
+			}
+
+			if err := reconciler.annotateLastSeenGenerationAndTimestamp(ctx, tc.endpointSlice, tc.startTime); err != nil {
+				t.Fatalf("annotateLastSeenGenerationAndTimestamp(%+v, %v), got %v, want no error", tc.endpointSlice, tc.startTime, err)
+			}
+
+			updatedEndpointSlice := &discoveryv1.EndpointSlice{}
+			if err := fakeMemberClient.Get(ctx, endpointSliceKey, updatedEndpointSlice); err != nil {
+				t.Fatalf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+			}
+
+			if diff := cmp.Diff(updatedEndpointSlice.Annotations, tc.wantAnnotations); diff != "" {
+				t.Fatalf("endpointSlice annotations (-got, +want): %s", diff)
+			}
+		})
+	}
+}
+
+// TestCollectAndVerifyLastSeenGenerationAndTimestamp tests the collectAndVerifyLastSeenGenerationAndTimestamp function.
+func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
+	startTime := time.Now()
+	startTimeBefore := startTime.Add(-time.Second * 5)
+	startTimeBeforeStr := startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat)
+	startTimeBeforeFlattened, _ := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, startTimeBeforeStr)
+	startTimeAfter := startTime.Add(time.Second * 240)
+	wantAnnotations := map[string]string{
+		objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+		objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+		objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+	}
+
+	testCases := []struct {
+		name              string
+		endpointSlice     *discoveryv1.EndpointSlice
+		startTime         time.Time
+		wantExportedSince time.Time
+		wantAnnotations   map[string]string
+	}{
+		{
+			name: "endpointslice with no last seen annotations",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with valid last seen annotations",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTimeBeforeFlattened,
+			wantAnnotations: map[string]string{
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+			},
+		},
+		{
+			name: "endpointslice with invalid last seen generation (bad data)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+						objectmeta.MetricsAnnotationLastSeenGeneration: "InvalidGenerationData",
+						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen generation (mismatch)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration+1),
+						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen timestamp (bad data)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+						objectmeta.MetricsAnnotationLastSeenTimestamp:  "InvalidTimestampData",
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen timestamp (too late timestamp)",
+			endpointSlice: &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       endpointSliceName,
+					Generation: endpointSliceGeneration,
+					Annotations: map[string]string{
+						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
+						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeAfter.Format(objectmeta.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.endpointSlice).
+				Build()
+			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
+			reconciler := &Reconciler{
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
+			}
+
+			exportedSince, err := reconciler.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, tc.endpointSlice, tc.startTime)
+			if err != nil || !exportedSince.Equal(tc.wantExportedSince) {
+				t.Fatalf("collectAndVerifyLastSeenGenerationAndTimestamp(%+v, %v) = (%v, %v), want (%v, %v)",
+					tc.endpointSlice, tc.startTime, exportedSince, err, tc.wantExportedSince, nil)
+			}
+
+			updatedEndpointSlice := &discoveryv1.EndpointSlice{}
+			if err := fakeMemberClient.Get(ctx, endpointSliceKey, updatedEndpointSlice); err != nil {
+				t.Fatalf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+			}
+
+			if diff := cmp.Diff(updatedEndpointSlice.Annotations, tc.wantAnnotations); diff != "" {
+				t.Fatalf("endpointSlice annotations (-got, +want): %s", diff)
 			}
 		})
 	}

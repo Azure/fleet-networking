@@ -38,66 +38,59 @@ const (
 
 var (
 	endpointSlicePort = int32(80)
-	endpointSliceKey  = types.NamespacedName{
-		Namespace: memberUserNS,
-		Name:      endpointSliceName,
-	}
-	svcKey = types.NamespacedName{
+	svcKey            = types.NamespacedName{
 		Namespace: memberUserNS,
 		Name:      svcName,
-	}
-	endpointSliceExportKey = types.NamespacedName{
-		Namespace: hubNSForMember,
-		Name:      endpointSliceUniqueName,
 	}
 )
 
 var (
 	// endpointSliceUniqueNameIsNotAssignedActual runs with Eventually and Consistently assertion to make sure that
 	// no unique name has been assigned to an EndpointSlice.
-	endpointSliceUniqueNameIsNotAssignedActual = func() bool {
+	endpointSliceUniqueNameIsNotAssignedActual = func() error {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-			return false
+			return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 		}
 
-		_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
-		return !ok
+		if _, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; ok {
+			return fmt.Errorf("endpointSlice unique name annotation is present")
+		}
+		return nil
 	}
 	// endpointSliceIsNotExportedActual runs with Eventually and Consistently assertion to make sure that no
 	// EndpointSlice has been exported.
-	endpointSliceIsNotExportedActual = func() bool {
+	endpointSliceIsNotExportedActual = func() error {
 		endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 		listOption := &client.ListOptions{Namespace: hubNSForMember}
 		if err := hubClient.List(ctx, endpointSliceExportList, listOption); err != nil {
-			return false
+			return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 		}
 
 		if len(endpointSliceExportList.Items) > 0 {
-			return false
+			return fmt.Errorf("endpointSliceExportList length, got %d, want %d", len(endpointSliceExportList.Items), 0)
 		}
-		return true
+		return nil
 	}
 
 	// endpointSliceIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// EndpointSlice no longer exists.
-	endpointSliceIsAbsentActual = func() bool {
+	endpointSliceIsAbsentActual = func() error {
 		endpointSlice := &discoveryv1.EndpointSlice{}
-		return errors.IsNotFound(memberClient.Get(ctx, endpointSliceKey, endpointSlice))
+		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
+			return fmt.Errorf("endpointSlice Get(%+v), got %v, want not found", endpointSliceKey, err)
+		}
+		return nil
 	}
 
 	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// ServiceExport no longer exists.
-	serviceExportIsAbsentActual = func() bool {
+	serviceExportIsAbsentActual = func() error {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
-		return errors.IsNotFound(memberClient.Get(ctx, svcKey, svcExport))
-	}
-
-	// endpointSliceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
-	// EndpointSliceExport no longer exists.
-	endpointSliceExportIsAbsentActual = func() bool {
-		endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
-		return errors.IsNotFound(hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport))
+		if err := memberClient.Get(ctx, svcKey, svcExport); !errors.IsNotFound(err) {
+			return fmt.Errorf("serviceExport Get(%+v), got %v, want not found", svcKey, err)
+		}
+		return nil
 	}
 )
 
@@ -133,7 +126,7 @@ func notYetFulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
 	}
 }
 
-var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func() {
+var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordered, func() {
 	Context("IPv6 endpointSlice", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
@@ -177,21 +170,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not export ipv6 endpointslice", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 
@@ -235,21 +228,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not export dangling endpointslice", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 
@@ -264,17 +257,17 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not export endpointslice associated with unexported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 
@@ -302,21 +295,21 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not export endpointslice associated with invalid exported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 
@@ -343,26 +336,26 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, func()
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not export endpointslice associated with invalid exported service", func() {
 			// Wait until the state stablizes to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceUniqueNameIsNotAssignedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 
 			// Wait until the state stablized to run consistently check; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(endpointSliceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 })
 
-var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, func() {
+var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Ordered, func() {
 	endpointSliceExportTemplate := &fleetnetv1alpha1.EndpointSliceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: hubNSForMember,
@@ -391,6 +384,8 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		var (
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+
+			startTime = time.Now()
 		)
 
 		BeforeEach(func() {
@@ -420,12 +415,15 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				memberClusterID,
 				endpointSlice.TypeMeta,
 				endpointSlice.ObjectMeta,
+				metav1.NewTime(startTime),
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
-			// Add the unique name annotation now.
+			// Add the unique name + last seen annotations now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -433,12 +431,12 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should remove exported dangling endpointslice", func() {
-			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -446,6 +444,8 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		var (
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
+
+			startTime = time.Now()
 		)
 
 		BeforeEach(func() {
@@ -460,12 +460,15 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				memberClusterID,
 				endpointSlice.TypeMeta,
 				endpointSlice.ObjectMeta,
+				metav1.NewTime(startTime),
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -473,12 +476,12 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should remove exported endpointslice from unexported service", func() {
-			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -487,6 +490,8 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
 			svcExport           *fleetnetv1alpha1.ServiceExport
+
+			startTime = time.Now()
 		)
 
 		BeforeEach(func() {
@@ -500,6 +505,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				memberClusterID,
 				endpointSlice.TypeMeta,
 				endpointSlice.ObjectMeta,
+				metav1.NewTime(startTime),
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
@@ -510,7 +516,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -518,16 +526,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should remove exported endpointslice from invalid service", func() {
-			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -536,6 +544,8 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
 			svcExport           *fleetnetv1alpha1.ServiceExport
+
+			startTime = time.Now()
 		)
 
 		BeforeEach(func() {
@@ -549,6 +559,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				memberClusterID,
 				endpointSlice.TypeMeta,
 				endpointSlice.ObjectMeta,
+				metav1.NewTime(startTime),
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
@@ -559,7 +570,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
+				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -567,16 +580,16 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should remove exported endpointslice from conflicted exported service", func() {
-			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(endpointSliceUniqueNameIsNotAssignedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -585,6 +598,8 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
 			svcExport           *fleetnetv1alpha1.ServiceExport
+
+			startTime = time.Now()
 		)
 
 		BeforeEach(func() {
@@ -598,6 +613,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 				memberClusterID,
 				endpointSlice.TypeMeta,
 				endpointSlice.ObjectMeta,
+				metav1.NewTime(startTime),
 			)
 			Expect(hubClient.Create(ctx, endpointSliceExport)).Should(Succeed())
 
@@ -611,14 +627,14 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Remove the finalizer.
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
 			endpointSlice.ObjectMeta.Finalizers = []string{}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should remove exported but deleted endpointslice", func() {
@@ -628,7 +644,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 					return err
 				}
 				endpointSlice.Annotations = map[string]string{
-					objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceUniqueName,
+					objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
+					objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
+					objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
 				}
 				endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
 				return memberClient.Update(ctx, endpointSlice)
@@ -637,16 +655,20 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, fu
 			// Set the deletion timestamp.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 
-			Eventually(endpointSliceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 })
 
-var _ = Describe("endpointslice controller (export endpointslice or update exported endpointslice)", Serial, func() {
+var _ = Describe("endpointslice controller (export endpointslice or update exported endpointslice)", Serial, Ordered, func() {
 	Context("new endpointslice for export", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
 
 		BeforeEach(func() {
@@ -663,50 +685,70 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should export the new endpointslice", func() {
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
-					return false
+					return fmt.Errorf("endpointSliceExportList length, got %d, want %d", len(endpointSliceExportList.Items), 1)
 				}
 
 				endpointSliceRef := endpointSliceExportList.Items[0].Spec.EndpointSliceReference
-				if endpointSliceRef.Name != endpointSliceName || endpointSliceRef.UID != endpointSlice.UID {
-					return false
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference diff (-got, +want): %s", diff)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -714,6 +756,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
 
 		BeforeEach(func() {
@@ -730,53 +776,73 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should update exported endpointslice", func() {
 			// Verify first that the EndpointSlice has been exported.
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			var endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
-					return false
+					return fmt.Errorf("endpointSliceExportList length, got %d, want %d", len(endpointSliceExportList.Items), 1)
 				}
 
-				endpointSliceExport = &endpointSliceExportList.Items[0]
-				endpointSliceRef := endpointSliceExport.Spec.EndpointSliceReference
-				if endpointSliceRef.Name != endpointSliceName || endpointSliceRef.UID != endpointSlice.UID {
-					return false
+				endpointSliceExport = &(endpointSliceExportList.Items[0])
+				endpointSliceRef := endpointSliceExportList.Items[0].Spec.EndpointSliceReference
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference diff (-got, +want): %s", diff)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Update the EndpointSlice.
 			endpointSlice.Endpoints = append(endpointSlice.Endpoints, discoveryv1.Endpoint{
@@ -784,14 +850,38 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			})
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
-			// Confirm that the EndpointSlice has been updated.
-			endpointSliceExportKey := types.NamespacedName{
-				Namespace: hubNSForMember,
-				Name:      endpointSliceExport.Name,
-			}
-			Eventually(func() bool {
+			// Confirm that the last seen annotations have been updated.
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				if !ok {
+					return fmt.Errorf("lastSeenTimestampData is absent")
+				}
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(), got %v, want no error", err)
+				}
+				// Due to timing precision limitations, the later timestamp may appear the same as the earlier one.
+				if lastSeenTimestamp.Before(trueStartTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want before %v", lastSeenTimestamp, trueStartTime)
+				}
+				trueStartTime = lastSeenTimestamp
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+
+			// Confirm that the EndpointSliceExport has been updated.
+			endpointSliceExportKey := types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceExport.Name}
+			Eventually(func() error {
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport Get(%+v), got %v, want no error", endpointSliceExportKey, err)
 				}
 
 				expectedEndpoints := []fleetnetv1alpha1.Endpoint{
@@ -802,8 +892,22 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 						Addresses: []string{altIPv4Addr},
 					},
 				}
-				return cmp.Equal(endpointSliceExport.Spec.Endpoints, expectedEndpoints)
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				if diff := cmp.Diff(endpointSliceExport.Spec.Endpoints, expectedEndpoints); diff != "" {
+					return fmt.Errorf("endpoints (-got, +want): %s", diff)
+				}
+
+				endpointSliceRef := endpointSliceExport.Spec.EndpointSliceReference
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -811,6 +915,10 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
 
 		BeforeEach(func() {
@@ -827,73 +935,93 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should export the endpointslice with the invalid unique name annotation again with a new assigned unique name", func() {
 			// Verify first that the EndpointSlice has been exported.
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			var originalEndpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 1)
 				}
 
 				originalEndpointSliceExport = &endpointSliceExportList.Items[0]
 				endpointSliceRef := originalEndpointSliceExport.Spec.EndpointSliceReference
-				if endpointSliceRef.Name != endpointSliceName || endpointSliceRef.UID != endpointSlice.UID {
-					return false
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference (-got, +want): %s", diff)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Tamper with the unique name annotation.
-			endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = "x_y" // "x_y" is not a valid DNS subdomain.
+			endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName] = "x_y" // "x_y" is not a valid DNS subdomain.
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 2)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -903,9 +1031,14 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				Name:      newEndpointSliceExportName,
 			}
 			Expect(hubClient.Get(ctx, newEndpointSliceExportKey, newEndpointSliceExport)).Should(Succeed())
-			endpointSliceExportRef := newEndpointSliceExport.Spec.EndpointSliceReference
-			Expect(endpointSliceExportRef.Name == endpointSliceName).Should(BeTrue())
-			Expect(endpointSliceExportRef.UID == endpointSlice.UID).Should(BeTrue())
+			endpointSliceRef := newEndpointSliceExport.Spec.EndpointSliceReference
+			wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+				memberClusterID,
+				endpointSlice.TypeMeta,
+				endpointSlice.ObjectMeta,
+				metav1.NewTime(trueStartTime),
+			)
+			Expect(cmp.Diff(endpointSliceRef, wantEndpointSliceRef)).Should(BeZero())
 		})
 	})
 
@@ -913,7 +1046,12 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
+
 		altEndpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: hubNSForMember,
@@ -939,6 +1077,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					ResourceVersion: "0",
 					Generation:      1,
 					UID:             "1",
+					ExportedSince:   metav1.Now(),
 				},
 				OwnerServiceReference: fleetnetv1alpha1.OwnerServiceReference{
 					Namespace: memberUserNS,
@@ -963,76 +1102,104 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should export the endpointslice with the used unique name annotation again with a new assigned unique name", func() {
 			// Verify first that the EndpointSlice has been exported.
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			var originalEndpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 2)
 				}
 
 				for idx := range endpointSliceExportList.Items {
 					endpointSliceExport := endpointSliceExportList.Items[idx]
-					endpointSliceExportRef := endpointSliceExport.Spec.EndpointSliceReference
-					if endpointSliceExportRef.Name == endpointSliceName && endpointSliceExportRef.UID == endpointSlice.UID {
+					endpointSliceRef := endpointSliceExport.Spec.EndpointSliceReference
+					if endpointSliceRef.Name == endpointSliceName && endpointSliceRef.UID == endpointSlice.UID {
 						originalEndpointSliceExport = &endpointSliceExport
 						break
 					}
 				}
-				return originalEndpointSliceExport != nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				if originalEndpointSliceExport == nil {
+					return fmt.Errorf("exported endpointslice %s is not found", endpointSlice.Name)
+				}
+
+				endpointSliceRef := originalEndpointSliceExport.Spec.EndpointSliceReference
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Tamper with the unique name annotation.
-			endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = endpointSliceUniqueName
+			endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName] = endpointSliceUniqueName
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been exported again with a new name.
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 3 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 3)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+			newEndpointSliceExportName := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
 			Expect(strings.HasPrefix(newEndpointSliceExportName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)))
 			Expect(newEndpointSliceExportName != originalEndpointSliceExport.Name).Should(BeTrue())
 
@@ -1042,41 +1209,51 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				Name:      newEndpointSliceExportName,
 			}
 			Expect(hubClient.Get(ctx, newEndpointSliceExportKey, newEndpointSliceExport)).Should(Succeed())
-			endpointSliceExportRef := newEndpointSliceExport.Spec.EndpointSliceReference
-			Expect(endpointSliceExportRef.Name == endpointSliceName).Should(BeTrue())
-			Expect(endpointSliceExportRef.UID == endpointSlice.UID).Should(BeTrue())
+			endpointSliceRef := newEndpointSliceExport.Spec.EndpointSliceReference
+			wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+				memberClusterID,
+				endpointSlice.TypeMeta,
+				endpointSlice.ObjectMeta,
+				metav1.NewTime(trueStartTime),
+			)
+			Expect(cmp.Diff(endpointSliceRef, wantEndpointSliceRef)).Should(BeZero())
 		})
 	})
 })
 
-var _ = Describe("endpointslice controller (service export status changes)", Serial, func() {
+var _ = Describe("endpointslice controller (service export status changes)", Serial, Ordered, func() {
 	Context("endpointslices when service export becomes valid with no conflicts", func() {
-		var endpointSlice *discoveryv1.EndpointSlice
-		altEndpointSlice := &discoveryv1.EndpointSlice{
-			ObjectMeta: metav1.ObjectMeta{
+		var (
+			endpointSlice    *discoveryv1.EndpointSlice
+			altEndpointSlice = &discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      altEndpointSliceName,
+					Labels: map[string]string{
+						discoveryv1.LabelServiceName: svcName,
+					},
+				},
+				AddressType: discoveryv1.AddressTypeIPv4,
+				Endpoints: []discoveryv1.Endpoint{
+					{
+						Addresses: []string{altIPv4Addr},
+					},
+				},
+				Ports: []discoveryv1.EndpointPort{
+					{
+						Port: &endpointSlicePort,
+					},
+				},
+			}
+			altEndpointSliceKey = types.NamespacedName{
 				Namespace: memberUserNS,
 				Name:      altEndpointSliceName,
-				Labels: map[string]string{
-					discoveryv1.LabelServiceName: svcName,
-				},
-			},
-			AddressType: discoveryv1.AddressTypeIPv4,
-			Endpoints: []discoveryv1.Endpoint{
-				{
-					Addresses: []string{altIPv4Addr},
-				},
-			},
-			Ports: []discoveryv1.EndpointPort{
-				{
-					Port: &endpointSlicePort,
-				},
-			},
-		}
-		altEndpointSliceKey := types.NamespacedName{
-			Namespace: memberUserNS,
-			Name:      altEndpointSliceName,
-		}
-		var svcExport *fleetnetv1alpha1.ServiceExport
+			}
+			svcExport *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime = time.Now().Add(-time.Second * 1)
+		)
 
 		BeforeEach(func() {
 			endpointSlice = managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
@@ -1094,71 +1271,97 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, altEndpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSlice := &discoveryv1.EndpointSlice{}
-				if err := memberClient.Get(ctx, altEndpointSliceKey, endpointSlice); err != nil && errors.IsNotFound(err) {
-					return true
+				if err := memberClient.Get(ctx, altEndpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want not found", altEndpointSliceKey, err)
 				}
-				return false
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(hubClient.DeleteAllOf(ctx, &fleetnetv1alpha1.EndpointSliceExport{}, client.InNamespace(hubNSForMember))).Should(Succeed())
 			// Confirm that all EndpointSliceExports have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should export endpointslices when service export becomes valid", func() {
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, altEndpointSliceKey, altEndpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", altEndpointSliceKey, err)
 				}
 
-				uniqueName, ok := altEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := altEndpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, altEndpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := altEndpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", altEndpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := altEndpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, altEndpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 2)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -1166,6 +1369,10 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
 
 		BeforeEach(func() {
@@ -1182,70 +1389,85 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should unexport endpointslices when service export becomes invalid", func() {
 			// Confirm that the EndpointSlice has been exported.
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 1)
 				}
 
 				endpointSliceRef := endpointSliceExportList.Items[0].Spec.EndpointSliceReference
-				if endpointSliceRef.Name != endpointSliceName || endpointSliceRef.UID != endpointSlice.UID {
-					return false
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference (-got, +want): %s", diff)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			// Update the status of ServiceExport (valid -> invalid)
+			// Update the status of ServiceExport (valid -> invalid).
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportInvalidNotFoundCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
-			// Confirm that the EndpointSlice has been unexported
-			Eventually(func() bool {
+			// Confirm that the EndpointSlice has been unexported.
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
-				return !ok
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-
-			Eventually(func() bool {
-				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
-				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+				if len(endpointSlice.Annotations) != 0 {
+					return fmt.Errorf("endpointSlice annotations, got %v, want empty", endpointSlice.Annotations)
 				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-				return len(endpointSliceExportList.Items) == 0
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -1253,6 +1475,10 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
 			svcExport     *fleetnetv1alpha1.ServiceExport
+
+			// Apply an offset of 1 second to account for limited timing precision.
+			startTime     = time.Now().Add(-time.Second * 1)
+			trueStartTime time.Time
 		)
 
 		BeforeEach(func() {
@@ -1269,70 +1495,85 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
 			// Confirm that the EndpointSlice is deleted; this helps make the test less flaky.
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport is deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should unexport endpointslices when service export becomes conflicted", func() {
 			// Confirm that the EndpointSlice has been exported.
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				uniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+				if !ok || !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
+					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
+				}
+
+				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
+					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
+				}
+
+				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
-					return false
+					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-
-				if !strings.HasPrefix(uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName)) {
-					return false
+				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				if err != nil {
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				trueStartTime = lastSeenTimestamp
+				if lastSeenTimestamp.Before(startTime) {
+					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
-					return false
+					return fmt.Errorf("endpointSliceExport list length, got %d, want %d", len(endpointSliceExportList.Items), 1)
 				}
 
 				endpointSliceRef := endpointSliceExportList.Items[0].Spec.EndpointSliceReference
-				if endpointSliceRef.Name != endpointSliceName || endpointSliceRef.UID != endpointSlice.UID {
-					return false
+				wantEndpointSliceRef := fleetnetv1alpha1.FromMetaObjects(
+					memberClusterID,
+					endpointSlice.TypeMeta,
+					endpointSlice.ObjectMeta,
+					metav1.NewTime(trueStartTime),
+				)
+				if diff := cmp.Diff(endpointSliceRef, wantEndpointSliceRef); diff != "" {
+					return fmt.Errorf("endpointSliceReference (-got, +want): %s", diff)
 				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Update the status of ServiceExport (valid -> invalid)
 			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportConflictedCondition(memberUserNS, svcName))
 			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 
 			// Confirm that the EndpointSlice has been unexported
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return false
+					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
 				}
 
-				_, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
-				return !ok
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
-
-			Eventually(func() bool {
-				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
-				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return false
+				if len(endpointSlice.Annotations) != 0 {
+					return fmt.Errorf("endpointSlice annotations, got %v, want empty", endpointSlice.Annotations)
 				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-				return len(endpointSliceExportList.Items) == 0
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(endpointSliceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 })
