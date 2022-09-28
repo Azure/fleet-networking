@@ -250,6 +250,82 @@ var _ = Describe("Test exporting service", func() {
 		})
 	})
 
+	Context("Test scaling up/down deployment", func() {
+		BeforeEach(func() {
+			By("Exporting service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+
+		})
+		AfterEach(func() {
+			By("Unexporting service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, wm.MultiClusterService())).Should(Succeed())
+		})
+
+		// assertScaleDeployment scales the deployment up or down per user-input by 1.
+		assertScaleDeployment := func(up bool) {
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+			mcsClusterName := memberClusterMCS.Name()
+			scalingDeploymentDef := wm.Deployment(mcsClusterName)
+			// The default replicas should be more than 1, otherwise this test will fail.
+			replicas := *scalingDeploymentDef.Spec.Replicas - 1
+			if up {
+				replicas = *scalingDeploymentDef.Spec.Replicas + 1
+			}
+			By(fmt.Sprintf("Scaling deployment to %d from %d", replicas, *scalingDeploymentDef.Spec.Replicas))
+			scalingDeploymentDef.Spec.Replicas = &replicas
+			Expect(memberClusterMCS.Client().Update(ctx, scalingDeploymentDef)).Should(Succeed(), "Failed to scale up app deployment %s in cluster %s", scalingDeploymentDef.Name, mcsClusterName)
+
+			// The total endpoints should include addresses of Pods from all member clusters in current test env.
+			wantedEndpointNumber := int(*scalingDeploymentDef.Spec.Replicas)
+			for _, m := range wm.Fleet.MemberClusters() {
+				clusterName := m.Name()
+				if clusterName == mcsClusterName {
+					continue
+				}
+				deploymentDef := wm.Deployment(clusterName)
+				wantedEndpointNumber += int(*deploymentDef.Spec.Replicas)
+			}
+
+			By("Validating endpointslices behind mcs are updated per deployment scaling")
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			mcsDef := wm.MultiClusterService()
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get mcs %s in cluster %s", multiClusterSvcKey, mcsClusterName)
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			Eventually(func() string {
+				endpointSliceList := &discoveryv1.EndpointSliceList{}
+				listOpts := client.ListOptions{
+					LabelSelector: labels.SelectorFromSet(labels.Set{
+						discoveryv1.LabelServiceName: derivedServiceName,
+					}),
+					Namespace: fleetSystemNamespace,
+				}
+				if err := memberClusterMCS.Client().List(ctx, endpointSliceList, &listOpts); err != nil {
+					return err.Error()
+				}
+				gotEndpointNum := 0
+				for _, endpointslice := range endpointSliceList.Items {
+					gotEndpointNum += len(endpointslice.Endpoints)
+				}
+				return cmp.Diff(wantedEndpointNumber, gotEndpointNum)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate endpoint number after scaling deployment (-want, +got):")
+		}
+
+		It("should add the new pod to mcs endpointslices after scaling up the deployment", func() {
+			assertScaleDeployment(true)
+		})
+
+		It("should remove the deleted pod from mcs endpointslices after scaling down the deployment", func() {
+			assertScaleDeployment(false)
+		})
+	})
+
 	Context("Test updating exported service", func() {
 		BeforeEach(func() {
 			By("Exporting the service")
@@ -368,6 +444,148 @@ var _ = Describe("Test exporting service", func() {
 			// clean up
 			By("Creating multi-cluster service")
 			Expect(wm.DeleteMultiClusterService(ctx, mcsDef)).Should(Succeed())
+		})
+	})
+
+	Context("Test creating service export", func() {
+		It("should reject one of the exporting service when exporting services with the same name and namespace but different specs", func() {
+			By("Exporting a service in member cluster one")
+			memberClusterOne := wm.Fleet.MemberClusters()[0]
+			svcExportDef := wm.ServiceExport()
+			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			Expect(memberClusterOne.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
+			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			Eventually(func() string {
+				if err := memberClusterOne.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcExportConditions := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportValid),
+						Reason: "ServiceIsValid",
+						Status: metav1.ConditionTrue,
+					},
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason: "NoConflictFound",
+						Status: metav1.ConditionFalse,
+					},
+				}
+				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
+
+			By("Updating the service with different spec in member cluster two")
+			memberClusterTwo := wm.Fleet.MemberClusters()[1]
+			svcDef := wm.Service()
+			svcDef.Spec.Ports[0].Port++
+			svcKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			Expect(memberClusterTwo.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterTwo.Name())
+
+			By("Exporting the service in member cluster two")
+			svcExportDef = wm.ServiceExport()
+			Expect(memberClusterTwo.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+
+			By("Validating exporting service in cluster two has conflict")
+			Eventually(func() string {
+				if err := memberClusterTwo.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcExportConditions := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportValid),
+						Reason: "ServiceIsValid",
+						Status: metav1.ConditionTrue,
+					},
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason: "ConflictFound",
+						Status: metav1.ConditionTrue,
+					},
+				}
+				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
+
+			// clean up
+			By("Unexporting the service in member cluster one")
+			Expect(memberClusterOne.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
+
+			By("Deleting service export in member cluster two")
+			Expect(memberClusterTwo.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+		})
+
+		It("should reject exporting a headless service", func() {
+			By("Creating a headless service")
+			memberCluster := wm.Fleet.MemberClusters()[0]
+			svcDef := wm.Service()
+			svcDef.Name = fmt.Sprintf("%s-headless", svcDef.Name)
+			svcDef.Spec.Type = corev1.ServiceTypeClusterIP
+			svcDef.Spec.ClusterIP = "None"
+			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
+			Expect(memberCluster.Client().Create(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
+
+			By("Exporting the headless service")
+			svcExportDef := wm.ServiceExport()
+			svcExportDef.Name = svcDef.Name
+			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
+
+			By("Validating exporting the headless service should be ineligible")
+			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			Eventually(func() string {
+				if err := memberCluster.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcExportConditions := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportValid),
+						Reason: "ServiceIneligible",
+						Status: metav1.ConditionFalse,
+					},
+				}
+				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
+
+			// clean up
+			By("Unexporting the service")
+			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
+
+			By("Deleting the service")
+			Expect(memberCluster.Client().Delete(ctx, &svcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberCluster.Name())
+		})
+
+		It("should reject exporting a service of type ExternalName", func() {
+			By("Updating the type of service to ExternalName")
+			memberCluster := wm.Fleet.MemberClusters()[0]
+			svcDef := wm.Service()
+			svcDef.Spec.Type = corev1.ServiceTypeExternalName
+			svcDef.Spec.ExternalName = "e2e.fleet-networking.com"
+			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
+			Expect(memberCluster.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
+
+			By("Exporting the service of type ExternalName")
+			svcExportDef := wm.ServiceExport()
+			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
+			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
+
+			By("Validating exporting service of type ExternalName should be ineligible")
+			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			Eventually(func() string {
+				if err := memberCluster.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
+					return err.Error()
+				}
+				wantedSvcExportConditions := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.ServiceExportValid),
+						Reason: "ServiceIneligible",
+						Status: metav1.ConditionFalse,
+					},
+				}
+				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate service export condition mismatch (-want, +got):")
+
+			// clean up
+			By("Unexporting the service export")
+			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
 		})
 	})
 })
