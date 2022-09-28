@@ -692,7 +692,7 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberClusterNewService.Name())
 		})
 
-		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in one member cluster", func() {
+		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in the same member cluster", func() {
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 
 			By("Creating a new multi-cluster service")
@@ -805,6 +805,7 @@ var _ = Describe("Test exporting service", func() {
 			By("Deleting the newly created service export")
 			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 		})
+
 		It("should allow a multi-cluster service to import a service created later than multi-cluster service", func() {
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 
