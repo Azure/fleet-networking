@@ -173,7 +173,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	// Use the lastTransitionTime from ServiceExportValid condition as the exportedSince timestamp; the condition
-	// is guranteed to exist at this point, with a proper lastTransitionTime value.
+	// is guaranteed to exist at this point, with a proper lastTransitionTime value.
 	exportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
 
 	// Export the Service or update the exported Service.

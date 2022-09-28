@@ -219,7 +219,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	// To avoid negative outliers affecting data analysis, this controller assigns a constant of exactly 1 second
 	// when the calculated duration does not make sense.
 	if timeSpent <= 0 {
-		timeSpent = int64(time.Second.Milliseconds()) * 1
+		timeSpent = time.Second.Milliseconds() * 1
 		klog.V(4).Info("A negative service export duration data point has been observed",
 			"serviceNamespacedName", internalSvcExport.Spec.ServiceReference.NamespacedName,
 			"originClusterID", internalSvcExport.Spec.ServiceReference.ClusterID)
