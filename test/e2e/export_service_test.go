@@ -702,8 +702,8 @@ var _ = Describe("Test exporting service", func() {
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
 			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
-			By("Validating the new multi-cluster service status is unknown consistently")
-			Consistently(func() string {
+			By("Validating the new multi-cluster service status is unknown")
+			Eventually(func() string {
 				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err.Error()
 				}
