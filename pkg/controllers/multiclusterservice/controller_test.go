@@ -72,6 +72,7 @@ func multiClusterServiceForTest() *fleetnetv1alpha1.MultiClusterService {
 				Name: testServiceName,
 			},
 		},
+		TypeMeta: multiClusterServiceType,
 	}
 }
 
@@ -223,7 +224,8 @@ func TestHandleUpdate(t *testing.T) {
 		Kind:               multiClusterServiceType.Kind,
 		Name:               testName,
 		Controller:         &controller,
-		BlockOwnerDeletion: &blockOwnerDeletion}
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
 
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
@@ -295,12 +297,14 @@ func TestHandleUpdate(t *testing.T) {
 		serviceImport       *fleetnetv1alpha1.ServiceImport
 		hasOldServiceImport bool
 		service             *corev1.Service
+		want                ctrl.Result
 		wantServiceImport   *fleetnetv1alpha1.ServiceImport
 		wantDerivedService  *corev1.Service
 		wantMCS             *fleetnetv1alpha1.MultiClusterService
 	}{
 		{
 			name: "no service import and its label", // mcs is just created
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -342,6 +346,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -390,6 +395,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 			hasOldServiceImport: true,
+			want:                ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -425,6 +431,7 @@ func TestHandleUpdate(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: "old-service",
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -460,6 +467,7 @@ func TestHandleUpdate(t *testing.T) {
 			labels: map[string]string{
 				multiClusterServiceLabelServiceImport: testServiceName,
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -508,6 +516,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -565,6 +574,7 @@ func TestHandleUpdate(t *testing.T) {
 					LoadBalancer: loadBalancerStatus,
 				},
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -612,6 +622,7 @@ func TestHandleUpdate(t *testing.T) {
 					},
 				},
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -679,6 +690,7 @@ func TestHandleUpdate(t *testing.T) {
 					},
 				},
 			},
+			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
 				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
@@ -838,6 +850,74 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "service import has been exported other mcs",
+			serviceImport: &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         multiClusterServiceType.APIVersion,
+							Kind:               multiClusterServiceType.Kind,
+							Name:               "another-mcs",
+							Controller:         &controller,
+							BlockOwnerDeletion: &blockOwnerDeletion,
+						},
+					},
+				},
+				Status: fleetnetv1alpha1.ServiceImportStatus{
+					Ports: importServicePorts,
+					Clusters: []fleetnetv1alpha1.ClusterStatus{
+						{Cluster: "member1"},
+					},
+				},
+			},
+			want: ctrl.Result{RequeueAfter: mcsRetryInterval},
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         multiClusterServiceType.APIVersion,
+							Kind:               multiClusterServiceType.Kind,
+							Name:               "another-mcs",
+							Controller:         &controller,
+							BlockOwnerDeletion: &blockOwnerDeletion,
+						},
+					},
+				},
+				Status: fleetnetv1alpha1.ServiceImportStatus{
+					Ports: importServicePorts,
+					Clusters: []fleetnetv1alpha1.ClusterStatus{
+						{Cluster: "member1"},
+					},
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport: testServiceName,
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						unknownCondition,
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -865,9 +945,8 @@ func TestHandleUpdate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to handle update: %v", err)
 			}
-			want := ctrl.Result{}
-			if !cmp.Equal(got, want) {
-				t.Errorf("handleUpdate() = %+v, want %+v", got, want)
+			if !cmp.Equal(got, tc.want) {
+				t.Errorf("handleUpdate() = %+v, want %+v", got, tc.want)
 			}
 			serviceImport := fleetnetv1alpha1.ServiceImport{}
 			name := types.NamespacedName{Namespace: testNamespace, Name: testServiceName}

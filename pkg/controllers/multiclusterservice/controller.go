@@ -45,6 +45,8 @@ const (
 	conditionReasonUnknownServiceImport = "UnknownServiceImport"
 	conditionReasonFoundServiceImport   = "FoundServiceImport"
 
+	mcsRetryInterval = time.Second * 5
+
 	// ControllerName is the name of the Reconciler.
 	ControllerName = "multiclusterservice-controller"
 )
@@ -205,7 +207,21 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	if op, err := controllerutil.CreateOrUpdate(ctx, r.Client, serviceImport, func() error {
 		return r.ensureServiceImport(serviceImport, mcs)
 	}); err != nil {
-		klog.ErrorS(err, "Failed to create or update service import of mcs", "multiClusterService", mcsKObj, "serviceImport", klog.KObj(serviceImport), "op", op)
+		serviceImportKObj := klog.KObj(serviceImport)
+		// If the service import is already owned by another MultiClusterService, serviceImport update or creation will fail.
+		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
+			// reset the current serviceImport as empty as internal func will update mcs status based on the serviceImport status
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{}
+			if err := r.handleInvalidServiceImport(ctx, mcs, serviceImport); err != nil {
+				klog.ErrorS(err, "Failed to update status of mcs as serviceImport has been owned by other mcs", "multiClusterService", mcsKObj, "serviceImport", serviceImportKObj, "owner", serviceImport.OwnerReferences)
+				return ctrl.Result{}, err
+			}
+			// have to requeue the request to see if the service import is deleted by owner or not
+			klog.V(3).InfoS("ServiceImport has been owned by other mcs and requeue the request", "multiClusterService", mcsKObj, "serviceImport", serviceImportKObj)
+			return ctrl.Result{RequeueAfter: mcsRetryInterval}, nil
+		}
+
+		klog.ErrorS(err, "Failed to create or update service import of mcs", "multiClusterService", mcsKObj, "serviceImport", serviceImportKObj, "op", op)
 		return ctrl.Result{}, err
 	}
 
@@ -248,6 +264,17 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	}
 	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Imported %s service and updated %s status", serviceImport.Name, mcs.Name)
 	return ctrl.Result{}, nil
+}
+
+func isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+	for _, owner := range serviceImport.OwnerReferences {
+		if owner.APIVersion == mcs.APIVersion &&
+			owner.Kind == mcs.Kind &&
+			owner.Name != mcs.Name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Reconciler) ensureServiceImport(serviceImport *fleetnetv1alpha1.ServiceImport, mcs *fleetnetv1alpha1.MultiClusterService) error {
