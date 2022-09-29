@@ -32,9 +32,10 @@ const (
 
 // Reconciler reconciles the update of an InternalServiceExport.
 type Reconciler struct {
-	MemberClient client.Client
-	HubClient    client.Client
-	Recorder     record.EventRecorder
+	MemberClusterID string
+	MemberClient    client.Client
+	HubClient       client.Client
+	Recorder        record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete

@@ -38,8 +38,9 @@ const (
 
 // Reconciler reconciles an EndpointSliceImport.
 type Reconciler struct {
-	MemberClient client.Client
-	HubClient    client.Client
+	MemberClusterID string
+	MemberClient    client.Client
+	HubClient       client.Client
 	// The namespace reserved for fleet resources in the member cluster.
 	FleetSystemNamespace string
 }
