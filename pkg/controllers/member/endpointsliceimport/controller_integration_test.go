@@ -6,7 +6,6 @@ Licensed under the MIT license.
 package endpointsliceimport
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -34,60 +33,13 @@ const (
 )
 
 var (
-	endpointSliceKey   = types.NamespacedName{Namespace: fleetSystemNS, Name: endpointSliceImportName}
-	multiClusterSvcKey = types.NamespacedName{Namespace: memberUserNS, Name: multiClusterSvcName}
-	derivedSvcKey      = types.NamespacedName{Namespace: fleetSystemNS, Name: derivedSvcName}
-)
-
-var (
-	// endpointSliceImportIsAbsentActual runs with Eventually and Consistently assertion to make sure that
-	// the EndpointSliceImport referred by endpointSliceImportKey no longer exists.
-	endpointSliceImportIsAbsentActual = func() error {
-		endpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
-		if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); !errors.IsNotFound(err) {
-			return fmt.Errorf("endpointSliceImport Get(%+v), got %w, want not found", endpointSliceImportKey, err)
-		}
-		return nil
+	endpointSliceImportKey = types.NamespacedName{
+		Namespace: hubNSForMember,
+		Name:      endpointSliceImportName,
 	}
-	// endpointSliceIsAbsentActual runs with Eventually and Consistently assertion to make sure that
-	// the EndpointSlice referred by endpointSliceKey no longer exists.
-	endpointSliceIsAbsentActual = func() error {
-		endpointSlice := &discoveryv1.EndpointSlice{}
-		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
-			return fmt.Errorf("endpointSlice Get(%+v), got %w, want not found", endpointSliceKey, err)
-		}
-		return nil
-	}
-	// endpointSliceIsNotImportedActual runs with Eventually and Consistently assertion to make sure that
-	// no EndpointSlice has been imported.
-	endpointSliceIsNotImportedActual = func() error {
-		endpointSliceList := discoveryv1.EndpointSliceList{}
-		if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
-			return fmt.Errorf("endpointSlice List(), got %w, want no error", err)
-		}
-
-		if len(endpointSliceList.Items) != 0 {
-			return fmt.Errorf("endpointSliceList, got %v, want empty list", endpointSliceList.Items)
-		}
-		return nil
-	}
-	// multiClusterServiceIsAbsentActual runs with Eventually and Consistently assertion to make sure that
-	// the MultiClusterService referred by multiClusterSvcKey no longer exists.
-	multiClusterServiceIsAbsentActual = func() error {
-		multiClusterSvc := &fleetnetv1alpha1.MultiClusterService{}
-		if err := memberClient.Get(ctx, multiClusterSvcKey, multiClusterSvc); !errors.IsNotFound(err) {
-			return fmt.Errorf("multiClusterService Get(%+v), got %w, want not found", multiClusterSvcKey, err)
-		}
-		return nil
-	}
-	// derivedServiceIsAbsentActual runs with Eventually and Consistently assertion to make sure that
-	// the derived Service referred by derivedSvcKey no longer exists.
-	derivedServiceIsAbsentActual = func() error {
-		derivedSvc := &corev1.Service{}
-		if err := memberClient.Get(ctx, derivedSvcKey, derivedSvc); !errors.IsNotFound(err) {
-			return fmt.Errorf("service Get(%+v), got %w, want not found", derivedSvcKey, err)
-		}
-		return nil
+	endpointSliceKey = types.NamespacedName{
+		Namespace: fleetSystemNS,
+		Name:      endpointSliceImportName,
 	}
 )
 
@@ -153,54 +105,64 @@ func svcDerivedByMultiClusterSvcWithHybridProtocol() *corev1.Service {
 var _ = Describe("endpointsliceimport controller", func() {
 	Context("deleted endpointsliceimport", func() {
 		var (
-			endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-			endpointSlice       *discoveryv1.EndpointSlice
+			deletedEndpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+			importedEndpointSlice      *discoveryv1.EndpointSlice
 		)
 
 		BeforeEach(func() {
-			endpointSlice = importedIPv4EndpointSlice()
-			Expect(memberClient.Create(ctx, endpointSlice)).Should(Succeed())
+			importedEndpointSlice = importedIPv4EndpointSlice()
+			Expect(memberClient.Create(ctx, importedEndpointSlice)).Should(Succeed())
 
-			endpointSliceImport = ipv4EndpointSliceImport()
-			endpointSliceImport.Finalizers = []string{endpointSliceImportCleanupFinalizer}
-			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
+			deletedEndpointSliceImport = ipv4EndpointSliceImport()
+			deletedEndpointSliceImport.Finalizers = []string{endpointSliceImportCleanupFinalizer}
+			Expect(hubClient.Create(ctx, deletedEndpointSliceImport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, deletedEndpointSliceImport)).Should(Succeed())
 		})
 
 		It("should unimport endpointslice", func() {
-			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(func() bool {
+				return errors.IsNotFound(memberClient.Get(ctx, endpointSliceKey, importedEndpointSlice))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			Eventually(func() bool {
+				return errors.IsNotFound(hubClient.Get(ctx, endpointSliceImportKey, deletedEndpointSliceImport))
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
 	Context("no matching multiclusterservice", func() {
-		var endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+		var phantomEndpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
 
 		BeforeEach(func() {
-			endpointSliceImport = ipv4EndpointSliceImport()
-			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
+			phantomEndpointSliceImport = ipv4EndpointSliceImport()
+			Expect(hubClient.Create(ctx, phantomEndpointSliceImport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
-			// Confirm that the EndpointSliceImport has been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Expect(hubClient.Delete(ctx, phantomEndpointSliceImport)).Should(Succeed())
 		})
 
 		It("should not import endpointslice", func() {
-			Consistently(endpointSliceIsNotImportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Consistently(func() bool {
+				endpointSliceList := discoveryv1.EndpointSliceList{}
+				if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				return len(endpointSliceList.Items) == 0
+			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
 	Context("no valid derived service (bad label)", func() {
 		var (
-			endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-			multiClusterSvc     *fleetnetv1alpha1.MultiClusterService
+			phantomEndpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+			multiClusterSvc            *fleetnetv1alpha1.MultiClusterService
 		)
 
 		BeforeEach(func() {
-			endpointSliceImport = ipv4EndpointSliceImport()
-			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
+			phantomEndpointSliceImport = ipv4EndpointSliceImport()
+			Expect(hubClient.Create(ctx, phantomEndpointSliceImport)).Should(Succeed())
 
 			multiClusterSvc = fulfilledMultiClusterSvc()
 			multiClusterSvc.Labels = map[string]string{
@@ -210,57 +172,63 @@ var _ = Describe("endpointsliceimport controller", func() {
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, phantomEndpointSliceImport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, multiClusterSvc)).Should(Succeed())
-
-			// Confirm that all created objects have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(multiClusterServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not import endpointslice", func() {
-			Consistently(endpointSliceIsNotImportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Consistently(func() bool {
+				endpointSliceList := discoveryv1.EndpointSliceList{}
+				if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				return len(endpointSliceList.Items) == 0
+			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
 	Context("no valid derived service (not exist)", func() {
 		var (
-			endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-			multiClusterSvc     *fleetnetv1alpha1.MultiClusterService
+			phantomEndpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+			multiClusterSvc            *fleetnetv1alpha1.MultiClusterService
 		)
 
 		BeforeEach(func() {
-			endpointSliceImport = ipv4EndpointSliceImport()
-			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
+			phantomEndpointSliceImport = ipv4EndpointSliceImport()
+			Expect(hubClient.Create(ctx, phantomEndpointSliceImport)).Should(Succeed())
 
 			multiClusterSvc = fulfilledMultiClusterSvc()
 			Expect(memberClient.Create(ctx, multiClusterSvc)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, phantomEndpointSliceImport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, multiClusterSvc)).Should(Succeed())
-
-			// Confirm that all created objects have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(multiClusterServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 
 		It("should not import endpointslice", func() {
-			Consistently(endpointSliceIsNotImportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Consistently(func() bool {
+				endpointSliceList := discoveryv1.EndpointSliceList{}
+				if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				return len(endpointSliceList.Items) == 0
+			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
 	Context("no valid derived service (deleted)", func() {
 		var (
-			endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-			multiClusterSvc     *fleetnetv1alpha1.MultiClusterService
-			derivedSvc          *corev1.Service
+			phantomEndpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+			multiClusterSvc            *fleetnetv1alpha1.MultiClusterService
+			derivedSvc                 *corev1.Service
 		)
 
 		BeforeEach(func() {
-			endpointSliceImport = ipv4EndpointSliceImport()
-			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
+			phantomEndpointSliceImport = ipv4EndpointSliceImport()
+			Expect(hubClient.Create(ctx, phantomEndpointSliceImport)).Should(Succeed())
 
 			multiClusterSvc = fulfilledMultiClusterSvc()
 			Expect(memberClient.Create(ctx, multiClusterSvc)).Should(Succeed())
@@ -273,30 +241,28 @@ var _ = Describe("endpointsliceimport controller", func() {
 		})
 
 		AfterEach(func() {
-			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, phantomEndpointSliceImport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, multiClusterSvc)).Should(Succeed())
 
 			// Remove the finalizer.
-			Eventually(func() error {
-				if err := memberClient.Get(ctx, derivedSvcKey, derivedSvc); err != nil {
-					return fmt.Errorf("service Get(%+v), got %w, want no error", derivedSvcKey, err)
-				}
-
-				derivedSvc.Finalizers = []string{}
-				if err := memberClient.Update(ctx, derivedSvc); err != nil {
-					return fmt.Errorf("service Update(%+v), got %w, want no error", derivedSvc, err)
-				}
-				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-
-			// Confirm that all created objects have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(multiClusterServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(derivedServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			derivedSvcKey := types.NamespacedName{
+				Namespace: fleetSystemNS,
+				Name:      derivedSvcName,
+			}
+			Expect(memberClient.Get(ctx, derivedSvcKey, derivedSvc)).Should(Succeed())
+			derivedSvc.Finalizers = []string{}
+			Expect(memberClient.Update(ctx, derivedSvc)).Should(Succeed())
 		})
 
 		It("should not import endpointslice", func() {
-			Consistently(endpointSliceIsNotImportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Consistently(func() bool {
+				endpointSliceList := discoveryv1.EndpointSliceList{}
+				if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
+					return false
+				}
+
+				return len(endpointSliceList.Items) == 0
+			}, consistentlyDuration, consistentlyInterval).Should(BeTrue())
 		})
 	})
 
@@ -322,54 +288,42 @@ var _ = Describe("endpointsliceimport controller", func() {
 			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, derivedSvc)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, multiClusterSvc)).Should(Succeed())
-
-			// Confirm that all created objects have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(multiClusterServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(derivedServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-
-			// Make sure that all imported EndpointSlices are removed.
-			Eventually(endpointSliceIsNotImportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			// Make sure that the imported EndpointSlice is removed.
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); errors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should import endpointslice", func() {
-			Eventually(func() error {
+			Eventually(func() bool {
 				if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointsliceImport Get(%+v), got %w, want no error", endpointSliceImportKey, err)
+					return false
 				}
 
-				if !cmp.Equal(endpointSliceImport.Finalizers, []string{endpointSliceImportCleanupFinalizer}) {
-					return fmt.Errorf("endpointSliceImport finalizers, got %v, want %v", endpointSliceImport.Finalizers, []string{endpointSliceImportCleanupFinalizer})
-				}
-
-				lastObservedGeneration, ok := endpointSliceImport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]
-				if !ok || lastObservedGeneration != fmt.Sprintf("%d", endpointSliceImport.Spec.EndpointSliceReference.Generation) {
-					return fmt.Errorf("lastObservedGeneration, got %s, want %d",
-						lastObservedGeneration, endpointSliceImport.Spec.EndpointSliceReference.Generation)
-				}
-				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return cmp.Equal(endpointSliceImport.Finalizers, []string{endpointSliceImportCleanupFinalizer})
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 
 			endpointSlice := &discoveryv1.EndpointSlice{}
 			expectedEndpointSlice := importedIPv4EndpointSlice()
-			Eventually(func() error {
+			Eventually(func() bool {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
+					return false
 				}
 
 				if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {
-					return fmt.Errorf("endpointSlice address type, got %v, want %v", endpointSlice.AddressType, discoveryv1.AddressTypeIPv4)
+					return false
 				}
 
-				if diff := cmp.Diff(endpointSlice.Ports, expectedEndpointSlice.Ports); diff != "" {
-					return fmt.Errorf("endpointSlice ports (-got, +want): %s", diff)
+				if !cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+					return false
 				}
 
-				if diff := cmp.Diff(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints); diff != "" {
-					return fmt.Errorf("endpointSlice endpoints (-got, +want): %s", diff)
-				}
-				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 
@@ -464,55 +418,43 @@ var _ = Describe("endpointsliceimport controller", func() {
 			endpointSliceImport.Finalizers = []string{endpointSliceImportCleanupFinalizer}
 			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
 
-			Eventually(func() error {
-				if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointSliceImport Get(%+v), got %w, want no error", endpointSliceImportKey, err)
-				}
-
-				endpointSliceImport.Spec.Endpoints[0].Addresses[0] = newAddr
-				if err := hubClient.Update(ctx, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointSliceImport Update(%+v), got %w, want no error", endpointSliceImport, err)
-				}
-				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			endpointSliceImport.Spec.Endpoints[0].Addresses[0] = newAddr
+			Expect(hubClient.Update(ctx, endpointSliceImport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
 			Expect(hubClient.Delete(ctx, endpointSliceImport)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, derivedSvc)).Should(Succeed())
 			Expect(memberClient.Delete(ctx, multiClusterSvc)).Should(Succeed())
-
-			// Confirm that all created objects have been deleted; this helps make the test less flaky.
-			Eventually(endpointSliceImportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(multiClusterServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(derivedServiceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-
-			// Make sure that all imported EndpointSlices are removed.
-			Eventually(endpointSliceIsNotImportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			// Make sure that the imported EndpointSlice is removed.
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); errors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 
 		It("should update imported endpointslice", func() {
 			endpointSlice := &discoveryv1.EndpointSlice{}
 			expectedEndpointSlice := importedIPv4EndpointSlice()
 			expectedEndpointSlice.Endpoints[0].Addresses[0] = newAddr
-			Eventually(func() error {
+			Eventually(func() bool {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
+					return false
 				}
 
 				if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {
-					return fmt.Errorf("endpointSlice address type, got %v, want %v", endpointSlice.AddressType, discoveryv1.AddressTypeIPv4)
+					return false
 				}
 
-				if diff := cmp.Diff(endpointSlice.Ports, expectedEndpointSlice.Ports); diff != "" {
-					return fmt.Errorf("endpointSlice ports (-got, +want): %s", diff)
+				if !cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+					return false
 				}
 
-				if diff := cmp.Diff(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints); diff != "" {
-					return fmt.Errorf("endpointSlice endpoints (-got, +want): %s", diff)
-				}
-				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 })

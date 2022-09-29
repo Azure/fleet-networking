@@ -7,15 +7,12 @@ package endpointsliceimport
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +25,6 @@ import (
 )
 
 const (
-	memberClusterID         = "bravelion"
 	hubNSForMember          = "bravelion"
 	memberUserNS            = "work"
 	fleetSystemNS           = "fleet-system"
@@ -50,7 +46,7 @@ var (
 	udpPortName         = "udp"
 	udpPort             = int32(82)
 	udpPortProtocol     = corev1.ProtocolUDP
-	udpPortAppProtocol  = "example.com/custom-2"
+	udpPortAppProtocol  = "example.com/custom"
 )
 
 // Bootstrap the test environment.
@@ -102,7 +98,7 @@ func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
 				ResourceVersion: "0",
 				Generation:      1,
 				UID:             "00000000-0000-0000-0000-000000000000",
-				ExportedSince:   metav1.Now(),
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 			},
 			OwnerServiceReference: fleetnetv1alpha1.OwnerServiceReference{
 				Namespace: memberUserNS,
@@ -518,177 +514,6 @@ func TestAddEndpointSliceImportCleanupFinalizer(t *testing.T) {
 				t.Fatalf("endpointSliceImport finalizer, got %v, want %v",
 					updatedEndpointSliceImport.Finalizers,
 					[]string{endpointSliceImportCleanupFinalizer})
-			}
-		})
-	}
-}
-
-// TestObserveMetrics tests the Reconciler.observeMetrics function.
-func TestObserveMetrics(t *testing.T) {
-	metricMetadata := `
-		# HELP fleet_networking_endpointslice_export_import_duration_milliseconds The duration of an endpointslice export
-		# TYPE fleet_networking_endpointslice_export_import_duration_milliseconds histogram
-	`
-	startTime := time.Now().Round(time.Second)
-
-	testCases := []struct {
-		name                string
-		endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
-		startTime           time.Time
-		wantMetricCount     int
-		wantHistogram       string
-	}{
-		{
-			name: "should not observe data point (the object generation has been observed before)",
-			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceImportName,
-					Annotations: map[string]string{
-						objectmeta.MetricsAnnotationLastObservedGeneration: "1",
-					},
-				},
-				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
-					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						Generation: 1,
-					},
-				},
-			},
-			startTime:       startTime,
-			wantMetricCount: 0,
-			wantHistogram:   "",
-		},
-		{
-			name: "should observe a data point",
-			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceImportName,
-				},
-				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
-					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     2,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(-time.Second)),
-					},
-				},
-			},
-			startTime:       startTime,
-			wantMetricCount: 1,
-			wantHistogram: `
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="1000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="2500"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="5000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="10000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="25000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="50000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="+Inf"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="bravelion",originClusterID="bravelion"} 1000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="bravelion",originClusterID="bravelion"} 1
-			`,
-		},
-		{
-			name: "should observe a data point (negative export duration)",
-			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceImportName,
-				},
-				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
-					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     3,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(time.Second * 2)),
-					},
-				},
-			},
-			startTime:       startTime,
-			wantMetricCount: 1,
-			wantHistogram: `
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="1000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="2500"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="5000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="10000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="25000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="50000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="+Inf"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="bravelion",originClusterID="bravelion"} 2000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="bravelion",originClusterID="bravelion"} 2
-			`,
-		},
-		{
-			name: "should observe a data point (large outlier)",
-			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: hubNSForMember,
-					Name:      endpointSliceImportName,
-					Annotations: map[string]string{
-						objectmeta.MetricsAnnotationLastObservedGeneration: "3",
-					},
-				},
-				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
-					EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     4,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(-time.Minute * 5)),
-					},
-				},
-			},
-			startTime:       startTime,
-			wantMetricCount: 1,
-			wantHistogram: `
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="1000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="2500"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="5000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="10000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="25000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="50000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="bravelion",originClusterID="bravelion",le="+Inf"} 3
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="bravelion",originClusterID="bravelion"} 102000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="bravelion",originClusterID="bravelion"} 3
-			`,
-		},
-	}
-
-	ctx := context.Background()
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			fakeMemberClient := fake.NewClientBuilder().Build()
-			fakeHubClient := fake.NewClientBuilder().
-				WithScheme(scheme.Scheme).
-				WithObjects(tc.endpointSliceImport).
-				Build()
-			reconciler := Reconciler{
-				MemberClusterID:      memberClusterID,
-				MemberClient:         fakeMemberClient,
-				HubClient:            fakeHubClient,
-				FleetSystemNamespace: fleetSystemNS,
-			}
-
-			if err := reconciler.observeMetrics(ctx, tc.endpointSliceImport, tc.startTime); err != nil {
-				t.Fatalf("observeMetrics(%+v), got %v, want no error", tc.endpointSliceImport, err)
-			}
-
-			endpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
-			if err := fakeHubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
-				t.Fatalf("internalServiceExport Get(%+v), got %v, want no error", endpointSliceImportKey, err)
-			}
-			lastObservedGeneration, ok := endpointSliceImport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]
-			if !ok || lastObservedGeneration != fmt.Sprintf("%d", tc.endpointSliceImport.Spec.EndpointSliceReference.Generation) {
-				t.Fatalf("lastObservedGeneration, got %s, want %d", lastObservedGeneration, tc.endpointSliceImport.Spec.EndpointSliceReference.Generation)
-			}
-
-			if c := testutil.CollectAndCount(endpointSliceExportImportDuration); c != tc.wantMetricCount {
-				t.Fatalf("metric counts, got %d, want %d", c, tc.wantMetricCount)
-			}
-
-			if tc.wantHistogram != "" {
-				if err := testutil.CollectAndCompare(endpointSliceExportImportDuration, strings.NewReader(metricMetadata+tc.wantHistogram)); err != nil {
-					t.Errorf("%s", err)
-				}
 			}
 		})
 	}
