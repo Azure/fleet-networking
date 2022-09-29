@@ -342,7 +342,7 @@ func (r *Reconciler) updateMultiClusterServiceStatus(ctx context.Context, mcs *f
 			Status:             metav1.ConditionUnknown,
 			Reason:             conditionReasonUnknownServiceImport,
 			ObservedGeneration: mcs.GetGeneration(),
-			Message:            "importing service; if the condition remains for a while, please verify that service has been exported",
+			Message:            "importing service; if the condition remains for a while, please verify that service has been exported or service has been exported by other multiClusterService",
 		}
 	}
 
