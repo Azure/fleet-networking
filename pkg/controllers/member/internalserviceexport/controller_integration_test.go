@@ -33,7 +33,7 @@ var (
 	internalServiceExportIsAbsentActual = func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); !errors.IsNotFound(err) {
-			return fmt.Errorf("internalServiceExport Get(%+v), got %v, want not found", internalSvcExportKey, err)
+			return fmt.Errorf("internalServiceExport Get(%+v), got %w, want not found", internalSvcExportKey, err)
 		}
 		return nil
 	}
@@ -42,7 +42,7 @@ var (
 	serviceExportIsAbsentActual = func() error {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcExportKey, svcExport); !errors.IsNotFound(err) {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want not found", svcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcExportKey, err)
 		}
 		return nil
 	}
@@ -52,7 +52,7 @@ var (
 	internalServiceExportHasLastObservedGenerationAnnotatedActual = func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
-			return fmt.Errorf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
+			return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
 		}
 
 		lastObservedGeneration, ok := internalSvcExport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]
@@ -139,7 +139,7 @@ var _ = Describe("internalsvcexport controller", func() {
 		It("should not report back any conflict resolution result", func() {
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
-					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
 				}
 
 				if len(svcExport.Status.Conditions) != 0 {
@@ -150,7 +150,7 @@ var _ = Describe("internalsvcexport controller", func() {
 
 			Eventually(func() error {
 				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
-					return fmt.Errorf("internalServiceExport Get(%v), got %v, want no error", internalSvcExportKey, err)
+					return fmt.Errorf("internalServiceExport Get(%v), got %w, want no error", internalSvcExportKey, err)
 				}
 
 				if _, ok := internalSvcExport.Annotations[objectmeta.MetricsAnnotationLastObservedGeneration]; ok {
@@ -191,7 +191,7 @@ var _ = Describe("internalsvcexport controller", func() {
 
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
-					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
 				}
 
 				expectedConds := []metav1.Condition{unconflictedServiceExportConflictCondition(memberUserNS, svcName)}
@@ -235,7 +235,7 @@ var _ = Describe("internalsvcexport controller", func() {
 
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
-					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcExportKey, err)
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
 				}
 
 				expectedConds := []metav1.Condition{conflictedServiceExportConflictCondition(memberUserNS, svcName)}

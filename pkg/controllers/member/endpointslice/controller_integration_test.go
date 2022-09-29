@@ -50,7 +50,7 @@ var (
 	endpointSliceUniqueNameIsNotAssignedActual = func() error {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-			return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+			return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 		}
 
 		if _, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; ok {
@@ -64,11 +64,11 @@ var (
 		endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 		listOption := &client.ListOptions{Namespace: hubNSForMember}
 		if err := hubClient.List(ctx, endpointSliceExportList, listOption); err != nil {
-			return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+			return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 		}
 
 		if len(endpointSliceExportList.Items) > 0 {
-			return fmt.Errorf("endpointSliceExportList length, got %d, want %d", len(endpointSliceExportList.Items), 0)
+			return fmt.Errorf("endpointSliceExportList, got %+v, want empty list", endpointSliceExportList.Items)
 		}
 		return nil
 	}
@@ -78,7 +78,7 @@ var (
 	endpointSliceIsAbsentActual = func() error {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
-			return fmt.Errorf("endpointSlice Get(%+v), got %v, want not found", endpointSliceKey, err)
+			return fmt.Errorf("endpointSlice Get(%+v), got %w, want not found", endpointSliceKey, err)
 		}
 		return nil
 	}
@@ -88,7 +88,7 @@ var (
 	serviceExportIsAbsentActual = func() error {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcKey, svcExport); !errors.IsNotFound(err) {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want not found", svcKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcKey, err)
 		}
 		return nil
 	}
@@ -619,9 +619,6 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 
 			svcExport = notYetFulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
-			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportValidCondition(memberUserNS, svcName))
-			meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
-			Expect(memberClient.Status().Update(ctx, svcExport)).Should(Succeed())
 		})
 
 		AfterEach(func() {
@@ -641,7 +638,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 			// Add the unique name annotation now; a finalizer is also added to prevent premature deletion.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return err
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 				endpointSlice.Annotations = map[string]string{
 					objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
@@ -651,6 +648,20 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 				endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
 				return memberClient.Update(ctx, endpointSlice)
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			// Mark the ServiceExport as valid + no conflict detected after the unique name annotation is added,
+			// to avoid the controller prematurely exporting the EndpointSlice.
+			Eventually(func() error {
+				if err := memberClient.Get(ctx, svcKey, svcExport); err != nil {
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcKey, err)
+				}
+				meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportValidCondition(memberUserNS, svcName))
+				meta.SetStatusCondition(&svcExport.Status.Conditions, serviceExportNoConflictCondition(memberUserNS, svcName))
+				if err := memberClient.Status().Update(ctx, svcExport); err != nil {
+					return fmt.Errorf("serviceExport status Update(%+v), got %w, want no error", svcExport, err)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Set the deletion timestamp.
 			Expect(memberClient.Delete(ctx, endpointSlice)).Should(Succeed())
@@ -699,7 +710,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 		It("should export the new endpointslice", func() {
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -718,7 +729,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -730,7 +741,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
@@ -791,7 +802,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			// Verify first that the EndpointSlice has been exported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -810,7 +821,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -823,7 +834,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
@@ -853,7 +864,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			// Confirm that the last seen annotations have been updated.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
@@ -867,7 +878,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(), got %v, want no error", err)
+					return fmt.Errorf("lastSeenTimestamp Parse(), got %w, want no error", err)
 				}
 				// Due to timing precision limitations, the later timestamp may appear the same as the earlier one.
 				if lastSeenTimestamp.Before(trueStartTime) {
@@ -881,7 +892,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			endpointSliceExportKey := types.NamespacedName{Namespace: hubNSForMember, Name: endpointSliceExport.Name}
 			Eventually(func() error {
 				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil {
-					return fmt.Errorf("endpointSliceExport Get(%+v), got %v, want no error", endpointSliceExportKey, err)
+					return fmt.Errorf("endpointSliceExport Get(%+v), got %w, want no error", endpointSliceExportKey, err)
 				}
 
 				expectedEndpoints := []fleetnetv1alpha1.Endpoint{
@@ -950,7 +961,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			// Verify first that the EndpointSlice has been exported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -969,7 +980,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -982,7 +993,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
@@ -1011,7 +1022,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
@@ -1117,7 +1128,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			// Verify first that the EndpointSlice has been exported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -1136,7 +1147,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -1149,7 +1160,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
@@ -1189,7 +1200,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 3 {
@@ -1278,7 +1289,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			Eventually(func() error {
 				endpointSlice := &discoveryv1.EndpointSlice{}
 				if err := memberClient.Get(ctx, altEndpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want not found", altEndpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want not found", altEndpointSliceKey, err)
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
@@ -1295,7 +1306,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 		It("should export endpointslices when service export becomes valid", func() {
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -1314,7 +1325,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				if lastSeenTimestamp.Before(startTime) {
 					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
@@ -1324,7 +1335,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, altEndpointSliceKey, altEndpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", altEndpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", altEndpointSliceKey, err)
 				}
 
 				uniqueName, ok := altEndpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -1343,7 +1354,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				if lastSeenTimestamp.Before(startTime) {
 					return fmt.Errorf("lastSeenTimestamp, got %v, want after %v", lastSeenTimestamp, startTime)
@@ -1354,7 +1365,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 2 {
@@ -1400,7 +1411,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			// Confirm that the EndpointSlice has been exported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -1419,7 +1430,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -1431,7 +1442,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
@@ -1458,7 +1469,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			// Confirm that the EndpointSlice has been unexported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				if len(endpointSlice.Annotations) != 0 {
@@ -1506,7 +1517,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			// Confirm that the EndpointSlice has been exported.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				uniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
@@ -1525,7 +1536,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 				}
 				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
-					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %v, want no error", lastSeenTimestamp, err)
+					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
 				trueStartTime = lastSeenTimestamp
 				if lastSeenTimestamp.Before(startTime) {
@@ -1537,7 +1548,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			Eventually(func() error {
 				endpointSliceExportList := &fleetnetv1alpha1.EndpointSliceExportList{}
 				if err := hubClient.List(ctx, endpointSliceExportList, &client.ListOptions{Namespace: hubNSForMember}); err != nil {
-					return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+					return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 				}
 
 				if len(endpointSliceExportList.Items) != 1 {
@@ -1564,7 +1575,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 			// Confirm that the EndpointSlice has been unexported
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				if len(endpointSlice.Annotations) != 0 {

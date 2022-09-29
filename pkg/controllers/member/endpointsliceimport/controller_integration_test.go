@@ -45,7 +45,7 @@ var (
 	endpointSliceImportIsAbsentActual = func() error {
 		endpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
 		if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); !errors.IsNotFound(err) {
-			return fmt.Errorf("endpointSliceImport Get(%+v), got %v, want not found", endpointSliceImportKey, err)
+			return fmt.Errorf("endpointSliceImport Get(%+v), got %w, want not found", endpointSliceImportKey, err)
 		}
 		return nil
 	}
@@ -54,7 +54,7 @@ var (
 	endpointSliceIsAbsentActual = func() error {
 		endpointSlice := &discoveryv1.EndpointSlice{}
 		if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); !errors.IsNotFound(err) {
-			return fmt.Errorf("endpointSlice Get(%+v), got %v, want not found", endpointSliceKey, err)
+			return fmt.Errorf("endpointSlice Get(%+v), got %w, want not found", endpointSliceKey, err)
 		}
 		return nil
 	}
@@ -63,7 +63,7 @@ var (
 	endpointSliceIsNotImportedActual = func() error {
 		endpointSliceList := discoveryv1.EndpointSliceList{}
 		if err := memberClient.List(ctx, &endpointSliceList, client.InNamespace(fleetSystemNS)); err != nil {
-			return fmt.Errorf("endpointSlice List(), got %v, want no error", err)
+			return fmt.Errorf("endpointSlice List(), got %w, want no error", err)
 		}
 
 		if len(endpointSliceList.Items) != 0 {
@@ -76,7 +76,7 @@ var (
 	multiClusterServiceIsAbsentActual = func() error {
 		multiClusterSvc := &fleetnetv1alpha1.MultiClusterService{}
 		if err := memberClient.Get(ctx, multiClusterSvcKey, multiClusterSvc); !errors.IsNotFound(err) {
-			return fmt.Errorf("multiClusterService Get(%+v), got %v, want not found", multiClusterSvcKey, err)
+			return fmt.Errorf("multiClusterService Get(%+v), got %w, want not found", multiClusterSvcKey, err)
 		}
 		return nil
 	}
@@ -85,7 +85,7 @@ var (
 	derivedServiceIsAbsentActual = func() error {
 		derivedSvc := &corev1.Service{}
 		if err := memberClient.Get(ctx, derivedSvcKey, derivedSvc); !errors.IsNotFound(err) {
-			return fmt.Errorf("service Get(%+v), got %v, want not found", derivedSvcKey, err)
+			return fmt.Errorf("service Get(%+v), got %w, want not found", derivedSvcKey, err)
 		}
 		return nil
 	}
@@ -279,12 +279,12 @@ var _ = Describe("endpointsliceimport controller", func() {
 			// Remove the finalizer.
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, derivedSvcKey, derivedSvc); err != nil {
-					return fmt.Errorf("service Get(%+v), got %v, want no error", derivedSvcKey, err)
+					return fmt.Errorf("service Get(%+v), got %w, want no error", derivedSvcKey, err)
 				}
 
 				derivedSvc.Finalizers = []string{}
 				if err := memberClient.Update(ctx, derivedSvc); err != nil {
-					return fmt.Errorf("service Update(%+v), got %v, want no error", derivedSvc, err)
+					return fmt.Errorf("service Update(%+v), got %w, want no error", derivedSvc, err)
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
@@ -335,7 +335,7 @@ var _ = Describe("endpointsliceimport controller", func() {
 		It("should import endpointslice", func() {
 			Eventually(func() error {
 				if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointsliceImport Get(%+v), got %v, want no error", endpointSliceImportKey, err)
+					return fmt.Errorf("endpointsliceImport Get(%+v), got %w, want no error", endpointSliceImportKey, err)
 				}
 
 				if !cmp.Equal(endpointSliceImport.Finalizers, []string{endpointSliceImportCleanupFinalizer}) {
@@ -354,7 +354,7 @@ var _ = Describe("endpointsliceimport controller", func() {
 			expectedEndpointSlice := importedIPv4EndpointSlice()
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {
@@ -466,12 +466,12 @@ var _ = Describe("endpointsliceimport controller", func() {
 
 			Eventually(func() error {
 				if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointSliceImport Get(%+v), got %v, want no error", endpointSliceImportKey, err)
+					return fmt.Errorf("endpointSliceImport Get(%+v), got %w, want no error", endpointSliceImportKey, err)
 				}
 
 				endpointSliceImport.Spec.Endpoints[0].Addresses[0] = newAddr
 				if err := hubClient.Update(ctx, endpointSliceImport); err != nil {
-					return fmt.Errorf("endpointSliceImport Update(%+v), got %v, want no error", endpointSliceImport, err)
+					return fmt.Errorf("endpointSliceImport Update(%+v), got %w, want no error", endpointSliceImport, err)
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
@@ -497,7 +497,7 @@ var _ = Describe("endpointsliceimport controller", func() {
 			expectedEndpointSlice.Endpoints[0].Addresses[0] = newAddr
 			Eventually(func() error {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
-					return fmt.Errorf("endpointSlice Get(%+v), got %v, want no error", endpointSliceKey, err)
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
 				if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {

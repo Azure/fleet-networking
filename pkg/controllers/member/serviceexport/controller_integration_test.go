@@ -114,7 +114,7 @@ var (
 	serviceExportIsAbsentActual = func() error {
 		svcExport := fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, &svcExport); !errors.IsNotFound(err) {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want not found", svcOrSvcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcOrSvcExportKey, err)
 		}
 		return nil
 	}
@@ -123,7 +123,7 @@ var (
 	serviceIsAbsentActual = func() error {
 		svc := corev1.Service{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, &svc); !errors.IsNotFound(err) {
-			return fmt.Errorf("service Get(%+v), got %v, want not found", svcOrSvcExportKey, err)
+			return fmt.Errorf("service Get(%+v), got %w, want not found", svcOrSvcExportKey, err)
 		}
 		return nil
 	}
@@ -133,7 +133,7 @@ var (
 		internalSvcExportList := &fleetnetv1alpha1.InternalServiceExportList{}
 		listOption := &client.ListOptions{Namespace: hubNSForMember}
 		if err := hubClient.List(ctx, internalSvcExportList, listOption); err != nil {
-			return fmt.Errorf("endpointSliceExport List(), got %v, want no error", err)
+			return fmt.Errorf("endpointSliceExport List(), got %w, want no error", err)
 		}
 
 		if len(internalSvcExportList.Items) > 0 {
@@ -147,7 +147,7 @@ var (
 	serviceIsInvalidForExportNotFoundActual = func() error {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 
 		if len(svcExport.Finalizers) != 0 {
@@ -167,7 +167,7 @@ var (
 	serviceIsInvalidForExportIneligibleActual = func() error {
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 
 		if len(svcExport.Finalizers) != 0 {
@@ -176,7 +176,7 @@ var (
 
 		svc := &corev1.Service{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
-			return fmt.Errorf("service Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svc.Generation)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
@@ -191,11 +191,11 @@ var (
 	serviceIsExportedFromMemberActual = func() error {
 		svc := &corev1.Service{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
-			return fmt.Errorf("service Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 
 		if !cmp.Equal(svcExport.Finalizers, []string{svcExportCleanupFinalizer}) {
@@ -221,16 +221,16 @@ var (
 	serviceIsExportedToHubActual = func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
-			return fmt.Errorf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
+			return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
 		}
 
 		svc := &corev1.Service{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
-			return fmt.Errorf("service Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 		svcExport := &fleetnetv1alpha1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
-			return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 		expectedExportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
 		expectedInternalSvcExportSpec := fleetnetv1alpha1.InternalServiceExportSpec{
@@ -385,11 +385,11 @@ var _ = Describe("serviceexport controller", func() {
 			Eventually(func() error {
 				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
-					return fmt.Errorf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
+					return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
 				}
 
 				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
-					return fmt.Errorf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 				}
 				expectedExportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
 				expectedInternalSvcExportSpec := fleetnetv1alpha1.InternalServiceExportSpec{

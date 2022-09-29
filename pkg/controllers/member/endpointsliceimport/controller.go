@@ -375,7 +375,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	// data analysis, this controller assigns a constant of exactly 1 second when the calculated duration does
 	// not make sense.
 	if timeSpent <= 0 {
-		timeSpent = int64(time.Second.Milliseconds()) * 1
+		timeSpent = time.Second.Milliseconds() * 1
 		klog.V(4).Info("A negative endpoint export/import duration data point has been observed; time sync might be out of order",
 			"serviceNamespacedName", endpointSliceImport.Spec.OwnerServiceReference.NamespacedName,
 			"endpointSliceNamespacedName", endpointSliceImport.Spec.EndpointSliceReference.NamespacedName,
