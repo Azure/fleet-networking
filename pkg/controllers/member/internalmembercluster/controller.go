@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,6 +32,9 @@ import (
 const (
 	conditionReasonJoined = "AgentJoined"
 	conditionReasonLeft   = "AgentLeft"
+
+	// we add +-5% jitter
+	jitterPercent = 10
 )
 
 // Reconciler reconciles a InternalMemberCluster object.
@@ -80,7 +84,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.updateAgentStatus(ctx, &imc, agentStatus); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: time.Second * time.Duration(imc.Spec.HeartbeatPeriodSeconds)}, nil
+		// add jitter to the heart beat to mitigate the herding of multiple agents
+		hbInterval := 1000 * imc.Spec.HeartbeatPeriodSeconds
+		jitterRange := int64(hbInterval*jitterPercent) / 100
+		requeueAfter := time.Millisecond * (time.Duration(hbInterval) + time.Duration(rand.Int63nRange(0, jitterRange)-jitterRange/2))
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	case fleetv1alpha1.ClusterStateLeave:
 		if r.AgentType == fleetv1alpha1.MultiClusterServiceAgent {
 			if err := r.cleanupMCSRelatedResources(ctx); err != nil {

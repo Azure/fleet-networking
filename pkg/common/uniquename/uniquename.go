@@ -9,11 +9,10 @@ package uniquename
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
-	"time"
 	"unicode"
 
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -30,10 +29,6 @@ const (
 
 	uuidLength = 5
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // minInt returns the smaller one of two integers.
 func minInt(a, b int) int {
