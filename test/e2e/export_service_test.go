@@ -717,7 +717,7 @@ var _ = Describe("Test exporting service", func() {
 					},
 					LoadBalancer: corev1.LoadBalancerStatus{},
 				}
-				return cmp.Diff(wantedMCSStatus, mcsObj.Status)
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
 
 			By("Deleting the old multi-cluster service")
