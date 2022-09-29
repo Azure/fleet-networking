@@ -46,10 +46,10 @@ var (
 	httpPort            = int32(80)
 	httpPortProtocol    = corev1.ProtocolTCP
 	httpPortAppProtocol = "www"
-	udpPortName         = "udp"
-	udpPort             = int32(81)
-	udpPortProtocol     = corev1.ProtocolUDP
-	udpPortAppProtocol  = "example.com/custom"
+	tcpPortName         = "tcp"
+	tcpPort             = int32(81)
+	tcpPortProtocol     = corev1.ProtocolTCP
+	tcpPortAppProtocol  = "example.com/custom"
 )
 
 // fulfilledSvcInUseByAnnotation returns a fulfilled ServiceInUseBy for annotation use.
@@ -88,10 +88,10 @@ func fulfilledServiceImport() *fleetnetv1alpha1.ServiceImport {
 					Port:        httpPort,
 				},
 				{
-					Name:        udpPortName,
-					Protocol:    udpPortProtocol,
-					AppProtocol: &udpPortAppProtocol,
-					Port:        udpPort,
+					Name:        tcpPortName,
+					Protocol:    tcpPortProtocol,
+					AppProtocol: &tcpPortAppProtocol,
+					Port:        tcpPort,
 				},
 			},
 			Clusters: []fleetnetv1alpha1.ClusterStatus{
