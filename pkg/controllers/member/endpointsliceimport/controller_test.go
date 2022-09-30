@@ -38,10 +38,14 @@ var (
 	httpPort            = int32(80)
 	httpPortProtocol    = corev1.ProtocolTCP
 	httpPortAppProtocol = "www"
+	tcpPortName         = "tcp"
+	tcpPort             = int32(81)
+	tcpPortProtocol     = corev1.ProtocolTCP
+	tcpPortAppProtocol  = "example.com/custom"
 	udpPortName         = "udp"
-	udpPort             = int32(81)
+	udpPort             = int32(82)
 	udpPortProtocol     = corev1.ProtocolUDP
-	udpPortAppProtocol  = "example.com/custom"
+	udpPortAppProtocol  = "example.com/custom-2"
 )
 
 // Bootstrap the test environment.
@@ -79,10 +83,10 @@ func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
 					AppProtocol: &httpPortAppProtocol,
 				},
 				{
-					Name:        &udpPortName,
-					Protocol:    &udpPortProtocol,
-					Port:        &udpPort,
-					AppProtocol: &udpPortAppProtocol,
+					Name:        &tcpPortName,
+					Protocol:    &tcpPortProtocol,
+					Port:        &tcpPort,
+					AppProtocol: &tcpPortAppProtocol,
 				},
 			},
 			EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
@@ -100,6 +104,18 @@ func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
 			},
 		},
 	}
+}
+
+// ipv4EndpointSliceImportWithHybridProtocol returns an EndpointSliceImport with both TCP and UDP ports.
+func ipv4EndpointSliceImportWithHybridProtocol() *fleetnetv1alpha1.EndpointSliceImport {
+	endpointSliceImport := ipv4EndpointSliceImport()
+	endpointSliceImport.Spec.Ports[0] = discoveryv1.EndpointPort{
+		Name:        &udpPortName,
+		Protocol:    &udpPortProtocol,
+		Port:        &udpPort,
+		AppProtocol: &udpPortAppProtocol,
+	}
+	return endpointSliceImport
 }
 
 // importedIPv4EndpointSlice returns an EndpointSlice.
@@ -130,13 +146,25 @@ func importedIPv4EndpointSlice() *discoveryv1.EndpointSlice {
 				AppProtocol: &httpPortAppProtocol,
 			},
 			{
-				Name:        &udpPortName,
-				Protocol:    &udpPortProtocol,
-				Port:        &udpPort,
-				AppProtocol: &udpPortAppProtocol,
+				Name:        &tcpPortName,
+				Protocol:    &tcpPortProtocol,
+				Port:        &tcpPort,
+				AppProtocol: &tcpPortAppProtocol,
 			},
 		},
 	}
+}
+
+// importedIPV4EndpointSliceWithHybridProtocol returns an EndpointSlice with both TCP and UDP ports.
+func importedIPv4EndpointSliceWithHybridProtocol() *discoveryv1.EndpointSlice {
+	endpointSlice := importedIPv4EndpointSlice()
+	endpointSlice.Ports[0] = discoveryv1.EndpointPort{
+		Name:        &udpPortName,
+		Protocol:    &udpPortProtocol,
+		Port:        &udpPort,
+		AppProtocol: &udpPortAppProtocol,
+	}
+	return endpointSlice
 }
 
 // TestScanForDerivedServiceName tests the scanForDerivedServiceName function.
