@@ -72,11 +72,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetv1alpha1.ServiceExport
 	if err := r.MemberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
+		if errors.IsNotFound(err) {
+			// Skip the reconciliation if the ServiceExport does not exist; this happens when the controller detects
+			// changes in a Service that has not been exported yet, or when a ServiceExport is deleted before the
+			// corresponding Service is exported to the fleet (and a cleanup finalizer is added). Either case requires
+			// no action on this controller's end.
+			klog.V(4).InfoS("Service export is not found", "service", svcRef)
+			return ctrl.Result{}, nil
+		}
+		// An error has occurred when getting the ServiceExport.
 		klog.ErrorS(err, "Failed to get service export", "service", svcRef)
-		// Skip the reconciliation if the ServiceExport does not exist; this should only happen when a ServiceExport
-		// is deleted before the corresponding Service is exported to the fleet (and a cleanup finalizer is added),
-		// which requires no action to take on this controller's end.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the ServiceExport has been deleted and needs cleanup (unexporting Service).
