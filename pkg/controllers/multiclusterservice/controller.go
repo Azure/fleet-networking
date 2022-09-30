@@ -210,7 +210,9 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		serviceImportKObj := klog.KObj(serviceImport)
 		// If the service import is already owned by another MultiClusterService, serviceImport update or creation will fail.
 		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
-			// reset the current serviceImport as empty as internal func will update mcs status based on the serviceImport status
+			// reset the current serviceImport to empty as input so that internal func will update mcs status based on the serviceImport status
+			// it won't change the serviceImport in the API server
+			// TODO could be improved by moving into the mutate func and creating a customized error
 			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{}
 			if err := r.handleInvalidServiceImport(ctx, mcs, serviceImport); err != nil {
 				klog.ErrorS(err, "Failed to update status of mcs as serviceImport has been owned by other mcs", "multiClusterService", mcsKObj, "serviceImport", serviceImportKObj, "owner", serviceImport.OwnerReferences)
