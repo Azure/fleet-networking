@@ -270,6 +270,7 @@ func isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, ser
 	for _, owner := range serviceImport.OwnerReferences {
 		if owner.APIVersion == mcs.APIVersion &&
 			owner.Kind == mcs.Kind &&
+			owner.Controller != nil && *owner.Controller &&
 			owner.Name != mcs.Name {
 			return true
 		}
