@@ -6,7 +6,7 @@ Licensed under the MIT license.
 package multiclusterservice
 
 import (
-	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,46 +30,9 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 		interval = time.Millisecond * 250
 	)
 
-	BeforeEach(func() {
-		By("Create multiClusterService namespace")
-		ns := corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: testNamespace,
-			},
-		}
-		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
-
-		By("Create fleet system namespace")
-		ns = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: systemNamespace,
-			},
-		}
-		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
-	})
-
-	AfterEach(func() {
-		By("delete multiClusterService namespace")
-		ns := corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: testNamespace,
-			},
-		}
-		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
-
-		By("delete the fleet system namespace")
-		ns = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: systemNamespace,
-			},
-		}
-		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
-	})
-
 	Context("When creating new MultiClusterService", func() {
 		It("Should create service import and derived service", func() {
 			By("By creating a new MultiClusterService")
-			ctx := context.Background()
 			multiClusterService := multiClusterServiceForTest()
 			Expect(k8sClient.Create(ctx, multiClusterService)).Should(Succeed())
 
@@ -274,6 +237,105 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 				}
 				return len(serviceList.Items), nil
 			}, duration, interval).Should(Equal(0))
+
+			By("By checking mcs")
+			Eventually(func() bool {
+				return errors.IsNotFound(k8sClient.Get(ctx, mcsLookupKey, createdMultiClusterService))
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("ServiceImport has been owned by other MultiClusterService", func() {
+			controller := true
+			blockOwnerDeletion := false // so the test could delete service import
+			By("Creating serviceImport which is owned by other mcs")
+			serviceImport := &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         multiClusterServiceType.APIVersion,
+							Kind:               multiClusterServiceType.Kind,
+							Name:               "another-mcs",
+							Controller:         &controller,
+							BlockOwnerDeletion: &blockOwnerDeletion,
+							UID:                "12345",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, serviceImport)).Should(Succeed(), "Failed to create serviceImport")
+
+			multiClusterService := multiClusterServiceForTest()
+			Expect(k8sClient.Create(ctx, multiClusterService)).Should(Succeed())
+
+			mcsLookupKey := types.NamespacedName{Name: testName, Namespace: testNamespace}
+			createdMultiClusterService := &fleetnetv1alpha1.MultiClusterService{}
+
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, mcsLookupKey, createdMultiClusterService); err != nil {
+					return false
+				}
+				return createdMultiClusterService.GetLabels()[multiClusterServiceLabelServiceImport] == testServiceName
+			}, timeout, interval).Should(BeTrue(), "ServiceImport label value got %v, want %v", createdMultiClusterService.GetLabels()[multiClusterServiceLabelServiceImport], testServiceName)
+
+			By("By checking derived service label")
+			Expect(createdMultiClusterService.GetLabels()[objectmeta.MultiClusterServiceLabelDerivedService]).Should(BeEmpty())
+
+			By("By checking mcs condition and want unknown")
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, mcsLookupKey, createdMultiClusterService); err != nil {
+					return err
+				}
+				want := fleetnetv1alpha1.MultiClusterServiceStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Status: metav1.ConditionUnknown,
+							Reason: conditionReasonUnknownServiceImport,
+						},
+					},
+				}
+				option := cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime", "ObservedGeneration")
+				if diff := cmp.Diff(want, createdMultiClusterService.Status, option); diff != "" {
+					return fmt.Errorf("mcs status mismatch (-want, +got):\n%s", diff)
+				}
+				return nil
+			}, timeout, interval).Should(Succeed(), "Failed to validate mcs status")
+
+			By("Deleting serviceImport")
+			Expect(k8sClient.Delete(ctx, serviceImport)).Should(Succeed())
+
+			By("By checking derived service label")
+			_, ok := createdMultiClusterService.GetLabels()[objectmeta.MultiClusterServiceLabelDerivedService]
+			Expect(ok).Should(BeFalse())
+
+			By("By checking service import")
+			serviceImportLookupKey := types.NamespacedName{Name: testServiceName, Namespace: testNamespace}
+			createdServiceImport := &fleetnetv1alpha1.ServiceImport{}
+			Eventually(func() error {
+				blockOwnerDeletion = true
+				want := []metav1.OwnerReference{
+					{
+						APIVersion:         multiClusterServiceType.APIVersion,
+						Kind:               multiClusterServiceType.Kind,
+						Name:               multiClusterService.Name,
+						Controller:         &controller,
+						BlockOwnerDeletion: &blockOwnerDeletion,
+					},
+				}
+				if err := k8sClient.Get(ctx, serviceImportLookupKey, createdServiceImport); err != nil {
+					return nil
+				}
+				option := cmpopts.IgnoreFields(metav1.OwnerReference{}, "UID")
+				if diff := cmp.Diff(want, createdServiceImport.OwnerReferences, option); diff != "" {
+					return fmt.Errorf("serviceImport ownerReferences mismatch (-want, +got):\n%s", diff)
+				}
+				return nil
+			}, timeout, interval).Should(Succeed(), "Failed to validate serviceImport ownerReferences")
+
+			By("By deleting mcs")
+			Expect(k8sClient.Delete(ctx, multiClusterService)).Should(Succeed())
 
 			By("By checking mcs")
 			Eventually(func() bool {

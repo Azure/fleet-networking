@@ -702,13 +702,22 @@ var _ = Describe("Test exporting service", func() {
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
 			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
-			By("Validating the new multi-cluster service status is empty consistently")
-			Consistently(func() string {
+			By("Validating the new multi-cluster service status is unknown")
+			Eventually(func() string {
 				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
 					return err.Error()
 				}
-				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{}
-				return cmp.Diff(wantedMCSStatus, mcsObj.Status)
+				wantedMCSStatus := fleetnetv1alpha1.MultiClusterServiceStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+							Reason: "UnknownServiceImport",
+							Status: metav1.ConditionUnknown,
+						},
+					},
+					LoadBalancer: corev1.LoadBalancerStatus{},
+				}
+				return cmp.Diff(wantedMCSStatus, mcsObj.Status, framework.MCSConditionCmpOptions...)
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
 
 			By("Deleting the old multi-cluster service")
