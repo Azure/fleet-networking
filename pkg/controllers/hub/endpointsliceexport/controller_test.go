@@ -46,10 +46,10 @@ var (
 	httpPort            = int32(80)
 	httpPortProtocol    = corev1.ProtocolTCP
 	httpPortAppProtocol = "www"
-	udpPortName         = "udp"
-	udpPort             = int32(81)
-	udpPortProtocol     = corev1.ProtocolUDP
-	udpPortAppProtocol  = "example.com/custom"
+	tcpPortName         = "tcp"
+	tcpPort             = int32(81)
+	tcpPortProtocol     = corev1.ProtocolTCP
+	tcpPortAppProtocol  = "example.com/custom"
 
 	ignoredObjectMetaFields = cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")
 )
@@ -80,10 +80,10 @@ func ipv4EndpointSliceExport() *fleetnetv1alpha1.EndpointSliceExport {
 					AppProtocol: &httpPortAppProtocol,
 				},
 				{
-					Name:        &udpPortName,
-					Protocol:    &udpPortProtocol,
-					Port:        &udpPort,
-					AppProtocol: &udpPortAppProtocol,
+					Name:        &tcpPortName,
+					Protocol:    &tcpPortProtocol,
+					Port:        &tcpPort,
+					AppProtocol: &tcpPortAppProtocol,
 				},
 			},
 			EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{

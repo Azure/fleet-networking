@@ -58,10 +58,10 @@ func fulfillInternalServiceImport(internalSvcImport *fleetnetv1alpha1.InternalSe
 				Port:        httpPort,
 			},
 			{
-				Name:        udpPortName,
-				Protocol:    udpPortProtocol,
-				AppProtocol: &udpPortAppProtocol,
-				Port:        udpPort,
+				Name:        tcpPortName,
+				Protocol:    tcpPortProtocol,
+				AppProtocol: &tcpPortAppProtocol,
+				Port:        tcpPort,
 			},
 		},
 		Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -104,10 +104,10 @@ func fulfillServiceImport(svcImport *fleetnetv1alpha1.ServiceImport) {
 				Port:        httpPort,
 			},
 			{
-				Name:        udpPortName,
-				Protocol:    udpPortProtocol,
-				AppProtocol: &udpPortAppProtocol,
-				Port:        udpPort,
+				Name:        tcpPortName,
+				Protocol:    tcpPortProtocol,
+				AppProtocol: &tcpPortAppProtocol,
+				Port:        tcpPort,
 			},
 		},
 		Clusters: []fleetnetv1alpha1.ClusterStatus{

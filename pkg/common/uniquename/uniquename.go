@@ -9,10 +9,10 @@ package uniquename
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"unicode"
 
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/validation"
 )

@@ -13,6 +13,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -89,6 +91,23 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	ctx, cancel = context.WithCancel(context.TODO())
+
+	By("Create multiClusterService namespace")
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
+	}
+	Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+
+	By("Create fleet system namespace")
+	ns = corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: systemNamespace,
+		},
+	}
+	Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
@@ -98,6 +117,22 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+
+	By("delete multiClusterService namespace")
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
+	}
+	Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
+
+	By("delete the fleet system namespace")
+	ns = corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: systemNamespace,
+		},
+	}
+	Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
 
 	cancel()
 	By("tearing down the test environment")

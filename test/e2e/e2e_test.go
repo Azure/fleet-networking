@@ -28,13 +28,13 @@ var (
 	hubClusterName     = "hub"
 	memberClusterNames = []string{"member-1", "member-2"}
 
+	testNamespace string
+
 	hubCluster     *framework.Cluster
 	memberClusters []*framework.Cluster
-	scheme         = runtime.NewScheme()
-)
+	fleet          *framework.Fleet
 
-const (
-	testNamespace = "my-ns"
+	scheme = runtime.NewScheme()
 )
 
 func init() {
@@ -61,6 +61,10 @@ var _ = BeforeSuite(func() {
 		Expect(err).Should(Succeed(), "Failed to initialize memberCluster %s", m)
 		memberClusters = append(memberClusters, cluster)
 	}
+
+	fleet = framework.NewFleet(memberClusters, memberClusters[0], hubCluster)
+
+	testNamespace = framework.UniqueTestNamespace()
 	createTestNamespace(context.Background())
 })
 

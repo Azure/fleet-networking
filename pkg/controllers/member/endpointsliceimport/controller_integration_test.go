@@ -6,6 +6,7 @@ Licensed under the MIT license.
 package endpointsliceimport
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -78,14 +79,27 @@ func svcDerivedByMultiClusterSvc() *corev1.Service {
 					Port:        httpPort,
 				},
 				{
-					Name:        udpPortName,
-					Protocol:    udpPortProtocol,
-					AppProtocol: &udpPortAppProtocol,
-					Port:        udpPort,
+					Name:        tcpPortName,
+					Protocol:    tcpPortProtocol,
+					AppProtocol: &tcpPortAppProtocol,
+					Port:        tcpPort,
 				},
 			},
 		},
 	}
+}
+
+// svcDerivedByMultiClusterSvcWithHybridProtocol returns a Service that is derived from a ServiceImport by
+// a MultiClusterService with both TCP and UDP ports.
+func svcDerivedByMultiClusterSvcWithHybridProtocol() *corev1.Service {
+	svc := svcDerivedByMultiClusterSvc()
+	svc.Spec.Ports[0] = corev1.ServicePort{
+		Name:        udpPortName,
+		Protocol:    udpPortProtocol,
+		AppProtocol: &udpPortAppProtocol,
+		Port:        udpPort,
+	}
+	return svc
 }
 
 var _ = Describe("endpointsliceimport controller", func() {
@@ -295,6 +309,73 @@ var _ = Describe("endpointsliceimport controller", func() {
 
 			endpointSlice := &discoveryv1.EndpointSlice{}
 			expectedEndpointSlice := importedIPv4EndpointSlice()
+			Eventually(func() bool {
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return false
+				}
+
+				if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {
+					return false
+				}
+
+				if !cmp.Equal(endpointSlice.Ports, expectedEndpointSlice.Ports) {
+					return false
+				}
+
+				return cmp.Equal(endpointSlice.Endpoints, expectedEndpointSlice.Endpoints)
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+		})
+	})
+
+	// This test is expected to fail in Kubernetes versions earlier than 1.24, as hybrid protocol service support
+	// has not yet been enabled by default.
+	Context("import endpointslice (hybrid protocol)", func() {
+		var (
+			endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport
+			multiClusterSvc     *fleetnetv1alpha1.MultiClusterService
+			derivedSvc          *corev1.Service
+		)
+
+		BeforeEach(func() {
+			derivedSvc = svcDerivedByMultiClusterSvcWithHybridProtocol()
+			err := memberClient.Create(ctx, derivedSvc)
+			if errors.IsInvalid(err) && strings.Contains(err.Error(), "may not contain more than 1 protocol") {
+				Skip("hybrid protocol service is not supported in current environment")
+			}
+			Expect(err).To(BeNil())
+
+			multiClusterSvc = fulfilledMultiClusterSvc()
+			Expect(memberClient.Create(ctx, multiClusterSvc)).Should(Succeed())
+
+			endpointSliceImport = ipv4EndpointSliceImportWithHybridProtocol()
+			Expect(hubClient.Create(ctx, endpointSliceImport)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(client.IgnoreNotFound(hubClient.Delete(ctx, endpointSliceImport))).Should(Succeed())
+			Expect(client.IgnoreNotFound(memberClient.Delete(ctx, derivedSvc))).Should(Succeed())
+			Expect(client.IgnoreNotFound(memberClient.Delete(ctx, multiClusterSvc))).Should(Succeed())
+			// Make sure that the imported EndpointSlice is removed.
+			Eventually(func() bool {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); errors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+		})
+
+		It("should import endpointslice", func() {
+			Eventually(func() bool {
+				if err := hubClient.Get(ctx, endpointSliceImportKey, endpointSliceImport); err != nil {
+					return false
+				}
+
+				return cmp.Equal(endpointSliceImport.Finalizers, []string{endpointSliceImportCleanupFinalizer})
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+
+			endpointSlice := &discoveryv1.EndpointSlice{}
+			expectedEndpointSlice := importedIPv4EndpointSliceWithHybridProtocol()
 			Eventually(func() bool {
 				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
 					return false
