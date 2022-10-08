@@ -113,7 +113,7 @@ helm install e2e-member-resources \
 kubectl config use-context $HUB_CLUSTER-admin
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.3.0/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
+kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.6.1/config/crd/bases/fleet.azure.com_internalmemberclusters.yaml
 kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
