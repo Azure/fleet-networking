@@ -421,7 +421,7 @@ func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.
 	if lastSeenGenerationErr != nil || lastSeenTimestampErr != nil {
 		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
 	}
-	if lastSeenGeneration != endpointslice.Generation || lastSeenTimestamp.After(time.Now()) {
+	if lastSeenGeneration != endpointslice.Generation || lastSeenTimestamp.After(startTime) {
 		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
 	}
 	return lastSeenTimestamp, nil
