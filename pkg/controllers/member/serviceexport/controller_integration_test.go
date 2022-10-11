@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
 const (
@@ -189,6 +190,9 @@ var (
 	// the Service referred by svcOrSvcExportKey has been exported from the member cluster, i.e. it has
 	// the cleanup finalizer and has been marked as valid for export.
 	serviceIsExportedFromMemberActual = func() error {
+		// Apply an offset of 1 second to account for limited timing precision.
+		startTime := time.Now().Round(time.Second).Add(time.Second)
+
 		svc := &corev1.Service{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
@@ -212,6 +216,23 @@ var (
 		conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 		if diff := cmp.Diff(conflictCond, &expectedConflictCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportConflict condition (-got, +want): %s", diff)
+		}
+
+		lastSeenGenerationData, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
+		if !ok || lastSeenGenerationData != fmt.Sprintf("%d", svc.Generation) {
+			return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, svc.Generation)
+		}
+
+		lastSeenTimestampData, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
+		if !ok {
+			return fmt.Errorf("lastSeenTimestampData is absent")
+		}
+		lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+		if err != nil {
+			return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
+		}
+		if lastSeenTimestamp.After(startTime) {
+			return fmt.Errorf("lastSeenTimestamp, got %v, want before %v", lastSeenTimestamp, startTime)
 		}
 		return nil
 	}

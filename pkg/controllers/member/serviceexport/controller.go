@@ -10,6 +10,7 @@ package serviceexport
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,6 +28,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
 const (
@@ -172,9 +174,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
 	}
-	// Use the lastTransitionTime from ServiceExportValid condition as the exportedSince timestamp; the condition
-	// is guaranteed to exist at this point, with a proper lastTransitionTime value.
-	exportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
+
+	// Retrieve the last seen generation and the last seen timestamp; these two values are used for metric collection.
+	// If the two values are not present or not valid, annotate ServiceExport with new values.
+	//
+	// Note that the two values are not tamperproof.
+	exportedSince, err := r.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, &svc, &svcExport, startTime)
+	if err != nil {
+		klog.Warning("Failed to annotate last seen generation and timestamp", "serviceExport", svcRef)
+	}
 
 	// Export the Service or update the exported Service.
 
@@ -193,7 +201,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if internalSvcExport.CreationTimestamp.IsZero() {
 			// Set the ServiceReference only when the InternalServiceExport is created; most of the fields in
 			// an ExportedObjectReference should be immutable.
-			internalSvcExport.Spec.ServiceReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, svc.TypeMeta, svc.ObjectMeta, exportedSince)
+			internalSvcExport.Spec.ServiceReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID,
+				svc.TypeMeta, svc.ObjectMeta, metav1.NewTime(exportedSince))
 		}
 
 		// Return an error if an attempt is made to update an InternalServiceExport that references a different
@@ -207,7 +216,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 		internalSvcExport.Spec.Ports = svcExportPorts
-		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, exportedSince)
+		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
 		return nil
 	})
 	switch {
@@ -353,4 +362,40 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "ValidServiceExport", "Service %s is valid for export", svcExport.Name)
 	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "PendingExportConflictResolution", "Service %s is pending export conflict resolution", svcExport.Name)
 	return r.MemberClient.Status().Update(ctx, svcExport)
+}
+
+// collectAndVerifyLastSeenGenerationAndTime collects and verifies the last seen generation and timestamp annotations
+// on ServiceExports; it will assign new values if the annotations are not present or not valid.
+func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.Context,
+	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) (time.Time, error) {
+	// Check if the two annotations are present; assign new values if they are absent.
+	lastSeenGenerationData, lastSeenGenerationOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
+	lastSeenTimestampData, lastSeenTimestampOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
+	if !lastSeenGenerationOk || !lastSeenTimestampOk {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	}
+
+	// Check if the two values are valid and up-to-date; assign new ones if they are not.
+	lastSeenGeneration, lastSeenGenerationErr := strconv.ParseInt(lastSeenGenerationData, 10, 64)
+	lastSeenTimestamp, lastSeenTimestampErr := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+	if lastSeenGenerationErr != nil || lastSeenTimestampErr != nil {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	}
+	if lastSeenGeneration != svc.Generation || lastSeenTimestamp.After(startTime) {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	}
+	return lastSeenTimestamp, nil
+}
+
+// annotateLastSeenGenerationAndTimestamp annotates a ServiceExport with last seen generation and timestamp.
+func (r *Reconciler) annotateLastSeenGenerationAndTimestamp(ctx context.Context,
+	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) error {
+	// Initialize the annotation map if no annoation has been added yet.
+	if svcExport.Annotations == nil {
+		svcExport.Annotations = map[string]string{}
+	}
+
+	svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(svc.Generation, 10)
+	svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
+	return r.MemberClient.Update(ctx, svcExport)
 }

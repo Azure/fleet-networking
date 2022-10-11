@@ -46,7 +46,7 @@ var (
 	udpPortName         = "udp"
 	udpPort             = int32(82)
 	udpPortProtocol     = corev1.ProtocolUDP
-	udpPortAppProtocol  = "example.com/custom"
+	udpPortAppProtocol  = "example.com/custom-2"
 )
 
 // Bootstrap the test environment.

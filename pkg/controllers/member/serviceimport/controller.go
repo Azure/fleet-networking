@@ -107,6 +107,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// an ExportedObjectReference should be immutable.
 			internalServiceImport.Spec.ServiceImportReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta, serviceImport.CreationTimestamp)
 		}
+
+		// TO-DO: InternalServiceImport object is not an exported object and the ServiceImportReference (an
+		// exportedObject field) will be removed; information updated here is not used.
 		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta, serviceImport.CreationTimestamp)
 		return nil
 	}); err != nil {

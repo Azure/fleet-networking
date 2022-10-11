@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -25,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
 const (
@@ -750,6 +752,264 @@ func TestUnexportService(t *testing.T) {
 			internalSvcExportKey := types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName}
 			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !errors.IsNotFound(err) {
 				t.Fatalf("internalSvcExport Get(%+v), got error %v, want not found error", internalSvcExportKey, err)
+			}
+		})
+	}
+}
+
+// TestCollectAndVerifyLastSeenGenerationAndTimestamp tests the
+// *Reconciler.collectAndVerifyLastSeenGenerationAndTimestamp method.
+func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
+	startTime := time.Now().Round(time.Second)
+	startTimeBefore := startTime.Add(-time.Second * 5)
+	startTimeBeforeStr := startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat)
+	startTimeBeforeFlattened, _ := time.Parse(metrics.MetricsLastSeenTimestampFormat, startTimeBeforeStr)
+	startTimeAfter := startTime.Add(time.Second * 240)
+	wantAnnotations := map[string]string{
+		metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+		metrics.MetricsAnnotationLastSeenTimestamp:  startTime.Format(metrics.MetricsLastSeenTimestampFormat),
+	}
+
+	testCases := []struct {
+		name              string
+		svc               *corev1.Service
+		svcExport         *fleetnetv1alpha1.ServiceExport
+		startTime         time.Time
+		wantExportedSince time.Time
+		wantAnnotations   map[string]string
+	}{
+		{
+			name: "serviceExport with no last seen annotations",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with valid last seen annotations",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTimeBeforeFlattened,
+			wantAnnotations: map[string]string{
+				metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+				metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+			},
+		},
+		{
+			name: "endpointslice with invalid last seen generation (bad data)",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastSeenGeneration: "InvalidGenerationData",
+						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen generation (mismatch)",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationAfter),
+						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen timestamp (bad data)",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+						metrics.MetricsAnnotationLastSeenTimestamp:  "InvalidTimestampData",
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+		{
+			name: "endpointslice with invalid last seen timestamp (too late timestamp)",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeAfter.Format(metrics.MetricsLastSeenTimestampFormat),
+					},
+				},
+			},
+			startTime:         startTime,
+			wantExportedSince: startTime,
+			wantAnnotations:   wantAnnotations,
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svc, tc.svcExport).
+				Build()
+			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
+			reconciler := Reconciler{
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
+			}
+
+			exportedSince, err := reconciler.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, tc.svc, tc.svcExport, tc.startTime)
+			if err != nil || !exportedSince.Equal(tc.wantExportedSince) {
+				t.Fatalf("collectAndVerifyLastSeenGenerationAndTimestamp(%+v, %+v, %v) = (%v, %v), want (%v, %v)",
+					tc.svc, tc.svcExport, tc.startTime, exportedSince, err, tc.wantExportedSince, nil)
+			}
+
+			svcExport := &fleetnetv1alpha1.ServiceExport{}
+			if err := fakeMemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				t.Fatalf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			}
+
+			if diff := cmp.Diff(svcExport.Annotations, tc.wantAnnotations); diff != "" {
+				t.Fatalf("serviceExport annotations (-got, +want): %s", diff)
+			}
+		})
+	}
+}
+
+// TestAnnotateLastSeenGenerationAndTimestamp tests the *Reconciler.annotateLastSeenGenerationAndTimestamp method.
+func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
+	startTime := time.Now().Round(time.Second)
+
+	testCases := []struct {
+		name            string
+		svc             *corev1.Service
+		svcExport       *fleetnetv1alpha1.ServiceExport
+		wantAnnotations map[string]string
+	}{
+		{
+			name: "should annotate last seen generation and timestamp",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  memberUserNS,
+					Name:       svcName,
+					Generation: svcObservedGenerationBefore,
+				},
+			},
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+			},
+			wantAnnotations: map[string]string{
+				metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
+				metrics.MetricsAnnotationLastSeenTimestamp:  startTime.Format(metrics.MetricsLastSeenTimestampFormat),
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.svc, tc.svcExport).
+				Build()
+			fakeHubClientBuilder := fake.NewClientBuilder().WithScheme(scheme.Scheme)
+			fakeHubClient := fakeHubClientBuilder.Build()
+			reconciler := Reconciler{
+				MemberClient: fakeMemberClient,
+				HubClient:    fakeHubClient,
+				HubNamespace: hubNSForMember,
+				Recorder:     record.NewFakeRecorder(10),
+			}
+
+			if err := reconciler.annotateLastSeenGenerationAndTimestamp(ctx, tc.svc, tc.svcExport, startTime); err != nil {
+				t.Fatalf("annotateLastSeenGenerationAndTimestamp(%+v, %+v, %v), got %v, want no error", tc.svc, tc.svcExport, startTime, err)
+			}
+
+			svcExport := &fleetnetv1alpha1.ServiceExport{}
+			if err := fakeMemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
+				t.Fatalf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
+			}
+
+			if diff := cmp.Diff(svcExport.Annotations, tc.wantAnnotations); diff != "" {
+				t.Fatalf("serviceExport annotations (-got, +want): %s", diff)
 			}
 		})
 	}

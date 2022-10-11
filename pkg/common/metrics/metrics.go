@@ -13,13 +13,17 @@ import (
 // Metrics related annoations.
 const (
 	// MetricsAnnotationLastSeenGeneration is an annotation that marks the last seen generation of an
-	// an object; this annotation is reserved for the purpose of metric collection.
+	// an object; this annotation is reserved for the purpose of metric collection, specifically
+	// tracking when a generation of an object is exported.
 	MetricsAnnotationLastSeenGeneration = "networking.fleet.azure.com/last-seen-generation"
 	// MetricsAnnotationLastSeenTimestamp is an annotation that marks the last seen timestamp of
-	// a specific generation of an object; this annotation is reserved for the purpose of metric collection.
+	// a specific generation of an object; this annotation is reserved for the purpose of metric collection,
+	// specifically tracking when a generation of an object is exported.
 	MetricsAnnotationLastSeenTimestamp = "networking.fleet.azure.com/last-seen-timestamp"
+
 	// MetricsAnnotationLastObservedGeneration is an annotation that marks the last generation of an
-	// object from which a metric data point has been observed.
+	// object from which a metric data point has been observed. This helps avoid observing multiple
+	// data points for the same generation of an object.
 	MetricsAnnotationLastObservedGeneration = "networking.fleet.azure.com/last-observed-generation"
 )
 

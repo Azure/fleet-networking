@@ -147,7 +147,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Set up an EndpointSliceReference and only when an EndpointSliceExport is first created; this is because
 		// most fields in EndpointSliceReference should be immutable after creation.
 		if endpointSliceExport.CreationTimestamp.IsZero() {
-			endpointSliceReference := fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, endpointSlice.TypeMeta, endpointSlice.ObjectMeta, metav1.NewTime(exportedSince))
+			endpointSliceReference := fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID,
+				endpointSlice.TypeMeta, endpointSlice.ObjectMeta, metav1.NewTime(exportedSince))
 			endpointSliceExport.Spec.EndpointSliceReference = endpointSliceReference
 		}
 
