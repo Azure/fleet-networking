@@ -629,7 +629,9 @@ var _ = Describe("Test exporting service", func() {
 			Eventually(func() string {
 				derivedServiceKey := types.NamespacedName{Namespace: fleetSystemNamespace, Name: derivedServiceName}
 				derivedServiceObj := &corev1.Service{}
-				Expect(memberClusterMCS.Client().Get(ctx, derivedServiceKey, derivedServiceObj)).Should(Succeed(), "Failed to get derived service")
+				if err := memberClusterMCS.Client().Get(ctx, derivedServiceKey, derivedServiceObj); err != nil {
+					return err.Error()
+				}
 				wantedDerivedSvcPortSpec := []corev1.ServicePort{
 					{
 						Port:       svc.Spec.Ports[0].Port,
