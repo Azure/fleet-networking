@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
@@ -127,7 +128,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Note that the two values are not tamperproof.
 	exportedSince, err := r.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, &endpointSlice, startTime)
 	if err != nil {
-		klog.ErrorS(err, "Failed to annotate last seen generation and timestamp", "endpointSlice", endpointSliceRef)
+		klog.Warning("Failed to annotate last seen generation and timestamp", "endpointSlice", endpointSliceRef)
 	}
 
 	// Create an EndpointSliceExport in the hub cluster if the EndpointSlice has never been exported; otherwise
@@ -327,8 +328,8 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 	}
 
 	// Remove the last seen annotations; this must happen after the EndpointSliceExport has been deleted.
-	delete(endpointSlice.Annotations, objectmeta.MetricsAnnotationLastSeenGeneration)
-	delete(endpointSlice.Annotations, objectmeta.MetricsAnnotationLastSeenTimestamp)
+	delete(endpointSlice.Annotations, metrics.MetricsAnnotationLastSeenGeneration)
+	delete(endpointSlice.Annotations, metrics.MetricsAnnotationLastSeenTimestamp)
 	// Remove the unique name annotation; this must happen after the EndpointSliceExport has been deleted.
 	delete(endpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 	return r.MemberClient.Update(ctx, endpointSlice)
@@ -408,15 +409,15 @@ func (r *Reconciler) assignUniqueNameAsAnnotation(ctx context.Context, endpointS
 // on EndpointSlices; it will assign new values if the annotations are not present or not valid.
 func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.Context, endpointslice *discoveryv1.EndpointSlice, startTime time.Time) (time.Time, error) {
 	// Check if the two annotations are present; assign new values if they are absent.
-	lastSeenGenerationData, lastSeenGenerationOk := endpointslice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
-	lastSeenTimestampData, lastSeenTimestampOk := endpointslice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+	lastSeenGenerationData, lastSeenGenerationOk := endpointslice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
+	lastSeenTimestampData, lastSeenTimestampOk := endpointslice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 	if !lastSeenGenerationOk || !lastSeenTimestampOk {
 		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
 	}
 
 	// Check if the two values are valid and up-to-date; assign new ones if they are not.
 	lastSeenGeneration, lastSeenGenerationErr := strconv.ParseInt(lastSeenGenerationData, 10, 64)
-	lastSeenTimestamp, lastSeenTimestampErr := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+	lastSeenTimestamp, lastSeenTimestampErr := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 	if lastSeenGenerationErr != nil || lastSeenTimestampErr != nil {
 		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
 	}
@@ -430,7 +431,7 @@ func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.
 func (r *Reconciler) annotateLastSeenGenerationAndTimestamp(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice, startTime time.Time) error {
 	// Since the controller always annotate last seen generation and timestamp after assigning a unique name,
 	// the annotations map must have been initialized at this point.
-	endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(endpointSlice.Generation, 10)
-	endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp] = startTime.Format(objectmeta.MetricsLastSeenTimestampFormat)
+	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(endpointSlice.Generation, 10)
+	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
 	return r.MemberClient.Update(ctx, endpointSlice)
 }

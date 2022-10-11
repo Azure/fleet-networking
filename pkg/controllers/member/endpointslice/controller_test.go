@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
@@ -1051,9 +1052,9 @@ func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
 			},
 			startTime: startTime,
 			wantAnnotations: map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			},
 		},
 	}
@@ -1092,13 +1093,13 @@ func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
 func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 	startTime := time.Now()
 	startTimeBefore := startTime.Add(-time.Second * 5)
-	startTimeBeforeStr := startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat)
-	startTimeBeforeFlattened, _ := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, startTimeBeforeStr)
+	startTimeBeforeStr := startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat)
+	startTimeBeforeFlattened, _ := time.Parse(metrics.MetricsLastSeenTimestampFormat, startTimeBeforeStr)
 	startTimeAfter := startTime.Add(time.Second * 240)
 	wantAnnotations := map[string]string{
-		objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-		objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-		objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+		objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+		metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+		metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 	}
 
 	testCases := []struct {
@@ -1132,18 +1133,18 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Name:       endpointSliceName,
 					Generation: endpointSliceGeneration,
 					Annotations: map[string]string{
-						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+						metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+						metrics.MetricsAnnotationLastSeenTimestamp:    startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
 			startTime:         startTime,
 			wantExportedSince: startTimeBeforeFlattened,
 			wantAnnotations: map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 			},
 		},
 		{
@@ -1154,9 +1155,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Name:       endpointSliceName,
 					Generation: endpointSliceGeneration,
 					Annotations: map[string]string{
-						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-						objectmeta.MetricsAnnotationLastSeenGeneration: "InvalidGenerationData",
-						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+						metrics.MetricsAnnotationLastSeenGeneration:   "InvalidGenerationData",
+						metrics.MetricsAnnotationLastSeenTimestamp:    startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
@@ -1172,9 +1173,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Name:       endpointSliceName,
 					Generation: endpointSliceGeneration,
 					Annotations: map[string]string{
-						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration+1),
-						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(objectmeta.MetricsLastSeenTimestampFormat),
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+						metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration+1),
+						metrics.MetricsAnnotationLastSeenTimestamp:    startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
@@ -1190,9 +1191,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Name:       endpointSliceName,
 					Generation: endpointSliceGeneration,
 					Annotations: map[string]string{
-						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-						objectmeta.MetricsAnnotationLastSeenTimestamp:  "InvalidTimestampData",
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+						metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+						metrics.MetricsAnnotationLastSeenTimestamp:    "InvalidTimestampData",
 					},
 				},
 			},
@@ -1208,9 +1209,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Name:       endpointSliceName,
 					Generation: endpointSliceGeneration,
 					Annotations: map[string]string{
-						objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-						objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSliceGeneration),
-						objectmeta.MetricsAnnotationLastSeenTimestamp:  startTimeAfter.Format(objectmeta.MetricsLastSeenTimestampFormat),
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+						metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSliceGeneration),
+						metrics.MetricsAnnotationLastSeenTimestamp:    startTimeAfter.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},

@@ -284,8 +284,9 @@ func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, sv
 func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
-		Type:    string(fleetnetv1alpha1.ServiceExportValid),
-		Status:  metav1.ConditionFalse,
+		Type:   string(fleetnetv1alpha1.ServiceExportValid),
+		Status: metav1.ConditionFalse,
+		// The Service is not found, therefore the observedGeneration field is ignored.
 		Reason:  svcExportInvalidNotFoundCondReason,
 		Message: fmt.Sprintf("service %s/%s is not found", svcExport.Namespace, svcExport.Name),
 	}

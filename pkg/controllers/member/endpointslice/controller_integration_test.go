@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
@@ -421,9 +422,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 
 			// Add the unique name + last seen annotations now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSlice.Generation),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -466,9 +467,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSlice.Generation),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -516,9 +517,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSlice.Generation),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -570,9 +571,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 
 			// Add the unique name annotation now.
 			endpointSlice.Annotations = map[string]string{
-				objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-				objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
-				objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+				objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+				metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSlice.Generation),
+				metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			}
 			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
 		})
@@ -641,9 +642,9 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 				endpointSlice.Annotations = map[string]string{
-					objectmeta.ExportedObjectAnnotationUniqueName:  endpointSliceUniqueName,
-					objectmeta.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", endpointSlice.Generation),
-					objectmeta.MetricsAnnotationLastSeenTimestamp:  startTime.Format(objectmeta.MetricsLastSeenTimestampFormat),
+					objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName,
+					metrics.MetricsAnnotationLastSeenGeneration:   fmt.Sprintf("%d", endpointSlice.Generation),
+					metrics.MetricsAnnotationLastSeenTimestamp:    startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 				}
 				endpointSlice.ObjectMeta.Finalizers = []string{"networking.fleet.azure.com/test"}
 				return memberClient.Update(ctx, endpointSlice)
@@ -718,16 +719,16 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -810,16 +811,16 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -867,16 +868,16 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(), got %w, want no error", err)
 				}
@@ -969,16 +970,16 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -1136,16 +1137,16 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -1314,16 +1315,16 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -1343,16 +1344,16 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := altEndpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := altEndpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", altEndpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := altEndpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := altEndpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -1419,16 +1420,16 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
@@ -1525,16 +1526,16 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 					return fmt.Errorf("endpointSlice unique name, got %s, want prefix %s", uniqueName, fmt.Sprintf("%s-%s-%s-", memberClusterID, memberUserNS, endpointSliceName))
 				}
 
-				lastSeenGenerationData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenGeneration]
+				lastSeenGenerationData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
 				if !ok || lastSeenGenerationData != fmt.Sprintf("%d", endpointSlice.Generation) {
 					return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, endpointSlice.Generation)
 				}
 
-				lastSeenTimestampData, ok := endpointSlice.Annotations[objectmeta.MetricsAnnotationLastSeenTimestamp]
+				lastSeenTimestampData, ok := endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
 				if !ok {
 					return fmt.Errorf("lastSeenTimestampData is absent")
 				}
-				lastSeenTimestamp, err := time.Parse(objectmeta.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+				lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
 				if err != nil {
 					return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
 				}
