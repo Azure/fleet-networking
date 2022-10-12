@@ -93,9 +93,16 @@ jobs:
           client-id: ${{ secrets.E2E_AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+      - name: Setup e2e Environment
+        run: |
+          make e2e-setup
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+          AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
+          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
       - name: Run e2e tests
         run: |
-          make e2e-setup && make e2e-tests
+          make e2e-tests
         env:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
           AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
