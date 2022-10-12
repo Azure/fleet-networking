@@ -12,7 +12,7 @@ az account set -s ${AZURE_SUBSCRIPTION_ID}
 # Create resource group to host hub and member clusters.
 # RANDOM ID promises workflow runs don't interface one another.
 export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-fleet-networking-e2e-$RANDOM}"
-export LOCATION=eastus
+export LOCATION="${LOCATION:-eastus}"
 az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
 
 # Defer function to recycle created Azure resource.
