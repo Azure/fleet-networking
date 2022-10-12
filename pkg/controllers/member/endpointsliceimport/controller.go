@@ -60,11 +60,17 @@ var (
 		},
 		[]string{
 			// The ID of the origin cluster, which exports the Service and the EndpointSlice.
+<<<<<<< HEAD
 			"origin_cluster_id",
 			// The ID of the destination cluster, which imports the Service and the EndpointSlice.
 			"destination_cluster_id",
 			// Whether the data point comes from importing an endpointSlice for the first time.
 			"is_first_import",
+=======
+			"originClusterID",
+			// The ID of the destination cluster, which imports the Service and the EndpointSlice.
+			"destinationClusterID",
+>>>>>>> 6534db3 (Added metrics)
 		},
 	)
 )
@@ -233,7 +239,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Observe a data point for the EndpointSliceExportImportDuration metric.
 	if err := r.observeMetrics(ctx, endpointSliceImport, time.Now()); err != nil {
+<<<<<<< HEAD
 		klog.Warning("Failed to observe metrics", "error", err, "endpointSliceImport", endpointSliceImportRef)
+=======
+		klog.ErrorS(err, "Failed to observe metrics", "endpointSliceImport", endpointSliceImportRef)
+>>>>>>> 6534db3 (Added metrics)
 		return ctrl.Result{}, err
 	}
 
