@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/apiretry"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
@@ -94,7 +93,8 @@ var _ = Describe("Test exporting service", func() {
 			svcDef := wm.Service()
 			svcImportKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
 			svcImportObj := &fleetnetv1alpha1.ServiceImport{}
-			Expect(apiretry.Do(func() error { return hubCluster.Client().Get(ctx, svcImportKey, svcImportObj) })).Should(Succeed(), "Failed to get service import")
+			err := hubCluster.Client().Get(ctx, svcImportKey, svcImportObj)
+			Expect(err).Should(BeNil(), "Failed to get service import")
 			wantedSvcImportStatus := fleetnetv1alpha1.ServiceImportStatus{
 				Clusters: []fleetnetv1alpha1.ClusterStatus{
 					{
@@ -161,7 +161,7 @@ var _ = Describe("Test exporting service", func() {
 			for _, m := range memberClusters {
 				newSvcDef := wm.Service()
 				newSvcDef.Name = newSvcName
-				Expect(apiretry.Do(func() error { return m.Client().Create(ctx, &newSvcDef) })).Should(Succeed(), "Failed to create service %s in cluster %s", newSvcDef.Name, m.Name())
+				Expect(m.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", newSvcDef.Name, m.Name())
 			}
 
 			By("Exporting the service with a different name")
@@ -176,7 +176,7 @@ var _ = Describe("Test exporting service", func() {
 			newSvcDef := wm.Service()
 			newSvcDef.Name = newSvcName
 			for _, m := range memberClusters {
-				Expect(apiretry.Do(func() error { return m.Client().Delete(ctx, &newSvcDef) })).Should(Succeed(), "Failed to create service %s in cluster %s", newSvcDef.Name, m.Name())
+				Expect(m.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", newSvcDef.Name, m.Name())
 			}
 		})
 	})
@@ -220,7 +220,7 @@ var _ = Describe("Test exporting service", func() {
 			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
 			svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 			for _, m := range memberClusters {
-				Expect(apiretry.Do(func() error { return m.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportDef.Name, m.Name())
+				Expect(m.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportDef.Name, m.Name())
 				Eventually(func() bool {
 					return errors.IsNotFound(m.Client().Get(ctx, svcExporKey, svcExportObj))
 				}, framework.PollTimeout, framework.PollInterval).Should(BeTrue(), "Failed to delete service export")
@@ -279,7 +279,7 @@ var _ = Describe("Test exporting service", func() {
 			}
 			By(fmt.Sprintf("Scaling deployment to %d from %d", replicas, *scalingDeploymentDef.Spec.Replicas))
 			scalingDeploymentDef.Spec.Replicas = &replicas
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Update(ctx, scalingDeploymentDef) })).Should(Succeed(), "Failed to scale up app deployment %s in cluster %s", scalingDeploymentDef.Name, mcsClusterName)
+			Expect(memberClusterMCS.Client().Update(ctx, scalingDeploymentDef)).Should(Succeed(), "Failed to scale up app deployment %s in cluster %s", scalingDeploymentDef.Name, mcsClusterName)
 
 			// The total endpoints should include addresses of Pods from all member clusters in current test env.
 			wantedEndpointNumber := int(*scalingDeploymentDef.Spec.Replicas)
@@ -296,7 +296,7 @@ var _ = Describe("Test exporting service", func() {
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			mcsDef := wm.MultiClusterService()
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj) })).Should(Succeed(), "Failed to get mcs %s in cluster %s", multiClusterSvcKey, mcsClusterName)
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get mcs %s in cluster %s", multiClusterSvcKey, mcsClusterName)
 			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
 			Eventually(func() string {
 				endpointSliceList := &discoveryv1.EndpointSliceList{}
@@ -341,14 +341,14 @@ var _ = Describe("Test exporting service", func() {
 			svcExportDef := wm.ServiceExport()
 			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 			memberClusterTwo := wm.Fleet.MemberClusters()[1]
-			Expect(apiretry.Do(func() error { return memberClusterTwo.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+			Expect(memberClusterTwo.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
 
 			By("Updating service spec in member cluster one")
 			svcDef := wm.Service()
 			memberClusterUpdateService := wm.Fleet.MemberClusters()[0]
 			svcDef.Spec.Ports[0].Port = 8080
 			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterUpdateService.Client().Update(ctx, &svcDef) })).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
+			Expect(memberClusterUpdateService.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
 
 			By("Creating multi-cluster service")
 			mcsDef := wm.MultiClusterService()
@@ -358,8 +358,7 @@ var _ = Describe("Test exporting service", func() {
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj) })).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
-
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
 			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
 			Eventually(func() string {
 				derivedServiceKey := types.NamespacedName{Namespace: fleetSystemNamespace, Name: derivedServiceName}
@@ -388,7 +387,7 @@ var _ = Describe("Test exporting service", func() {
 			svcDef.Spec.Ports[0].Port = 8080
 			memberClusterUpdateService := memberClusters[0]
 			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterUpdateService.Client().Update(ctx, &svcDef) })).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
+			Expect(memberClusterUpdateService.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterUpdateService.Name())
 
 			By("Validating exporting the service should have conflict in member cluster one")
 			svcExportDef := wm.ServiceExport()
@@ -421,7 +420,7 @@ var _ = Describe("Test exporting service", func() {
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj) })).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s", multiClusterSvcKey, memberClusterMCS.Name())
 			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
 			Eventually(func() error {
 				endpointSliceList := &discoveryv1.EndpointSliceList{}
@@ -454,7 +453,7 @@ var _ = Describe("Test exporting service", func() {
 			memberClusterOne := wm.Fleet.MemberClusters()[0]
 			svcExportDef := wm.ServiceExport()
 			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterOne.Client().Create(ctx, &svcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
+			Expect(memberClusterOne.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
 			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
 			Eventually(func() string {
 				if err := memberClusterOne.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
@@ -480,11 +479,11 @@ var _ = Describe("Test exporting service", func() {
 			svcDef := wm.Service()
 			svcDef.Spec.Ports[0].Port++
 			svcKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterTwo.Client().Update(ctx, &svcDef) })).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterTwo.Name())
+			Expect(memberClusterTwo.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberClusterTwo.Name())
 
 			By("Exporting the service in member cluster two")
 			svcExportDef = wm.ServiceExport()
-			Expect(apiretry.Do(func() error { return memberClusterTwo.Client().Create(ctx, &svcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+			Expect(memberClusterTwo.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
 
 			By("Validating exporting service in cluster two has conflict")
 			Eventually(func() string {
@@ -508,10 +507,10 @@ var _ = Describe("Test exporting service", func() {
 
 			// clean up
 			By("Unexporting the service in member cluster one")
-			Expect(apiretry.Do(func() error { return memberClusterOne.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
+			Expect(memberClusterOne.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
 
 			By("Deleting service export in member cluster two")
-			Expect(apiretry.Do(func() error { return memberClusterTwo.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
+			Expect(memberClusterTwo.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterTwo.Name())
 		})
 
 		It("should reject exporting a headless service", func() {
@@ -522,13 +521,13 @@ var _ = Describe("Test exporting service", func() {
 			svcDef.Spec.Type = corev1.ServiceTypeClusterIP
 			svcDef.Spec.ClusterIP = "None"
 			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Create(ctx, &svcDef) })).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
+			Expect(memberCluster.Client().Create(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
 
 			By("Exporting the headless service")
 			svcExportDef := wm.ServiceExport()
 			svcExportDef.Name = svcDef.Name
 			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Create(ctx, &svcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
+			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Validating exporting the headless service should be ineligible")
 			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
@@ -548,10 +547,10 @@ var _ = Describe("Test exporting service", func() {
 
 			// clean up
 			By("Unexporting the service")
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
+			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Deleting the service")
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Delete(ctx, &svcDef) })).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberCluster.Name())
+			Expect(memberCluster.Client().Delete(ctx, &svcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberCluster.Name())
 		})
 
 		It("should reject exporting a service of type ExternalName", func() {
@@ -561,12 +560,12 @@ var _ = Describe("Test exporting service", func() {
 			svcDef.Spec.Type = corev1.ServiceTypeExternalName
 			svcDef.Spec.ExternalName = "e2e.fleet-networking.com"
 			svcKey := types.NamespacedName{Namespace: svcDef.Namespace, Name: svcDef.Name}
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Update(ctx, &svcDef) })).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
+			Expect(memberCluster.Client().Update(ctx, &svcDef)).Should(Succeed(), "Failed to update service %s in cluster %s", svcKey, memberCluster.Name())
 
 			By("Exporting the service of type ExternalName")
 			svcExportDef := wm.ServiceExport()
 			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Create(ctx, &svcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
+			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Validating exporting service of type ExternalName should be ineligible")
 			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
@@ -586,7 +585,7 @@ var _ = Describe("Test exporting service", func() {
 
 			// clean up
 			By("Unexporting the service export")
-			Expect(apiretry.Do(func() error { return memberCluster.Client().Delete(ctx, &svcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
+			Expect(memberCluster.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberCluster.Name())
 		})
 	})
 
@@ -666,11 +665,11 @@ var _ = Describe("Test exporting service", func() {
 			newSvcDef.Spec.Ports[0].Port = 8080
 			memberClusterNewService := wm.Fleet.MemberClusters()[0]
 			svcKey := types.NamespacedName{Namespace: newSvcDef.Namespace, Name: newSvcDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newSvcDef) })).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
 			newSvcExportDef := wm.ServiceExport()
 			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
 			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 
@@ -679,20 +678,20 @@ var _ = Describe("Test exporting service", func() {
 			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
 			newMCSDef.Spec.ServiceImport.Name = newSvcDef.Name
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Create(ctx, &newMCSDef) })).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service is importing the new service")
 			validateMCSStatus(memberClusterMCS, newMCSDef, newSvcDef)
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &newMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Deleting the newly created service export")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 
 			By("Deleting the newly created service")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newSvcDef) })).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete service %s in cluster %s", svcKey, memberClusterNewService.Name())
 		})
 
 		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in the same member cluster", func() {
@@ -703,7 +702,7 @@ var _ = Describe("Test exporting service", func() {
 			newMCSDef := wm.MultiClusterService()
 			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Create(ctx, &newMCSDef) })).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service status is unknown")
 			Eventually(func() string {
@@ -726,14 +725,14 @@ var _ = Describe("Test exporting service", func() {
 			By("Deleting the old multi-cluster service")
 			oldMCSDef := wm.MultiClusterService()
 			oldMCSKey := types.NamespacedName{Namespace: oldMCSDef.Namespace, Name: oldMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &oldMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &oldMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service is importing the service after the original multi-cluster service is removed")
 			validateMCSStatus(memberClusterMCS, newMCSDef, wm.Service())
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &newMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 
 		It("should allow a new multi-cluster service import the service after the original multi-cluster service is removed when member-cluster services are created in different member clusters", func() {
@@ -750,7 +749,7 @@ var _ = Describe("Test exporting service", func() {
 			newMCSDef := wm.MultiClusterService()
 			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNonDefaultMCS.Client().Create(ctx, &newMCSDef) })).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterNonDefaultMCS.Name())
+			Expect(memberClusterNonDefaultMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterNonDefaultMCS.Name())
 			By("Validating the new multi-cluster service status is unknown eventually")
 			Eventually(func() string {
 				if err := memberClusterNonDefaultMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
@@ -772,14 +771,14 @@ var _ = Describe("Test exporting service", func() {
 			By("Deleting the old multi-cluster service")
 			oldMCSDef := wm.MultiClusterService()
 			oldMCSKey := types.NamespacedName{Namespace: oldMCSDef.Namespace, Name: oldMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &oldMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &oldMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", oldMCSKey, memberClusterMCS.Name())
 
 			By("Validating the new multi-cluster service is importing the service after the original multi-cluster service is removed")
 			validateMCSStatus(memberClusterNonDefaultMCS, newMCSDef, wm.Service())
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
-			Expect(apiretry.Do(func() error { return memberClusterNonDefaultMCS.Client().Delete(ctx, &newMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterNonDefaultMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 
 		It("should allow multi-cluster service to import a new service", func() {
@@ -789,13 +788,13 @@ var _ = Describe("Test exporting service", func() {
 			newServiceDef.Name = fmt.Sprintf("%s-new", newServiceDef.Name)
 			newServiceDef.Spec.Ports[0].Port = 8080
 			svcKey := types.NamespacedName{Namespace: newServiceDef.Namespace, Name: newServiceDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newServiceDef) })).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newServiceDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
 
 			By("Exporting the new service")
 			newSvcExportDef := wm.ServiceExport()
 			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
 			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 
 			memberClusterMCS := wm.Fleet.MCSMemberCluster()
 
@@ -803,19 +802,19 @@ var _ = Describe("Test exporting service", func() {
 			mcsDef := wm.MultiClusterService()
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
 			multiClusterSvcKey := types.NamespacedName{Namespace: mcsDef.Namespace, Name: mcsDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj) })).Should(Succeed(), "Failed to get multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj)).Should(Succeed(), "Failed to get multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 			mcsObj.Spec.ServiceImport.Name = newServiceDef.Name
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Update(ctx, mcsObj) })).Should(Succeed(), "Failed to update multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Update(ctx, mcsObj)).Should(Succeed(), "Failed to update multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the multi-cluster service is updated to import the new service")
 			validateMCSStatus(memberClusterMCS, mcsDef, newServiceDef)
 
 			// clean up
 			By("Deleting the newly created service")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newServiceDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newServiceDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
 
 			By("Deleting the newly created service export")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 		})
 
 		It("should allow a multi-cluster service to import a service created later than multi-cluster service", func() {
@@ -829,7 +828,7 @@ var _ = Describe("Test exporting service", func() {
 			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
 			newMCSDef.Spec.ServiceImport.Name = newSvcDef.Name
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Create(ctx, &newMCSDef) })).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the multi-cluster service is importing no service")
 			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
@@ -853,24 +852,24 @@ var _ = Describe("Test exporting service", func() {
 			By("Creating and exporting a new service")
 			memberClusterNewService := wm.Fleet.MemberClusters()[0]
 			svcKey := types.NamespacedName{Namespace: newSvcDef.Namespace, Name: newSvcDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newSvcDef) })).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcDef)).Should(Succeed(), "Failed to create service %s in cluster %s", svcKey, memberClusterNewService.Name())
 			newSvcExportDef := wm.ServiceExport()
 			newSvcExportDef.Name = fmt.Sprintf("%s-new", newSvcExportDef.Name)
 			svcExportKey := types.NamespacedName{Namespace: newSvcExportDef.Namespace, Name: newSvcExportDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Create(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Create(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 
 			By("Validating the multi-cluster service is importing the service created later than multi-cluster service")
 			validateMCSStatus(memberClusterMCS, newMCSDef, newSvcDef)
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &newMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Deleting the newly created service")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newSvcDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", svcKey, memberClusterNewService.Name())
 
 			By("Deleting the newly created service export")
-			Expect(apiretry.Do(func() error { return memberClusterNewService.Client().Delete(ctx, &newSvcExportDef) })).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
+			Expect(memberClusterNewService.Client().Delete(ctx, &newSvcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportKey, memberClusterNewService.Name())
 		})
 
 		It("should allow other multi-cluster services to import the service after the multi-cluster service importing the service is deleted", func() {
@@ -878,20 +877,20 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Deleting the existing multi-cluster service importing the service")
 			mcsSDef := wm.MultiClusterService()
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &mcsSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", mcsSDef.Name, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &mcsSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", mcsSDef.Name, memberClusterMCS.Name())
 
 			By("Creating a new multi-cluster service")
 			newMCSDef := wm.MultiClusterService()
 			newMCSDef.Name = fmt.Sprintf("%s-new", newMCSDef.Name)
 			multiClusterSvcKey := types.NamespacedName{Namespace: newMCSDef.Namespace, Name: newMCSDef.Name}
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Create(ctx, &newMCSDef) })).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Create(ctx, &newMCSDef)).Should(Succeed(), "Failed to create multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 
 			By("Validating the service can be re-imported by another multi-cluster service")
 			validateMCSStatus(memberClusterMCS, newMCSDef, wm.Service())
 
 			// clean up
 			By("Deleting the newly created multi-cluster service")
-			Expect(apiretry.Do(func() error { return memberClusterMCS.Client().Delete(ctx, &newMCSDef) })).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
+			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 	})
 })

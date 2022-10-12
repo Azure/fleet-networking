@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/apiretry"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
@@ -144,9 +143,7 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 				Name: wm.namespace,
 			},
 		}
-		if err := apiretry.Do(func() error {
-			return m.Client().Create(ctx, &nsDef)
-		}); err != nil {
+		if err := m.Client().Create(ctx, &nsDef); err != nil {
 			return fmt.Errorf("failed to create namespace %s in cluster %s: %w", wm.namespace, m.Name(), err)
 		}
 	}
@@ -154,14 +151,10 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
 		serviceDef := wm.service
-		if err := apiretry.Do(func() error {
-			return m.Client().Create(ctx, deploymentDef)
-		}); err != nil {
+		if err := m.Client().Create(ctx, deploymentDef); err != nil {
 			return fmt.Errorf("failed to create app deployment %s in cluster %s: %w", deploymentDef.Name, m.Name(), err)
 		}
-		if err := apiretry.Do(func() error {
-			return m.Client().Create(ctx, &serviceDef)
-		}); err != nil {
+		if err := m.Client().Create(ctx, &serviceDef); err != nil {
 			return fmt.Errorf("failed to create app service %s in cluster %s: %w", serviceDef.Name, m.Name(), err)
 		}
 	}
@@ -173,15 +166,10 @@ func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
 		svcDef := wm.service
-		if err := apiretry.Do(func() error {
-			return m.Client().Delete(ctx, deploymentDef)
-		}); err != nil && !errors.IsNotFound(err) {
+		if err := m.Client().Delete(ctx, deploymentDef); err != nil {
 			return fmt.Errorf("failed to delete app deployment %s in cluster %s: %w", deploymentDef.Name, m.Name(), err)
 		}
-
-		if err := apiretry.Do(func() error {
-			return m.Client().Delete(ctx, &svcDef)
-		}); err != nil && !errors.IsNotFound(err) {
+		if err := m.Client().Delete(ctx, &svcDef); err != nil {
 			return fmt.Errorf("failed to delete app service %s in cluster %s: %w", svcDef.Name, m.Name(), err)
 		}
 	}
@@ -192,9 +180,7 @@ func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 				Name: wm.namespace,
 			},
 		}
-		if err := apiretry.Do(func() error {
-			return m.Client().Delete(ctx, &nsDef)
-		}); err != nil && !errors.IsNotFound(err) {
+		if err := m.Client().Delete(ctx, &nsDef); err != nil {
 			return fmt.Errorf("failed to delete namespace %s in cluster %s: %w", wm.namespace, m.Name(), err)
 		}
 	}
@@ -289,9 +275,7 @@ func (wm *WorkloadManager) DeleteMultiClusterService(ctx context.Context, mcs fl
 func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetnetv1alpha1.ServiceExport) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		serviceExporKey := types.NamespacedName{Namespace: svcExport.Namespace, Name: svcExport.Name}
-		if err := apiretry.Do(func() error {
-			return m.Client().Delete(ctx, &svcExport)
-		}); err != nil && !errors.IsNotFound(err) {
+		if err := m.Client().Delete(ctx, &svcExport); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete service export %s in cluster %s: %w", serviceExporKey, m.Name(), err)
 		}
 		if err := retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
