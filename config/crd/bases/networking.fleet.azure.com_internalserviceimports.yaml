@@ -54,8 +54,8 @@ spec:
                     description: The ID of the cluster where the object is exported.
                     type: string
                   exportedSince:
-                    description: The timestamp from a local clock when the object
-                      is exported.
+                    description: The timestamp from a local clock when the generation
+                      of the object is exported.
                     format: date-time
                     type: string
                   generation:
