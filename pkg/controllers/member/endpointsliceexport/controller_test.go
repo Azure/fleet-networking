@@ -65,7 +65,7 @@ func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceExportName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceExportName,
 					},
 				},
 			},
@@ -100,7 +100,7 @@ func TestIsEndpointSliceExportLinkedWithEndpointSlice(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: "app-endpointsliceexport-1",
+						objectmeta.ExportedObjectAnnotationUniqueName: "app-endpointsliceexport-1",
 					},
 				},
 			},

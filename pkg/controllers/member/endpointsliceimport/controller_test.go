@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
@@ -97,6 +98,7 @@ func ipv4EndpointSliceImport() *fleetnetv1alpha1.EndpointSliceImport {
 				ResourceVersion: "0",
 				Generation:      1,
 				UID:             "00000000-0000-0000-0000-000000000000",
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 			},
 			OwnerServiceReference: fleetnetv1alpha1.OwnerServiceReference{
 				Namespace: memberUserNS,

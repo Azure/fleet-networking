@@ -75,7 +75,7 @@ var _ = Describe("Create or update a service import", func() {
 			}, timeout, interval).Should(BeTrue())
 			internalServiceImportName := formatInternalServiceImportName(serviceImport)
 			internalServiceImportLookupKey := types.NamespacedName{Name: internalServiceImportName, Namespace: HubNamespace}
-			expectedServiceImportRef := fleetnetv1alpha1.FromMetaObjects(MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta)
+			expectedServiceImportRef := fleetnetv1alpha1.FromMetaObjects(MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta, serviceImport.CreationTimestamp)
 			internalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			By("By checking the ServiceImportReference of internal service import is updated")
 			Eventually(func() bool {
@@ -104,7 +104,7 @@ var _ = Describe("Create or update a service import", func() {
 				return updatedServiceImport.GetLabels() != nil && updatedServiceImport.GetLabels()[testLabelKey] == testLabelValue
 			}, timeout, interval).Should(BeTrue())
 			By("By checking internal service import is updated")
-			expectedServiceImportRef = fleetnetv1alpha1.FromMetaObjects(MemberClusterID, updatedServiceImport.TypeMeta, updatedServiceImport.ObjectMeta)
+			expectedServiceImportRef = fleetnetv1alpha1.FromMetaObjects(MemberClusterID, updatedServiceImport.TypeMeta, updatedServiceImport.ObjectMeta, serviceImport.CreationTimestamp)
 			updatedInternalServiceImport := &fleetnetv1alpha1.InternalServiceImport{}
 			Eventually(func() bool {
 				if err := hubClient.Get(ctx, internalServiceImportLookupKey, updatedInternalServiceImport); err != nil {

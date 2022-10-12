@@ -10,6 +10,7 @@ package endpointslice
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -27,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
@@ -107,7 +109,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Retrieve the unique name assigned; if none has been assigned, or the one assigned is not valid, possibly due
 	// to user tampering with the annotation, assign a new unique name.
-	fleetUniqueName, ok := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+	fleetUniqueName, ok := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
 	if !ok || !isUniqueNameValid(fleetUniqueName) {
 		klog.V(2).InfoS("The endpoint slice does not have a unique name assigned or the one assigned is not valid; a new one will be assigned",
 			"endpointSlice", endpointSliceRef)
@@ -118,6 +120,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			klog.ErrorS(err, "Failed to assign unique name as an annotation", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
 		}
+	}
+
+	// Retrieve the last seen generation and the last seen timestamp; these two values are used for metric collection.
+	// If the two values are not present or not valid, annotate EndpointSlice with new values.
+	//
+	// Note that the two values are not tamperproof.
+	exportedSince, err := r.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, &endpointSlice, startTime)
+	if err != nil {
+		klog.Warning("Failed to annotate last seen generation and timestamp", "endpointSlice", endpointSliceRef)
 	}
 
 	// Create an EndpointSliceExport in the hub cluster if the EndpointSlice has never been exported; otherwise
@@ -136,7 +147,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Set up an EndpointSliceReference and only when an EndpointSliceExport is first created; this is because
 		// most fields in EndpointSliceReference should be immutable after creation.
 		if endpointSliceExport.CreationTimestamp.IsZero() {
-			endpointSliceReference := fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, endpointSlice.TypeMeta, endpointSlice.ObjectMeta)
+			endpointSliceReference := fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID,
+				endpointSlice.TypeMeta, endpointSlice.ObjectMeta, metav1.NewTime(exportedSince))
 			endpointSliceExport.Spec.EndpointSliceReference = endpointSliceReference
 		}
 
@@ -160,15 +172,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			NamespacedName: fmt.Sprintf("%s/%s", endpointSlice.Namespace, endpointSlice.Labels[discoveryv1.LabelServiceName]),
 		}
 
-		endpointSliceExport.Spec.EndpointSliceReference.UpdateFromMetaObject(endpointSlice.ObjectMeta)
-
+		endpointSliceExport.Spec.EndpointSliceReference.UpdateFromMetaObject(endpointSlice.ObjectMeta, metav1.NewTime(exportedSince))
 		return nil
 	})
 	switch {
 	case errors.IsAlreadyExists(err):
 		// Remove the unique name annotation; a new one will be assigned in future reciliation attempts.
 		klog.V(2).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
-		delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
+		delete(endpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 		if err := r.MemberClient.Update(ctx, &endpointSlice); err != nil {
 			klog.ErrorS(err, "Failed to remove endpointslice unique name annotation", "endpointSlice", endpointSliceRef)
 			return ctrl.Result{}, err
@@ -248,7 +259,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	svcName, hasSvcNameLabel := endpointSlice.Labels[discoveryv1.LabelServiceName]
 	// It is guaranteed that if there is no unique name assigned to an EndpointSlice as an annotation, no attempt has
 	// been made to export an EndpointSlice.
-	_, hasUniqueNameAnnotation := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+	_, hasUniqueNameAnnotation := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
 
 	if !hasSvcNameLabel {
 		if !hasUniqueNameAnnotation {
@@ -317,14 +328,17 @@ func (r *Reconciler) unexportEndpointSlice(ctx context.Context, endpointSlice *d
 		return err
 	}
 
+	// Remove the last seen annotations; this must happen after the EndpointSliceExport has been deleted.
+	delete(endpointSlice.Annotations, metrics.MetricsAnnotationLastSeenGeneration)
+	delete(endpointSlice.Annotations, metrics.MetricsAnnotationLastSeenTimestamp)
 	// Remove the unique name annotation; this must happen after the EndpointSliceExport has been deleted.
-	delete(endpointSlice.Annotations, objectmeta.EndpointSliceAnnotationUniqueName)
+	delete(endpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 	return r.MemberClient.Update(ctx, endpointSlice)
 }
 
 // deleteEndpointSliceExportIfLinked deletes an exported EndpointSlice.
 func (r *Reconciler) deleteEndpointSliceExportIfLinked(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice) error {
-	fleetUniqueName := endpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName]
+	fleetUniqueName := endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
 
 	// Skip the deletion if the unique name assigned as an annotation is not a valid DNS subdomain name; this
 	// helps guard against user tampering with the annotation.
@@ -383,11 +397,42 @@ func (r *Reconciler) assignUniqueNameAsAnnotation(ctx context.Context, endpointS
 			"endpointSlice", klog.KObj(endpointSlice))
 		fleetUniqueName = uniquename.RandomLowerCaseAlphabeticString(25)
 	}
-	updatedEndpointSlice := endpointSlice.DeepCopy()
+
 	// Initialize the annotations field if no annotations are present.
-	if updatedEndpointSlice.Annotations == nil {
-		updatedEndpointSlice.Annotations = map[string]string{}
+	if endpointSlice.Annotations == nil {
+		endpointSlice.Annotations = map[string]string{}
 	}
-	updatedEndpointSlice.Annotations[objectmeta.EndpointSliceAnnotationUniqueName] = fleetUniqueName
-	return fleetUniqueName, r.MemberClient.Update(ctx, updatedEndpointSlice)
+	endpointSlice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName] = fleetUniqueName
+	return fleetUniqueName, r.MemberClient.Update(ctx, endpointSlice)
+}
+
+// collectAndVerifyLastSeenGenerationAndTime collects and verifies the last seen generation and timestamp annotations
+// on EndpointSlices; it will assign new values if the annotations are not present or not valid.
+func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.Context, endpointslice *discoveryv1.EndpointSlice, startTime time.Time) (time.Time, error) {
+	// Check if the two annotations are present; assign new values if they are absent.
+	lastSeenGenerationData, lastSeenGenerationOk := endpointslice.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
+	lastSeenTimestampData, lastSeenTimestampOk := endpointslice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
+	if !lastSeenGenerationOk || !lastSeenTimestampOk {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
+	}
+
+	// Check if the two values are valid and up-to-date; assign new ones if they are not.
+	lastSeenGeneration, lastSeenGenerationErr := strconv.ParseInt(lastSeenGenerationData, 10, 64)
+	lastSeenTimestamp, lastSeenTimestampErr := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+	if lastSeenGenerationErr != nil || lastSeenTimestampErr != nil {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
+	}
+	if lastSeenGeneration != endpointslice.Generation || lastSeenTimestamp.After(startTime) {
+		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, endpointslice, startTime)
+	}
+	return lastSeenTimestamp, nil
+}
+
+// annotateLastSeenGenerationAndTimestamp annotates an EndpointSlice with last seen generation and timestamp.
+func (r *Reconciler) annotateLastSeenGenerationAndTimestamp(ctx context.Context, endpointSlice *discoveryv1.EndpointSlice, startTime time.Time) error {
+	// Since the controller always annotate last seen generation and timestamp after assigning a unique name,
+	// the annotations map must have been initialized at this point.
+	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(endpointSlice.Generation, 10)
+	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
+	return r.MemberClient.Update(ctx, endpointSlice)
 }

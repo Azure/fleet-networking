@@ -26,7 +26,8 @@ const (
 	// ServiceImportAnnotationServiceInUseBy is the key of the ServiceInUseBy annotation, which marks the list
 	// of member clusters importing an exported Service.
 	ServiceImportAnnotationServiceInUseBy = "networking.fleet.azure.com/service-in-use-by"
-	// EndpointSliceAnnotationUniqueName is an annotation that marks the fleet-scoped unique name assigned to
-	// an EndpointSlice.
-	EndpointSliceAnnotationUniqueName = "networking.fleet.azure.com/fleet-unique-name"
+
+	// ExportedObjectAnnotationUniqueName is an annotation that marks the fleet-scoped unique name assigned to
+	// an exported object.
+	ExportedObjectAnnotationUniqueName = "networking.fleet.azure.com/fleet-unique-name"
 )

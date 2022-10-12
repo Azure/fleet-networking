@@ -41,6 +41,7 @@ func unfulfilledInternalServiceImport() *fleetnetv1alpha1.InternalServiceImport 
 			ServiceImportReference: fleetnetv1alpha1.FromMetaObjects(clusterIDForMemberA,
 				svcImportForRef.TypeMeta,
 				svcImportForRef.ObjectMeta,
+				metav1.NewTime(time.Now().Round(time.Second)),
 			),
 		},
 	}

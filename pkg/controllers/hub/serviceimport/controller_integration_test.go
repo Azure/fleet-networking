@@ -67,6 +67,8 @@ var _ = Describe("Test ServiceImport Controller", func() {
 		interval = time.Millisecond * 250
 	)
 
+	exportedSince := metav1.NewTime(time.Now().Round(time.Second))
+
 	var (
 		appProtocol        = "app-protocol"
 		importServicePorts = []fleetnetv1alpha1.ServicePort{
@@ -95,6 +97,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 				Generation:      0,
 				UID:             "0",
 				NamespacedName:  testNamespace + "/" + testServiceName,
+				ExportedSince:   exportedSince,
 			},
 		}
 		serviceImportKey = types.NamespacedName{
@@ -148,6 +151,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 						Generation:      0,
 						UID:             "0",
 						NamespacedName:  testNamespace + "/" + testServiceName,
+						ExportedSince:   exportedSince,
 					},
 				},
 			}
@@ -168,6 +172,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 						Generation:      0,
 						UID:             "0",
 						NamespacedName:  testNamespace + "/" + "othersvc",
+						ExportedSince:   exportedSince,
 					},
 				},
 			}
@@ -188,6 +193,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 						Generation:      0,
 						UID:             "0",
 						NamespacedName:  testNamespace + "/" + testServiceName,
+						ExportedSince:   exportedSince,
 					},
 				},
 			}
@@ -346,6 +352,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 							Generation:      0,
 							UID:             "0",
 							NamespacedName:  testNamespace + "/" + testServiceName,
+							ExportedSince:   exportedSince,
 						},
 					},
 					ObjectMeta: internalServiceExportB.ObjectMeta,
@@ -384,6 +391,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 							Generation:      0,
 							UID:             "0",
 							NamespacedName:  testNamespace + "/" + "othersvc",
+							ExportedSince:   exportedSince,
 						},
 					},
 				}

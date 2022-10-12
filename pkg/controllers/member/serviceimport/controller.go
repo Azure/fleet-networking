@@ -105,9 +105,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if internalServiceImport.CreationTimestamp.IsZero() {
 			// Set the ServiceReference only when the InternalServiceImport is created; most of the fields in
 			// an ExportedObjectReference should be immutable.
-			internalServiceImport.Spec.ServiceImportReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta)
+			internalServiceImport.Spec.ServiceImportReference = fleetnetv1alpha1.FromMetaObjects(r.MemberClusterID, serviceImport.TypeMeta, serviceImport.ObjectMeta, serviceImport.CreationTimestamp)
 		}
-		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta)
+
+		// TO-DO: InternalServiceImport object is not an exported object and the ServiceImportReference (an
+		// exportedObject field) will be removed; information updated here is not used.
+		internalServiceImport.Spec.ServiceImportReference.UpdateFromMetaObject(serviceImport.ObjectMeta, serviceImport.CreationTimestamp)
 		return nil
 	}); err != nil {
 		klog.ErrorS(err, "Failed to create or update InternalServiceImport from ServiceImport", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef, "op", op)

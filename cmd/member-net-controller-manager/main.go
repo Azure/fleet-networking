@@ -259,6 +259,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Create endpointsliceimport controller")
 	if err := (&endpointsliceimport.Reconciler{
+		MemberClusterID:      mcName,
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
 		FleetSystemNamespace: *fleetSystemNamespace,
@@ -269,9 +270,10 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Create internalserviceexport controller")
 	if err := (&internalserviceexport.Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		Recorder:     memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
+		MemberClusterID: mcName,
+		MemberClient:    memberClient,
+		HubClient:       hubClient,
+		Recorder:        memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err

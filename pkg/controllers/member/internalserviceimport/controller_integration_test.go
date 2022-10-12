@@ -38,8 +38,9 @@ var _ = Describe("Test InternalServiceImport Controller", func() {
 				},
 				Spec: fleetnetv1alpha1.InternalServiceImportSpec{
 					ServiceImportReference: fleetnetv1alpha1.ExportedObjectReference{
-						Namespace: testNamespace,
-						Name:      testName,
+						Namespace:     testNamespace,
+						Name:          testName,
+						ExportedSince: metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -79,8 +80,9 @@ var _ = Describe("Test InternalServiceImport Controller", func() {
 				},
 				Spec: fleetnetv1alpha1.InternalServiceImportSpec{
 					ServiceImportReference: fleetnetv1alpha1.ExportedObjectReference{
-						Namespace: testNamespace,
-						Name:      testName,
+						Namespace:     testNamespace,
+						Name:          testName,
+						ExportedSince: metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 				Status: fleetnetv1alpha1.ServiceImportStatus{

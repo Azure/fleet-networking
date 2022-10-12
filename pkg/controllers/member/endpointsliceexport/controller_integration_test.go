@@ -60,6 +60,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						ResourceVersion: "0",
 						Generation:      0,
 						UID:             "0",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -126,6 +127,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						ResourceVersion: "1",
 						Generation:      1,
 						UID:             "1",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -157,7 +159,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					Namespace: memberUserNS,
 					Name:      endpointSliceName,
 					Annotations: map[string]string{
-						objectmeta.EndpointSliceAnnotationUniqueName: endpointSliceExportName,
+						objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceExportName,
 					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
@@ -199,6 +201,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 						ResourceVersion: "1",
 						Generation:      1,
 						UID:             "1",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}

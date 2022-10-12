@@ -52,6 +52,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						ResourceVersion: "0",
 						Generation:      0,
 						UID:             "0",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -101,6 +102,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						ResourceVersion: "1",
 						Generation:      1,
 						UID:             "1",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -153,6 +155,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						ResourceVersion: "2",
 						Generation:      2,
 						UID:             "2",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
@@ -217,6 +220,7 @@ var _ = Describe("internalsvcexport controller", func() {
 						ResourceVersion: "3",
 						Generation:      3,
 						UID:             "3",
+						ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 					},
 				},
 			}
