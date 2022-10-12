@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -21,16 +24,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
 const (
-	hubNSForMember = "bravelion"
-	memberUserNS   = "work"
-	svcName        = "app"
+	memberClusterID = "bravelion"
+	hubNSForMember  = "bravelion"
+	memberUserNS    = "work"
+	svcName         = "app"
 )
 
-// ignoredCondFields are fields that should be ignored when comparing conditions.
-var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+var (
+	internalSvcExportName = fmt.Sprintf("%s-%s", memberUserNS, svcName)
+
+	svcExportKey         = types.NamespacedName{Namespace: memberUserNS, Name: svcName}
+	internalSvcExportKey = types.NamespacedName{Namespace: hubNSForMember, Name: internalSvcExportName}
+
+	// ignoredCondFields are fields that should be ignored when comparing conditions.
+	ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime")
+)
 
 // conflictedServiceExportConflictCondition returns a ServiceExportConflict condition that reports an export conflict.
 func conflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
@@ -38,7 +50,7 @@ func conflictedServiceExportConflictCondition(svcNamespace string, svcName strin
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: 1,
-		LastTransitionTime: metav1.Now(),
+		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "ConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported services", svcNamespace, svcName),
 	}
@@ -51,7 +63,7 @@ func unconflictedServiceExportConflictCondition(svcNamespace string, svcName str
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: 2,
-		LastTransitionTime: metav1.Now(),
+		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "NoConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is exported without conflict", svcNamespace, svcName),
 	}
@@ -64,7 +76,7 @@ func unknownServiceExportConflictCondition(svcNamespace string, svcName string) 
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
 		ObservedGeneration: 0,
-		LastTransitionTime: metav1.Now(),
+		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "PendingConflictResolution",
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcNamespace, svcName),
 	}
@@ -87,7 +99,8 @@ func TestReportBackConflictCondition(t *testing.T) {
 		name              string
 		svcExport         *fleetnetv1alpha1.ServiceExport
 		internalSvcExport *fleetnetv1alpha1.InternalServiceExport
-		expectedConds     []metav1.Condition
+		wantReported      bool
+		wantConds         []metav1.Condition
 	}{
 		{
 			name: "should not report back conflict cond (no condition yet)",
@@ -105,10 +118,11 @@ func TestReportBackConflictCondition(t *testing.T) {
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
+					Name:      internalSvcExportName,
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantReported: false,
+			wantConds: []metav1.Condition{
 				unknownServiceExportConflictCondition(memberUserNS, svcName),
 			},
 		},
@@ -128,7 +142,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
+					Name:      internalSvcExportName,
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
@@ -136,7 +150,8 @@ func TestReportBackConflictCondition(t *testing.T) {
 					},
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantReported: false,
+			wantConds: []metav1.Condition{
 				unconflictedServiceExportConflictCondition(memberUserNS, svcName),
 			},
 		},
@@ -154,7 +169,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: hubNSForMember,
-					Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
+					Name:      internalSvcExportName,
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
@@ -162,7 +177,8 @@ func TestReportBackConflictCondition(t *testing.T) {
 					},
 				},
 			},
-			expectedConds: []metav1.Condition{
+			wantReported: true,
+			wantConds: []metav1.Condition{
 				conflictedServiceExportConflictCondition(memberUserNS, svcName),
 			},
 		},
@@ -183,18 +199,190 @@ func TestReportBackConflictCondition(t *testing.T) {
 				Recorder:     record.NewFakeRecorder(10),
 			}
 
-			if err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport); err != nil {
-				t.Fatalf("failed to report back conflict cond: %v", err)
+			reported, err := reconciler.reportBackConflictCondition(ctx, tc.svcExport, tc.internalSvcExport)
+			if reported != tc.wantReported || err != nil {
+				t.Fatalf("reportBackConflictCondition(%+v, %+v) = (%v, %v), want (%v, %v)",
+					tc.svcExport, tc.internalSvcExport, reported, err, tc.wantReported, nil)
 			}
 
 			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			updatedSvcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
-			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
+			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}
 			conds := updatedSvcExport.Status.Conditions
-			if !cmp.Equal(conds, tc.expectedConds, ignoredCondFields) {
-				t.Fatalf("conds are not correctly updated, got %+v, want %+v", conds, tc.expectedConds)
+			if !cmp.Equal(conds, tc.wantConds, ignoredCondFields) {
+				t.Fatalf("conds are not correctly updated, got %+v, want %+v", conds, tc.wantConds)
+			}
+		})
+	}
+}
+
+// TestObserveMetrics tests the Reconciler.observeMetrics function.
+func TestObserveMetrics(t *testing.T) {
+	metricMetadata := `
+		# HELP fleet_networking_service_export_duration_milliseconds The duration of a service export
+		# TYPE fleet_networking_service_export_duration_milliseconds histogram
+	`
+	startTime := time.Now().Round(time.Second)
+
+	testCases := []struct {
+		name              string
+		internalSvcExport *fleetnetv1alpha1.InternalServiceExport
+		startTime         time.Time
+		wantMetricCount   int
+		wantHistogram     string
+	}{
+		{
+			name: "should not observe data point (the object generation has been observed before)",
+			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      internalSvcExportName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastObservedGeneration: "1",
+					},
+				},
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+						Generation: 1,
+					},
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 0,
+			wantHistogram:   "",
+		},
+		{
+			name: "should observe a data point",
+			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      internalSvcExportName,
+				},
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+						NamespacedName: svcName,
+						Generation:     2,
+						ClusterID:      memberClusterID,
+						ExportedSince:  metav1.NewTime(startTime.Add(-time.Second)),
+					},
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 1,
+			wantHistogram: fmt.Sprintf(`
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 1
+				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 1000
+				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 1
+			`, memberClusterID),
+		},
+		{
+			name: "should observe a data point (negative export duration)",
+			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      internalSvcExportName,
+				},
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+						NamespacedName: svcName,
+						Generation:     3,
+						ClusterID:      memberClusterID,
+						ExportedSince:  metav1.NewTime(startTime.Add(time.Second * 2)),
+					},
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 1,
+			wantHistogram: fmt.Sprintf(`
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 2
+				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 2000
+				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 2
+			`, memberClusterID),
+		},
+		{
+			name: "should observe a data point (large outlier)",
+			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      internalSvcExportName,
+					Annotations: map[string]string{
+						metrics.MetricsAnnotationLastObservedGeneration: "3",
+					},
+				},
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+						NamespacedName: svcName,
+						Generation:     4,
+						ClusterID:      memberClusterID,
+						ExportedSince:  metav1.NewTime(startTime.Add(-time.Minute * 5)),
+					},
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 1,
+			wantHistogram: fmt.Sprintf(`
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 3
+				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 102000
+				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 3
+			`, memberClusterID),
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeMemberClient := fake.NewClientBuilder().Build()
+			fakeHubClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.internalSvcExport).
+				Build()
+			reconciler := Reconciler{
+				MemberClusterID: memberClusterID,
+				MemberClient:    fakeMemberClient,
+				HubClient:       fakeHubClient,
+				Recorder:        record.NewFakeRecorder(10),
+			}
+
+			if err := reconciler.observeMetrics(ctx, tc.internalSvcExport, tc.startTime); err != nil {
+				t.Fatalf("observeMetrics(%+v), got %v, want no error", tc.internalSvcExport, err)
+			}
+
+			internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
+			if err := fakeHubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+				t.Fatalf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
+			}
+			lastObservedGeneration, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]
+			if !ok || lastObservedGeneration != fmt.Sprintf("%d", tc.internalSvcExport.Spec.ServiceReference.Generation) {
+				t.Fatalf("lastObservedGeneration, got %s, want %d", lastObservedGeneration, tc.internalSvcExport.Spec.ServiceReference.Generation)
+			}
+
+			if c := testutil.CollectAndCount(svcExportDuration); c != tc.wantMetricCount {
+				t.Fatalf("metric counts, got %d, want %d", c, tc.wantMetricCount)
+			}
+
+			if tc.wantHistogram != "" {
+				if err := testutil.CollectAndCompare(svcExportDuration, strings.NewReader(metricMetadata+tc.wantHistogram)); err != nil {
+					t.Errorf("%s", err)
+				}
 			}
 		})
 	}
