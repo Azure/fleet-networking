@@ -398,5 +398,10 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	endpointSliceExportImportDuration.
 		WithLabelValues(endpointSliceImport.Spec.EndpointSliceReference.ClusterID, r.MemberClusterID).
 		Observe(float64(timeSpent))
+	// TO-DO (chenyu1): Remove the metric logs when histogram metrics are supported in the backend.
+	klog.V(2).InfoS("endpointSliceExportImportDuration",
+		"value", timeSpent,
+		"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
+		"destinationClusterID", r.MemberClusterID)
 	return nil
 }

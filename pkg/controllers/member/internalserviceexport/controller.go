@@ -230,5 +230,9 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 		timeSpent = int64(metrics.ExportDurationRightBound)
 	}
 	svcExportDuration.WithLabelValues(r.MemberClusterID).Observe(float64(timeSpent))
+	// TO-DO (chenyu1): Remove the metric logs when histogram metrics are supported in the backend.
+	klog.V(2).InfoS("serviceExportDuration",
+		"value", timeSpent,
+		"originClusterID", r.MemberClusterID)
 	return nil
 }
