@@ -154,6 +154,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // reportBackConflictCond reports the ServiceExportConflict condition added to the InternalServiceExport object in the
 // hub cluster back to the ServiceExport ojbect in the member cluster.
+// It returns a bool value, reported, to signify whether a report-back has been completed.
 func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	svcExport *fleetnetv1alpha1.ServiceExport,
 	internalSvcExport *fleetnetv1alpha1.InternalServiceExport) (reported bool, err error) {
@@ -172,7 +173,8 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 		// The conflict condition has not changed and there is no need to report back; this is also an expected
 		// behavior.
 		klog.V(4).InfoS("No update on the conflict condition", "internalServiceExport", internalSvcExportRef)
-		return false, nil
+		// Return true here to allow following steps to run again upon retries.
+		return true, nil
 	}
 
 	// Update the conditions
@@ -231,7 +233,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	}
 	svcExportDuration.WithLabelValues(r.MemberClusterID).Observe(float64(timeSpent))
 	// TO-DO (chenyu1): Remove the metric logs when histogram metrics are supported in the backend.
-	klog.V(2).InfoS("serviceExportDuration",
+	klog.V(2).InfoS("serviceExportDurationMilliseconds",
 		"value", timeSpent,
 		"originClusterID", r.MemberClusterID)
 	return nil

@@ -227,7 +227,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Observe a data point for the EndpointSliceExportImportDuration metric.
 	if err := r.observeMetrics(ctx, endpointSliceImport, time.Now()); err != nil {
-		klog.ErrorS(err, "Failed to observe metrics", "endpointSliceImport", endpointSliceImportRef)
+		klog.Warning("Failed to observe metrics", "error", err, "endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{}, err
 	}
 
@@ -350,9 +350,7 @@ func formatEndpointSliceFromImport(endpointSlice *discoveryv1.EndpointSlice, der
 }
 
 // Observe data points for metrics.
-func (r *Reconciler) observeMetrics(ctx context.Context,
-	endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport,
-	startTime time.Time) error {
+func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fleetnetv1alpha1.EndpointSliceImport, startTime time.Time) error {
 	// Check if a metric data point has been observed for the current generation of the object; this helps guard
 	// against repeated observation of metric data points for the same generation of an object due to no-op
 	// reconciliations (e.g. resyncs, untracked changes).
@@ -399,7 +397,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 		WithLabelValues(endpointSliceImport.Spec.EndpointSliceReference.ClusterID, r.MemberClusterID).
 		Observe(float64(timeSpent))
 	// TO-DO (chenyu1): Remove the metric logs when histogram metrics are supported in the backend.
-	klog.V(2).InfoS("endpointSliceExportImportDuration",
+	klog.V(2).InfoS("endpointSliceExportImportDurationMilliseconds",
 		"value", timeSpent,
 		"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
 		"destinationClusterID", r.MemberClusterID)
