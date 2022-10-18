@@ -18,11 +18,11 @@ const (
 	PollInterval = 1 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
 	// Incease the poll timeout to capture the service export condition changes.
-	PollTimeout = 30 * time.Second
+	PollTimeout = 60 * time.Second
 
 	// MCSLBPollTimeout defines the time to wait a MCS to be assigned with LoadBalancer IP address.
 	// As MCS depending on handling service related to cloud provider, more time is required.
-	MCSLBPollTimeout = 180 * time.Second
+	MCSLBPollTimeout = 200 * time.Second
 
 	// TestNamespacePrefix defines the prefix of test namespaces.
 	TestNamespacePrefix = "my-ns"
