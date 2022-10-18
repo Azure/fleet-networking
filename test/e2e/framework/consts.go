@@ -17,7 +17,8 @@ const (
 	// PollInterval defines the interval time for a poll operation.
 	PollInterval = 1 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
-	PollTimeout = 20 * time.Second
+	// Incease the poll timeout to capture the service export condition changes.
+	PollTimeout = 30 * time.Second
 
 	// MCSLBPollTimeout defines the time to wait a MCS to be assigned with LoadBalancer IP address.
 	// As MCS depending on handling service related to cloud provider, more time is required.
