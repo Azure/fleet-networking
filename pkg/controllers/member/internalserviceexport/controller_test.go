@@ -150,7 +150,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 					},
 				},
 			},
-			wantReported: false,
+			wantReported: true,
 			wantConds: []metav1.Condition{
 				unconflictedServiceExportConflictCondition(memberUserNS, svcName),
 			},
