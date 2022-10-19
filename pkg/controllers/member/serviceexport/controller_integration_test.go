@@ -288,12 +288,12 @@ var _ = Describe("serviceexport controller", func() {
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that ServiceExport has been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid + should not export service", func() {
-			Eventually(serviceIsInvalidForExportNotFoundActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Eventually(serviceIsInvalidForExportNotFoundActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(Succeed())
 		})
 	})
 
@@ -314,15 +314,15 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as valid + should export the service", func() {
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -343,15 +343,15 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as valid + should export the service", func() {
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -375,16 +375,16 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should update the exported service", func() {
 			By("confirm that the service has been exported")
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("update the service")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
@@ -439,7 +439,7 @@ var _ = Describe("serviceexport controller", func() {
 					return fmt.Errorf("internalServiceExport spec (-got, +want): %s", diff)
 				}
 				return nil
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -458,19 +458,19 @@ var _ = Describe("serviceexport controller", func() {
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 			// Confirm that Service has been deleted; this helps make the test less flaky.
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should unexport the service when service export is deleted", func() {
 			By("confirm that the service has been exported")
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("delete the service export")
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 
 			By("confirm that the service has been unexported")
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -489,21 +489,21 @@ var _ = Describe("serviceexport controller", func() {
 		AfterEach(func() {
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
 			// Confirm that the ServiceExport has been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should unexport the service when service is deleted", func() {
 			By("confirm that the service has been exported")
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("delete the service")
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("confirm that the service has been unexported")
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsInvalidForExportNotFoundActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsInvalidForExportNotFoundActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -524,13 +524,13 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that Service + ServiceExport have been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should not export headless service", func() {
-			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(Succeed())
 		})
 	})
 
@@ -551,13 +551,13 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that Service + ServiceExport have been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should not export external name service", func() {
-			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
+			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(Succeed())
 		})
 	})
 
@@ -578,14 +578,14 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that Service + ServiceExport have been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as invalid (ineligible) + should unexport the service", func() {
 			By("confirm that the service has been exported")
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("update the service; set it to an external name service")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
@@ -595,8 +595,8 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Update(ctx, svc)).Should(Succeed())
 
 			By("confirm that the service has been unexported")
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -617,17 +617,17 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			// Confirm that Service + ServiceExport have been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should mark the service export as valid + should export the service", func() {
 			By("confirm that the service has not been exported")
-			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(BeNil())
-			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Consistently(serviceIsNotExportedActual, consistentlyDuration, consistentlyInterval).Should(Succeed())
+			Eventually(serviceIsInvalidForExportIneligibleActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("update the service; set it as a cluster IP service")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
@@ -642,8 +642,8 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Update(ctx, svc)).Should(Succeed())
 
 			By("confirm that the service has been exported")
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -695,18 +695,18 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
 
 			// Confirm that the Service has been unexported; this helps make the tests less flaky.
-			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			// Confirm that Service + ServiceExport have been deleted; this helps make the test less flaky.
-			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
-			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
 		It("should re-export the service", func() {
 			// Confirm that the Service has been exported.
-			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 			// Confirm that the InternalServiceExport has been re-created.
-			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceIsExportedToHubActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 })
