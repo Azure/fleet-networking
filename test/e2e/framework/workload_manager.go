@@ -291,7 +291,7 @@ func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetn
 	return nil
 }
 
-// defaultBackOff return an exponential backoff which will add up to about 25 seconds.
+// defaultBackOff return an exponential backoff.
 func defaultBackOff() wait.Backoff {
 	backoff := wait.Backoff{
 		Steps:    20,
