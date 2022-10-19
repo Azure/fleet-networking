@@ -13,7 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -66,8 +66,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}()
 	serviceImport := fleetnetv1alpha1.ServiceImport{}
 	if err := r.Client.Get(ctx, req.NamespacedName, &serviceImport); err != nil {
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound serviceImport", "serviceImport", serviceImportKRef)
+			return ctrl.Result{}, nil
+		}
 		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 	// If the spec has already present, no need to resolve the service spec.
 	if len(serviceImport.Status.Clusters) != 0 {
@@ -132,7 +136,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	for _, v := range change.noConflict {
 		klog.V(3).InfoS("Marking internalServiceExport status as nonConflict", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(v))
 		if err := r.updateInternalServiceExportWithRetry(ctx, v, false); err != nil {
-			if apierrors.IsNotFound(err) { // ignore deleted internalServiceExport
+			if errors.IsNotFound(err) { // ignore deleted internalServiceExport
 				continue
 			}
 			return ctrl.Result{}, err

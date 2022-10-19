@@ -63,11 +63,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the EndpointSliceImport.
 	endpointSliceImport := &fleetnetv1alpha1.EndpointSliceImport{}
 	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceImport); err != nil {
-		klog.ErrorS(err, "Failed to get endpoint slice import", "endpointSliceImport", endpointSliceImportRef)
 		// Skip the reconciliation if the EndpointSliceImport does not exist; this should only happen when an
 		// EndpointSliceImport is deleted before the controller gets a chance to reconcile it, which
 		// requires no action to take on this controller's end.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound endpointSliceImport", "endpointSliceImport", endpointSliceImportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get endpoint slice import", "endpointSliceImport", endpointSliceImportRef)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the EndpointSliceImport has been deleted and needs cleanup (unimport EndpointSlice).

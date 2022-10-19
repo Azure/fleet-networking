@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,8 +55,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}()
 
 	if err := r.MemberClient.Get(ctx, req.NamespacedName, serviceImport); err != nil {
-		klog.ErrorS(err, "Failed to get ServiceImport", "ServiceImport", serviceImportRef)
-		return reconcile.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound serviceImport", "serviceImport", serviceImportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportRef)
+		return reconcile.Result{}, err
 	}
 
 	internalServiceImportName := formatInternalServiceImportName(serviceImport)
@@ -78,7 +82,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Delete service import dependency when the finalizer is expected then remove the finalizer from service import.
 		if err := r.HubClient.Delete(ctx, internalServiceImport); err != nil {
 			klog.ErrorS(err, "Failed to delete internalserviceimport as required by serviceimport finalizer", "InternalServiceImport", internalServiceImportRef, "ServiceImport", serviceImportRef, "finalizer", ServiceImportFinalizer)
-			if !apierrors.IsNotFound(err) {
+			if !errors.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
 		}

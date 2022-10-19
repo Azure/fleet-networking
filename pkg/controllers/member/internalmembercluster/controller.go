@@ -63,8 +63,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var imc fleetv1alpha1.InternalMemberCluster
 	if err := r.HubClient.Get(ctx, req.NamespacedName, &imc); err != nil {
+		if apierrors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound internalMemberCluster", "internalMemberCluster", imcKRef)
+			return ctrl.Result{}, nil
+		}
 		klog.ErrorS(err, "Failed to get internal member cluster", "internalMemberCluster", imcKRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	switch imc.Spec.State {

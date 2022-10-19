@@ -80,8 +80,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}()
 
 	if err := r.Client.Get(ctx, name, &mcs); err != nil {
-		klog.ErrorS(err, "Failed to get mcs", "multiClusterService", mcsKRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound multiClusterService", "multiClusterService", mcsKRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get multiClusterService", "multiClusterService", mcsKRef)
+		return ctrl.Result{}, err
 	}
 
 	if mcs.ObjectMeta.DeletionTimestamp != nil {

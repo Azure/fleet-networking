@@ -59,9 +59,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the InternalServiceImport object.
 	internalSvcImport := &fleetnetv1alpha1.InternalServiceImport{}
 	if err := r.HubClient.Get(ctx, req.NamespacedName, internalSvcImport); err != nil {
-		klog.ErrorS(err, "Failed to get internalserviceimport", "internalServiceImport", internalSvcImportRef)
 		// Skip the reconciliation if the InternalServiceImport does not exist.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound internalServiceImport", "internalServiceImport", internalSvcImportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get internalServiceImport", "internalServiceImport", internalSvcImportRef)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the ServiceImport exists.

@@ -58,8 +58,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}()
 
 	if err := r.Client.Get(ctx, name, &internalServiceExport); err != nil {
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound internalServiceExport", "internalServiceExport", internalServiceExportKRef)
+			return ctrl.Result{}, nil
+		}
 		klog.ErrorS(err, "Failed to get internalServiceExport", "internalServiceExport", internalServiceExportKRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	if internalServiceExport.ObjectMeta.DeletionTimestamp != nil {
