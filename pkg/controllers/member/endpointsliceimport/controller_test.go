@@ -539,6 +539,18 @@ func TestObserveMetrics(t *testing.T) {
 		wantHistogram       string
 	}{
 		{
+			name: "should not observe data point (no exportedSince field)",
+			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      endpointSliceImportName,
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 0,
+			wantHistogram:   "",
+		},
+		{
 			name: "should not observe data point (the object generation has been observed before)",
 			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
 				ObjectMeta: metav1.ObjectMeta{

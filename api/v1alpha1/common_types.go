@@ -41,7 +41,8 @@ type ExportedObjectReference struct {
 	// +kubebuilder:validation:Required
 	NamespacedName string `json:"namespacedName"`
 	// The timestamp from a local clock when the generation of the object is exported.
-	// +kubebuilder:validation:Required
+	// This field is marked as optional for backwards compatibility reasons.
+	// +kubebuilder:validation:Optional
 	ExportedSince metav1.Time `json:"exportedSince"`
 }
 

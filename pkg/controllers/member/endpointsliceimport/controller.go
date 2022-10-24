@@ -373,6 +373,14 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 		return err
 	}
 
+	// Skip the observation if the exportedSince field is empty in the object reference.
+	// Note that in most cases this branch should never run as the Fleet networking controllers will always assign a
+	// timestamp for each exported object.
+	if endpointSliceImport.Spec.EndpointSliceReference.ExportedSince.IsZero() {
+		klog.V(4).InfoS("exportedSince timestamp is absent; endpointSlice export/import duration data point is not collected",
+			"endpointSliceImport", klog.KObj(endpointSliceImport))
+		return nil
+	}
 	timeSpent := startTime.Sub(endpointSliceImport.Spec.EndpointSliceReference.ExportedSince.Time).Milliseconds()
 	// Under some rare circumstances (such as time sync not being configured properly across clusters), it could
 	// happen that the export timestamp of an EndpointSlice appears later than its import timestamp. Unfortunately,
@@ -382,7 +390,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 	// not make sense.
 	if timeSpent <= 0 {
 		timeSpent = time.Second.Milliseconds() * 1
-		klog.V(4).Info("A negative endpoint export/import duration data point has been observed; time sync might be out of order",
+		klog.V(4).Info("A negative endpointSlice export/import duration data point has been observed; time sync might be out of order",
 			"serviceNamespacedName", endpointSliceImport.Spec.OwnerServiceReference.NamespacedName,
 			"endpointSliceNamespacedName", endpointSliceImport.Spec.EndpointSliceReference.NamespacedName,
 			"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,

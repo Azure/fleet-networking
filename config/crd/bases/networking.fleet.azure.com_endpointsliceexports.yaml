@@ -58,7 +58,8 @@ spec:
                     type: string
                   exportedSince:
                     description: The timestamp from a local clock when the generation
-                      of the object is exported.
+                      of the object is exported. This field is marked as optional
+                      for compatibility reasons.
                     format: date-time
                     type: string
                   generation:
@@ -85,7 +86,6 @@ spec:
                     type: string
                 required:
                 - clusterId
-                - exportedSince
                 - generation
                 - kind
                 - name

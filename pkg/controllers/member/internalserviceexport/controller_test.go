@@ -233,6 +233,18 @@ func TestObserveMetrics(t *testing.T) {
 		wantHistogram     string
 	}{
 		{
+			name: "should not observe data point (no exportedSince field)",
+			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember,
+					Name:      internalSvcExportName,
+				},
+			},
+			startTime:       startTime,
+			wantMetricCount: 0,
+			wantHistogram:   "",
+		},
+		{
 			name: "should not observe data point (the object generation has been observed before)",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{

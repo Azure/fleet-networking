@@ -214,6 +214,14 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 		return err
 	}
 
+	// Skip the observation if the exportedSince field is empty in the object reference.
+	// Note that in most cases this branch should never run as the Fleet networking controllers will always assign a
+	// timestamp for each exported object.
+	if internalSvcExport.Spec.ServiceReference.ExportedSince.IsZero() {
+		klog.V(4).InfoS("exportedSince timestamp is absent; service export duration data point is not collected",
+			"internalServiceExport", klog.KObj(internalSvcExport))
+		return nil
+	}
 	timeSpent := startTime.Sub(internalSvcExport.Spec.ServiceReference.ExportedSince.Time).Milliseconds()
 	// Under some rare circumstances (such as user manipulating the timestamps; note that for this specific metric
 	// clock drifts are less of an issue as all timestamps are from the same local lock), it could
@@ -222,7 +230,7 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	// when the calculated duration does not make sense.
 	if timeSpent <= 0 {
 		timeSpent = time.Second.Milliseconds() * 1
-		klog.V(4).Info("A negative service export duration data point has been observed",
+		klog.V(4).InfoS("A negative service export duration data point has been observed",
 			"serviceNamespacedName", internalSvcExport.Spec.ServiceReference.NamespacedName,
 			"originClusterID", internalSvcExport.Spec.ServiceReference.ClusterID)
 	}
