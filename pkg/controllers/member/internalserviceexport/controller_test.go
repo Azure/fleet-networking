@@ -283,15 +283,15 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 1
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 1
-				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 1000
-				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="1000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="2500"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="5000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="10000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="25000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="50000"} 1
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="+Inf"} 1
+				fleet_networking_service_export_duration_milliseconds_sum{origin_cluster_id="%[1]s"} 1000
+				fleet_networking_service_export_duration_milliseconds_count{origin_cluster_id="%[1]s"} 1
 			`, memberClusterID),
 		},
 		{
@@ -313,15 +313,15 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 2
-				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 2000
-				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="1000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="2500"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="5000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="10000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="25000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="50000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="+Inf"} 2
+				fleet_networking_service_export_duration_milliseconds_sum{origin_cluster_id="%[1]s"} 2000
+				fleet_networking_service_export_duration_milliseconds_count{origin_cluster_id="%[1]s"} 2
 			`, memberClusterID),
 		},
 		{
@@ -346,15 +346,15 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="1000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="2500"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="5000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="10000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="25000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="50000"} 2
-				fleet_networking_service_export_duration_milliseconds_bucket{originClusterID="%[1]s",le="+Inf"} 3
-				fleet_networking_service_export_duration_milliseconds_sum{originClusterID="%[1]s"} 102000
-				fleet_networking_service_export_duration_milliseconds_count{originClusterID="%[1]s"} 3
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="1000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="2500"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="5000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="10000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="25000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="50000"} 2
+				fleet_networking_service_export_duration_milliseconds_bucket{origin_cluster_id="%[1]s",le="+Inf"} 3
+				fleet_networking_service_export_duration_milliseconds_sum{origin_cluster_id="%[1]s"} 102000
+				fleet_networking_service_export_duration_milliseconds_count{origin_cluster_id="%[1]s"} 3
 			`, memberClusterID),
 		},
 	}

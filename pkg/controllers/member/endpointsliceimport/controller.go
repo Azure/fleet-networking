@@ -60,9 +60,11 @@ var (
 		},
 		[]string{
 			// The ID of the origin cluster, which exports the Service and the EndpointSlice.
-			"originClusterID",
+			"origin_cluster_id",
 			// The ID of the destination cluster, which imports the Service and the EndpointSlice.
-			"destinationClusterID",
+			"destination_cluster_id",
+			// Whether the data point comes from importing an endpointSlice for the first time.
+			"is_first_import",
 		},
 	)
 )
@@ -356,6 +358,15 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 	// reconciliations (e.g. resyncs, untracked changes).
 	lastObservedGeneration, ok := endpointSliceImport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]
 	currentGenerationStr := fmt.Sprintf("%d", endpointSliceImport.Spec.EndpointSliceReference.Generation)
+	// isFirstImport flag signals if the endpointSlice has been imported before. This flag is for the purpose of
+	// filtering out any outlier caused by late service imports: service export/import is two-phase op, in which either
+	// phase can be performed individually in no specific order; it is possible for a user to export a service first
+	// and then import it as a MCS at a much later time, and consequently a significant delay, through no fault
+	// of Fleet networking controllers, will be observed when importing endpointSlices from the service for the
+	// first time.
+	// Note that technically speaking there is no easy way for controllers to ascertain whether (and exactly how much)
+	// the factor of late imports plays a part in the export/import latency.
+	isFirstImport := !ok
 	if ok && lastObservedGeneration == currentGenerationStr {
 		// A data point has been observed for this generation; skip the observation.
 		return nil
@@ -394,7 +405,8 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 			"serviceNamespacedName", endpointSliceImport.Spec.OwnerServiceReference.NamespacedName,
 			"endpointSliceNamespacedName", endpointSliceImport.Spec.EndpointSliceReference.NamespacedName,
 			"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
-			"destinationClusterID", r.MemberClusterID)
+			"destinationClusterID", r.MemberClusterID,
+			"isFirstImport", isFirstImport)
 	}
 	// Similarly, to avoid large outliers skewing the stats (e.g. averages), this controller caps the data point
 	// to a constant value.
@@ -402,12 +414,13 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 		timeSpent = int64(metrics.ExportDurationRightBound)
 	}
 	endpointSliceExportImportDuration.
-		WithLabelValues(endpointSliceImport.Spec.EndpointSliceReference.ClusterID, r.MemberClusterID).
+		WithLabelValues(endpointSliceImport.Spec.EndpointSliceReference.ClusterID, r.MemberClusterID, fmt.Sprintf("%t", isFirstImport)).
 		Observe(float64(timeSpent))
 	// TO-DO (chenyu1): Remove the metric logs when histogram metrics are supported in the backend.
 	klog.V(2).InfoS("endpointSliceExportImportDurationMilliseconds",
 		"value", timeSpent,
 		"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
-		"destinationClusterID", r.MemberClusterID)
+		"destinationClusterID", r.MemberClusterID,
+		"isFirstImport", isFirstImport)
 	return nil
 }

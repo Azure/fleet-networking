@@ -55,7 +55,7 @@ var (
 		},
 		[]string{
 			// The ID of the origin cluster, which exports the Service.
-			"originClusterID",
+			"origin_cluster_id",
 		},
 	)
 )

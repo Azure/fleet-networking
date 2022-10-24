@@ -589,15 +589,15 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="1000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="2500"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="5000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="10000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="25000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="50000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="+Inf"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="%[1]s",originClusterID="%[1]s"} 1000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="%[1]s",originClusterID="%[1]s"} 1
+				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="1000"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="2500"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="5000"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="10000"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="25000"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="50000"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="+Inf"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 1000
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 1
 			`, memberClusterID),
 		},
 		{
@@ -619,15 +619,15 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="1000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="2500"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="5000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="10000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="25000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="50000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="+Inf"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="%[1]s",originClusterID="%[1]s"} 2000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="%[1]s",originClusterID="%[1]s"} 2
+				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="1000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="2500"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="5000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="10000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="25000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="50000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="+Inf"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2000
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2
 			`, memberClusterID),
 		},
 		{
@@ -650,17 +650,26 @@ func TestObserveMetrics(t *testing.T) {
 				},
 			},
 			startTime:       startTime,
-			wantMetricCount: 1,
+			wantMetricCount: 2,
 			wantHistogram: fmt.Sprintf(`
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="1000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="2500"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="5000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="10000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="25000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="50000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="+Inf"} 3
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="%[1]s",originClusterID="%[1]s"} 102000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="%[1]s",originClusterID="%[1]s"} 3
+				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="1000"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="2500"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="5000"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="10000"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="25000"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="50000"} 0
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="+Inf"} 1
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s"} 100000
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s"} 1
+				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="1000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="2500"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="5000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="10000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="25000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="50000"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="+Inf"} 2
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2000
+            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2
 			`, memberClusterID),
 		},
 	}
