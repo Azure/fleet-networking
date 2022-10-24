@@ -253,7 +253,14 @@ var (
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
-		expectedExportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
+		lastSeenTimestampData, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
+		if !ok {
+			return fmt.Errorf("lastSeenTimestampData is absent")
+		}
+		lastSeenTimestamp, err := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
+		if err != nil {
+			return fmt.Errorf("lastSeenTimestamp Parse(%s), got %w, want no error", lastSeenTimestamp, err)
+		}
 		expectedInternalSvcExportSpec := fleetnetv1alpha1.InternalServiceExportSpec{
 			Ports: []fleetnetv1alpha1.ServicePort{
 				{
@@ -266,7 +273,7 @@ var (
 				memberClusterID,
 				svc.TypeMeta,
 				svc.ObjectMeta,
-				expectedExportedSince,
+				metav1.NewTime(lastSeenTimestamp),
 			),
 		}
 		if diff := cmp.Diff(internalSvcExport.Spec, expectedInternalSvcExportSpec, ignoredRefFields); diff != "" {
