@@ -57,9 +57,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the InternalServiceExport object.
 	var internalSvcExport fleetnetv1alpha1.InternalServiceExport
 	if err := r.HubClient.Get(ctx, req.NamespacedName, &internalSvcExport); err != nil {
-		klog.ErrorS(err, "Failed to get internal svc export", "internalServiceExport", internalSvcExportRef)
 		// Skip the reconciliation if the InternalServiceExport does not exist.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound internalServiceExport", "internalServiceExport", internalSvcExportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get internal svc export", "internalServiceExport", internalSvcExportRef)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the exported Service exists.

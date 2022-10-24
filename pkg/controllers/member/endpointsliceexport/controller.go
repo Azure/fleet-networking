@@ -48,11 +48,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the EndpointSliceExport object.
 	endpointSliceExport := &fleetnetv1alpha1.EndpointSliceExport{}
 	if err := r.HubClient.Get(ctx, req.NamespacedName, endpointSliceExport); err != nil {
-		klog.ErrorS(err, "Failed to get endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
 		// Skip the reconciliation if the EndpointSliceExport does not exist; this should only happen when an
 		// EndpointSliceExport is deleted before the controller gets a chance to reconcile it;
 		// this requires no action to take on this controller's end.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the EndpointSliceExport refers to an existing EndpointSlice.

@@ -66,8 +66,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// EndpointSliceExport does not have a finalizer set and is deleted right before the controller gets a
 		// chance to reconcile it. The absence of the finalizer guarantees that the EndpointSlice has never been
 		// distributed across the fleet, thus no action is needed on this controller's side.
-		klog.ErrorS(err, "Failed to get EndpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
+			return ctrl.Result{}, nil
+		}
+		klog.ErrorS(err, "Failed to get endpointSliceExport", "endpointSliceExport", endpointSliceExportRef)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the EndpointSliceExport has been marked for deletion; withdraw EndpointSliceImports across

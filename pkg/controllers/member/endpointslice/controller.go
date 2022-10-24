@@ -78,8 +78,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// EndpointSlice has been exported before, this may result in an EndpointSlice being left over on the
 		// hub cluster, and it is up to another controller, EndpointSliceExport controller, to pick up the leftover
 		// and clean it out.
+		if errors.IsNotFound(err) {
+			klog.V(4).InfoS("Ignoring NotFound endpointSlice", "endpointSlice", endpointSliceRef)
+			return ctrl.Result{}, nil
+		}
 		klog.ErrorS(err, "Failed to get endpoint slice", "endpointSlice", endpointSliceRef)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the EndpointSlice should be skipped for reconciliation or unexported.
