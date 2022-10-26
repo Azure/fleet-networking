@@ -38,8 +38,10 @@ GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.x
-ENVTEST_K8S_BIN := setup-envtest
-ENVTEST :=  $(abspath $(TOOLS_BIN_DIR)/$(ENVTEST_K8S_BIN)-$(ENVTEST_K8S_VER))
+# ENVTEST_VER is the version of the ENVTEST binary
+ENVTEST_VER = latest
+ENVTEST_BIN := setup-envtest
+ENVTEST :=  $(abspath $(TOOLS_BIN_DIR)/$(ENVTEST_BIN)-$(ENVTEST_VER))
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -64,7 +66,7 @@ $(GOIMPORTS):
 
 # ENVTEST
 $(ENVTEST):
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-runtime/tools/setup-envtest $(ENVTEST_K8S_BIN) $(ENVTEST_K8S_VER)
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-runtime/tools/setup-envtest $(ENVTEST_BIN) $(ENVTEST_VER)
 
 ## --------------------------------------
 ## Linting
