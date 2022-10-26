@@ -9,9 +9,11 @@ Install [Helm](https://helm.sh).
 ```bash
 helm install getting-started-tutorial-hub-resources \
     ./examples/getting-started/charts/hub \
-    --set principalIDForMember1=YOUR-PRINCIPAL-ID-FOR-MEMBER-1 \
-    --set principalIDForMember2=YOUR-PRINCIPAL-ID-FOR-MEMBER-2 \
     --set userNS=YOUR-USER-NS
+    --set memberClusterConfigs[0].memberID=YOUR-MEMBER-CLUSTER-1
+    --set memberClusterConfigs[0].principalID=YOUR-MEMBER-CLUSTER-1-PRINCIPAL-ID
+    --set memberClusterConfigs[1].memberID=YOUR-MEMBER-CLUSTER-2
+    --set memberClusterConfigs[1].principalID=YOUR-MEMBER-CLUSTER-2-PRINCIPAL-ID
 ```
 
 ## Parameters
@@ -20,7 +22,6 @@ helm install getting-started-tutorial-hub-resources \
 |:-|:-|:-|
 | `userNS` | The namespace for user workloads | `` |
 | `systemNS` | The namespace reserved for Fleet controllers and resources | `fleet-system` |
-| `member1ID` | The ID of member cluster 1. | `member-1` |
-| `member2ID` | The ID of member cluster 2. | `member-2` |
-| `principalIDForMember1` | The principal ID of member cluster 1. | N/A |
-| `principalIDForMember2` | The principal ID of member cluster 2. | N/A |
+| `memberClusterConfigs` | The member cluster configurations; each member cluster should have an ID and a principal ID. | N/A |
+| `memberClusterConfigs[*].memberID` | The ID of the member cluster. | N/A |
+| `memberClusterConfigs[*].principalID` | The principal ID of the member cluster. | N/A |

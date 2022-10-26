@@ -7,21 +7,25 @@ Licensed under the MIT license.
 package framework
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Cluster represents a Kubernetes cluster.
 type Cluster struct {
-	scheme     *runtime.Scheme
-	kubeClient client.Client
-	name       string
+	scheme                   *runtime.Scheme
+	kubeClient               client.Client
+	name                     string
+	prometheusAPIServiceAddr string
 }
 
 // NewCluster creates Cluster and initializes its kubernetes client.
@@ -44,6 +48,33 @@ func (c *Cluster) Name() string {
 // Client returns the kubernetes client.
 func (c *Cluster) Client() client.Client {
 	return c.kubeClient
+}
+
+// PrometheusAPIServiceAddress returns the address of the Prometheus API service.
+func (c *Cluster) PrometheusAPIServiceAddress() string {
+	return c.prometheusAPIServiceAddr
+}
+
+// SetupPrometheusAPIServiceAccess retrieves address of the Prometheus API service.
+func (c *Cluster) SetupPrometheusAPIServiceAccess(ctx context.Context, prometheusAPISvcNS, prometheusAPISvcName string) error {
+	kubeClient := c.Client()
+	prometheusAPISvcKey := types.NamespacedName{Namespace: prometheusAPISvcNS, Name: prometheusAPISvcName}
+	prometheusAPISvc := &corev1.Service{}
+	if err := kubeClient.Get(ctx, prometheusAPISvcKey, prometheusAPISvc); err != nil {
+		return err
+	}
+
+	if len(prometheusAPISvc.Status.LoadBalancer.Ingress) == 0 {
+		return fmt.Errorf("no load balancer is available")
+	}
+	prometheusAPISvcAddr := prometheusAPISvc.Status.LoadBalancer.Ingress[0].IP
+
+	if len(prometheusAPISvc.Spec.Ports) == 0 {
+		return fmt.Errorf("no port is available")
+	}
+	prometheusAPISvcPort := prometheusAPISvc.Spec.Ports[0].Port
+	c.prometheusAPIServiceAddr = fmt.Sprintf("http://%s:%d", prometheusAPISvcAddr, prometheusAPISvcPort)
+	return nil
 }
 
 func (c *Cluster) initClusterClient() error {

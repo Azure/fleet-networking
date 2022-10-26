@@ -539,7 +539,6 @@ func TestObserveMetrics(t *testing.T) {
 		wantHistogram       string
 	}{
 		{
-<<<<<<< HEAD
 			name: "should not observe data point (no exportedSince field)",
 			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -552,8 +551,6 @@ func TestObserveMetrics(t *testing.T) {
 			wantHistogram:   "",
 		},
 		{
-=======
->>>>>>> 6534db3 (Added metrics)
 			name: "should not observe data point (the object generation has been observed before)",
 			endpointSliceImport: &fleetnetv1alpha1.EndpointSliceImport{
 				ObjectMeta: metav1.ObjectMeta{
@@ -592,7 +589,6 @@ func TestObserveMetrics(t *testing.T) {
 			startTime:       startTime,
 			wantMetricCount: 1,
 			wantHistogram: fmt.Sprintf(`
-<<<<<<< HEAD
 				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="1000"} 1
             	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="2500"} 1
             	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="5000"} 1
@@ -602,17 +598,6 @@ func TestObserveMetrics(t *testing.T) {
             	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="+Inf"} 1
             	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 1000
             	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 1
-=======
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="1000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="2500"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="5000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="10000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="25000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="50000"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="+Inf"} 1
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="%[1]s",originClusterID="%[1]s"} 1000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="%[1]s",originClusterID="%[1]s"} 1
->>>>>>> 6534db3 (Added metrics)
 			`, memberClusterID),
 		},
 		{
@@ -665,7 +650,6 @@ func TestObserveMetrics(t *testing.T) {
 				},
 			},
 			startTime:       startTime,
-<<<<<<< HEAD
 			wantMetricCount: 2,
 			wantHistogram: fmt.Sprintf(`
 				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="false",origin_cluster_id="%[1]s",le="1000"} 0
@@ -686,19 +670,6 @@ func TestObserveMetrics(t *testing.T) {
             	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s",le="+Inf"} 2
             	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2000
             	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destination_cluster_id="%[1]s",is_first_import="true",origin_cluster_id="%[1]s"} 2
-=======
-			wantMetricCount: 1,
-			wantHistogram: fmt.Sprintf(`
-				fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="1000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="2500"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="5000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="10000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="25000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="50000"} 2
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_bucket{destinationClusterID="%[1]s",originClusterID="%[1]s",le="+Inf"} 3
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_sum{destinationClusterID="%[1]s",originClusterID="%[1]s"} 102000
-            	fleet_networking_endpointslice_export_import_duration_milliseconds_count{destinationClusterID="%[1]s",originClusterID="%[1]s"} 3
->>>>>>> 6534db3 (Added metrics)
 			`, memberClusterID),
 		},
 	}
