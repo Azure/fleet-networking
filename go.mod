@@ -7,6 +7,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.1.6
 	github.com/onsi/gomega v1.20.1
 	github.com/prometheus/client_golang v1.13.0
+	github.com/prometheus/common v0.37.0
 	k8s.io/api v0.25.2
 	k8s.io/apimachinery v0.25.2
 	k8s.io/client-go v0.25.2
@@ -14,10 +15,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.12.2
 )
 
-require (
-	github.com/prometheus/common v0.37.0
-	go.goms.io/fleet v0.6.1
-)
+require go.goms.io/fleet v0.6.1
 
 replace (
 	// https://nvd.nist.gov/vuln/detail/CVE-2022-1996

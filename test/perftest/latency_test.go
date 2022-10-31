@@ -332,6 +332,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 		})
 	})
 
+	// Note: this test scenario may need a longer global timeout value to complete.
 	Context("heavy-load object export/import latency between clusters", Serial, Ordered, func() {
 		type workRecord struct {
 			ns                             *corev1.Namespace
@@ -351,12 +352,24 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 		}
 
 		var (
-			workRecordCount = 60
+			// Total number of fleet-scoped services to created.
+			// Specifically, for each work record the test will create:
+			// * 1 namespace in each hub + member cluster; and
+			// * 1 multi-cluster service in one of the member clusters (picked in a round-robin manner); and
+			// * 1 service in the remaining three member clusters, 3 in total; and
+			// * 1 endpointSlice in each of the remaining three member clusters, 3 in total
+			workRecordCount = 200
 			workRecords     = []workRecord{}
-			bufferSize      = 20
-			maxParallelism  = 5
-			maxRetries      = 3
-			coolDownPeriod  = time.Minute * 2
+			// The channel buffer size.
+			bufferSize = 20
+			// The number of goroutines to deploy for creating resources and/or performing checks.
+			maxParallelism = 5
+			// The number for each goroutine to retry a specific op.
+			maxRetries = 3
+			// The wait period between steps; this helps make sure that checks (e.g. whether a specific service
+			// has been successfully exported) performed in this test scenario will not contend with built-in
+			// controllers and Fleet networking controllers for resources.
+			coolDownPeriod = time.Minute * 5
 
 			endpointSliceAddrTpl = "10.0.0.%d"
 		)
@@ -556,6 +569,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 
 		It("wait for service exports to complete", func() {
 			// Cool down a while; this helps make the test less flaky.
+			fmt.Fprintf(GinkgoWriter, "cool down for %d minutes\n", coolDownPeriod/time.Minute)
 			time.Sleep(coolDownPeriod)
 
 			// Check export status in parallel using a producer/consumer pattern.
@@ -701,6 +715,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 
 		It("wait for service imports to complete", func() {
 			// Cool down a while; this helps make the test less flaky.
+			fmt.Fprintf(GinkgoWriter, "cool down for %d minutes\n", coolDownPeriod/time.Minute)
 			time.Sleep(coolDownPeriod)
 
 			// Check export status in parallel using a producer/consumer pattern.
@@ -842,6 +857,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 
 		It("wait for endpointSlice imports to complete", func() {
 			// Cool down a while; this helps make the test less flaky.
+			fmt.Fprintf(GinkgoWriter, "cool down for %d minutes\n", coolDownPeriod/time.Minute)
 			time.Sleep(coolDownPeriod)
 
 			// Check export status in parallel using a producer/consumer pattern.
