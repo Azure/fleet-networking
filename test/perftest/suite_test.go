@@ -80,6 +80,9 @@ var _ = BeforeSuite(func() {
 		memberClusters = append(memberClusters, cluster)
 	}
 
+	// These variables are defined primarily for convenience access in specific test scenarios, e.g.
+	// light workload latency tests, as member cluster used in these scenarios are fixed; the rest
+	// of the member clusters are accessed by index and not through these convenience variables.
 	memberCluster1 = memberClusters[0]
 	memberCluster1Client = memberCluster1.Client()
 	memberCluster2 = memberClusters[1]
