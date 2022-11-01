@@ -102,7 +102,7 @@ spec:
                   exportedSince:
                     description: The timestamp from a local clock when the generation
                       of the object is exported. This field is marked as optional
-                      for compatibility reasons.
+                      for backwards compatibility reasons.
                     format: date-time
                     type: string
                   generation:

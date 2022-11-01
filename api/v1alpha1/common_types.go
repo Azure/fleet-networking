@@ -43,7 +43,7 @@ type ExportedObjectReference struct {
 	// The timestamp from a local clock when the generation of the object is exported.
 	// This field is marked as optional for backwards compatibility reasons.
 	// +kubebuilder:validation:Optional
-	ExportedSince metav1.Time `json:"exportedSince"`
+	ExportedSince metav1.Time `json:"exportedSince,omitempty"`
 }
 
 // FromMetaObjects builds a new ExportedObjectReference using TypeMeta and ObjectMeta fields from an object.
