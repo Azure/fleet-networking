@@ -45,7 +45,7 @@ func QueryHistogramQuantileAggregated(ctx context.Context, prometheusAPIClient p
 	}
 
 	if res.Type() != model.ValVector {
-		return 0, fmt.Errorf("model.Value, got %s, want %s", res.Type().String(), model.ValVector.String())
+		return 0, fmt.Errorf("model.Value, got %s, want %s", res.Type(), model.ValVector)
 	}
 	vec := res.(model.Vector)
 	if vec.Len() != 1 {
