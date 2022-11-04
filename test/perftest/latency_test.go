@@ -358,7 +358,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 			// * 1 multi-cluster service in one of the member clusters (picked in a round-robin manner); and
 			// * 1 service in the remaining three member clusters, 3 in total; and
 			// * 1 endpointSlice in each of the remaining three member clusters, 3 in total
-			workRecordCount = 200
+			workRecordCount = 80
 			workRecords     = []workRecord{}
 			// The channel buffer size.
 			bufferSize = 20
