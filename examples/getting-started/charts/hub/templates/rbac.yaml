@@ -1,8 +1,10 @@
+{{- range .Values.memberClusterConfigs -}}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-{{ required "A valid member ID is required" .Values.member1ID }}
+  namespace: fleet-member-{{ required "A valid member ID is required" .memberID }}
 rules:
 - apiGroups:
   - coordination.k8s.io
@@ -37,59 +39,13 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-{{ required "A valid member ID is required" .Values.member1ID }}
+  namespace: fleet-member-{{ required "A valid member ID is required" .memberID }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: fleet-networking-controller
 subjects:
   - kind: User
-    name: {{ required "A principal ID is required" .Values.principalIDForMember1 }}
+    name: {{ required "A principal ID is required" .principalID }}
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: fleet-networking-controller
-  namespace: fleet-member-{{ required "A valid member ID is required" .Values.member2ID }}
-rules:
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-  - get
-  - list
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-  - patch
-- apiGroups: 
-  - networking.fleet.azure.com
-  resources: ["*"]
-  verbs: ["*"]
-- apiGroups: 
-  - fleet.azure.com
-  resources: ["*"]
-  verbs: ["*"]
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: fleet-networking-controller
-  namespace: fleet-member-{{ required "A valid member ID is required" .Values.member2ID }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: fleet-networking-controller
-subjects:
-  - kind: User
-    name: {{ required "A principal ID is required" .Values.principalIDForMember2 }}
+{{- end -}}

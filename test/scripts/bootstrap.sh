@@ -71,8 +71,17 @@ case $AZURE_NETWORK_SETTING in
                 export MEMBER_2_LOCATION="${MEMBER_2_LOCATION:-westus}"
                 bash test/scripts/aks-peered-vnet.sh
                 ;;
+        perf-test)
+                export MEMBER_CLUSTER_3=member-3
+                export MEMBER_CLUSTER_4=member-4
+                export MEMBER_LOCATION_1="${MEMBER_LOCATION_1:-eastus}"
+                export MEMBER_1_LOCATION=$MEMBER_LOCATION_1
+                export MEMBER_2_LOCATION=$MEMBER_LOCATION_1
+                export MEMBER_LOCATION_2="${MEMBER_LOCATION_2:=westus}"
+                bash test/scripts/perf-test.sh
+                ;;
         *)
-                echo "$AZURE_NETWORK_SETTING is supported"
+                echo "$AZURE_NETWORK_SETTING is not supported"
                 exit 1
                 ;;
 esac
@@ -80,11 +89,21 @@ esac
 az aks wait --created --interval 10 --name $HUB_CLUSTER --resource-group $RESOURCE_GROUP --timeout 1800
 az aks wait --created --interval 10 --name $MEMBER_CLUSTER_1 --resource-group $RESOURCE_GROUP --timeout 1800
 az aks wait --created --interval 10 --name $MEMBER_CLUSTER_2 --resource-group $RESOURCE_GROUP --timeout 1800
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    az aks wait --created --interval 10 --name $MEMBER_CLUSTER_3 --resource-group $RESOURCE_GROUP --timeout 1800
+    az aks wait --created --interval 10 --name $MEMBER_CLUSTER_4 --resource-group $RESOURCE_GROUP --timeout 1800
+fi
 
 # Export kubeconfig.
 az aks get-credentials --name $HUB_CLUSTER -g $RESOURCE_GROUP --admin --overwrite-existing
 az aks get-credentials --name $MEMBER_CLUSTER_1 -g $RESOURCE_GROUP --admin --overwrite-existing
 az aks get-credentials --name $MEMBER_CLUSTER_2 -g $RESOURCE_GROUP --admin --overwrite-existing
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    az aks get-credentials --name $MEMBER_CLUSTER_3 -g $RESOURCE_GROUP --admin --overwrite-existing
+    az aks get-credentials --name $MEMBER_CLUSTER_4 -g $RESOURCE_GROUP --admin --overwrite-existing
+fi
 export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
 
 # Setup hub cluster credentials.
@@ -92,12 +111,35 @@ export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBE
 export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
 export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
 export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    export CLIENT_ID_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+    export PRINCIPAL_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+    export CLIENT_ID_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+    export PRINCIPAL_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+fi
 
 kubectl config use-context $HUB_CLUSTER-admin
-helm install e2e-hub-resources \
-    ./examples/getting-started/charts/hub \
-    --set principalIDForMember1=$PRINCIPAL_FOR_MEMBER_1 \
-    --set principalIDForMember2=$PRINCIPAL_FOR_MEMBER_2
+if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
+then
+    helm install e2e-hub-resources \
+        ./examples/getting-started/charts/hub \
+        --set memberClusterConfigs[0].memberID=$MEMBER_CLUSTER_1 \
+        --set memberClusterConfigs[0].principalID=$PRINCIPAL_FOR_MEMBER_1 \
+        --set memberClusterConfigs[1].memberID=$MEMBER_CLUSTER_2 \
+        --set memberClusterConfigs[1].principalID=$PRINCIPAL_FOR_MEMBER_2
+else
+    helm install e2e-hub-resources \
+        ./examples/getting-started/charts/hub \
+        --set memberClusterConfigs[0].memberID=$MEMBER_CLUSTER_1 \
+        --set memberClusterConfigs[0].principalID=$PRINCIPAL_FOR_MEMBER_1 \
+        --set memberClusterConfigs[1].memberID=$MEMBER_CLUSTER_2 \
+        --set memberClusterConfigs[1].principalID=$PRINCIPAL_FOR_MEMBER_2 \
+        --set memberClusterConfigs[2].memberID=$MEMBER_CLUSTER_3 \
+        --set memberClusterConfigs[2].principalID=$PRINCIPAL_FOR_MEMBER_3 \
+        --set memberClusterConfigs[3].memberID=$MEMBER_CLUSTER_4 \
+        --set memberClusterConfigs[3].principalID=$PRINCIPAL_FOR_MEMBER_4
+fi
 
 kubectl config use-context $MEMBER_CLUSTER_1-admin
 helm install e2e-member-resources \
@@ -108,6 +150,19 @@ kubectl config use-context $MEMBER_CLUSTER_2-admin
 helm install e2e-member-resources \
     ./examples/getting-started/charts/members \
     --set memberID=$MEMBER_CLUSTER_2
+
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    kubectl config use-context $MEMBER_CLUSTER_3-admin
+    helm install e2e-member-resources \
+        ./examples/getting-started/charts/members \
+        --set memberID=$MEMBER_CLUSTER_3
+
+    kubectl config use-context $MEMBER_CLUSTER_4-admin
+    helm install e2e-member-resources \
+        ./examples/getting-started/charts/members \
+        --set memberID=$MEMBER_CLUSTER_4
+fi
 
 # Helm install charts for hub cluster.
 kubectl config use-context $HUB_CLUSTER-admin
@@ -159,6 +214,54 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 
 # TODO(mainred): Before the app image is publicly available in MCR, we build and publish the image to the test registry.
 # Build and publish the app image dedicated for fleet networking test.
-export APP_IMAGE=$REGISTRY/app
-docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
-docker push $APP_IMAGE
+# Skip this step if running the performance test.
+if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
+then
+    export APP_IMAGE=$REGISTRY/app
+    docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+    docker push $APP_IMAGE
+fi
+
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    kubectl config use-context $MEMBER_CLUSTER_3-admin
+    kubectl apply -f config/crd/*
+    helm install mcs-controller-manager \
+        ./charts/mcs-controller-manager \
+        --set image.repository=$REGISTRY/mcs-controller-manager \
+        --set image.tag=$TAG \
+        --set config.hubURL=$HUB_URL \
+        --set config.provider=azure \
+        --set config.memberClusterName=$MEMBER_CLUSTER_3 \
+        --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
+    helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
+        --set image.repository=$REGISTRY/member-net-controller-manager \
+        --set image.tag=$TAG \
+        --set config.hubURL=$HUB_URL \
+        --set config.provider=azure \
+        --set config.memberClusterName=$MEMBER_CLUSTER_3 \
+        --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
+    
+    kubectl config use-context $MEMBER_CLUSTER_4-admin
+    kubectl apply -f config/crd/*
+    helm install mcs-controller-manager \
+        ./charts/mcs-controller-manager \
+        --set image.repository=$REGISTRY/mcs-controller-manager \
+        --set image.tag=$TAG \
+        --set config.hubURL=$HUB_URL \
+        --set config.provider=azure \
+        --set config.memberClusterName=$MEMBER_CLUSTER_4 \
+        --set azure.clientid=$CLIENT_ID_FOR_MEMBER_4
+    helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
+        --set image.repository=$REGISTRY/member-net-controller-manager \
+        --set image.tag=$TAG \
+        --set config.hubURL=$HUB_URL \
+        --set config.provider=azure \
+        --set config.memberClusterName=$MEMBER_CLUSTER_4 \
+        --set azure.clientid=$CLIENT_ID_FOR_MEMBER_4
+fi
+
+if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+then
+    bash test/scripts/prometheus.sh
+fi

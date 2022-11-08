@@ -284,8 +284,11 @@ will use these IDs to authenticate themselves with the hub cluster.
     kubectl config use-context $HUB_CLUSTER-admin
     helm install getting-started-tutorial-hub-resources \
         ./examples/getting-started/charts/hub \
-        --set principalIDForMember1=$PRINCIPAL_FOR_MEMBER_1 \
-        --set principalIDForMember2=$PRINCIPAL_FOR_MEMBER_2
+        --set userNS=work
+        --set memberClusterConfigs[0].memberID=$MEMBER_CLUSTER_1
+        --set memberClusterConfigs[0].principalID=$PRINCIPAL_FOR_MEMBER_1
+        --set memberClusterConfigs[1].memberID=$MEMBER_CLUSTER_2
+        --set memberClusterConfigs[1].principalID=$PRINCIPAL_FOR_MEMBER_2
     ```
 
 - Apply the Helm chart for the two member clusters:

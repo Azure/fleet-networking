@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: hub-net-agent-metrics
+  # By default the kube-prometheus-stack accepts PodMonitor objects only in the namespace where the
+  # chart is installed.
+  namespace: monitoring
+  labels:
+    # This label matches the installation name of the kube-prometheus-stack chart, as by default
+    # the installed Prometheus operator looks for PodMonitor objects with the
+    # `release: INSTALLATION_NAME` label set only.
+    release: monitor
+spec:
+  selector:
+    matchLabels:
+      # The labels in use by the hub-net-controller-manager chart.
+      app.kubernetes.io/instance: hub-net-controller-manager
+      app.kubernetes.io/name: hub-net-controller-manager
+  podMetricsEndpoints:
+  # The metrics ports as exposed in the member-net-controller-manager chart; only one is needed.
+  - port: metrics
+  namespaceSelector:
+    any: true
