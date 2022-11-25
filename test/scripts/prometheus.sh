@@ -54,4 +54,3 @@ helm install $INSTALLATION_NAME prometheus-community/kube-prometheus-stack \
     --set prometheus.prometheusSpec.enableAdminAPI=true
 kubectl apply -f ./test/perftest/manifests/memberpodmonitor.yaml
 kubectl apply -f ./test/perftest/manifests/metricsdashboardsvc.yaml
-
