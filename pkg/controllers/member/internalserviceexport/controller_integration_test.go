@@ -46,18 +46,18 @@ var (
 		}
 		return nil
 	}
-	// internalServiceExportHasLastObservedGenerationAnnotatedActual runs with Eventually and Consistently assertion
+	// internalServiceExportHasLastObservedResourceVersionAnnotatedActual runs with Eventually and Consistently assertion
 	// to make sure that a last observed annotation has been added to the InternalServiceExport referred by
 	// internalSvcExportKey when a metric data point is observed.
-	internalServiceExportHasLastObservedGenerationAnnotatedActual = func() error {
+	internalServiceExportHasLastObservedResourceVersionAnnotatedActual = func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 			return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
 		}
 
-		lastObservedGeneration, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]
-		if !ok || lastObservedGeneration != fmt.Sprintf("%d", internalSvcExport.Spec.ServiceReference.Generation) {
-			return fmt.Errorf("lastObservedGeneration, got %s, want %d", lastObservedGeneration, internalSvcExport.Spec.ServiceReference.Generation)
+		lastObservedResourceVersion, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedResourceVersion]
+		if !ok || lastObservedResourceVersion != internalSvcExport.Spec.ServiceReference.ResourceVersion {
+			return fmt.Errorf("lastObservedResourceVersion, got %s, want %s", lastObservedResourceVersion, internalSvcExport.Spec.ServiceReference.ResourceVersion)
 		}
 		return nil
 	}
@@ -81,8 +81,7 @@ func unfulfilledInternalServiceExport() *fleetnetv1alpha1.InternalServiceExport 
 				Kind:            "Service",
 				Namespace:       memberUserNS,
 				Name:            svcName,
-				ResourceVersion: "0",
-				Generation:      1,
+				ResourceVersion: svcResourceVersion,
 				UID:             "00000000-0000-0000-0000-000000000000",
 				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
 			},
@@ -153,8 +152,8 @@ var _ = Describe("internalsvcexport controller", func() {
 					return fmt.Errorf("internalServiceExport Get(%v), got %w, want no error", internalSvcExportKey, err)
 				}
 
-				if _, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]; ok {
-					return fmt.Errorf("lastObservedGeneration annotation is present")
+				if _, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedResourceVersion]; ok {
+					return fmt.Errorf("lastObservedResourceVersion annotation is present")
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
@@ -201,7 +200,7 @@ var _ = Describe("internalsvcexport controller", func() {
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(internalServiceExportHasLastObservedGenerationAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(internalServiceExportHasLastObservedResourceVersionAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 
@@ -245,7 +244,7 @@ var _ = Describe("internalsvcexport controller", func() {
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
-			Eventually(internalServiceExportHasLastObservedGenerationAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(internalServiceExportHasLastObservedResourceVersionAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})
 	})
 })

@@ -16,15 +16,27 @@ const (
 	// an object; this annotation is reserved for the purpose of metric collection, specifically
 	// tracking when a generation of an object is exported.
 	MetricsAnnotationLastSeenGeneration = "networking.fleet.azure.com/last-seen-generation"
-	// MetricsAnnotationLastSeenTimestamp is an annotation that marks the last seen timestamp of
-	// a specific generation of an object; this annotation is reserved for the purpose of metric collection,
-	// specifically tracking when a generation of an object is exported.
-	MetricsAnnotationLastSeenTimestamp = "networking.fleet.azure.com/last-seen-timestamp"
+	// MetricsAnnotationLastSeenResourceVersion is an annotation that marks the last seen resource version of an
+	// an object; this annotation is reserved for the purpose of metric collection, specifically
+	// tracking when a generation of an object is exported.
+	// For most objects, we use their generation field to track whether a data point has been collected; however,
+	// Kubernetes API server tracks generations only on specific types of objects, and for unsupported objects,
+	// their resource versions will be used instead.
+	MetricsAnnotationLastSeenResourceVersion = "networking.fleet.azure.com/last-seen-resource-version"
 
 	// MetricsAnnotationLastObservedGeneration is an annotation that marks the last generation of an
 	// object from which a metric data point has been observed. This helps avoid observing multiple
 	// data points for the same generation of an object.
 	MetricsAnnotationLastObservedGeneration = "networking.fleet.azure.com/last-observed-generation"
+	// MetricsAnnotationLastObservedResourceVersion is an annotation that marks the last resource version of an
+	// object from which a metric data point has been observed. This helps avoid observing multiple
+	// data points for the same generation of an object.
+	MetricsAnnotationLastObservedResourceVersion = "networking.fleet.azure.com/last-observed-resource-version"
+
+	// MetricsAnnotationLastSeenTimestamp is an annotation that marks the last seen timestamp of
+	// a specific generation of an object; this annotation is reserved for the purpose of metric collection,
+	// specifically tracking when a generation of an object is exported.
+	MetricsAnnotationLastSeenTimestamp = "networking.fleet.azure.com/last-seen-timestamp"
 )
 
 // Metrics related values.

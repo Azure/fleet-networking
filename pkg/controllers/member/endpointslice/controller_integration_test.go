@@ -628,9 +628,18 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			// Remove the finalizer.
-			Expect(memberClient.Get(ctx, endpointSliceKey, endpointSlice)).Should(Succeed())
-			endpointSlice.ObjectMeta.Finalizers = []string{}
-			Expect(memberClient.Update(ctx, endpointSlice)).Should(Succeed())
+			Eventually(func() error {
+				endpointSlice := &discoveryv1.EndpointSlice{}
+				if err := memberClient.Get(ctx, endpointSliceKey, endpointSlice); err != nil {
+					return fmt.Errorf("endpointSlice Get(%+v), got %w, want no error", endpointSliceKey, err)
+				}
+
+				endpointSlice.ObjectMeta.Finalizers = []string{}
+				if err := memberClient.Update(ctx, endpointSlice); err != nil {
+					return fmt.Errorf("endpointSlice Update(%+v), got %w, want no error", endpointSlice, err)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Eventually(endpointSliceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 		})

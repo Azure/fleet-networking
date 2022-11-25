@@ -106,7 +106,7 @@ var (
 		Name:      fmt.Sprintf("%s-%s", memberUserNS, svcName),
 	}
 
-	ignoredRefFields = cmpopts.IgnoreFields(fleetnetv1alpha1.ExportedObjectReference{}, "ResourceVersion")
+	ignoredRefFields = cmpopts.IgnoreFields(fleetnetv1alpha1.ExportedObjectReference{}, "ResourceVersion", "ExportedSince")
 )
 
 var (
@@ -179,7 +179,7 @@ var (
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
-		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svc.Generation)
+		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
@@ -206,21 +206,21 @@ var (
 			return fmt.Errorf("serviceExport finalizers, got %v, want %v", svcExport.Finalizers, []string{svcExportCleanupFinalizer})
 		}
 
-		expectedValidCond := serviceExportValidCondition(memberUserNS, svcName, svc.Generation)
+		expectedValidCond := serviceExportValidCondition(memberUserNS, svcName)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedValidCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 		}
 
-		expectedConflictCond := serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svc.Generation)
+		expectedConflictCond := serviceExportPendingConflictResolutionCondition(memberUserNS, svcName)
 		conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 		if diff := cmp.Diff(conflictCond, &expectedConflictCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportConflict condition (-got, +want): %s", diff)
 		}
 
-		lastSeenGenerationData, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
-		if !ok || lastSeenGenerationData != fmt.Sprintf("%d", svc.Generation) {
-			return fmt.Errorf("lastSeenGenerationData, got %s, want %d", lastSeenGenerationData, svc.Generation)
+		lastSeenResourceVersion, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenResourceVersion]
+		if !ok || lastSeenResourceVersion != svc.ResourceVersion {
+			return fmt.Errorf("lastSeenResourceVersion, got %s, want %s", lastSeenResourceVersion, svc.ResourceVersion)
 		}
 
 		lastSeenTimestampData, ok := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
@@ -419,7 +419,6 @@ var _ = Describe("serviceexport controller", func() {
 				if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 				}
-				expectedExportedSince := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid)).LastTransitionTime
 				expectedInternalSvcExportSpec := fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -439,7 +438,7 @@ var _ = Describe("serviceexport controller", func() {
 						memberClusterID,
 						svc.TypeMeta,
 						svc.ObjectMeta,
-						expectedExportedSince,
+						metav1.Now(),
 					),
 				}
 				if diff := cmp.Diff(internalSvcExport.Spec, expectedInternalSvcExportSpec, ignoredRefFields); diff != "" {
