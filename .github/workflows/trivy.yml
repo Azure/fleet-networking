@@ -9,9 +9,7 @@ on:
       - release-*
     paths-ignore: [docs/**, "**.md", "**.mdx", "**.png", "**.jpg"]
 
-permissions:
-  contents: read
-  packages: write
+permissions: write-all
 
 env:
   REGISTRY: ghcr.io
