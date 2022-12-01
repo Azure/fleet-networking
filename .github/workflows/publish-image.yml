@@ -1,7 +1,7 @@
 # This Github Action will build and publish images to github registry automatically.
 # The image version can be either `latest` from the main branch or a tag whenever a tag is created.
 
-name: publish_images
+name: Building and Publishing to GitHub
 
 on:
   push:
@@ -20,11 +20,6 @@ env:
   IMAGE_VERSION: latest
 
   GO_VERSION: '1.18'
-
-  # TODO: once fleet repo is public, we could remove these env variables.
-  GOPROXY: ${{ secrets.GOPROXY }}
-  GOPRIVATE: ${{ secrets.GOPRIVATE }}
-  GONOPROXY: none
 
 jobs:
   export-registry:

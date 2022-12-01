@@ -1,13 +1,11 @@
-name: Trivy vulnerability scanner
+name: Trivy Vulnerability Scanner
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-      - release-*
-    paths-ignore: [docs/**, "**.md", "**.mdx", "**.png", "**.jpg"]
+  create:
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
 
 permissions:
   contents: read
@@ -20,11 +18,6 @@ env:
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
 
   GO_VERSION: '1.18'
-
-  # TODO: once fleet repo is public, we could remove these env variables.
-  GOPROXY: ${{ secrets.GOPROXY }}
-  GOPRIVATE: ${{ secrets.GOPRIVATE }}
-  GONOPROXY: none
 
 jobs:
   export-registry:
