@@ -38,6 +38,8 @@ jobs:
     env:
       REGISTRY: ${{ needs.export-registry.outputs.registry }}
     runs-on: ubuntu-20.04
+    permissions:
+      packages: write
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v2
