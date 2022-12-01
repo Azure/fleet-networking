@@ -192,7 +192,7 @@ docker-buildx-builder:
 
 .PHONY: docker-build-hub-net-controller-manager
 docker-build-hub-net-controller-manager: docker-buildx-builder vendor
-	echo "registry: $(REGISTRY)" && docker buildx build \
+	docker buildx build \
 		--file docker/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/amd64" \
