@@ -1,4 +1,4 @@
-name: Go-Lint
+name: Linting
 
 on:
   push:
@@ -15,11 +15,6 @@ on:
 env:
   # Common versions
   GO_VERSION: '1.18'
-
-  # TODO: once fleet repo is public, we could remove these env variables.
-  GOPROXY: ${{ secrets.GOPROXY }}
-  GOPRIVATE: ${{ secrets.GOPRIVATE }}
-  GONOPROXY: none
 
 jobs:
 
