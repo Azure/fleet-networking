@@ -893,6 +893,93 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberClusterMCS.Client().Delete(ctx, &newMCSDef)).Should(Succeed(), "Failed to delete multi-cluster service %s in cluster %s", multiClusterSvcKey, memberClusterMCS.Name())
 		})
 	})
+
+	Context("Test multi-cluster service with internal load balancer type", func() {
+		BeforeEach(func() {
+			By("Exporting the service")
+			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed())
+		})
+		AfterEach(func() {
+			By("Unexporting the service")
+			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed())
+		})
+
+		It("should allow multi-cluster service with internal load balancer type", func() {
+			By("Updating multi-cluster service to import the new service")
+			mcs := wm.MultiClusterService()
+			mcs.Annotations = map[string]string{
+				"networking.fleet.azure.com/azure-load-balancer-internal": "true",
+			}
+			By("Creating multi-cluster service")
+			Expect(wm.CreateMultiClusterService(ctx, mcs)).Should(Succeed())
+
+			By("Validating the multi-cluster service")
+			memberClusterMCS := wm.Fleet.MCSMemberCluster()
+
+			By("Validating the multi-cluster service is importing a service")
+			multiClusterSvcKey := types.NamespacedName{Namespace: mcs.Namespace, Name: mcs.Name}
+			mcsObj := &fleetnetv1alpha1.MultiClusterService{}
+			Eventually(func() string {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err.Error()
+				}
+				wantedMCSCondition := []metav1.Condition{
+					{
+						Type:   string(fleetnetv1alpha1.MultiClusterServiceValid),
+						Reason: "FoundServiceImport",
+						Status: metav1.ConditionTrue,
+					},
+				}
+				return cmp.Diff(wantedMCSCondition, mcsObj.Status.Conditions, framework.MCSConditionCmpOptions...)
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate multi-cluster service condition mismatch (-want, +got):")
+
+			By("Validating the multi-cluster service is taking the service spec")
+			derivedServiceName := mcsObj.GetLabels()["networking.fleet.azure.com/derived-service"]
+			derivedServiceObj := &corev1.Service{}
+			svc := wm.Service()
+			Eventually(func() string {
+				derivedServiceKey := types.NamespacedName{Namespace: fleetSystemNamespace, Name: derivedServiceName}
+				if err := memberClusterMCS.Client().Get(ctx, derivedServiceKey, derivedServiceObj); err != nil {
+					return err.Error()
+				}
+				wantedDerivedSvcPortSpec := []corev1.ServicePort{
+					{
+						Port:       svc.Spec.Ports[0].Port,
+						TargetPort: svc.Spec.Ports[0].TargetPort,
+					},
+				}
+				derivedSvcPortSpecCmpOptions := []cmp.Option{
+					cmpopts.IgnoreFields(corev1.ServicePort{}, "NodePort", "Protocol"),
+				}
+				return cmp.Diff(wantedDerivedSvcPortSpec, derivedServiceObj.Spec.Ports, derivedSvcPortSpecCmpOptions...)
+
+			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate derived service port spec (-want, +got):")
+			wantedDerivedSvcAnnotation := map[string]string{
+				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
+			}
+			Expect(cmp.Equal(derivedServiceObj.Annotations, wantedDerivedSvcAnnotation)).Should(BeTrue(),
+				"Validate derived service annotation, got %+v, want %+v", derivedServiceObj.Annotations, wantedDerivedSvcAnnotation)
+
+			By("Validating the multi-cluster service has loadbalancer ingress IP address")
+			Eventually(func() error {
+				if err := memberClusterMCS.Client().Get(ctx, multiClusterSvcKey, mcsObj); err != nil {
+					return err
+				}
+				if len(mcsObj.Status.LoadBalancer.Ingress) != 1 {
+					return fmt.Errorf("multi-cluster service ingress address length, got %d, want %d", 0, 1)
+				}
+				if mcsObj.Status.LoadBalancer.Ingress[0].IP == "" {
+					return fmt.Errorf("multi-cluster service load balancer IP, got empty, want not empty")
+				}
+				return nil
+			}, framework.MCSLBPollTimeout, framework.PollInterval).Should(Succeed(), "Failed to retrieve multi-cluster service LB address")
+
+			// clean up
+			By("Deleting multi-cluster service")
+			Expect(wm.DeleteMultiClusterService(ctx, mcs)).Should(Succeed())
+		})
+
+	})
 })
 
 func fetchHTTPRequestBody(requestURL string) (string, error) {
