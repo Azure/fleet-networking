@@ -9,12 +9,12 @@ package serviceexport
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -75,7 +75,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Retrieve the ServiceExport object.
 	var svcExport fleetnetv1alpha1.ServiceExport
 	if err := r.MemberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Skip the reconciliation if the ServiceExport does not exist; this happens when the controller detects
 			// changes in a Service that has not been exported yet, or when a ServiceExport is deleted before the
 			// corresponding Service is exported to the fleet (and a cleanup finalizer is added). Either case requires
@@ -114,7 +114,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.MemberClient.Get(ctx, req.NamespacedName, &svc)
 	switch {
 	// The Service to export does not exist or has been deleted.
-	case errors.IsNotFound(err) || svc.DeletionTimestamp != nil:
+	case apierrors.IsNotFound(err) || svc.DeletionTimestamp != nil:
 		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotFound", "Service %s is not found or in the deleting state", svc.Name)
 
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
@@ -175,11 +175,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// Retrieve the last seen generation and the last seen timestamp; these two values are used for metric collection.
+	// Retrieve the last seen resource version and the last seen timestamp; these two values are used for metric collection.
 	// If the two values are not present or not valid, annotate ServiceExport with new values.
 	//
 	// Note that the two values are not tamperproof.
-	exportedSince, err := r.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, &svc, &svcExport, startTime)
+	exportedSince, err := r.collectAndVerifyLastSeenResourceVersionAndTimestamp(ctx, &svc, &svcExport, startTime)
 	if err != nil {
 		klog.Warning("Failed to annotate last seen generation and timestamp", "serviceExport", svcRef)
 	}
@@ -209,9 +209,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Service from the one that is being reconciled. This usually happens when a service is deleted and
 		// re-created immediately.
 		if internalSvcExport.Spec.ServiceReference.UID != svc.UID {
-			return errors.NewAlreadyExists(
-				schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "ServiceExport"},
-				internalSvcExport.Name,
+			klog.V(4).InfoS("Failed to create/update internalServiceExport, UIDs mismatch",
+				"service", svcRef,
+				"internalServiceExport", klog.KObj(&internalSvcExport),
+				"newUID", svc.UID,
+				"oldUID", internalSvcExport.Spec.ServiceReference.UID)
+			// The AlreadyExists error returned here features a different GVR source (service, rather than
+			// internalServiceExport); such an error would never be yielded in the normal workflow.
+			return apierrors.NewAlreadyExists(
+				schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "Service"},
+				fmt.Sprintf("%s/%s", svc.Namespace, svc.Name),
 			)
 		}
 
@@ -219,10 +226,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
 		return nil
 	})
+	statusErr := &apierrors.StatusError{}
+	ok := errors.As(err, &statusErr)
 	switch {
-	case errors.IsAlreadyExists(err):
+	case apierrors.IsAlreadyExists(err) && ok && statusErr.Status().Details.Kind == "Service":
 		// An export with the same key but different UID already exists; unexport the Service first, and
 		// requeue a new attempt to export the Service.
+		// Additional checks are performed here as two forms of AlreadyExists error can be returned in the CreateOrUpdate
+		// call: it could be that an actual UID mismatch is found, however, since CreateOrUpdate is, in essence, a two-part op
+		// (the function first gets the object, and then decides whether to create the object or update it according to the get
+		// result), a racing condition may lead to an AlreadyExists error being yielded even if there is no UID mismatch at all.
+		// This can happen, albeit quite rarely, when the system is under heavy load, and the informers cannot sync caches
+		// fast enough; the out-of-date cache will return that an object does not exist when read, even though the object is
+		// already present in the persistent store, and any subsequent create call would fail.
 		if _, err := r.unexportService(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 			return ctrl.Result{}, err
@@ -266,7 +282,7 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 	}
 
 	// Unexport the Service.
-	if err := r.HubClient.Delete(ctx, internalSvcExport); err != nil && !errors.IsNotFound(err) {
+	if err := r.HubClient.Delete(ctx, internalSvcExport); err != nil && !apierrors.IsNotFound(err) {
 		// It is guaranteed that a finalizer is always added to a ServiceExport before the corresponding Service is
 		// actually exported; in some rare occasions, e.g. the controller crashes right after it adds the finalizer
 		// to the ServiceExport but before the it gets a chance to actually export the Service to the
@@ -364,38 +380,36 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 	return r.MemberClient.Status().Update(ctx, svcExport)
 }
 
-// collectAndVerifyLastSeenGenerationAndTime collects and verifies the last seen generation and timestamp annotations
+// collectAndVerifyLastSeenResourceVersionAndTime collects and verifies the last seen resource version and timestamp annotations
 // on ServiceExports; it will assign new values if the annotations are not present or not valid.
-func (r *Reconciler) collectAndVerifyLastSeenGenerationAndTimestamp(ctx context.Context,
+func (r *Reconciler) collectAndVerifyLastSeenResourceVersionAndTimestamp(ctx context.Context,
 	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) (time.Time, error) {
 	// Check if the two annotations are present; assign new values if they are absent.
-	lastSeenGenerationData, lastSeenGenerationOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration]
+	lastSeenResourceVersion, lastSeenResourceVersionOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenResourceVersion]
 	lastSeenTimestampData, lastSeenTimestampOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
-	if !lastSeenGenerationOk || !lastSeenTimestampOk {
-		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	if !lastSeenResourceVersionOk || !lastSeenTimestampOk {
+		return startTime, r.annotateLastSeenResourceVersionAndTimestamp(ctx, svc, svcExport, startTime)
 	}
 
-	// Check if the two values are valid and up-to-date; assign new ones if they are not.
-	lastSeenGeneration, lastSeenGenerationErr := strconv.ParseInt(lastSeenGenerationData, 10, 64)
 	lastSeenTimestamp, lastSeenTimestampErr := time.Parse(metrics.MetricsLastSeenTimestampFormat, lastSeenTimestampData)
-	if lastSeenGenerationErr != nil || lastSeenTimestampErr != nil {
-		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	if lastSeenTimestampErr != nil {
+		return startTime, r.annotateLastSeenResourceVersionAndTimestamp(ctx, svc, svcExport, startTime)
 	}
-	if lastSeenGeneration != svc.Generation || lastSeenTimestamp.After(startTime) {
-		return startTime, r.annotateLastSeenGenerationAndTimestamp(ctx, svc, svcExport, startTime)
+	if lastSeenResourceVersion != svc.ResourceVersion || lastSeenTimestamp.After(startTime) {
+		return startTime, r.annotateLastSeenResourceVersionAndTimestamp(ctx, svc, svcExport, startTime)
 	}
 	return lastSeenTimestamp, nil
 }
 
-// annotateLastSeenGenerationAndTimestamp annotates a ServiceExport with last seen generation and timestamp.
-func (r *Reconciler) annotateLastSeenGenerationAndTimestamp(ctx context.Context,
+// annotateLastSeenResourceVersionAndTimestamp annotates a ServiceExport with last seen resource version and timestamp.
+func (r *Reconciler) annotateLastSeenResourceVersionAndTimestamp(ctx context.Context,
 	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) error {
 	// Initialize the annotation map if no annoation has been added yet.
 	if svcExport.Annotations == nil {
 		svcExport.Annotations = map[string]string{}
 	}
 
-	svcExport.Annotations[metrics.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(svc.Generation, 10)
+	svcExport.Annotations[metrics.MetricsAnnotationLastSeenResourceVersion] = svc.ResourceVersion
 	svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
 	return r.MemberClient.Update(ctx, svcExport)
 }

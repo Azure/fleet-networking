@@ -30,22 +30,20 @@ import (
 )
 
 const (
-	memberUserNS                = "work"
-	hubNSForMember              = "bravelion"
-	svcName                     = "app"
-	svcObservedGenerationBefore = 1
-	svcObservedGenerationAfter  = 2
+	memberUserNS       = "work"
+	hubNSForMember     = "bravelion"
+	svcName            = "app"
+	svcResourceVersion = "0"
 )
 
 // ignoredCondFields are fields that should be ignored when comparing conditions.
 var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")
 
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
-func serviceExportValidCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
+func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: svcObservedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportValidCondReason,
 		Message:            fmt.Sprintf("service %s/%s is valid for export", userNS, svcName),
@@ -64,11 +62,10 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 }
 
 // serviceExportInvalidIneligibleCondition returns a ServiceExportValid condition for exporting an ineligible Service.
-func serviceExportInvalidIneligibleCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
+func serviceExportInvalidIneligibleCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
-		ObservedGeneration: svcObservedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidIneligibleCondReason,
 		Message:            fmt.Sprintf("service %s/%s is not eligible for export", userNS, svcName),
@@ -77,11 +74,11 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string, svcObserved
 
 // serviceExportPendingConflictResolutionCondition returns a ServiceExportConflict condition which reports that
 // a confliction resolution is in progress.
-func serviceExportPendingConflictResolutionCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
+func serviceExportPendingConflictResolutionCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
-		ObservedGeneration: svcObservedGeneration,
+		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportPendingConflictResolutionReason,
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", userNS, svcName),
 	}
@@ -89,11 +86,11 @@ func serviceExportPendingConflictResolutionCondition(userNS, svcName string, svc
 
 // serviceExportNoConflictCondition returns a ServiceExportConflict condition which reports that a service is exported
 // with no conflict.
-func serviceExportNoConflictCondition(userNS, svcName string, svcObservedGeneration int64) metav1.Condition {
+func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: svcObservedGeneration,
+		LastTransitionTime: metav1.Now(),
 		Reason:             "NoConflictDetected",
 		Message:            fmt.Sprintf("service %s/%s is exported with no conflict", userNS, svcName),
 	}
@@ -274,7 +271,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportValidCondition(memberUserNS, svcName),
 					},
 				},
 			},
@@ -335,13 +332,12 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationAfter,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -353,19 +349,18 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportValidCondition(memberUserNS, svcName),
 					},
 				},
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationAfter,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
 			},
 		},
 	}
@@ -421,14 +416,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationAfter,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -446,14 +440,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationAfter,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -465,20 +458,19 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportInvalidIneligibleCondition(memberUserNS, svcName),
 					},
 				},
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationAfter,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationAfter),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationAfter),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -490,21 +482,20 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
-						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
 					},
 				},
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
-				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportPendingConflictResolutionCondition(memberUserNS, svcName),
 			},
 		},
 		{
@@ -516,21 +507,20 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
-						serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
-						serviceExportNoConflictCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+						serviceExportValidCondition(memberUserNS, svcName),
+						serviceExportNoConflictCondition(memberUserNS, svcName),
 					},
 				},
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace: memberUserNS,
+					Name:      svcName,
 				},
 			},
 			wantConds: []metav1.Condition{
-				serviceExportValidCondition(memberUserNS, svcName, svcObservedGenerationBefore),
-				serviceExportNoConflictCondition(memberUserNS, svcName, svcObservedGenerationBefore),
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportNoConflictCondition(memberUserNS, svcName),
 			},
 		},
 	}
@@ -757,17 +747,17 @@ func TestUnexportService(t *testing.T) {
 	}
 }
 
-// TestCollectAndVerifyLastSeenGenerationAndTimestamp tests the
-// *Reconciler.collectAndVerifyLastSeenGenerationAndTimestamp method.
-func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
+// TestCollectAndVerifyLastSeenResourceVersionAndTimestamp tests the
+// *Reconciler.collectAndVerifyLastSeenResourceVersionAndTimestamp method.
+func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 	startTime := time.Now().Round(time.Second)
 	startTimeBefore := startTime.Add(-time.Second * 5)
 	startTimeBeforeStr := startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat)
 	startTimeBeforeFlattened, _ := time.Parse(metrics.MetricsLastSeenTimestampFormat, startTimeBeforeStr)
 	startTimeAfter := startTime.Add(time.Second * 240)
 	wantAnnotations := map[string]string{
-		metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-		metrics.MetricsAnnotationLastSeenTimestamp:  startTime.Format(metrics.MetricsLastSeenTimestampFormat),
+		metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+		metrics.MetricsAnnotationLastSeenTimestamp:       startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 	}
 
 	testCases := []struct {
@@ -782,9 +772,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 			name: "serviceExport with no last seen annotations",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -798,12 +788,12 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 			wantAnnotations:   wantAnnotations,
 		},
 		{
-			name: "endpointslice with valid last seen annotations",
+			name: "serviceExport with valid last seen annotations",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -811,25 +801,25 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+						metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+						metrics.MetricsAnnotationLastSeenTimestamp:       startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
 			startTime:         startTime,
 			wantExportedSince: startTimeBeforeFlattened,
 			wantAnnotations: map[string]string{
-				metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-				metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+				metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+				metrics.MetricsAnnotationLastSeenTimestamp:       startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 			},
 		},
 		{
-			name: "endpointslice with invalid last seen generation (bad data)",
+			name: "serviceExport with invalid last seen resource version (mismatch)",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -837,8 +827,8 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastSeenGeneration: "InvalidGenerationData",
-						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
+						metrics.MetricsAnnotationLastSeenResourceVersion: "-1",
+						metrics.MetricsAnnotationLastSeenTimestamp:       startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
@@ -847,12 +837,12 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 			wantAnnotations:   wantAnnotations,
 		},
 		{
-			name: "endpointslice with invalid last seen generation (mismatch)",
+			name: "serviceExport with invalid last seen timestamp (bad data)",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -860,31 +850,8 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationAfter),
-						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeBefore.Format(metrics.MetricsLastSeenTimestampFormat),
-					},
-				},
-			},
-			startTime:         startTime,
-			wantExportedSince: startTime,
-			wantAnnotations:   wantAnnotations,
-		},
-		{
-			name: "endpointslice with invalid last seen timestamp (bad data)",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
-				},
-			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: memberUserNS,
-					Name:      svcName,
-					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-						metrics.MetricsAnnotationLastSeenTimestamp:  "InvalidTimestampData",
+						metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+						metrics.MetricsAnnotationLastSeenTimestamp:       "InvalidTimestampData",
 					},
 				},
 			},
@@ -896,9 +863,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 			name: "endpointslice with invalid last seen timestamp (too late timestamp)",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -906,8 +873,8 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 					Namespace: memberUserNS,
 					Name:      svcName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-						metrics.MetricsAnnotationLastSeenTimestamp:  startTimeAfter.Format(metrics.MetricsLastSeenTimestampFormat),
+						metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+						metrics.MetricsAnnotationLastSeenTimestamp:       startTimeAfter.Format(metrics.MetricsLastSeenTimestampFormat),
 					},
 				},
 			},
@@ -932,9 +899,9 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 				Recorder:     record.NewFakeRecorder(10),
 			}
 
-			exportedSince, err := reconciler.collectAndVerifyLastSeenGenerationAndTimestamp(ctx, tc.svc, tc.svcExport, tc.startTime)
+			exportedSince, err := reconciler.collectAndVerifyLastSeenResourceVersionAndTimestamp(ctx, tc.svc, tc.svcExport, tc.startTime)
 			if err != nil || !exportedSince.Equal(tc.wantExportedSince) {
-				t.Fatalf("collectAndVerifyLastSeenGenerationAndTimestamp(%+v, %+v, %v) = (%v, %v), want (%v, %v)",
+				t.Fatalf("collectAndVerifyLastSeenResourceVersionAndTimestamp(%+v, %+v, %v) = (%v, %v), want (%v, %v)",
 					tc.svc, tc.svcExport, tc.startTime, exportedSince, err, tc.wantExportedSince, nil)
 			}
 
@@ -950,8 +917,8 @@ func TestCollectAndVerifyLastSeenGenerationAndTimestamp(t *testing.T) {
 	}
 }
 
-// TestAnnotateLastSeenGenerationAndTimestamp tests the *Reconciler.annotateLastSeenGenerationAndTimestamp method.
-func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
+// TestAnnotateLastSeenResourceVersionAndTimestamp tests the *Reconciler.annotateLastSeenResourceVersionAndTimestamp method.
+func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 	startTime := time.Now().Round(time.Second)
 
 	testCases := []struct {
@@ -961,12 +928,12 @@ func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
 		wantAnnotations map[string]string
 	}{
 		{
-			name: "should annotate last seen generation and timestamp",
+			name: "should annotate last seen resource version and timestamp",
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:  memberUserNS,
-					Name:       svcName,
-					Generation: svcObservedGenerationBefore,
+					Namespace:       memberUserNS,
+					Name:            svcName,
+					ResourceVersion: svcResourceVersion,
 				},
 			},
 			svcExport: &fleetnetv1alpha1.ServiceExport{
@@ -976,8 +943,8 @@ func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
 				},
 			},
 			wantAnnotations: map[string]string{
-				metrics.MetricsAnnotationLastSeenGeneration: fmt.Sprintf("%d", svcObservedGenerationBefore),
-				metrics.MetricsAnnotationLastSeenTimestamp:  startTime.Format(metrics.MetricsLastSeenTimestampFormat),
+				metrics.MetricsAnnotationLastSeenResourceVersion: svcResourceVersion,
+				metrics.MetricsAnnotationLastSeenTimestamp:       startTime.Format(metrics.MetricsLastSeenTimestampFormat),
 			},
 		},
 	}
@@ -999,8 +966,8 @@ func TestAnnotateLastSeenGenerationAndTimestamp(t *testing.T) {
 				Recorder:     record.NewFakeRecorder(10),
 			}
 
-			if err := reconciler.annotateLastSeenGenerationAndTimestamp(ctx, tc.svc, tc.svcExport, startTime); err != nil {
-				t.Fatalf("annotateLastSeenGenerationAndTimestamp(%+v, %+v, %v), got %v, want no error", tc.svc, tc.svcExport, startTime, err)
+			if err := reconciler.annotateLastSeenResourceVersionAndTimestamp(ctx, tc.svc, tc.svcExport, startTime); err != nil {
+				t.Fatalf("annotateLastSeenResourceVersionAndTimestamp(%+v, %+v, %v), got %v, want no error", tc.svc, tc.svcExport, startTime, err)
 			}
 
 			svcExport := &fleetnetv1alpha1.ServiceExport{}

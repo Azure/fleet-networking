@@ -9,7 +9,6 @@ package internalserviceexport
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -196,24 +195,24 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 func (r *Reconciler) observeMetrics(ctx context.Context,
 	internalSvcExport *fleetnetv1alpha1.InternalServiceExport,
 	startTime time.Time) error {
-	// Check if a metric data point has been observed for the current generation of the object; this helps guard
-	// against repeated observation of metric data points for the same generation of an object due to no-op
+	// Check if a metric data point has been observed for the current resource version of the object; this helps guard
+	// against repeated observation of metric data points for the same resource version of an object due to no-op
 	// reconciliations (e.g. resyncs, untracked changes).
-	lastObservedGeneration, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]
-	currentGenerationStr := fmt.Sprintf("%d", internalSvcExport.Spec.ServiceReference.Generation)
-	if ok && lastObservedGeneration == currentGenerationStr {
-		// A data point has been observed for this generation; skip the observation.
+	lastObservedResourceVersion, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedResourceVersion]
+	currentResourceVersion := internalSvcExport.Spec.ServiceReference.ResourceVersion
+	if ok && lastObservedResourceVersion == currentResourceVersion {
+		// A data point has been observed for this resource version; skip the observation.
 		return nil
 	}
 
 	// Observe a new data point.
 
-	// Annotate the object to track the last observed generation; this must happen before the actual observation.
+	// Annotate the object to track the last observed resource version; this must happen before the actual observation.
 	if internalSvcExport.Annotations == nil {
 		// Initialize the annotation map if it is empty.
 		internalSvcExport.Annotations = map[string]string{}
 	}
-	internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration] = currentGenerationStr
+	internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedResourceVersion] = currentResourceVersion
 	if err := r.HubClient.Update(ctx, internalSvcExport); err != nil {
 		return err
 	}

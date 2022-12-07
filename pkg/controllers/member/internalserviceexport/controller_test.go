@@ -28,10 +28,11 @@ import (
 )
 
 const (
-	memberClusterID = "bravelion"
-	hubNSForMember  = "bravelion"
-	memberUserNS    = "work"
-	svcName         = "app"
+	memberClusterID    = "bravelion"
+	hubNSForMember     = "bravelion"
+	memberUserNS       = "work"
+	svcName            = "app"
+	svcResourceVersion = "0"
 )
 
 var (
@@ -49,7 +50,6 @@ func conflictedServiceExportConflictCondition(svcNamespace string, svcName strin
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: 1,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "ConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported services", svcNamespace, svcName),
@@ -62,7 +62,6 @@ func unconflictedServiceExportConflictCondition(svcNamespace string, svcName str
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: 2,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "NoConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is exported without conflict", svcNamespace, svcName),
@@ -75,7 +74,6 @@ func unknownServiceExportConflictCondition(svcNamespace string, svcName string) 
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
-		ObservedGeneration: 0,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "PendingConflictResolution",
 		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcNamespace, svcName),
@@ -245,18 +243,18 @@ func TestObserveMetrics(t *testing.T) {
 			wantHistogram:   "",
 		},
 		{
-			name: "should not observe data point (the object generation has been observed before)",
+			name: "should not observe data point (the object resource version has been observed before)",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: hubNSForMember,
 					Name:      internalSvcExportName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastObservedGeneration: "1",
+						metrics.MetricsAnnotationLastObservedResourceVersion: svcResourceVersion,
 					},
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						Generation: 1,
+						ResourceVersion: svcResourceVersion,
 					},
 				},
 			},
@@ -273,10 +271,10 @@ func TestObserveMetrics(t *testing.T) {
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     2,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(-time.Second)),
+						NamespacedName:  svcName,
+						ResourceVersion: svcResourceVersion,
+						ClusterID:       memberClusterID,
+						ExportedSince:   metav1.NewTime(startTime.Add(-time.Second)),
 					},
 				},
 			},
@@ -303,10 +301,10 @@ func TestObserveMetrics(t *testing.T) {
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     3,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(time.Second * 2)),
+						NamespacedName:  svcName,
+						ResourceVersion: svcResourceVersion,
+						ClusterID:       memberClusterID,
+						ExportedSince:   metav1.NewTime(startTime.Add(time.Second * 2)),
 					},
 				},
 			},
@@ -331,15 +329,15 @@ func TestObserveMetrics(t *testing.T) {
 					Namespace: hubNSForMember,
 					Name:      internalSvcExportName,
 					Annotations: map[string]string{
-						metrics.MetricsAnnotationLastObservedGeneration: "3",
+						metrics.MetricsAnnotationLastObservedResourceVersion: svcResourceVersion,
 					},
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
-						NamespacedName: svcName,
-						Generation:     4,
-						ClusterID:      memberClusterID,
-						ExportedSince:  metav1.NewTime(startTime.Add(-time.Minute * 5)),
+						NamespacedName:  svcName,
+						ResourceVersion: "1",
+						ClusterID:       memberClusterID,
+						ExportedSince:   metav1.NewTime(startTime.Add(-time.Minute * 5)),
 					},
 				},
 			},
@@ -382,9 +380,9 @@ func TestObserveMetrics(t *testing.T) {
 			if err := fakeHubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 				t.Fatalf("internalServiceExport Get(%+v), got %v, want no error", internalSvcExportKey, err)
 			}
-			lastObservedGeneration, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedGeneration]
-			if !ok || lastObservedGeneration != fmt.Sprintf("%d", tc.internalSvcExport.Spec.ServiceReference.Generation) {
-				t.Fatalf("lastObservedGeneration, got %s, want %d", lastObservedGeneration, tc.internalSvcExport.Spec.ServiceReference.Generation)
+			lastObserveResourceVersion, ok := internalSvcExport.Annotations[metrics.MetricsAnnotationLastObservedResourceVersion]
+			if !ok || lastObserveResourceVersion != tc.internalSvcExport.Spec.ServiceReference.ResourceVersion {
+				t.Fatalf("lastObservedResourceVersion, got %s, want %s", lastObserveResourceVersion, tc.internalSvcExport.Spec.ServiceReference.ResourceVersion)
 			}
 
 			if c := testutil.CollectAndCount(svcExportDuration); c != tc.wantMetricCount {
