@@ -293,6 +293,7 @@ func TestHandleUpdate(t *testing.T) {
 	tests := []struct {
 		name                string
 		labels              map[string]string
+		annotations         map[string]string
 		status              *fleetnetv1alpha1.MultiClusterServiceStatus
 		serviceImport       *fleetnetv1alpha1.ServiceImport
 		hasOldServiceImport bool
@@ -918,6 +919,83 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "no updates on the mcs with internal load balancer type (valid service import) without derived service resource",
+			labels: map[string]string{
+				multiClusterServiceLabelServiceImport:             testServiceName,
+				objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
+			},
+			annotations: map[string]string{
+				multiClusterServiceAnnotationInternalLoadBalancer: "true",
+			},
+			serviceImport: &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceName,
+					Namespace: testNamespace,
+				},
+				Status: fleetnetv1alpha1.ServiceImportStatus{
+					Ports: importServicePorts,
+					Clusters: []fleetnetv1alpha1.ClusterStatus{
+						{Cluster: "member1"},
+					},
+				},
+			},
+			want: ctrl.Result{},
+			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
+				TypeMeta: serviceImportType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            testServiceName,
+					Namespace:       testNamespace,
+					OwnerReferences: []metav1.OwnerReference{ownerRef},
+				},
+				Status: fleetnetv1alpha1.ServiceImportStatus{
+					Ports: importServicePorts,
+					Clusters: []fleetnetv1alpha1.ClusterStatus{
+						{Cluster: "member1"},
+					},
+				},
+			},
+			wantDerivedService: &corev1.Service{
+				TypeMeta: serviceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      derivedServiceName,
+					Namespace: systemNamespace,
+					Labels:    serviceLabel,
+					Annotations: map[string]string{
+						serviceAnnotationInternalLoadBalancer: "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: servicePorts,
+					Type:  corev1.ServiceTypeLoadBalancer,
+				},
+			},
+			wantMCS: &fleetnetv1alpha1.MultiClusterService{
+				TypeMeta: multiClusterServiceType,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testName,
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						multiClusterServiceLabelServiceImport:             testServiceName,
+						objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
+					},
+					Annotations: map[string]string{
+						multiClusterServiceAnnotationInternalLoadBalancer: "true",
+					},
+				},
+				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
+					ServiceImport: fleetnetv1alpha1.ServiceImportRef{
+						Name: testServiceName,
+					},
+				},
+				Status: fleetnetv1alpha1.MultiClusterServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{},
+					Conditions: []metav1.Condition{
+						validCondition,
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -925,6 +1003,7 @@ func TestHandleUpdate(t *testing.T) {
 
 			mcsObj := multiClusterServiceForTest()
 			mcsObj.ObjectMeta.Labels = tc.labels
+			mcsObj.ObjectMeta.Annotations = tc.annotations
 			if tc.status != nil {
 				mcsObj.Status = *tc.status
 			}
@@ -989,6 +1068,63 @@ func TestHandleUpdate(t *testing.T) {
 			name = types.NamespacedName{Namespace: tc.serviceImport.Namespace, Name: tc.serviceImport.Name}
 			if err := fakeClient.Get(ctx, name, &oldServiceImport); !errors.IsNotFound(err) {
 				t.Errorf("Old ServiceImport Get() = %+v, got error %v, want not found error", oldServiceImport, err)
+			}
+		})
+	}
+}
+
+func TestConfigureInternalLoadBalancer(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        map[string]string
+	}{
+		{
+			name: "annotations are nil",
+		},
+		{
+			name: "internal load balancer annotation is not set",
+			annotations: map[string]string{
+				"azure-load-balancer-internal": "true",
+			},
+		},
+		{
+			name: "internal load balancer annotation is set",
+			annotations: map[string]string{
+				multiClusterServiceAnnotationInternalLoadBalancer: "true",
+			},
+			want: map[string]string{
+				serviceAnnotationInternalLoadBalancer: "true",
+			},
+		},
+		{
+			name: "internal load balancer annotation is set as false",
+			annotations: map[string]string{
+				multiClusterServiceAnnotationInternalLoadBalancer: "false",
+			},
+		},
+		{
+			name: "internal load balancer annotation is set as invalid value",
+			annotations: map[string]string{
+				multiClusterServiceAnnotationInternalLoadBalancer: "falsse",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mcs := &fleetnetv1alpha1.MultiClusterService{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tc.annotations,
+				},
+			}
+			service := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tc.want,
+				},
+			}
+			configureInternalLoadBalancer(mcs, service)
+			if got := service.GetAnnotations(); !cmp.Equal(got, tc.want) {
+				t.Errorf("configureInternalLoadBalancer() got service annotations %+v, want %+v", got, tc.want)
 			}
 		})
 	}

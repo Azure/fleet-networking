@@ -10,6 +10,7 @@ package multiclusterservice
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +50,12 @@ const (
 
 	// ControllerName is the name of the Reconciler.
 	ControllerName = "multiclusterservice-controller"
+
+	// multiClusterService annotation
+	multiClusterServiceAnnotationInternalLoadBalancer = "networking.fleet.azure.com/azure-load-balancer-internal"
+
+	// service annotation
+	serviceAnnotationInternalLoadBalancer = "service.beta.kubernetes.io/azure-load-balancer-internal"
 )
 
 // Reconciler reconciles a MultiClusterService object.
@@ -335,6 +342,17 @@ func (r *Reconciler) updateMultiClusterLabel(ctx context.Context, mcs *fleetnetv
 	return nil
 }
 
+func configureInternalLoadBalancer(mcs *fleetnetv1alpha1.MultiClusterService, service *corev1.Service) {
+	isInternal, err := strconv.ParseBool(mcs.Annotations[multiClusterServiceAnnotationInternalLoadBalancer])
+	if err != nil || !isInternal {
+		return
+	}
+	if service.GetAnnotations() == nil { // in case annotation map is nil
+		service.Annotations = map[string]string{}
+	}
+	service.Annotations[serviceAnnotationInternalLoadBalancer] = "true"
+}
+
 func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport, service *corev1.Service) error {
 	svcPorts := make([]corev1.ServicePort, len(serviceImport.Status.Ports))
 	for i, importPort := range serviceImport.Status.Ports {
@@ -349,6 +367,7 @@ func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterServ
 
 	service.Labels[serviceLabelMCSName] = mcs.Name
 	service.Labels[serviceLabelMCSNamespace] = mcs.Namespace
+	configureInternalLoadBalancer(mcs, service)
 	return nil
 }
 
