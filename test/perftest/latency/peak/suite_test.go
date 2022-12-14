@@ -3,9 +3,9 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package sustained features the performance test suite for evaluating Fleet networking related latencies under
+// Package peak features the performance test suite for evaluating Fleet networking related latencies under
 // peak loads.
-package perftest
+package peak
 
 import (
 	"context"

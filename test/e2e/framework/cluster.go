@@ -40,8 +40,8 @@ func NewCluster(name string, scheme *runtime.Scheme) (*Cluster, error) {
 	return cluster, nil
 }
 
-// NewClusterWithCustomQPS creates a Cluster and initializes its Kubernetes client with custom QPS and Burst settings.
-func NewClusterWithCustomQPS(name string, scheme *runtime.Scheme, QPS, BurstQPS int) (*Cluster, error) {
+// NewClusterWithBurstQPS creates a Cluster and initializes its Kubernetes client with custom QPS and Burst settings.
+func NewClusterWithBurstQPS(name string, scheme *runtime.Scheme, QPS, BurstQPS int) (*Cluster, error) {
 	cluster := &Cluster{
 		scheme: scheme,
 		name:   name,

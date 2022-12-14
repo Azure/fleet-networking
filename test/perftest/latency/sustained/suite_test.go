@@ -61,14 +61,14 @@ func TestE2E(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var err error
 	// Initialize access for hub cluster.
-	hubCluster, err = framework.NewClusterWithCustomQPS(hubClusterName, scheme, clientQPS, clientBurstQPS)
+	hubCluster, err = framework.NewClusterWithBurstQPS(hubClusterName, scheme, clientQPS, clientBurstQPS)
 	Expect(err).Should(Succeed(), "Failed to initialize access for hub cluster")
 	hubClusterClient = hubCluster.Client()
 
 	// Initialize access for member clusters.
 	memberClusters = make([]*framework.Cluster, 0, len(memberClusterNames))
 	for _, m := range memberClusterNames {
-		cluster, err := framework.NewClusterWithCustomQPS(m, scheme, clientQPS, clientBurstQPS)
+		cluster, err := framework.NewClusterWithBurstQPS(m, scheme, clientQPS, clientBurstQPS)
 		Expect(err).Should(Succeed(), "Failed to initialize access for member cluster %s", m)
 
 		ctx := context.Background()
