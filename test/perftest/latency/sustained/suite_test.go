@@ -3,8 +3,9 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package perftest features the performance test suite for Fleet networking controllers.
-package perftest
+// Package sustained features the performance test suite for evaluating Fleet networking related latencies under
+// sustained loads.
+package sustained
 
 import (
 	"context"
@@ -25,6 +26,9 @@ import (
 )
 
 const (
+	clientQPS      = 25
+	clientBurstQPS = 50
+
 	metricDashboardSvcNS   = "monitoring"
 	metricDashboardSvcName = "metrics-dashboard"
 
@@ -36,15 +40,9 @@ var (
 	hubClusterName     = "hub"
 	memberClusterNames = []string{"member-1", "member-2", "member-3", "member-4"}
 
-	hubCluster           *framework.Cluster
-	memberClusters       []*framework.Cluster
-	hubClusterClient     client.Client
-	memberCluster1       *framework.Cluster
-	memberCluster1Client client.Client
-	memberCluster2       *framework.Cluster
-	memberCluster2Client client.Client
-	memberCluster3       *framework.Cluster
-	memberCluster3Client client.Client
+	hubCluster       *framework.Cluster
+	memberClusters   []*framework.Cluster
+	hubClusterClient client.Client
 
 	scheme = runtime.NewScheme()
 )
@@ -63,14 +61,14 @@ func TestE2E(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var err error
 	// Initialize access for hub cluster.
-	hubCluster, err = framework.NewCluster(hubClusterName, scheme)
+	hubCluster, err = framework.NewClusterWithBurstQPS(hubClusterName, scheme, clientQPS, clientBurstQPS)
 	Expect(err).Should(Succeed(), "Failed to initialize access for hub cluster")
 	hubClusterClient = hubCluster.Client()
 
 	// Initialize access for member clusters.
 	memberClusters = make([]*framework.Cluster, 0, len(memberClusterNames))
 	for _, m := range memberClusterNames {
-		cluster, err := framework.NewCluster(m, scheme)
+		cluster, err := framework.NewClusterWithBurstQPS(m, scheme, clientQPS, clientBurstQPS)
 		Expect(err).Should(Succeed(), "Failed to initialize access for member cluster %s", m)
 
 		ctx := context.Background()
@@ -79,14 +77,4 @@ var _ = BeforeSuite(func() {
 		}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		memberClusters = append(memberClusters, cluster)
 	}
-
-	// These variables are defined primarily for convenience access in specific test scenarios, e.g.
-	// light workload latency tests, as member cluster used in these scenarios are fixed; the rest
-	// of the member clusters are accessed by index and not through these convenience variables.
-	memberCluster1 = memberClusters[0]
-	memberCluster1Client = memberCluster1.Client()
-	memberCluster2 = memberClusters[1]
-	memberCluster2Client = memberCluster2.Client()
-	memberCluster3 = memberClusters[2]
-	memberCluster3Client = memberCluster3.Client()
 })

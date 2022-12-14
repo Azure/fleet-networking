@@ -12,10 +12,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -28,13 +28,25 @@ type Cluster struct {
 	prometheusAPIServiceAddr string
 }
 
-// NewCluster creates Cluster and initializes its kubernetes client.
+// NewCluster creates a Cluster and initializes its Kubernetes client.
 func NewCluster(name string, scheme *runtime.Scheme) (*Cluster, error) {
 	cluster := &Cluster{
 		scheme: scheme,
 		name:   name,
 	}
 	if err := cluster.initClusterClient(); err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+// NewClusterWithBurstQPS creates a Cluster and initializes its Kubernetes client with custom QPS and Burst settings.
+func NewClusterWithBurstQPS(name string, scheme *runtime.Scheme, QPS, BurstQPS int) (*Cluster, error) {
+	cluster := &Cluster{
+		scheme: scheme,
+		name:   name,
+	}
+	if err := cluster.initClusterClientWithCustomQPS(QPS, BurstQPS); err != nil {
 		return nil, err
 	}
 	return cluster, nil
@@ -78,22 +90,44 @@ func (c *Cluster) SetupPrometheusAPIServiceAccess(ctx context.Context, prometheu
 }
 
 func (c *Cluster) initClusterClient() error {
-	clusterConfig, err := c.buildClientConfig()
+	restConfig, err := c.retrieveRESTConfig()
 	if err != nil {
 		return err
 	}
-
-	restConfig, err := clusterConfig.ClientConfig()
-	if err != nil {
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-	}
-
 	kubeClient, err := client.New(restConfig, client.Options{Scheme: c.scheme})
 	if err != nil {
 		return err
 	}
 	c.kubeClient = kubeClient
 	return nil
+}
+
+func (c *Cluster) initClusterClientWithCustomQPS(QPS, BurstQPS int) error {
+	restConfig, err := c.retrieveRESTConfig()
+	if err != nil {
+		return err
+	}
+	restConfig.QPS = float32(QPS)
+	restConfig.Burst = BurstQPS
+	kubeClient, err := client.New(restConfig, client.Options{Scheme: c.scheme})
+	if err != nil {
+		return err
+	}
+	c.kubeClient = kubeClient
+	return nil
+}
+
+func (c *Cluster) retrieveRESTConfig() (*rest.Config, error) {
+	clusterConfig, err := c.buildClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	restConfig, err := clusterConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	return restConfig, nil
 }
 
 func (c *Cluster) buildClientConfig() (clientcmd.ClientConfig, error) {
