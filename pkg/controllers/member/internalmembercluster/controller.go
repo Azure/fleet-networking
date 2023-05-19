@@ -133,9 +133,9 @@ func findAgentStatus(status []fleetv1alpha1.AgentStatus, agentType fleetv1alpha1
 
 // setAgentStatus sets the corresponding condition in conditions based on the new agent status.
 // status must be non-nil.
-// 1. if the condition of the specified type already exists (all fields of the existing condition are updated to
-//    newCondition, LastTransitionTime is set to now if the new status differs from the old status)
-// 2. if a condition of the specified type does not exist (LastTransitionTime is set to now() if unset, and newCondition is appended)
+//  1. if the condition of the specified type already exists (all fields of the existing condition are updated to
+//     newCondition, LastTransitionTime is set to now if the new status differs from the old status)
+//  2. if a condition of the specified type does not exist (LastTransitionTime is set to now() if unset, and newCondition is appended)
 func setAgentStatus(status *[]fleetv1alpha1.AgentStatus, newStatus fleetv1alpha1.AgentStatus) {
 	existingStatus := findAgentStatus(*status, newStatus.Type)
 	if existingStatus == nil {

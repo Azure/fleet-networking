@@ -53,9 +53,9 @@ func removeDots(s string) string {
 // is [NAMESPACE]-[NAME]-[SUFFIX], e.g. an object `app` from the namespace `work` will be assigned a unique
 // name like `work-app-1x2yz`. The function may truncate name components as it sees fit.
 // Note: this function assumes that
-// * the input object namespace is a valid RFC 1123 DNS label; and
-// * the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
-// 	 RFC 1123 DNS label, RFC 1035 DNS label).
+//   - the input object namespace is a valid RFC 1123 DNS label; and
+//   - the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
+//     RFC 1123 DNS label, RFC 1035 DNS label).
 func ClusterScopedUniqueName(format Format, namespace, name string) (string, error) {
 	reservedSlots := 2 + uuidLength // 2 dashes + 5 character UUID string
 
@@ -124,10 +124,10 @@ func ClusterScopedUniqueName(format Format, namespace, name string) (string, err
 // `work` in cluster `bravelion` will be assigned a unique name like `bravelion-work-app-1x2yz`. The function may
 // truncate name components as it sees fit.
 // Note: this function assumes that
-// * the input cluster ID is a valid RFC 1123 DNS subdomain; and
-// * the input object namespace is a valid RFC 1123 DNS label; and
-// * the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
-// 	 RFC 1123 DNS label, RFC 1035 DNS label).
+//   - the input cluster ID is a valid RFC 1123 DNS subdomain; and
+//   - the input object namespace is a valid RFC 1123 DNS label; and
+//   - the input object name follows one of the three formats used in Kubernetes (RFC 1123 DNS subdomain,
+//     RFC 1123 DNS label, RFC 1035 DNS label).
 func FleetScopedUniqueName(format Format, clusterID, namespace, name string) (string, error) {
 	reservedSlots := 3 + uuidLength // 3 dashes + 5 character UUID string
 

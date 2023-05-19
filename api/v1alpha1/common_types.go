@@ -79,10 +79,10 @@ type ClusterNamespace string
 // ServiceInUseBy describes the member clusters that have requested to import a Service from the hub cluster.
 // This object is not provided directly as a part of fleet networking API, but provided as a contract for
 // marshaling/unmarshaling ServiceImport annotations, specifically for
-// * the InternalServiceImport controller to annotate on a ServiceImport which member clusters have requested to
-//   import the Service; and
-// * the EndpointSliceExport controller to find out from annotations on a ServiceImport which member clusters
-//   have requested to import the Service.
+//   - the InternalServiceImport controller to annotate on a ServiceImport which member clusters have requested to
+//     import the Service; and
+//   - the EndpointSliceExport controller to find out from annotations on a ServiceImport which member clusters
+//     have requested to import the Service.
 type ServiceInUseBy struct {
 	MemberClusters map[ClusterNamespace]ClusterID
 }
