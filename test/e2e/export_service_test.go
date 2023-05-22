@@ -8,7 +8,7 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -991,7 +991,7 @@ func fetchHTTPRequestBody(requestURL string) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
-	respBody, err := ioutil.ReadAll(res.Body)
+	respBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
 	}

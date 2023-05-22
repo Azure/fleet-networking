@@ -65,22 +65,21 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 			},
 		}
 	} else {
+		var caData []byte
 		hubCA, err := env.Lookup(hubCAEnvKey)
-		if err != nil {
-			klog.ErrorS(err, "Hub certificate authority cannot be empty")
-			return nil, err
-		}
-		decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(hubCA)
-		if err != nil {
-			klog.ErrorS(err, "Cannot decode hub cluster certificate authority data")
-			return nil, err
+		if err == nil {
+			caData, err = base64.StdEncoding.DecodeString(hubCA)
+			if err != nil {
+				klog.ErrorS(err, "Cannot decode hub cluster certificate authority data")
+				return nil, err
+			}
 		}
 		hubConfig = &rest.Config{
 			BearerTokenFile: tokenFilePath,
 			Host:            hubURL,
 			TLSClientConfig: rest.TLSClientConfig{
 				Insecure: tlsClientInsecure,
-				CAData:   decodedClusterCaCertificate,
+				CAData:   caData,
 			},
 		}
 	}

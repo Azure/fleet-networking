@@ -18,111 +18,108 @@ import (
 func TestPrepareHubConfig(t *testing.T) {
 	var (
 		fakeHubhubServerURLEnvVal       = "fake-hub-server-url"
-		fakeConfigtokenConfigPathEnvVal = "fake-config-path" //nolint:gosec
-		fakeCerhubCAEnvVal              = base64.StdEncoding.EncodeToString([]byte("fake-certificate-authority"))
+		fakeConfigtokenConfigPathEnvVal = "testdata/fake-config-path" //nolint:gosec
+		fakeCerhubCA                    = []byte("fake-certificate-authority")
+		fakeCerhubCAEnvVal              = base64.StdEncoding.EncodeToString(fakeCerhubCA)
 	)
-
-	cleanupFunc := func() {
-		os.Unsetenv(hubServerURLEnvKey)
-		os.Unsetenv(tokenConfigPathEnvKey)
-		os.Unsetenv(hubCAEnvKey)
-		os.Remove(fakeConfigtokenConfigPathEnvVal)
-	}
-
-	defer cleanupFunc()
 
 	testCases := []struct {
 		name                 string
 		environmentVariables map[string]string
 		tlsClientInsecure    bool
-		wantErr              bool
+		validate             func(t *testing.T, config *rest.Config, err error)
 	}{
 		{
-			name:                 "environment variable `HUB_SERVER_URL` is not present",
+			name:                 "environment variable `HUB_SERVER_URL` is not present - error",
 			environmentVariables: map[string]string{tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			wantErr:              true,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err == nil {
+					t.Errorf("expect return error if HUB_SERVER_URL not present")
+				}
+			},
 		},
 		{
-			name:                 "environment variable `CONFIG_PATH` is not present",
+			name:                 "environment variable `CONFIG_PATH` is not present - error",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			wantErr:              true,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err == nil {
+					t.Errorf("expect return error if CONFIG_PATH not present")
+				}
+			},
 		},
 		{
-			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false",
+			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false - use OS's CA bundle",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    false,
-			wantErr:              true,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err != nil {
+					t.Errorf("not expect error but actually get error %s", err)
+				}
+				wantConfig := &rest.Config{
+					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
+					Host:            fakeHubhubServerURLEnvVal,
+					TLSClientConfig: rest.TLSClientConfig{
+						Insecure: false,
+					},
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
+			},
 		},
 		{
-			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true",
+			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true - use insecure TLS",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    true,
-			wantErr:              false,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err != nil {
+					t.Errorf("not expect error but actually get error %s", err)
+				}
+				wantConfig := &rest.Config{
+					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
+					Host:            fakeHubhubServerURLEnvVal,
+					TLSClientConfig: rest.TLSClientConfig{
+						Insecure: true,
+					},
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
+			},
 		},
 		{
-			name:                 "hub configuration preparation is done when all requirements meet",
+			name:                 "hub configuration preparation is done when all requirements meet - use CAData",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			wantErr:              false,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err != nil {
+					t.Errorf("not expect error but actually get error %s", err)
+				}
+				wantConfig := &rest.Config{
+					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
+					Host:            fakeHubhubServerURLEnvVal,
+					TLSClientConfig: rest.TLSClientConfig{
+						Insecure: false,
+						CAData:   fakeCerhubCA,
+					},
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// remove all environment variables related to this test
-			cleanupFunc()
-
 			for envKey, envVal := range tc.environmentVariables {
-				os.Setenv(envKey, envVal)
-				if envKey == tokenConfigPathEnvKey {
-					if _, err := os.Create(fakeConfigtokenConfigPathEnvVal); err != nil {
-						t.Errorf("failed to create file %s, err: %s", fakeConfigtokenConfigPathEnvVal, err.Error())
-					}
-				}
+				t.Setenv(envKey, envVal)
 			}
 
 			hubConfig, err := PrepareHubConfig(tc.tlsClientInsecure)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("PrepareHubConfig() error = %v, wantErr %t", err, tc.wantErr)
-			}
-
-			if tc.wantErr {
-				return
-			}
-
-			if tc.tlsClientInsecure {
-				expectedHubConfig := &rest.Config{
-					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
-					Host:            fakeHubhubServerURLEnvVal,
-					TLSClientConfig: rest.TLSClientConfig{
-						Insecure: tc.tlsClientInsecure,
-					},
-				}
-				if !cmp.Equal(*hubConfig, *expectedHubConfig) {
-					t.Errorf("PrepareHubConfig() got hub config: %v, want: %v", expectedHubConfig, hubConfig)
-				}
-			}
-
-			if !tc.tlsClientInsecure {
-				decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(fakeCerhubCAEnvVal)
-				if err != nil {
-					t.Fatalf("failed to base-encode hub CA, error: %s", err.Error())
-				}
-				expectedHubConfig := &rest.Config{
-					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
-					Host:            fakeHubhubServerURLEnvVal,
-					TLSClientConfig: rest.TLSClientConfig{
-						Insecure: tc.tlsClientInsecure,
-						CAData:   decodedClusterCaCertificate,
-					},
-				}
-
-				if !cmp.Equal(hubConfig, expectedHubConfig) {
-					t.Errorf("PrepareHubConfig() got hub config: %v, want: %v", expectedHubConfig, hubConfig)
-				}
-			}
+			tc.validate(t, hubConfig, err)
 		})
 	}
 }
