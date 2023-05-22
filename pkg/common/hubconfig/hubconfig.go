@@ -67,7 +67,7 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 	} else {
 		var caData []byte
 		hubCA, err := env.Lookup(hubCAEnvKey)
-		if err != nil {
+		if err == nil {
 			caData, err = base64.StdEncoding.DecodeString(hubCA)
 			if err != nil {
 				klog.ErrorS(err, "Cannot decode hub cluster certificate authority data")

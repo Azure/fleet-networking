@@ -18,7 +18,7 @@ import (
 func TestPrepareHubConfig(t *testing.T) {
 	var (
 		fakeHubhubServerURLEnvVal       = "fake-hub-server-url"
-		fakeConfigtokenConfigPathEnvVal = "fake-config-path" //nolint:gosec
+		fakeConfigtokenConfigPathEnvVal = "testdata/fake-config-path" //nolint:gosec
 		fakeCerhubCA                    = []byte("fake-certificate-authority")
 		fakeCerhubCAEnvVal              = base64.StdEncoding.EncodeToString(fakeCerhubCA)
 	)
@@ -58,13 +58,16 @@ func TestPrepareHubConfig(t *testing.T) {
 				if err != nil {
 					t.Errorf("not expect error but actually get error %s", err)
 				}
-				cmp.Equal(config, &rest.Config{
+				wantConfig := &rest.Config{
 					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
 					Host:            fakeHubhubServerURLEnvVal,
 					TLSClientConfig: rest.TLSClientConfig{
-						Insecure: true,
+						Insecure: false,
 					},
-				})
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
 			},
 		},
 		{
@@ -75,13 +78,16 @@ func TestPrepareHubConfig(t *testing.T) {
 				if err != nil {
 					t.Errorf("not expect error but actually get error %s", err)
 				}
-				cmp.Equal(config, &rest.Config{
+				wantConfig := &rest.Config{
 					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
 					Host:            fakeHubhubServerURLEnvVal,
 					TLSClientConfig: rest.TLSClientConfig{
 						Insecure: true,
 					},
-				})
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
 			},
 		},
 		{
@@ -92,14 +98,17 @@ func TestPrepareHubConfig(t *testing.T) {
 				if err != nil {
 					t.Errorf("not expect error but actually get error %s", err)
 				}
-				cmp.Equal(config, &rest.Config{
+				wantConfig := &rest.Config{
 					BearerTokenFile: fakeConfigtokenConfigPathEnvVal,
 					Host:            fakeHubhubServerURLEnvVal,
 					TLSClientConfig: rest.TLSClientConfig{
-						Insecure: true,
+						Insecure: false,
 						CAData:   fakeCerhubCA,
 					},
-				})
+				}
+				if !cmp.Equal(config, wantConfig) {
+					t.Errorf("got hub config %+v, want %+v", config, wantConfig)
+				}
 			},
 		},
 	}
@@ -108,11 +117,6 @@ func TestPrepareHubConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for envKey, envVal := range tc.environmentVariables {
 				t.Setenv(envKey, envVal)
-				if envKey == tokenConfigPathEnvKey {
-					if _, err := os.Create(fakeConfigtokenConfigPathEnvVal); err != nil {
-						t.Errorf("failed to create file %s, err: %s", fakeConfigtokenConfigPathEnvVal, err.Error())
-					}
-				}
 			}
 
 			hubConfig, err := PrepareHubConfig(tc.tlsClientInsecure)
