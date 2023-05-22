@@ -30,7 +30,7 @@ func TestPrepareHubConfig(t *testing.T) {
 		validate             func(t *testing.T, config *rest.Config, err error)
 	}{
 		{
-			name:                 "environment variable `HUB_SERVER_URL` is not present",
+			name:                 "environment variable `HUB_SERVER_URL` is not present - error",
 			environmentVariables: map[string]string{tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
 			validate: func(t *testing.T, config *rest.Config, err error) {
@@ -40,7 +40,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			},
 		},
 		{
-			name:                 "environment variable `CONFIG_PATH` is not present",
+			name:                 "environment variable `CONFIG_PATH` is not present - error",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
 			validate: func(t *testing.T, config *rest.Config, err error) {
@@ -50,7 +50,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			},
 		},
 		{
-			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false",
+			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is false - use OS's CA bundle",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    false,
 			validate: func(t *testing.T, config *rest.Config, err error) {
@@ -70,7 +70,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			},
 		},
 		{
-			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true",
+			name:                 "environment variable `HUB_CERTIFICATE_AUTHORITY` is not present when tlsClientInsecure is true - use insecure TLS",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    true,
 			validate: func(t *testing.T, config *rest.Config, err error) {
@@ -90,7 +90,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			},
 		},
 		{
-			name:                 "hub configuration preparation is done when all requirements meet",
+			name:                 "hub configuration preparation is done when all requirements meet - use CAData",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
 			validate: func(t *testing.T, config *rest.Config, err error) {
