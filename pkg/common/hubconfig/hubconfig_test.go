@@ -27,7 +27,6 @@ func TestPrepareHubConfig(t *testing.T) {
 		name                 string
 		environmentVariables map[string]string
 		tlsClientInsecure    bool
-		wantErr              bool
 		validate             func(t *testing.T, config *rest.Config, err error)
 	}{
 		{
