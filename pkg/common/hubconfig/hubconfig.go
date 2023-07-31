@@ -7,15 +7,22 @@ Licensed under the MIT license.
 package hubconfig
 
 import (
+	"bufio"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/textproto"
 	"os"
+	"strings"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
 	"go.goms.io/fleet-networking/pkg/common/env"
+	"go.goms.io/fleet-networking/pkg/common/httpclient"
 )
 
 const (
@@ -23,6 +30,7 @@ const (
 	hubServerURLEnvKey    = "HUB_SERVER_URL"
 	tokenConfigPathEnvKey = "CONFIG_PATH" //nolint:gosec
 	hubCAEnvKey           = "HUB_CERTIFICATE_AUTHORITY"
+	hubKubeHeaderEnvKey   = "HUB_KUBE_HEADER"
 
 	// Naming pattern of member cluster namespace in hub cluster, should be the same as envValue as defined in
 	// https://github.com/Azure/fleet/blob/main/pkg/utils/common.go
@@ -84,6 +92,19 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 		}
 	}
 
+	// Sometime the hub cluster need additional http header for authentication or authorization.
+	// the "HUB_KUBE_HEADER" to allow sending custom header to hub's API Server for authentication and authorization.
+	if header, err := env.Lookup(hubKubeHeaderEnvKey); err == nil {
+		r := textproto.NewReader(bufio.NewReader(strings.NewReader(header)))
+		h, err := r.ReadMIMEHeader()
+		if err != nil && !errors.Is(err, io.EOF) {
+			klog.ErrorS(err, "failed to parse HUB_KUBE_HEADER %q", header)
+			return nil, err
+		}
+		hubConfig.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+			return httpclient.NewCustomHeadersRoundTripper(http.Header(h), rt)
+		}
+	}
 	return hubConfig, nil
 }
 
