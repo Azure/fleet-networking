@@ -15,7 +15,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.12.2
 )
 
-require go.goms.io/fleet v0.6.1
+require (
+	github.com/stretchr/testify v1.7.0
+	go.goms.io/fleet v0.6.1
+)
 
 replace (
 	// https://nvd.nist.gov/vuln/detail/CVE-2022-1996
@@ -69,6 +72,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

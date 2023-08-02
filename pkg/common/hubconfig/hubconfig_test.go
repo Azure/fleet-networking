@@ -110,6 +110,30 @@ func TestPrepareHubConfig(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:                 "environment variable `HUB_KUBE_HEADER` exists - config have WrapTransport",
+			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubKubeHeaderEnvKey: "custom-header: value", tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
+			tlsClientInsecure:    true,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err != nil {
+					t.Errorf("not expect error but actually get error %s", err)
+				}
+
+				if config.WrapTransport == nil {
+					t.Error("config.WrapTransport should not be nil if having HUB_KUBE_HEADER system variable")
+				}
+			},
+		},
+		{
+			name:                 "environment variable `HUB_KUBE_HEADER` has wrong format - error",
+			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubKubeHeaderEnvKey: "wrong header format", tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
+			tlsClientInsecure:    true,
+			validate: func(t *testing.T, config *rest.Config, err error) {
+				if err == nil {
+					t.Errorf("expect error about wrong header format but not")
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
