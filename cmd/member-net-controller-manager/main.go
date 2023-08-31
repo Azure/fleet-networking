@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//+kubebuilder:scaffold:imports
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -38,7 +39,8 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
-	"go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster"
+	imcv1alpha1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1alpha1"
+	imcv1beta1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1beta1"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/serviceexport"
@@ -58,6 +60,9 @@ var (
 
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
+
+	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", true, "If set, the agents will watch for the v1alpha1 APIs.")
+	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
 )
 
 func init() {
@@ -311,14 +316,28 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		return err
 	}
 
-	klog.V(1).InfoS("Create internalmembercluster reconciler")
-	if err := (&internalmembercluster.Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		AgentType:    fleetv1alpha1.ServiceExportImportAgent,
-	}).SetupWithManager(hubMgr); err != nil {
-		klog.ErrorS(err, "Unable to create internalmembercluster reconciler")
-		return err
+	if *isV1Alpha1APIEnabled {
+		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
+		if err := (&imcv1alpha1.Reconciler{
+			MemberClient: memberClient,
+			HubClient:    hubClient,
+			AgentType:    fleetv1alpha1.ServiceExportImportAgent,
+		}).SetupWithManager(hubMgr); err != nil {
+			klog.ErrorS(err, "Unable to create internalmembercluster (v1alpha1 API) reconciler")
+			return err
+		}
+	}
+
+	if *isV1Beta1APIEnabled {
+		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
+		if err := (&imcv1beta1.Reconciler{
+			MemberClient: memberClient,
+			HubClient:    hubClient,
+			AgentType:    clusterv1beta1.ServiceExportImportAgent,
+		}).SetupWithManager(hubMgr); err != nil {
+			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
+			return err
+		}
 	}
 
 	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")

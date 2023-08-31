@@ -70,7 +70,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	memberTestEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("../../../../", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("../../../../../", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
 	var err error
@@ -80,10 +80,10 @@ var _ = BeforeSuite(func() {
 
 	hubTestEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../", "config", "crd", "bases"),
+			filepath.Join("../../../../../", "config", "crd", "bases"),
 			// need to make sure the version matches the one in the go.mod
 			// workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.6.1", "config", "crd", "bases"),
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.6.11", "config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
