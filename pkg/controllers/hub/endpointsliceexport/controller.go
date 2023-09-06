@@ -38,6 +38,24 @@ const (
 	endpointSliceExportRetryInterval = time.Second * 5
 )
 
+var (
+	endpointSliceImportIndexerFunc = func(o client.Object) []string {
+		endpointSliceImport, ok := o.(*fleetnetv1alpha1.EndpointSliceImport)
+		if !ok {
+			return []string{}
+		}
+		return []string{endpointSliceImport.ObjectMeta.Name}
+	}
+
+	endpointSliceExportIndexerFunc = func(o client.Object) []string {
+		endpointSliceExport, ok := o.(*fleetnetv1alpha1.EndpointSliceExport)
+		if !ok {
+			return []string{}
+		}
+		return []string{endpointSliceExport.Spec.OwnerServiceReference.NamespacedName}
+	}
+)
+
 // Reconciler reconciles the distribution of EndpointSlices across the fleet.
 type Reconciler struct {
 	HubClient client.Client
@@ -231,13 +249,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the EndpointSliceExport controller with a controller manager.
 func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	// Set up an index for efficient EndpointSliceImport lookup.
-	endpointSliceImportIndexerFunc := func(o client.Object) []string {
-		endpointSliceImport, ok := o.(*fleetnetv1alpha1.EndpointSliceImport)
-		if !ok {
-			return []string{}
-		}
-		return []string{endpointSliceImport.ObjectMeta.Name}
-	}
 	if err := mgr.GetFieldIndexer().IndexField(ctx,
 		&fleetnetv1alpha1.EndpointSliceImport{},
 		endpointSliceImportNameFieldKey,
@@ -248,13 +259,6 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 	}
 
 	// Set up an index for efficient EndpointSliceExport lookup.
-	endpointSliceExportIndexerFunc := func(o client.Object) []string {
-		endpointSliceExport, ok := o.(*fleetnetv1alpha1.EndpointSliceExport)
-		if !ok {
-			return []string{}
-		}
-		return []string{endpointSliceExport.Spec.OwnerServiceReference.NamespacedName}
-	}
 	if err := mgr.GetFieldIndexer().IndexField(ctx,
 		&fleetnetv1alpha1.EndpointSliceExport{},
 		endpointSliceExportOwnerSvcNamespacedNameFieldKey,

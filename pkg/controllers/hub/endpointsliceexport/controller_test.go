@@ -157,6 +157,9 @@ func TestWithdrawAllEndpointSliceImports(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeHubClientBuilder := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
+				// Set up indexes on the fake client.
+				WithIndex(&fleetnetv1alpha1.EndpointSliceExport{}, endpointSliceExportOwnerSvcNamespacedNameFieldKey, endpointSliceExportIndexerFunc).
+				WithIndex(&fleetnetv1alpha1.EndpointSliceImport{}, endpointSliceImportNameFieldKey, endpointSliceImportIndexerFunc).
 				WithObjects(tc.endpointSliceExport)
 			for idx := range tc.endpointSliceImports {
 				fakeHubClientBuilder = fakeHubClientBuilder.WithObjects(tc.endpointSliceImports[idx])
@@ -408,6 +411,8 @@ func TestScanForEndpointSliceImports(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeHubClientBuilder := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
+				WithIndex(&fleetnetv1alpha1.EndpointSliceExport{}, endpointSliceExportOwnerSvcNamespacedNameFieldKey, endpointSliceExportIndexerFunc).
+				WithIndex(&fleetnetv1alpha1.EndpointSliceImport{}, endpointSliceImportNameFieldKey, endpointSliceImportIndexerFunc).
 				WithObjects(tc.endpointSliceExport)
 			for idx := range tc.endpointSliceImports {
 				fakeHubClientBuilder = fakeHubClientBuilder.WithObjects(tc.endpointSliceImports[idx])

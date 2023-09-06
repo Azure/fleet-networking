@@ -50,3 +50,6 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+enableV1Alpha1APIs: true
+enableV1Beta1APIs: false
