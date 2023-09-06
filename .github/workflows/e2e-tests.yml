@@ -8,10 +8,6 @@ on:
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   workflow_dispatch: {}
-  pull_request:
-    branches:
-      - main
-    paths-ignore: [ docs/**, "**.md", "**.mdx", "**.png", "**.jpg" ]
 
 permissions:
   id-token: write
