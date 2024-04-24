@@ -420,7 +420,11 @@ func TestClearInternalServiceImportStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithObjects(tc.internalSvcImport).Build()
+			fakeHubClient := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(tc.internalSvcImport).
+				WithStatusSubresource(tc.internalSvcImport).
+				Build()
 			reconciler := Reconciler{
 				HubClient: fakeHubClient,
 			}
@@ -618,6 +622,7 @@ func TestFulfillInternalServiceImport(t *testing.T) {
 			fakeHubClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.internalSvcImport).
+				WithStatusSubresource(tc.internalSvcImport).
 				Build()
 			reconciler := Reconciler{
 				HubClient: fakeHubClient,

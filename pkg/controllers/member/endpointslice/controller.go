@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
@@ -204,7 +203,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the EndpointSlice controller with a controller manager.
 func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	// Enqueue EndpointSlices for processing when a ServiceExport changes.
-	eventHandlers := handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+	eventHandlers := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o client.Object) []reconcile.Request {
 		endpointSliceList := &discoveryv1.EndpointSliceList{}
 		listOpts := client.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labels.Set{
@@ -231,7 +230,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 	// EndpointSlice controller watches over EndpointSlice and ServiceExport objects.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&discoveryv1.EndpointSlice{}).
-		Watches(&source.Kind{Type: &fleetnetv1alpha1.ServiceExport{}}, eventHandlers).
+		Watches(&fleetnetv1alpha1.ServiceExport{}, eventHandlers).
 		Complete(r)
 }
 

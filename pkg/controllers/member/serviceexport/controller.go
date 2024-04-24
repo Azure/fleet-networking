@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
@@ -263,7 +262,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// The ServiceExport controller watches over ServiceExport objects.
 		For(&fleetnetv1alpha1.ServiceExport{}).
 		// The ServiceExport controller watches over Service objects.
-		Watches(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForObject{}).
+		Watches(&corev1.Service{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
 

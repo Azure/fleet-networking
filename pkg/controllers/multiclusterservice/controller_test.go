@@ -1017,6 +1017,7 @@ func TestHandleUpdate(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(multiClusterServiceScheme(t)).
 				WithObjects(objects...).
+				WithStatusSubresource(objects...).
 				Build()
 
 			r := multiClusterServiceReconciler(fakeClient)

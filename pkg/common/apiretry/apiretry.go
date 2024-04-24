@@ -46,7 +46,7 @@ func WaitUntilObjectDeleted(ctx context.Context, get func() error) error {
 	backOffPeriod.Cap = time.Second * 5
 
 	var lastErr error
-	err := wait.ExponentialBackoffWithContext(ctx, backOffPeriod, func() (bool, error) {
+	err := wait.ExponentialBackoffWithContext(ctx, backOffPeriod, func(_ context.Context) (bool, error) {
 		err := get()
 		switch {
 		case err == nil:
@@ -61,9 +61,9 @@ func WaitUntilObjectDeleted(ctx context.Context, get func() error) error {
 			return false, err
 		}
 	})
-	if errors.Is(err, wait.ErrWaitTimeout) {
+	if wait.Interrupted(err) {
 		if lastErr == nil {
-			return wait.ErrWaitTimeout
+			return wait.ErrorInterrupted(errors.New("timed out or the context ended"))
 		}
 		err = lastErr
 	}
