@@ -157,6 +157,7 @@ func TestUpdateAgentStatus(t *testing.T) {
 			fakeHubClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.internalMemberCluster).
+				WithStatusSubresource(tc.internalMemberCluster).
 				Build()
 			fakeMemberClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{

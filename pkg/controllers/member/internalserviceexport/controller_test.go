@@ -189,6 +189,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 			fakeMemberClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.svcExport).
+				WithStatusSubresource(tc.svcExport).
 				Build()
 			fakeHubClient := fake.NewClientBuilder().Build()
 			reconciler := Reconciler{

@@ -17,9 +17,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 
@@ -50,10 +50,10 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 		BeforeEach(func() {
 			By("Starting the controller manager for mcs agent type")
 			mgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
-				Scheme:             scheme.Scheme,
-				MetricsBindAddress: "0",
-				Logger:             klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)),
-				Port:               4848,
+				Scheme: scheme.Scheme,
+				Metrics: metricsserver.Options{
+					BindAddress: "0",
+				},
 			})
 			Expect(err).NotTo(HaveOccurred())
 
@@ -389,10 +389,10 @@ var _ = Describe("Test InternalMemberCluster Controller", func() {
 		BeforeEach(func() {
 			By("Starting the controller manager for serviceExportImport agent type")
 			mgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
-				Scheme:             scheme.Scheme,
-				MetricsBindAddress: "0",
-				Logger:             klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)),
-				Port:               4848,
+				Scheme: scheme.Scheme,
+				Metrics: metricsserver.Options{
+					BindAddress: "0",
+				},
 			})
 			Expect(err).NotTo(HaveOccurred())
 

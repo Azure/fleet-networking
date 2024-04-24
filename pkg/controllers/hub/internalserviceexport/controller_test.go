@@ -298,6 +298,7 @@ func TestHandleDelete(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(internalServiceExportScheme(t)).
 				WithObjects(objects...).
+				WithStatusSubresource(objects...).
 				Build()
 
 			r := internalServiceExportReconciler(fakeClient)
@@ -943,6 +944,7 @@ func TestHandleUpdate(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(internalServiceExportScheme(t)).
 				WithObjects(objects...).
+				WithStatusSubresource(objects...).
 				Build()
 
 			r := internalServiceExportReconciler(fakeClient)

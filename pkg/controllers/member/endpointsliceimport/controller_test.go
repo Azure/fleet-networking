@@ -29,14 +29,15 @@ import (
 )
 
 const (
-	memberClusterID         = "bravelion"
-	hubNSForMember          = "bravelion"
-	memberUserNS            = "work"
-	fleetSystemNS           = "fleet-system"
-	svcName                 = "app"
-	derivedSvcName          = "work-app-1d2ef"
-	endpointSliceName       = "app-endpointslice"
-	endpointSliceImportName = "bravelion-work-appendpoint-slice-1a2bc"
+	memberClusterID                = "bravelion"
+	hubNSForMember                 = "bravelion"
+	memberUserNS                   = "work"
+	fleetSystemNS                  = "fleet-system"
+	svcName                        = "app"
+	derivedSvcName                 = "work-app-1d2ef"
+	endpointSliceName              = "app-endpointslice"
+	endpointSliceImportName        = "bravelion-work-appendpoint-slice-1a2bc"
+	customDeletionBlockerFinalizer = "custom-deletion-finalizer"
 )
 
 var (
@@ -304,6 +305,11 @@ func TestIsDerivedServiceValid(t *testing.T) {
 					Namespace:         fleetSystemNS,
 					Name:              derivedSvcName,
 					DeletionTimestamp: &deletionTimestamp,
+					Finalizers: []string{
+						// Note that fake client will reject an object if it is deleted (has the
+						// deletion timestamp) but does not have a finalizer.
+						customDeletionBlockerFinalizer,
+					},
 				},
 			},
 			want: false,

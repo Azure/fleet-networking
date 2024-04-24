@@ -29,13 +29,14 @@ import (
 )
 
 const (
-	memberClusterID         = "bravelion"
-	memberUserNS            = "work"
-	hubNSForMember          = "bravelion"
-	svcName                 = "app"
-	endpointSliceName       = "app-endpointslice"
-	endpointSliceUniqueName = "bravelion-work-app-endpointslice"
-	endpointSliceGeneration = 1
+	memberClusterID                = "bravelion"
+	memberUserNS                   = "work"
+	hubNSForMember                 = "bravelion"
+	svcName                        = "app"
+	endpointSliceName              = "app-endpointslice"
+	endpointSliceUniqueName        = "bravelion-work-app-endpointslice"
+	endpointSliceGeneration        = 1
+	customDeletionBlockerFinalizer = "custom-deletion-finalizer"
 )
 
 var (
@@ -614,6 +615,11 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Namespace:         memberUserNS,
 					Name:              svcName,
 					DeletionTimestamp: &deletionTimestamp,
+					// Note that fake client will reject object that is deleted (has the deletion
+					// timestamp) but does not have finalizers.
+					Finalizers: []string{
+						customDeletionBlockerFinalizer,
+					},
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
@@ -692,6 +698,11 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 					Namespace:         memberUserNS,
 					Name:              svcName,
 					DeletionTimestamp: &deletionTimestamp,
+					Finalizers: []string{
+						// Note that fake client will reject objects that is deleted (has the
+						// deletion timestamp) but does not have a finalizer.
+						customDeletionBlockerFinalizer,
+					},
 				},
 				Status: fleetnetv1alpha1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
@@ -710,6 +721,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 			fakeMemberClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.endpointSlice, tc.svcExport).
+				WithStatusSubresource(tc.endpointSlice, tc.svcExport).
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{
@@ -789,6 +801,11 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 					Namespace:         memberUserNS,
 					Name:              endpointSliceName,
 					DeletionTimestamp: &deletionTimestamp,
+					// Note that fake client will reject object that is deleted (has the deletion
+					// timestamp) but does not have finalizers.
+					Finalizers: []string{
+						customDeletionBlockerFinalizer,
+					},
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
 					},
@@ -810,6 +827,11 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 					Labels: map[string]string{
 						discoveryv1.LabelServiceName: svcName,
 					},
+					// Note that fake client will reject object that is deleted (has the deletion
+					// timestamp) but does not have finalizers.
+					Finalizers: []string{
+						customDeletionBlockerFinalizer,
+					},
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
@@ -823,6 +845,7 @@ func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 			fakeMemberClient := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithObjects(tc.endpointSlice, svcExport).
+				WithStatusSubresource(tc.endpointSlice, svcExport).
 				Build()
 			fakeHubClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 			reconciler := &Reconciler{

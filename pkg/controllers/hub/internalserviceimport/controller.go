@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -190,7 +189,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 	}
 
 	// Enqueue InternalServiceImports for processing when a ServiceImport changes.
-	eventHandlers := handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+	eventHandlers := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o client.Object) []reconcile.Request {
 		svcImport, ok := o.(*fleetnetv1alpha1.ServiceImport)
 		if !ok {
 			return []reconcile.Request{}
@@ -219,7 +218,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.InternalServiceImport{}).
-		Watches(&source.Kind{Type: &fleetnetv1alpha1.ServiceImport{}}, eventHandlers).
+		Watches(&fleetnetv1alpha1.ServiceImport{}, eventHandlers).
 		Complete(r)
 }
 
