@@ -19,7 +19,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_VERSION: latest
 
-  GO_VERSION: '1.20'
+  GO_VERSION: '1.22.2'
 
 jobs:
   export-registry:
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "IMAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Login to ${{ env.REGISTRY }}
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

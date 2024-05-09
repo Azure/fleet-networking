@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
@@ -97,8 +98,10 @@ var _ = BeforeSuite(func() {
 
 	// Start up the InternalServiceExport controller.
 	ctrlMgr, err := ctrl.NewManager(memberCfg, ctrl.Options{
-		Scheme:             scheme.Scheme,
-		MetricsBindAddress: "0",
+		Scheme: scheme.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 	})
 	Expect(err).NotTo(HaveOccurred())
 

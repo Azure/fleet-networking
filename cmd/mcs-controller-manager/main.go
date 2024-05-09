@@ -21,7 +21,10 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -193,24 +196,37 @@ func prepareHubParameters(memberConfig *rest.Config) (*rest.Config, *ctrl.Option
 	}
 
 	hubOptions := &ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      *hubMetricsAddr,
-		Port:                    9443,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: *hubMetricsAddr,
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 9443,
+		}),
 		HealthProbeBindAddress:  *hubProbeAddr,
 		LeaderElection:          *enableLeaderElection,
 		LeaderElectionID:        "2bf2b407.mcs.hub.networking.fleet.azure.com",
 		LeaderElectionNamespace: *leaderElectionNamespace, // This requires we have access to resource "leases" in API group "coordination.k8s.io" under leaderElectionNamespace.
 		LeaderElectionConfig:    memberConfig,
-		Namespace:               mcHubNamespace, // Restricts the manager's cache to watch objects in the member hub namespace.
+		// Restricts the manager's cache to watch objects in the member hub namespace.
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				mcHubNamespace: {},
+			},
+		},
 	}
 	return hubConfig, hubOptions, nil
 }
 
 func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 	memberOpts := &ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      *metricsAddr,
-		Port:                    8443,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: *metricsAddr,
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 8443,
+		}),
 		HealthProbeBindAddress:  *probeAddr,
 		LeaderElection:          *enableLeaderElection,
 		LeaderElectionNamespace: *leaderElectionNamespace,

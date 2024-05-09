@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
@@ -426,14 +425,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// This object is bound to be updated when Service in the fleet system namespace is updated. There is also a
 		// filtering logic to enqueue those service event.
 		Watches(
-			&source.Kind{Type: &corev1.Service{}},
+			&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.serviceEventHandler()),
 		).
 		Complete(r)
 }
 
 func (r *Reconciler) serviceEventHandler() handler.MapFunc {
-	return func(object client.Object) []reconcile.Request {
+	return func(_ context.Context, object client.Object) []reconcile.Request {
 		namespace := object.GetLabels()[serviceLabelMCSNamespace]
 		name := object.GetLabels()[serviceLabelMCSName]
 
