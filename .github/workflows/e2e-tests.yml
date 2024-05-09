@@ -55,6 +55,7 @@ jobs:
         run: |
           echo "AZURE_RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"" >> $GITHUB_ENV
 
+      # Reference: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure
       - name: 'OIDC Login to Azure Public Cloud'
         uses: azure/login@v1
         with:
