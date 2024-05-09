@@ -20,11 +20,11 @@ TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
 # Binaries
 # Note: Need to use abspath so we can invoke these from subdirectories
 
-CONTROLLER_GEN_VER := v0.7.0
+CONTROLLER_GEN_VER := v0.15.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 
-STATICCHECK_VER := 2023.1
+STATICCHECK_VER := 2023.1.7
 STATICCHECK_BIN := staticcheck
 STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/$(STATICCHECK_BIN)-$(STATICCHECK_VER))
 
@@ -37,7 +37,7 @@ GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.24.x
+ENVTEST_K8S_VERSION = 1.28.x
 # ENVTEST_VER is the version of the ENVTEST binary
 # Use a fixed version to avoid Go version conflicts.
 ENVTEST_VER = v0.0.0-20240317073005-bd9ea79e8d18
