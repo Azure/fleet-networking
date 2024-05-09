@@ -54,7 +54,28 @@ jobs:
       - name: Prepare e2e variables
         run: |
           echo "AZURE_RESOURCE_GROUP="fleet-networking-e2e-$RANDOM"" >> $GITHUB_ENV
-      # reference: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure
+      # Note (chenyu1):
+      #
+      # After a recent update, GitHub Actions has set the GitHub ID token expiration time
+      # to 5 minutes for security reasons; as most of our E2E steps cannot finish within
+      # the time range, expiration errors will occur.
+      #
+      # As a temporary mitigation, we will add a step to fetch token periodically (every
+      # 4 minutes) to be exact.
+      #
+      # This should no longer be necessary after the Azure CLI supports ID token refresh.
+      - name: Fetch token every 4 minutes
+        run: |
+          az account set -s ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+          while true; do
+            # $ACTIONS_ID_TOKEN_REQUEST_TOKEN and $ACTIONS_ID_TOKEN_REQUEST_URL env vars are provided by
+            # GitHub Actions automatically.
+            token_request=$ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            token_uri=$ACTIONS_ID_TOKEN_REQUEST_URL
+            token=$(curl -H "Authorization: bearer $token_request" "${token_uri}&audience=api://AzureADTokenExchange" | jq .value -r)
+            az login --service-principal -u ${{ secrets.E2E_AZURE_CLIENT_ID }} -t ${{ secrets.AZURE_TENANT_ID }} --federated-token $token --output none
+            sleep 240
+          done &
       - name: 'OIDC Login to Azure Public Cloud'
         uses: azure/login@v1
         with:
