@@ -64,4 +64,3 @@ jobs:
         env:
           TAG: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
-
