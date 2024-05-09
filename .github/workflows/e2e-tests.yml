@@ -76,12 +76,6 @@ jobs:
             az login --service-principal -u ${{ secrets.E2E_AZURE_CLIENT_ID }} -t ${{ secrets.AZURE_TENANT_ID }} --federated-token $token --output none
             sleep 240
           done &
-      - name: 'OIDC Login to Azure Public Cloud'
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.E2E_AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
       - name: Setup e2e Environment
         run: |
           make e2e-setup
