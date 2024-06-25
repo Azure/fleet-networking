@@ -12,7 +12,7 @@ az account set -s ${AZURE_SUBSCRIPTION_ID}
 # Create resource group to host hub and member clusters.
 # RANDOM ID promises workflow runs don't interface one another.
 export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-fleet-networking-e2e-$RANDOM}"
-export LOCATION="${LOCATION:-eastus}"
+export LOCATION="${LOCATION:-eastus2}"
 az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
 
 # Defer function to recycle created Azure resource.
@@ -67,14 +67,14 @@ case $AZURE_NETWORK_SETTING in
                 bash test/scripts/aks-dynamic-ip-allocation.sh
                 ;;
         peered-vnet)
-                export MEMBER_1_LOCATION="${MEMBER_1_LOCATION:-eastus}"
+                export MEMBER_1_LOCATION="${MEMBER_1_LOCATION:-eastus2}"
                 export MEMBER_2_LOCATION="${MEMBER_2_LOCATION:-westus}"
                 bash test/scripts/aks-peered-vnet.sh
                 ;;
         perf-test)
                 export MEMBER_CLUSTER_3=member-3
                 export MEMBER_CLUSTER_4=member-4
-                export MEMBER_LOCATION_1="${MEMBER_LOCATION_1:-eastus}"
+                export MEMBER_LOCATION_1="${MEMBER_LOCATION_1:-eastus2}"
                 export MEMBER_1_LOCATION=$MEMBER_LOCATION_1
                 export MEMBER_2_LOCATION=$MEMBER_LOCATION_1
                 export MEMBER_LOCATION_2="${MEMBER_LOCATION_2:=westus}"

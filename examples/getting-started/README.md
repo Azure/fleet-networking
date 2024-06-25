@@ -53,7 +53,7 @@ the Azure resources needed**. To use the script, run
 ```sh
 # You can use other resource group names and locations as you see fit.
 export RESOURCE_GROUP=fleet-networking-tutorial
-export LOCATION=eastus
+export LOCATION=eastus2
 # Replace YOUR-CONTAINER-REGISTRY with a name of your own; do NOT use the full URL, i.e. specify
 # `bravelion` rather than `bravelion.azurecr.io`.
 export REGISTRY=YOUR-CONTAINER-REGISTRY
@@ -73,12 +73,12 @@ subscription manually:
 
 ### Create a resource group
 
-Run the commands below to create a resource group named `fleet-networking-tutorial` in the `eastus` location;
+Run the commands below to create a resource group named `fleet-networking-tutorial` in the `eastus2` location;
 you can use a different name or location as you see fit.
 
 ```sh
 export RESOURCE_GROUP=fleet-networking-tutorial
-export LOCATION=eastus
+export LOCATION=eastus2
 az group create --name $RESOURCE_GROUP --location $LOCATION
 ```
 
@@ -258,7 +258,7 @@ will use these IDs to authenticate themselves with the hub cluster.
     - Open [Azure portal][portal], and type `resource groups` in the search box at the top of the page. 
     - Click `Resource groups` in the list of matching services.
     - Find the resource group named `MC_[YOUR-RESOURCE-GROUP]_[YOUR-MEMBER-CLUSTER-1]_[YOUR-LOCATION]`, e.g.
-        `MC_fleet-networking-tutorial_member-1_eastus`, in the list, and click on the name.
+        `MC_fleet-networking-tutorial_member-1_eastus2`, in the list, and click on the name.
     - Find a managed identity resource named `[YOUR-MEMBER-CLUSTER-1]-agentpool`, e.g. `member-1-agentpool`, in
         the list of resources shown at the popped panel, and click on the name.
     - The client ID and principal ID is listed on the new page. Write down the two values:
