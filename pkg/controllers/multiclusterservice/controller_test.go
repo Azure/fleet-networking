@@ -39,10 +39,6 @@ var (
 		Kind:       "MultiClusterService",
 		APIVersion: fleetNetworkingAPIVersion,
 	}
-	serviceImportType = metav1.TypeMeta{
-		Kind:       "ServiceImport",
-		APIVersion: fleetNetworkingAPIVersion,
-	}
 	serviceType = metav1.TypeMeta{
 		Kind:       "Service",
 		APIVersion: "v1",
@@ -307,7 +303,6 @@ func TestHandleUpdate(t *testing.T) {
 			name: "no service import and its label", // mcs is just created
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -349,7 +344,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -398,7 +392,6 @@ func TestHandleUpdate(t *testing.T) {
 			hasOldServiceImport: true,
 			want:                ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -434,7 +427,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -470,7 +462,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -519,7 +510,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -577,7 +567,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -625,7 +614,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -639,7 +627,6 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 			wantDerivedService: &corev1.Service{
-				TypeMeta: serviceType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
@@ -693,7 +680,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -707,7 +693,6 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 			wantDerivedService: &corev1.Service{
-				TypeMeta: serviceType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,
@@ -800,7 +785,6 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -876,7 +860,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{RequeueAfter: mcsRetryInterval},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testServiceName,
 					Namespace: testNamespace,
@@ -942,7 +925,6 @@ func TestHandleUpdate(t *testing.T) {
 			},
 			want: ctrl.Result{},
 			wantServiceImport: &fleetnetv1alpha1.ServiceImport{
-				TypeMeta: serviceImportType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            testServiceName,
 					Namespace:       testNamespace,
@@ -956,7 +938,6 @@ func TestHandleUpdate(t *testing.T) {
 				},
 			},
 			wantDerivedService: &corev1.Service{
-				TypeMeta: serviceType,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      derivedServiceName,
 					Namespace: systemNamespace,

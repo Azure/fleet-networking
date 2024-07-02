@@ -27,28 +27,17 @@ import (
 )
 
 const (
-	testName                  = "my-ns-my-svc"
-	testServiceName           = "my-svc"
-	testNamespace             = "my-ns"
-	testMemberNamespace       = "member-1-ns"
-	testClusterID             = "member-1"
-	fleetNetworkingAPIVersion = "networking.fleet.azure.com/v1alpha1"
+	testName            = "my-ns-my-svc"
+	testServiceName     = "my-svc"
+	testNamespace       = "my-ns"
+	testMemberNamespace = "member-1-ns"
+	testClusterID       = "member-1"
 
 	conditionReasonNoConflictFound = "NoConflictFound"
 	conditionReasonConflictFound   = "ConflictFound"
 )
 
 var (
-	serviceImportType = metav1.TypeMeta{
-		Kind:       "ServiceImport",
-		APIVersion: fleetNetworkingAPIVersion,
-	}
-
-	InternalServiceExportType = metav1.TypeMeta{
-		Kind:       "InternalServiceExport",
-		APIVersion: fleetNetworkingAPIVersion,
-	}
-
 	internalserviceexportRetryInterval = 200 * time.Millisecond
 	appProtocol                        = "app-protocol"
 )
@@ -193,7 +182,6 @@ func TestHandleDelete(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 			},
 		},
 		{
@@ -221,7 +209,6 @@ func TestHandleDelete(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
 					Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -262,7 +249,6 @@ func TestHandleDelete(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -447,7 +433,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -480,7 +465,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 			},
 		},
 		{
@@ -524,7 +508,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
@@ -548,7 +531,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
 					Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -612,7 +594,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -644,7 +625,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
 					Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -713,7 +693,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -745,7 +724,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
 					Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -803,7 +781,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
 					ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
@@ -827,7 +804,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
 				Status: fleetnetv1alpha1.ServiceImportStatus{
 					Ports: importServicePorts,
 					Clusters: []fleetnetv1alpha1.ClusterStatus{
@@ -896,7 +872,6 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testName,
 					Namespace: testMemberNamespace,
 				},
-				TypeMeta: InternalServiceExportType,
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
 						{
@@ -928,8 +903,7 @@ func TestHandleUpdate(t *testing.T) {
 					Name:      testServiceName,
 					Namespace: testNamespace,
 				},
-				TypeMeta: serviceImportType,
-				Status:   fleetnetv1alpha1.ServiceImportStatus{},
+				Status: fleetnetv1alpha1.ServiceImportStatus{},
 			},
 		},
 	}
