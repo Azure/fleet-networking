@@ -82,6 +82,7 @@ type Reconciler struct {
 	HubClient       client.Client
 	// The namespace reserved for fleet resources in the member cluster.
 	FleetSystemNamespace string
+	joined               *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch

@@ -52,6 +52,7 @@ type Reconciler struct {
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
 	Recorder     record.EventRecorder
+	joined       *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete

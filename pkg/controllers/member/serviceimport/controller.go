@@ -36,6 +36,7 @@ type Reconciler struct {
 
 	HubClient    client.Client
 	MemberClient client.Client
+	joined       *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;update;patch

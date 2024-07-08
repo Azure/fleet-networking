@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"flag"
+	"go.goms.io/fleet-networking/pkg/common/controller"
 	"os"
 	"os/signal"
 	"sync"
@@ -241,12 +242,13 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 	hubClient := hubMgr.GetClient()
 
 	klog.V(1).InfoS("Create multiclusterservice reconciler")
-	if err := (&multiclusterservice.Reconciler{
+	mcsController := multiclusterservice.Reconciler{
 		Client:               memberClient,
 		Scheme:               memberMgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
 		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
-	}).SetupWithManager(memberMgr); err != nil {
+	}
+	if err := mcsController.SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
 		return err
 	}
@@ -269,6 +271,7 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 			MemberClient: memberClient,
 			HubClient:    hubClient,
 			AgentType:    clusterv1beta1.MultiClusterServiceAgent,
+			Controllers:  []controller.Controller{mcsController},
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err
