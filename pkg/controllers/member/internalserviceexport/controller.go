@@ -71,6 +71,7 @@ type Reconciler struct {
 	MemberClient    client.Client
 	HubClient       client.Client
 	Recorder        record.EventRecorder
+	joined          *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete

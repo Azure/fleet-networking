@@ -29,6 +29,7 @@ const (
 type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
+	joined       *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;delete

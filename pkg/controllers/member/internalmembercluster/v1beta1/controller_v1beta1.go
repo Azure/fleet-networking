@@ -8,8 +8,10 @@ package v1beta1
 import (
 	"context"
 	"fmt"
+	"go.goms.io/fleet-networking/pkg/common/controller"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +40,7 @@ type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
 	AgentType    clusterv1beta1.AgentType
+	Controllers  []controller.MemberController
 }
 
 //+kubebuilder:rbac:groups=fleet.azure.com,resources=internalmemberclusters,verbs=get;list;watch
@@ -84,9 +87,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 		}
 
+		if err := r.stopControllers(ctx); err != nil {
+			klog.ErrorS(err, "Failed to stop member controllers", "internalMemberCluster", imcKRef)
+			return ctrl.Result{}, err
+		}
+
 		// Update the agent status.
 		return ctrl.Result{}, r.updateAgentStatus(ctx, &imc)
 	case clusterv1beta1.ClusterStateJoin:
+		if err := r.startControllers(ctx); err != nil {
+			klog.ErrorS(err, "Failed to start member controllers", "internalMemberCluster", imcKRef)
+			return ctrl.Result{}, err
+		}
+
 		// The member cluster still has an active membership in the fleet; update the agent status.
 		if err := r.updateAgentStatus(ctx, &imc); err != nil {
 			return ctrl.Result{}, err
@@ -102,6 +115,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) startControllers(ctx context.Context) {
+	errs, cctx := errgroup.WithContext(ctx)
+	for _, c := range r.Controllers {
+		errs.Go(func() error {
+			return c.Join(ctx)
+		})
+	}
+	return errs.Wait()
+}
+
+func (r *Reconciler) stopControllers(ctx context.Context) {
+	errs, cctx := errgroup.WithContext(ctx)
+	for _, c := range r.Controllers {
+		errs.Go(func() error {
+			return c.Leave(ctx)
+		})
+	}
+	return errs.Wait()
 }
 
 // updateAgentStatus reports the status of the agent via internal member cluster object.

@@ -63,6 +63,7 @@ type Reconciler struct {
 	Scheme               *runtime.Scheme
 	FleetSystemNamespace string // reserved fleet namespace
 	Recorder             record.EventRecorder
+	joined               *atomic.Bool
 }
 
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -446,4 +447,21 @@ func (r *Reconciler) serviceEventHandler() handler.MapFunc {
 			},
 		}
 	}
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if !r.joined.Load() {
+		klog.InfoS("Mark the multiClusterService controller joined")
+	}
+	r.joined.Store(true)
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only handle the delete events.
+func (r *ApplyWorkReconciler) Leave(_ context.Context) error {
+	if r.joined.Load() {
+		klog.InfoS("Mark the multiClusterService controller left")
+	}
+	r.joined.Store(false)
 }
