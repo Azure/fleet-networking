@@ -66,7 +66,41 @@ var _ = BeforeSuite(func() {
 
 	testNamespace = framework.UniqueTestNamespace()
 	createTestNamespace(context.Background())
+
+	ctx := context.Background()
+	setAllMemberClustersToJoin(ctx)
+	checkIfAllMemberClustersHaveJoined(ctx)
 })
+
+func setAllMemberClustersToJoin(ctx context.Context) {
+	for _, m := range memberClusterNames {
+		createInternalMemberCluster(ctx, m)
+	}
+}
+
+func checkIfAllMemberClustersHaveJoined(ctx context.Context) {
+	for _, m := range memberClusterNames {
+		checkIfMemberClusterHasJoined(ctx, m)
+	}
+}
+
+func setAllMemberClustersToLeave(ctx context.Context) {
+	for _, m := range memberClusterNames {
+		setInternalMemberClusterState(ctx, m, fleetv1beta1.ClusterStateLeave)
+	}
+}
+
+func checkIfAllMemberClustersHaveLeft(ctx context.Context) {
+	for _, m := range memberClusterNames {
+		checkIfMemberClusterHasLeft(ctx, m)
+	}
+}
+
+func deleteAllMemberClusters(ctx context.Context) {
+	for _, m := range memberClusterNames {
+		deleteInternalMemberCluster(ctx, m)
+	}
+}
 
 func createTestNamespace(ctx context.Context) {
 	ns := corev1.Namespace{
@@ -97,4 +131,8 @@ var _ = AfterSuite(func() {
 	for _, m := range memberClusters {
 		Expect(m.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, m.Name())
 	}
+
+	setAllMemberClustersToLeave(ctx)
+	checkIfAllMemberClustersHaveLeft(ctx)
+	deleteAllMemberClusters(ctx)
 })

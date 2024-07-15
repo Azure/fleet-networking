@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -53,6 +54,8 @@ type Reconciler struct {
 	HubClient       client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
+	// whether to start exporting an EndpointSlice
+	joined atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceexports,verbs=get;list;watch;create;update;patch;delete
@@ -108,6 +111,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	if !r.joined.Load() {
+		klog.V(2).InfoS("EndpointSlice controller is not started yet, requeue the request", "endpointSlice", endpointSliceRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	// Retrieve the unique name assigned; if none has been assigned, or the one assigned is not valid, possibly due
@@ -438,4 +446,25 @@ func (r *Reconciler) annotateLastSeenGenerationAndTimestamp(ctx context.Context,
 	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenGeneration] = strconv.FormatInt(endpointSlice.Generation, 10)
 	endpointSlice.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
 	return r.MemberClient.Update(ctx, endpointSlice)
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the endpointSlice controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only handle the delete events.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the endpointSlice controller left")
+	r.joined.Store(false)
+	return nil
 }

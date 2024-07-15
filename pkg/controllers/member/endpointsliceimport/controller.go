@@ -10,6 +10,7 @@ package endpointsliceimport
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,6 +83,8 @@ type Reconciler struct {
 	HubClient       client.Client
 	// The namespace reserved for fleet resources in the member cluster.
 	FleetSystemNamespace string
+	// whether to start imports an endpointSlice
+	joined atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=endpointsliceimports,verbs=get;list;watch;update;patch
@@ -128,6 +131,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	if !r.joined.Load() {
+		klog.V(2).InfoS("EndpointSliceImport controller is not started yet, requeue the request", "endpointSliceImport", endpointSliceImportRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	// Import the EndpointSlice, or update an imported EndpointSlice.
@@ -426,5 +434,26 @@ func (r *Reconciler) observeMetrics(ctx context.Context, endpointSliceImport *fl
 		"originClusterID", endpointSliceImport.Spec.EndpointSliceReference.ClusterID,
 		"destinationClusterID", r.MemberClusterID,
 		"isFirstImport", isFirstImport)
+	return nil
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the endpointSliceImport controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only handle the delete events.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the endpointSliceImport controller left")
+	r.joined.Store(false)
 	return nil
 }

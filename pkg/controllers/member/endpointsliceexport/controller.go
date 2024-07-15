@@ -125,3 +125,17 @@ func isEndpointSliceExportLinkedWithEndpointSlice(endpointSliceExport *fleetnetv
 	}
 	return true
 }
+
+// Join does nothing.
+// There is no need to start or stop the controller as this controller is designed to clean up any invalid
+// EndpointSliceExport in the hub cluster.
+func (r *Reconciler) Join(_ context.Context) error {
+	// do nothing
+	return nil
+}
+
+// Leave does nothing.
+func (r *Reconciler) Leave(_ context.Context) error {
+	// do nothing
+	return nil
+}

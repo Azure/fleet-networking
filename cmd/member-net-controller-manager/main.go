@@ -35,6 +35,7 @@ import (
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
+	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/env"
@@ -259,79 +260,94 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
 
+	var controllers []controller.MemberController
 	klog.V(1).InfoS("Create endpointslice controller")
-	if err := (&endpointslice.Reconciler{
+	endpointSliceController := &endpointslice.Reconciler{
 		MemberClusterID: mcName,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		HubNamespace:    mcHubNamespace,
-	}).SetupWithManager(ctx, memberMgr); err != nil {
+	}
+	if err := endpointSliceController.SetupWithManager(ctx, memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointslice controller")
 		return err
 	}
+	controllers = append(controllers, endpointSliceController)
 
 	klog.V(1).InfoS("Create endpointsliceexport controller")
-	if err := (&endpointsliceexport.Reconciler{
+	endpointSliceExportController := &endpointsliceexport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
-	}).SetupWithManager(hubMgr); err != nil {
+	}
+	if err := endpointSliceExportController.SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointsliceexport controller")
 		return err
 	}
+	controllers = append(controllers, endpointSliceExportController)
 
 	klog.V(1).InfoS("Create endpointsliceimport controller")
-	if err := (&endpointsliceimport.Reconciler{
+	endpointSliceImportController := &endpointsliceimport.Reconciler{
 		MemberClusterID:      mcName,
 		MemberClient:         memberClient,
 		HubClient:            hubClient,
 		FleetSystemNamespace: *fleetSystemNamespace,
-	}).SetupWithManager(ctx, memberMgr, hubMgr); err != nil {
+	}
+	if err := endpointSliceImportController.SetupWithManager(ctx, memberMgr, hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create endpointsliceimport controller")
 		return err
 	}
+	controllers = append(controllers, endpointSliceImportController)
 
 	klog.V(1).InfoS("Create internalserviceexport controller")
-	if err := (&internalserviceexport.Reconciler{
+	internalServiceExportController := &internalserviceexport.Reconciler{
 		MemberClusterID: mcName,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		Recorder:        memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
-	}).SetupWithManager(hubMgr); err != nil {
+	}
+	if err := internalServiceExportController.SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err
 	}
+	controllers = append(controllers, internalServiceExportController)
 
 	klog.V(1).InfoS("Create internalserviceimport controller")
-	if err := (&internalserviceimport.Reconciler{
+	internalServiceImportController := &internalserviceimport.Reconciler{
 		MemberClient: memberClient,
 		HubClient:    hubClient,
-	}).SetupWithManager(hubMgr); err != nil {
+	}
+	if err := internalServiceImportController.SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceimport controller")
 		return err
 	}
+	controllers = append(controllers, internalServiceImportController)
 
 	klog.V(1).InfoS("Create serviceexport reconciler")
-	if err := (&serviceexport.Reconciler{
+	serviceExportController := &serviceexport.Reconciler{
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		MemberClusterID: mcName,
 		HubNamespace:    mcHubNamespace,
 		Recorder:        memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
-	}).SetupWithManager(memberMgr); err != nil {
+	}
+	if err := serviceExportController.SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
 	}
+	controllers = append(controllers, serviceExportController)
 
 	klog.V(1).InfoS("Create serviceimport reconciler")
-	if err := (&serviceimport.Reconciler{
+	serviceImportController := &serviceimport.Reconciler{
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		MemberClusterID: mcName,
 		HubNamespace:    mcHubNamespace,
-	}).SetupWithManager(memberMgr); err != nil {
+	}
+	if err := serviceImportController.SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceimport reconciler")
 		return err
 	}
+	controllers = append(controllers, serviceImportController)
 
 	if *isV1Alpha1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
@@ -351,6 +367,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 			MemberClient: memberClient,
 			HubClient:    hubClient,
 			AgentType:    clusterv1beta1.ServiceExportImportAgent,
+			Controllers:  controllers,
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err

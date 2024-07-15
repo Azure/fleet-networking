@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/apiretry"
@@ -38,6 +40,8 @@ type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
 	AgentType    clusterv1beta1.AgentType
+
+	Controllers []controller.MemberController
 }
 
 //+kubebuilder:rbac:groups=cluster.kubernetes-fleet.io,resources=internalmemberclusters,verbs=get;list;watch
@@ -71,6 +75,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case clusterv1beta1.ClusterStateLeave:
 		// The member cluster is leaving the fleet.
 		klog.V(2).InfoS("member cluster has left the fleet; performing cleanup", "internalMemberCluster", imcKRef)
+		if err := r.stopControllers(ctx); err != nil {
+			klog.ErrorS(err, "Failed to stop member controllers", "internalMemberCluster", imcKRef)
+			return ctrl.Result{}, err
+		}
 
 		// Clean up fleet networking related resources.
 		if r.AgentType == clusterv1beta1.MultiClusterServiceAgent {
@@ -87,6 +95,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Update the agent status.
 		return ctrl.Result{}, r.updateAgentStatus(ctx, &imc)
 	case clusterv1beta1.ClusterStateJoin:
+		if err := r.startControllers(ctx); err != nil {
+			klog.ErrorS(err, "Failed to start member controllers", "internalMemberCluster", imcKRef)
+			return ctrl.Result{}, err
+		}
+
 		// The member cluster still has an active membership in the fleet; update the agent status.
 		if err := r.updateAgentStatus(ctx, &imc); err != nil {
 			return ctrl.Result{}, err
@@ -221,6 +234,28 @@ func (r *Reconciler) cleanupServiceExportRelatedResources(ctx context.Context) e
 
 	klog.V(2).InfoS("Cleanup of service export related resources has been completed", "objectCounter", len(list.Items))
 	return nil
+}
+
+func (r *Reconciler) startControllers(ctx context.Context) error {
+	errs, cctx := errgroup.WithContext(ctx)
+	for i := range r.Controllers {
+		c := r.Controllers[i]
+		errs.Go(func() error {
+			return c.Join(cctx)
+		})
+	}
+	return errs.Wait()
+}
+
+func (r *Reconciler) stopControllers(ctx context.Context) error {
+	errs, cctx := errgroup.WithContext(ctx)
+	for i := range r.Controllers {
+		c := r.Controllers[i]
+		errs.Go(func() error {
+			return c.Leave(cctx)
+		})
+	}
+	return errs.Wait()
 }
 
 // SetupWithManager sets up the controller with the Manager.

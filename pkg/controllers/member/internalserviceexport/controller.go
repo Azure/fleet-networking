@@ -3,13 +3,14 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// package internalserviceexport features the InternalServiceExport controller for reporting back conflict resolution
+// Package internalserviceexport features the InternalServiceExport controller for reporting back conflict resolution
 // status from the fleet to a member cluster.
 package internalserviceexport
 
 import (
 	"context"
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -71,6 +72,9 @@ type Reconciler struct {
 	MemberClient    client.Client
 	HubClient       client.Client
 	Recorder        record.EventRecorder
+
+	// whether to start exporting an EndpointSlice
+	joined atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -127,6 +131,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// An unexpected error occurs.
 		klog.ErrorS(err, "Failed to get svc export", "serviceExport", svcExportRef)
 		return ctrl.Result{}, err
+	}
+
+	if !r.joined.Load() {
+		klog.V(2).InfoS("InternalServiceExport controller is not started yet, requeue the request", "internalServiceExport", internalSvcExportRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	// Report back conflict resolution result.
@@ -247,5 +256,26 @@ func (r *Reconciler) observeMetrics(ctx context.Context,
 	klog.V(2).InfoS("serviceExportDurationMilliseconds",
 		"value", timeSpent,
 		"originClusterID", r.MemberClusterID)
+	return nil
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the internalServiceExport controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only delete any orphan resources.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the internalServiceExport controller left")
+	r.joined.Store(false)
 	return nil
 }
