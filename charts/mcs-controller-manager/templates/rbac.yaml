@@ -37,6 +37,13 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+- apiGroups:
   - networking.fleet.azure.com
   resources:
   - multiclusterservices
