@@ -67,4 +67,8 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 --set enableV1Alpha1APIs=false \
 --set enableV1Beta1APIs=true \
 --set logVerbosity=8
+
+kubectl get pods -A
+kubectl config use-context $HUB_CLUSTER_CONTEXT
+kubectl get membercluster $MEMBER_CLUSTER
 done
