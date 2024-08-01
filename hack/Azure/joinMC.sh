@@ -71,5 +71,5 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 
 kubectl get pods -A
 kubectl config use-context $HUB_CLUSTER_CONTEXT
-kubectl get membercluster -A
+kubectl get membercluster $MEMBER_CLUSTER
 done
