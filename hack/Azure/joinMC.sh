@@ -1,5 +1,6 @@
-# CAN ONLY BE RUN AFTER CREATING NEEDED AKS CLUSTERS AND HUB CLUSTER. This script creates member clusters for
-# AKS Clusters and joins them onto the fleet hub cluster.
+# CAN ONLY BE RUN AFTER CREATING NEEDED MEMBER CLUSTERS, HUB CLUSTER AND INSTALLING THE FLEET MEMBER AGENT ON EACH MEMBER CLUSTER
+# This can be achieved by running the script in fleet/hack/Azure/setup/joinHC.sh in the fleet repository
+# This script installs the fleet-networking member agents on each member cluster.
 
 export REFRESH_TOKEN_IMAGE_TAG="$1"
 export FLEET_NETWORKING_AGENT_IMAGE_TAG="$2"
