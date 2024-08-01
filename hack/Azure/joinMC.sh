@@ -1,5 +1,5 @@
 # CAN ONLY BE RUN AFTER CREATING NEEDED HUB CLUSTER, MEMBER CLUSTERS AND AFTER INSTALLING THE FLEET MEMBER AGENT ON EACH MEMBER CLUSTER.
-# This can be achieved by running the script in fleet/hack/Azure/setup/joinMC.sh in the fleet repository.
+# This can be achieved by running the script in fleet/hack/Azure/setup/joinMC.sh in the fleet repository https://github.com/Azure/fleet.
 # This script installs the fleet-networking member agents on each member cluster.
 
 export REFRESH_TOKEN_IMAGE_TAG="$1"
