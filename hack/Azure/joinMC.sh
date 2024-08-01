@@ -1,4 +1,4 @@
-# CAN ONLY BE RUN AFTER CREATING NEEDED MEMBER CLUSTERS, HUB CLUSTER AND INSTALLING THE FLEET MEMBER AGENT ON EACH MEMBER CLUSTER.
+# CAN ONLY BE RUN AFTER CREATING NEEDED HUB CLUSTER, MEMBER CLUSTERS AND AFTER INSTALLING THE FLEET MEMBER AGENT ON EACH MEMBER CLUSTER.
 # This can be achieved by running the script in fleet/hack/Azure/setup/joinHC.sh in the fleet repository.
 # This script installs the fleet-networking member agents on each member cluster.
 
@@ -11,7 +11,6 @@ export HUB_CLUSTER_ADDRESS=$(kubectl config view -o jsonpath="{.clusters[?(@.nam
 
 for MC in "${@:4}"; do
 
-# Note that Fleet will recognize your cluster with this name once it joins.
 export MEMBER_CLUSTER=$(kubectl config view -o jsonpath="{.contexts[?(@.context.cluster==\"$MC\")].name}")
 export MEMBER_CLUSTER_CONTEXT=$(kubectl config view -o jsonpath="{.contexts[?(@.context.cluster==\"$MC\")].name}")
 
@@ -21,13 +20,8 @@ kubectl config use-context $MEMBER_CLUSTER_CONTEXT
 echo "Apply the Fleet networking CRDs..."
 kubectl apply -f config/crd/*
 
-# # Install the fleet networking member agent helm charts on the member cluster.
-
-# The variables below uses the Fleet networking images kept in the Microsoft Container Registry (MCR),
-# and will retrieve the latest version from the Fleet GitHub repository.
-#
-# You can, however, build the Fleet networking images of your own; see the repository README for
-# more information.
+# # Install the fleet-networking member agent helm charts on the member cluster.
+# The variables below uses the fleet-networking images kept in the Microsoft Container Registry (MCR)
 echo "Retrieving image..."
 export REGISTRY="mcr.microsoft.com/aks/fleet"
 export MCS_CONTROLLER_MANAGER_IMAGE="mcs-controller-manager"
