@@ -40,8 +40,8 @@ type Reconciler struct {
 	AgentType    clusterv1beta1.AgentType
 }
 
-//+kubebuilder:rbac:groups=fleet.azure.com,resources=internalmemberclusters,verbs=get;list;watch
-//+kubebuilder:rbac:groups=fleet.azure.com,resources=internalmemberclusters/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=cluster.kubernetes-fleet.io,resources=internalmemberclusters,verbs=get;list;watch
+//+kubebuilder:rbac:groups=cluster.kubernetes-fleet.io,resources=internalmemberclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices,verbs=get;list;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;delete
 
