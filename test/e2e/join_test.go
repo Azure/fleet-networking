@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
+	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
@@ -31,12 +31,12 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 		memberClusterName      = memberClusterNames[0]
 		memberClusterNamespace = "fleet-member-" + memberClusterName
 		imcKey                 = types.NamespacedName{Namespace: memberClusterNamespace, Name: memberClusterName}
-		imc                    fleetv1alpha1.InternalMemberCluster
+		imc                    fleetv1beta1.InternalMemberCluster
 		memberCluster          *framework.Cluster
 		cmpOptions             = []cmp.Option{
-			cmpopts.IgnoreFields(fleetv1alpha1.AgentStatus{}, "LastReceivedHeartbeat"),
+			cmpopts.IgnoreFields(fleetv1beta1.AgentStatus{}, "LastReceivedHeartbeat"),
 			cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration"),
-			cmpopts.SortSlices(func(status1, status2 fleetv1alpha1.AgentStatus) bool { return status1.Type < status2.Type }),
+			cmpopts.SortSlices(func(status1, status2 fleetv1beta1.AgentStatus) bool { return status1.Type < status2.Type }),
 		}
 	)
 	const (
@@ -47,13 +47,13 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 		BeforeEach(func() {
 			By("Creating internalMemberCluster")
 			ctx = context.Background()
-			imc = fleetv1alpha1.InternalMemberCluster{
+			imc = fleetv1beta1.InternalMemberCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      memberClusterName,
 					Namespace: memberClusterNamespace,
 				},
-				Spec: fleetv1alpha1.InternalMemberClusterSpec{
-					State:                  fleetv1alpha1.ClusterStateJoin,
+				Spec: fleetv1beta1.InternalMemberClusterSpec{
+					State:                  fleetv1beta1.ClusterStateJoin,
 					HeartbeatPeriodSeconds: int32(heartbeatPeriod),
 				},
 			}
@@ -75,22 +75,22 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err.Error()
 				}
-				want := []fleetv1alpha1.AgentStatus{
+				want := []fleetv1beta1.AgentStatus{
 					{
-						Type: fleetv1alpha1.MultiClusterServiceAgent,
+						Type: fleetv1beta1.MultiClusterServiceAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionTrue,
 								Reason: "AgentJoined",
 							},
 						},
 					},
 					{
-						Type: fleetv1alpha1.ServiceExportImportAgent,
+						Type: fleetv1beta1.ServiceExportImportAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionTrue,
 								Reason: "AgentJoined",
 							},
@@ -131,7 +131,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err
 				}
-				imc.Spec.State = fleetv1alpha1.ClusterStateLeave
+				imc.Spec.State = fleetv1beta1.ClusterStateLeave
 				return hubCluster.Client().Update(ctx, &imc)
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update internalMemberCluster spec")
 
@@ -140,22 +140,22 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err.Error()
 				}
-				want := []fleetv1alpha1.AgentStatus{
+				want := []fleetv1beta1.AgentStatus{
 					{
-						Type: fleetv1alpha1.MultiClusterServiceAgent,
+						Type: fleetv1beta1.MultiClusterServiceAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
 						},
 					},
 					{
-						Type: fleetv1alpha1.ServiceExportImportAgent,
+						Type: fleetv1beta1.ServiceExportImportAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
@@ -192,7 +192,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err
 				}
-				imc.Spec.State = fleetv1alpha1.ClusterStateLeave
+				imc.Spec.State = fleetv1beta1.ClusterStateLeave
 				return hubCluster.Client().Update(ctx, &imc)
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update internalMemberCluster spec")
 
@@ -201,22 +201,22 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err.Error()
 				}
-				want := []fleetv1alpha1.AgentStatus{
+				want := []fleetv1beta1.AgentStatus{
 					{
-						Type: fleetv1alpha1.MultiClusterServiceAgent,
+						Type: fleetv1beta1.MultiClusterServiceAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
 						},
 					},
 					{
-						Type: fleetv1alpha1.ServiceExportImportAgent,
+						Type: fleetv1beta1.ServiceExportImportAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
@@ -238,7 +238,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err
 				}
-				imc.Spec.State = fleetv1alpha1.ClusterStateLeave
+				imc.Spec.State = fleetv1beta1.ClusterStateLeave
 				return hubCluster.Client().Update(ctx, &imc)
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update internalMemberCluster spec")
 
@@ -247,22 +247,22 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err.Error()
 				}
-				want := []fleetv1alpha1.AgentStatus{
+				want := []fleetv1beta1.AgentStatus{
 					{
-						Type: fleetv1alpha1.MultiClusterServiceAgent,
+						Type: fleetv1beta1.MultiClusterServiceAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
 						},
 					},
 					{
-						Type: fleetv1alpha1.ServiceExportImportAgent,
+						Type: fleetv1beta1.ServiceExportImportAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionFalse,
 								Reason: "AgentLeft",
 							},
@@ -277,7 +277,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err
 				}
-				imc.Spec.State = fleetv1alpha1.ClusterStateJoin
+				imc.Spec.State = fleetv1beta1.ClusterStateJoin
 				return hubCluster.Client().Update(ctx, &imc)
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update internalMemberCluster spec")
 
@@ -285,22 +285,22 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
 					return err.Error()
 				}
-				want := []fleetv1alpha1.AgentStatus{
+				want := []fleetv1beta1.AgentStatus{
 					{
-						Type: fleetv1alpha1.MultiClusterServiceAgent,
+						Type: fleetv1beta1.MultiClusterServiceAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionTrue,
 								Reason: "AgentJoined",
 							},
 						},
 					},
 					{
-						Type: fleetv1alpha1.ServiceExportImportAgent,
+						Type: fleetv1beta1.ServiceExportImportAgent,
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleetv1alpha1.AgentJoined),
+								Type:   string(fleetv1beta1.AgentJoined),
 								Status: metav1.ConditionTrue,
 								Reason: "AgentJoined",
 							},
