@@ -81,8 +81,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// When the member leaves, the controller will continue to handle the deleted serviceImport as intended.
 	if !r.joined.Load() {
-		klog.V(2).InfoS("InternalServiceImport controller is not started yet, requeue the request", "internalServiceImport", internalSvcImportKRef)
+		klog.V(2).InfoS("InternalServiceImport controller has not joined yet, skip updating serviceImport status and requeue the request", "internalServiceImport", internalSvcImportKRef)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 

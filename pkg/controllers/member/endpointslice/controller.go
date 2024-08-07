@@ -113,8 +113,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// When the member leaves, the controller will continue to unexport the endpointSlice as intended.
 	if !r.joined.Load() {
-		klog.V(2).InfoS("EndpointSlice controller is not started yet, requeue the request", "endpointSlice", endpointSliceRef)
+		klog.V(2).InfoS("EndpointSlice controller has not joined yet, skip exporting the endpointSlice and requeue the request", "endpointSlice", endpointSliceRef)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 

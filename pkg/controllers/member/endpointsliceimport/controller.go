@@ -133,8 +133,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// When the member leaves, the controller will continue to handle the deleted endpointSliceImport as intended.
 	if !r.joined.Load() {
-		klog.V(2).InfoS("EndpointSliceImport controller is not started yet, requeue the request", "endpointSliceImport", endpointSliceImportRef)
+		klog.V(2).InfoS("EndpointSliceImport controller has not joined yet, skip importing the endpointSlice and requeue the request", "endpointSliceImport", endpointSliceImportRef)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 

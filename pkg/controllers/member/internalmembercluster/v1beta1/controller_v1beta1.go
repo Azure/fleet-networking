@@ -75,6 +75,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case clusterv1beta1.ClusterStateLeave:
 		// The member cluster is leaving the fleet.
 		klog.V(2).InfoS("member cluster has left the fleet; performing cleanup", "internalMemberCluster", imcKRef)
+		// The controllers will be marked as left, and it will stop creating/updating the networking resources.
+		// Note, the controllers will continue to handle the delete event as intended.
 		if err := r.stopControllers(ctx); err != nil {
 			klog.ErrorS(err, "Failed to stop member controllers", "internalMemberCluster", imcKRef)
 			return ctrl.Result{}, err

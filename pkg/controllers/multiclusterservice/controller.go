@@ -100,8 +100,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.handleDelete(ctx, &mcs)
 	}
 
+	// When the member leaves, the controller will continue to handle the deleted multiClusterService as intended.
 	if !r.joined.Load() {
-		klog.V(2).InfoS("MultiClusterService controller is not started yet, requeue the request", "multiClusterService", mcsKRef)
+		klog.V(2).InfoS("MultiClusterService controller has not joined yet, skip handling the multiClusterService and requeue the request", "multiClusterService", mcsKRef)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 

@@ -133,8 +133,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// When the member leaves, the controller will continue to handle deleted ServiceExport as intended.
 	if !r.joined.Load() {
-		klog.V(2).InfoS("InternalServiceExport controller is not started yet, requeue the request", "internalServiceExport", internalSvcExportRef)
+		klog.V(2).InfoS("InternalServiceExport controller has not joined yet, skip validating serviceExport and requeue the request", "internalServiceExport", internalSvcExportRef)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
