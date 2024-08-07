@@ -31,6 +31,7 @@ var (
 	hubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
+	reconciler    *Reconciler
 )
 
 // setUpResources help set up resources in the test environment.
@@ -99,13 +100,15 @@ var _ = BeforeSuite(func() {
 	ctrlMgr, err := ctrl.NewManager(memberCfg, ctrl.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&Reconciler{
+	reconciler = &Reconciler{
 		MemberClusterID: memberClusterID,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
 		HubNamespace:    hubNSForMember,
-	}).SetupWithManager(ctx, ctrlMgr)
+	}
+	err = reconciler.SetupWithManager(ctx, ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
+	Expect(reconciler.Join(ctx)).Should(Succeed())
 
 	go func() {
 		defer GinkgoRecover()
@@ -116,6 +119,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+	Expect(reconciler.Leave(ctx)).Should(Succeed())
 	cancel()
 
 	By("tearing down the test environment")

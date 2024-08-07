@@ -31,12 +31,13 @@ import (
 )
 
 var (
-	cfg       *rest.Config
-	mgr       manager.Manager
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	cfg        *rest.Config
+	mgr        manager.Manager
+	k8sClient  client.Client
+	testEnv    *envtest.Environment
+	ctx        context.Context
+	cancel     context.CancelFunc
+	reconciler *Reconciler
 )
 
 func TestAPIs(t *testing.T) {
@@ -82,13 +83,15 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&Reconciler{
+	reconciler = &Reconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		FleetSystemNamespace: "fleet-system",
 		Recorder:             mgr.GetEventRecorderFor(ControllerName),
-	}).SetupWithManager(mgr)
+	}
+	err = reconciler.SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
+	Expect(reconciler.Join(ctx)).Should(Succeed())
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
@@ -117,6 +120,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+	Expect(reconciler.Leave(ctx)).Should(Succeed())
 
 	By("delete multiClusterService namespace")
 	ns := corev1.Namespace{

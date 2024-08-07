@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -52,6 +53,8 @@ type Reconciler struct {
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
 	Recorder     record.EventRecorder
+	// whether to start exporting an EndpointSlice
+	joined atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -101,6 +104,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return res, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	// When the member leaves, the controller will continue to handle the deleted serviceExport as intended.
+	if !r.joined.Load() {
+		klog.V(2).InfoS("ServiceExport controller has not joined yet, skip handling serviceExport and requeue the request", "service", svcRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	// Check if the Service to export exists.
@@ -411,4 +420,25 @@ func (r *Reconciler) annotateLastSeenResourceVersionAndTimestamp(ctx context.Con
 	svcExport.Annotations[metrics.MetricsAnnotationLastSeenResourceVersion] = svc.ResourceVersion
 	svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp] = startTime.Format(metrics.MetricsLastSeenTimestampFormat)
 	return r.MemberClient.Update(ctx, svcExport)
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the serviceExport controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only handle the delete events.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the serviceExport controller left")
+	r.joined.Store(false)
+	return nil
 }

@@ -20,6 +20,11 @@ const (
 	// Increase the poll timeout to capture the service export condition changes.
 	PollTimeout = 60 * time.Second
 
+	// ConsistentlyInterval defines the internal time for a validation operation.
+	ConsistentlyInterval = time.Millisecond * 500
+	// ConsistentlyDuration defines the duration time for a validation operation.
+	ConsistentlyDuration = time.Second * 15
+
 	// MCSLBPollTimeout defines the time to wait a MCS to be assigned with LoadBalancer IP address.
 	// As MCS depending on handling service related to cloud provider, more time is required.
 	MCSLBPollTimeout = 240 * time.Second

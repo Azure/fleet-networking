@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -63,6 +64,7 @@ type Reconciler struct {
 	Scheme               *runtime.Scheme
 	FleetSystemNamespace string // reserved fleet namespace
 	Recorder             record.EventRecorder
+	joined               atomic.Bool
 }
 
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -96,6 +98,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if mcs.ObjectMeta.DeletionTimestamp != nil {
 		return r.handleDelete(ctx, &mcs)
+	}
+
+	// When the member leaves, the controller will continue to handle the deleted multiClusterService as intended.
+	if !r.joined.Load() {
+		klog.V(2).InfoS("MultiClusterService controller has not joined yet, skip handling the multiClusterService and requeue the request", "multiClusterService", mcsKRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	// register finalizer
@@ -446,4 +454,25 @@ func (r *Reconciler) serviceEventHandler() handler.MapFunc {
 			},
 		}
 	}
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the multiClusterService controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only handle the delete events.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the multiClusterService controller left")
+	r.joined.Store(false)
+	return nil
 }
