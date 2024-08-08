@@ -8,13 +8,13 @@ if [ "$#" -lt 4 ]; then
 fi
 
 export FLEET_IMAGE_TAG="$1"
-if [[ $(curl "https://api.github.com/repos/Azure/fleet/tags") != *$1* ]] > /dev/null 2>&1; then
+if [[ $(curl "https://api.github.com/repos/Azure/fleet/tags") != *"$1"* ]] > /dev/null 2>&1; then
   echo "fleet image tag $1 does not exist"
   exit 1
 fi
 
 export FLEET_NETWORKING_AGENT_IMAGE_TAG="$2"
-if [[ $(curl "https://api.github.com/repos/Azure/fleet-networking/tags") != *$2* ]] > /dev/null 2>&1; then
+if [[ $(curl "https://api.github.com/repos/Azure/fleet-networking/tags") != *"$2"* ]] > /dev/null 2>&1; then
   echo "fleet networking image tag $2 does not exist"
   exit 1
 fi
