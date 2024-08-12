@@ -6,6 +6,7 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,6 +19,14 @@ type InternalServiceExportSpec struct {
 	// The reference to the source Service.
 	// +kubebuilder:validation:Required
 	ServiceReference ExportedObjectReference `json:"serviceReference"`
+	// Type determines how the Service is exposed.
+	Type corev1.ServiceType
+	// LoadBalancer contains the current status of the load-balancer.
+	LoadBalancer corev1.LoadBalancerStatus
+	// Annotations copies the annotations from the exported service, excluding the kubectl.kubernetes.io/last-applied-configuration.
+	// ServiceProvide relies on the label to validate or get the ingress ip information.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.
