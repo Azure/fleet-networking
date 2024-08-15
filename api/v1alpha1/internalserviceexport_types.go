@@ -19,14 +19,14 @@ type InternalServiceExportSpec struct {
 	// The reference to the source Service.
 	// +kubebuilder:validation:Required
 	ServiceReference ExportedObjectReference `json:"serviceReference"`
-	// Type determines how the Service is exposed.
+	// Type is the type of the Service in each cluster.
 	Type corev1.ServiceType
-	// LoadBalancer contains the current status of the load-balancer.
-	LoadBalancer corev1.LoadBalancerStatus
-	// Annotations copies the annotations from the exported service, excluding the kubectl.kubernetes.io/last-applied-configuration.
-	// ServiceProvide relies on the label to validate or get the ingress ip information.
-	// +optional
-	Annotations map[string]string `json:"annotations,omitempty"`
+	// IsInternalLoadBalancer determines if the Service is an internal load balancer type.
+	IsInternalLoadBalancer bool
+	// IsDNSLabelConfigured determines if the Service has a DNS label configured.
+	IsDNSLabelConfigured bool
+	// ExternalIPResourceID is the Azure Resource URI of external IP. This is only applicable for Load Balancer type Services.
+	ExternalIPResourceID *string
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.

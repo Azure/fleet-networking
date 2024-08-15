@@ -29,24 +29,38 @@ type TrafficManagerProfileSpec struct {
 	MonitorConfig *MonitorConfig
 
 	// The list of endpoints in the Traffic Manager profile.
-	Endpoints []*TrafficManagerEndpointRef
+	// Note: the ExternalEndpoints cannot be mixed with AzureEndpoints and NestedEndpoints in the same profile.
+	Endpoints []*TrafficManagerEndpointConfig
+}
+
+type TrafficManagerEndpointConfig struct {
+	// The reference to the endpoint.
+	// +required
+	EndpointRef *TrafficManagerEndpointRef
+
+	// +required
+	Properties *TrafficManagerEndpointProperties
 }
 
 type TrafficManagerEndpointRefType string
 
 const (
 	// TrafficManagerEndpointTypeServiceImport is a group of public ip exposed by the exported service.
+	// Later, we can support Service (for single cluster) and TrafficManagerProfile type.
 	TrafficManagerEndpointTypeServiceImport TrafficManagerEndpointRefType = "ServiceImport"
 )
 
 type TrafficManagerEndpointRef struct {
-	// Type of endpoint reference. Can be "ServiceImport". Default is ServiceImport.
+	// Type of endpoint k8 custom resource reference. Can be "ServiceImport". Default is ServiceImport.
+	// Possible value is "ServiceImport", "TrafficManagerProfile" or "Service" (for single cluster).
 	// +kubebuilder:validation:Enum=ServiceImport
 	// +kubebuilder:default=ServiceImport
 	// +optional
-	Type TrafficManagerEndpointRefType
+	//Type TrafficManagerEndpointRefType
 
-	ServiceImportEndpointConfig *ServiceImportEndpointConfig
+	// Name is the reference to the ServiceImport in the same namespace of Traffic Manager Profile if the type is "ServiceImport".
+	// +required
+	Name string
 }
 
 type TrafficManagerEndpointType string
@@ -56,27 +70,21 @@ const (
 	// The publicIpAddress must have a DNS name assigned to be used in a Traffic Manager profile.
 	EndpointTypeAzureEndpoints TrafficManagerEndpointType = "AzureEndpoints"
 	// EndpointTypeExternalEndpoints are used for IPv4/IPv6 addresses, FQDNs, or for services hosted outside Azure.
-	// Theses services can either be on-premises or with a different hosting provider.
+	// These services can either be on-premises or with a different hosting provider.
 	EndpointTypeExternalEndpoints TrafficManagerEndpointType = "ExternalEndpoints"
+	// EndpointTypeNestedEndpoints are used to combine Traffic Manager profiles to create more flexible traffic-routing
+	// schemes to support the needs of larger, more complex deployments.
+	// EndpointTypeNestedEndpoints TrafficManagerEndpointType = "NestedEndpoints"
 )
 
-type ServiceImportEndpointConfig struct {
-	// ServiceImport is the reference to the ServiceImport in the same namespace of Traffic Manager Profile.
-	// +required
-	ServiceImport *ServiceImportRef
-
-	// +required
-	Config *TrafficManagerEndpoint
-}
-
-type TrafficManagerEndpoint struct {
+type TrafficManagerEndpointProperties struct {
 	// If the type is "AzureEndpoints", it means the public ip is an azure resource and must have a DNS name assigned.
 	// Note: To use Traffic Manager with endpoints from other subscriptions, the controller needs to have read access to
 	// the endpoint.
-	// +kubebuilder:validation:Enum=AzureEndpoints;ExternalEndpoints
+	// +kubebuilder:validation:Enum=AzureEndpoints
 	// +kubebuilder:default=AzureEndpoints
 	// +optional
-	Type TrafficManagerEndpointType
+	//Type TrafficManagerEndpointType
 
 	// If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in the traffic
 	// routing method.
@@ -84,15 +92,13 @@ type TrafficManagerEndpoint struct {
 	// +optional
 	AlwaysServe bool
 
-	// The weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
+	// The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
 	// Possible values are from 1 to 1000.
-	// +required
-	// +kubebuilder:default=1
+	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
-	// Defaults to 1.
 	// For example, if there are two clusters exporting the service via public ip, each public ip will be configured
-	// as "Weight".
+	// as "Weight"/2.
 	Weight *int64
 
 	// The fully-qualified DNS name or IP address of the endpoint.
@@ -107,14 +113,10 @@ type TrafficManagerEndpointStatus struct {
 	// +required
 	Name *string
 
-	// ServiceImport is the reference to the ServiceImport in the same namespace of Traffic Manager Profile if the endpoint
-	// reference type is ServiceImport.
-	// +optional
-	ServiceImport *ServiceImportRef
-
-	// Config represents the endpoint configurations.
 	// +required
-	Config *TrafficManagerEndpoint
+	// When the endpoint reference type is serviceImport, the endpoint status is reflecting the final individual endpoint
+	// configurations.
+	Config *TrafficManagerEndpointConfig
 
 	// Cluster is where the endpoint is exported from.
 	// +optional
