@@ -20,13 +20,13 @@ type InternalServiceExportSpec struct {
 	// +kubebuilder:validation:Required
 	ServiceReference ExportedObjectReference `json:"serviceReference"`
 	// Type is the type of the Service in each cluster.
-	Type corev1.ServiceType
+	Type corev1.ServiceType `json:"type,omitempty"`
 	// IsInternalLoadBalancer determines if the Service is an internal load balancer type.
-	IsInternalLoadBalancer bool
+	IsInternalLoadBalancer bool `json:"isInternalLoadBalancer,omitempty"`
 	// IsDNSLabelConfigured determines if the Service has a DNS label configured.
-	IsDNSLabelConfigured bool
+	IsDNSLabelConfigured bool `json:"isDNSLabelConfigured,omitempty"`
 	// ExternalIPResourceID is the Azure Resource URI of external IP. This is only applicable for Load Balancer type Services.
-	ExternalIPResourceID *string
+	ExternalIPResourceID *string `json:"externalIPResourceID,omitempty"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.

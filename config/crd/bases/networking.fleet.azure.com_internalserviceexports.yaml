@@ -47,6 +47,18 @@ spec:
               InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an
               exported Service are sync'd.
             properties:
+              externalIPResourceID:
+                description: ExternalIPResourceID is the Azure Resource URI of external
+                  IP. This is only applicable for Load Balancer type Services.
+                type: string
+              isDNSLabelConfigured:
+                description: IsDNSLabelConfigured determines if the Service has a
+                  DNS label configured.
+                type: boolean
+              isInternalLoadBalancer:
+                description: IsInternalLoadBalancer determines if the Service is an
+                  internal load balancer type.
+                type: boolean
               ports:
                 description: A list of ports exposed by the exported Service.
                 items:
@@ -146,6 +158,9 @@ spec:
                 - uid
                 type: object
                 x-kubernetes-map-type: atomic
+              type:
+                description: Type is the type of the Service in each cluster.
+                type: string
             required:
             - ports
             - serviceReference
