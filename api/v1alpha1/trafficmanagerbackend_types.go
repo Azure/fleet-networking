@@ -5,46 +5,57 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tme
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:JSONPath=`.spec.profile`,name="Profile",type=string
-// +kubebuilder:printcolumn:JSONPath=`.spec.endpointRef.name`,name="Endpoint-Reference",type=string
+// +kubebuilder:printcolumn:JSONPath=`.spec.profile.name`,name="Profile",type=string
+// +kubebuilder:printcolumn:JSONPath=`.spec.profile.namespace`,name="Profile-Namespace",type=string
+// +kubebuilder:printcolumn:JSONPath=`.spec.endpointRef.name`,name="Backend-Reference",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Accepted')].status`,name="Is-Accepted",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
-// TrafficManagerEndpoint is used to manage the Azure Traffic Manager Endpoints using cloud native way.
+// TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way.
 // It could represent a group of endpoints in the multi-cluster scenario.
 // As the result, the controller may create multiple endpoints under the Traffic Manager Profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types
-type TrafficManagerEndpoint struct {
+type TrafficManagerBackend struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// The desired state of TrafficManagerEndpoint.
-	Spec TrafficManagerEndpointSpec `json:"spec"`
+	// The desired state of TrafficManagerBackend.
+	Spec TrafficManagerBackendSpec `json:"spec"`
 
-	// The observed status of TrafficManagerEndpoint.
+	// The observed status of TrafficManagerBackend.
 	// +optional
-	Status TrafficManagerEndpointStatus `json:"status,omitempty"`
+	Status TrafficManagerBackendStatus `json:"status,omitempty"`
 }
 
-type TrafficManagerEndpointSpec struct {
+type TrafficManagerBackendSpec struct {
 	// +required
 	// immutable
-	// The profile should be created in the same namespace as the TrafficManagerEndpoint.
-	Profile *string `json:"profile"`
+	// Which TrafficManagerProfile the backend should be attached to.
+	Profile ProfileRef `json:"profile"`
 
 	// The reference to the endpoint(s).
 	// +required
-	EndpointRef *TrafficManagerEndpointRef `json:"endpointRef"`
+	BackendRef *TrafficManagerBackendRef `json:"backendRef"`
 
 	// +optional
-	// The properties of the endpoint.
+	// The properties of the backend.
 	Properties *TrafficManagerEndpointProperties `json:"properties,omitempty"`
 }
 
-// TrafficManagerEndpointRef is the reference to the endpoint(s).
+// ProfileRef is a reference to a trafficManagerProfile object.
+type ProfileRef struct {
+	// Name is the name of the referenced trafficManagerProfile.
+	Name string `json:"name"`
+	// Namespace is the namespace where the referenced trafficManagerProfile is located.
+	// If the namespace is omitted, it is assumed to be the same namespace as the trafficManagerBackend.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// TrafficManagerBackendRef is the reference to the endpoint(s).
 // In the multi-cluster scenario, it supports ServiceImport as the endpoint reference, representing a group of endpoints.
-type TrafficManagerEndpointRef struct {
+type TrafficManagerBackendRef struct {
 	// Name is the reference to the ServiceImport in the same namespace of Traffic Manager Profile.
 	// +required
 	Name string `json:"name"`
@@ -56,19 +67,6 @@ type TrafficManagerEndpointRef struct {
 // Note: To use Traffic Manager with endpoints from other subscriptions, the controller needs to have read access to
 // the endpoint.
 type TrafficManagerEndpointProperties struct {
-	// If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in the traffic
-	// routing method.
-	// +kubebuilder:default=false
-	// +optional
-	AlwaysServe bool `json:"alwaysServe,omitempty"`
-
-	// List of custom headers.
-	// +optional
-	// +kubebuilder:validation:MaxItems=8
-	// Note: using asterisk characters (*) in custom Host headers is unsupported.
-	// Anything applicable for Http and Https protocol overrides custom header settings in profile configuration.
-	CustomHeaders []CustomHeader `json:"customHeaders,omitempty"`
-
 	// The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
 	// Possible values are from 1 to 1000.
 	// It is required when the routing method is 'Weighted'.
@@ -99,7 +97,7 @@ type AcceptedEndpoint struct {
 	Cluster *ClusterStatus `json:"cluster,omitempty"`
 }
 
-type TrafficManagerEndpointStatus struct {
+type TrafficManagerBackendStatus struct {
 	// Endpoints contains a list of accepted Azure endpoints which are created or updated under the traffic manager Profile.
 	// +optional
 	Endpoints []AcceptedEndpoint `json:"endpoints,omitempty"`
@@ -150,15 +148,15 @@ const (
 
 //+kubebuilder:object:root=true
 
-// TrafficManagerEndpointList contains a list of TrafficManagerEndpoint.
-type TrafficManagerEndpointList struct {
+// TrafficManagerBackendList contains a list of TrafficManagerBackend.
+type TrafficManagerBackendList struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// +listType=set
-	Items []TrafficManagerEndpoint `json:"items"`
+	Items []TrafficManagerBackend `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&TrafficManagerEndpoint{}, &TrafficManagerEndpointList{})
+	SchemeBuilder.Register(&TrafficManagerBackend{}, &TrafficManagerBackendList{})
 }

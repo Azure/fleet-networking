@@ -12,7 +12,7 @@ import (
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Programmed')].status`,name="Is-Programmed",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
-// TrafficManagerProfile is used to manage the Azure Traffic Manager Profile using cloud native way.
+// TrafficManagerProfile is used to manage a simple Azure Traffic Manager Profile using cloud native way.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview
 type TrafficManagerProfile struct {
 	metav1.TypeMeta `json:",inline"`
@@ -29,32 +29,14 @@ type TrafficManagerProfile struct {
 
 // TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile.
 type TrafficManagerProfileSpec struct {
-	// Type of routing method.
-	// +kubebuilder:validation:Enum=Weighted
-	// +kubebuilder:default=Weighted
-	// +optional
-	// immutable
-	RoutingMethod TrafficRoutingMethod `json:"routingMethod,omitempty"`
+	// Representing the Traffic Manager profile properties.
+	Properties TrafficManagerProfileProperties `json:"properties,omitempty"`
+}
 
-	// The DNS settings of the Traffic Manager profile.
-	// +optional
-	DNSConfig *DNSConfig `json:"dnsConfig,omitempty"`
-
+type TrafficManagerProfileProperties struct {
 	// The endpoint monitoring settings of the Traffic Manager profile.
 	// +optional
 	MonitorConfig *MonitorConfig `json:"monitorConfig,omitempty"`
-}
-
-// DNSConfig defines the DNS settings of the Traffic Manager profile.
-type DNSConfig struct {
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=2147483647
-	// +kubebuilder:default=30
-	// Traffic Manager allows you to configure the TTL used in Traffic Manager DNS responses to be as low as 0 seconds
-	// and as high as 2,147,483,647 seconds (the maximum range compliant with RFC-1035), enabling you to choose the value
-	// that best balances the needs of your application.
-	TTL *int64 `json:"ttl,omitempty"`
 }
 
 // MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile.
@@ -99,43 +81,6 @@ type MonitorConfig struct {
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=9
 	ToleratedNumberOfFailures *int64 `json:"toleratedNumberOfFailures,omitempty"`
-
-	// List of custom headers.
-	// +optional
-	// +kubebuilder:validation:MaxItems=8
-	// Note: using asterisk characters (*) in custom Host headers is unsupported.
-	CustomHeaders []CustomHeader `json:"customHeaders,omitempty"`
-
-	// List of expected status code ranges.
-	// +optional
-	// By default the value 200 is defined as the success status code.
-	ExpectedStatusCodeRanges []ExpectedStatusCodeRange `json:"expectedStatusCodeRanges,omitempty"`
-}
-
-// CustomHeader defines custom header name and its value.
-type CustomHeader struct {
-	// Header name.
-	// +required
-	Name *string `json:"name"`
-
-	// Header value.
-	// +required
-	Value *string `json:"value"`
-}
-
-// ExpectedStatusCodeRange defines the expected status code range.
-type ExpectedStatusCodeRange struct {
-	// Max status code.
-	// +kubebuilder:validation:Minimum=100
-	// +kubebuilder:validation:Maximum=599
-	// +required
-	Max *int32 `json:"max"`
-
-	// Min status code.
-	// +kubebuilder:validation:Minimum=100
-	// +kubebuilder:validation:Maximum=599
-	// +required
-	Min *int32 `json:"min"`
 }
 
 // TrafficManagerMonitorProtocol defines the protocol used to probe for endpoint health.
@@ -145,15 +90,6 @@ const (
 	MonitorProtocolHTTP  TrafficManagerMonitorProtocol = "HTTP"
 	MonitorProtocolHTTPS TrafficManagerMonitorProtocol = "HTTPS"
 	MonitorProtocolTCP   TrafficManagerMonitorProtocol = "TCP"
-)
-
-// TrafficRoutingMethod defines the traffic routing method of the Traffic Manager profile.
-type TrafficRoutingMethod string
-
-const (
-	// TrafficRoutingMethodWeighted is selected when you want to distribute traffic across a set of endpoints based on
-	// their weight. Set the weight the same to distribute evenly across all endpoints.
-	TrafficRoutingMethodWeighted TrafficRoutingMethod = "Weighted"
 )
 
 type TrafficManagerProfileStatus struct {
