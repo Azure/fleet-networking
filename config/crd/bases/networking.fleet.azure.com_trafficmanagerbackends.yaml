@@ -26,7 +26,7 @@ spec:
       name: Profile-Namespace
       type: string
     - jsonPath: .spec.endpointRef.name
-      name: Backend-Reference
+      name: Backend
       type: string
     - jsonPath: .status.conditions[?(@.type=='Accepted')].status
       name: Is-Accepted
@@ -39,8 +39,8 @@ spec:
       openAPIV3Schema:
         description: |-
           TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way.
-          It could represent a group of endpoints in the multi-cluster scenario.
-          As the result, the controller may create multiple endpoints under the Traffic Manager Profile.
+          A backend contains one more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
+          Manager Profile.
           https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types
         properties:
           apiVersion:
@@ -63,12 +63,12 @@ spec:
           spec:
             description: The desired state of TrafficManagerBackend.
             properties:
-              backendRef:
-                description: The reference to the endpoint(s).
+              backend:
+                description: The reference to a backend.
                 properties:
                   name:
                     description: Name is the reference to the ServiceImport in the
-                      same namespace of Traffic Manager Profile.
+                      same namespace as this TrafficManagerBackend object.
                     type: string
                 required:
                 - name
@@ -83,34 +83,25 @@ spec:
                     type: string
                   namespace:
                     description: |-
-                      Namespace is the namespace where the referenced trafficManagerProfile is located.
-                      If the namespace is omitted, it is assumed to be the same namespace as the trafficManagerBackend.
+                      Namespace is the namespace where the referenced TrafficManagerProfile is located.
+                      If the namespace is omitted, it is assumed to be the same namespace as the TrafficManagerBackend.
                     type: string
                 required:
                 - name
                 type: object
-              properties:
-                description: The properties of the backend.
-                properties:
-                  target:
-                    description: |-
-                      The fully-qualified DNS name or IP address of the endpoint.
-                      READ-ONLY; populated in the status.
-                    type: string
-                  weight:
-                    description: |-
-                      The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
-                      Possible values are from 1 to 1000.
-                      It is required when the routing method is 'Weighted'.
-                      For example, if there are two clusters exporting the service via public ip, each public ip will be configured
-                      as "Weight"/2.
-                    format: int64
-                    maximum: 1000
-                    minimum: 1
-                    type: integer
-                type: object
+              weight:
+                description: |-
+                  The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
+                  Possible values are from 1 to 1000.
+                  It is required when the routing method is 'Weighted'.
+                  For example, if there are two clusters exporting the service via public ip, each public ip will be configured
+                  as "Weight"/2.
+                format: int64
+                maximum: 1000
+                minimum: 1
+                type: integer
             required:
-            - backendRef
+            - backend
             - profile
             type: object
           status:
@@ -193,8 +184,9 @@ spec:
                 description: Endpoints contains a list of accepted Azure endpoints
                   which are created or updated under the traffic manager Profile.
                 items:
-                  description: AcceptedEndpoint is the Azure Traffic Manager endpoint
-                    which is successfully accepted under the traffic manager Profile.
+                  description: |-
+                    TrafficManagerEndpointStatus is the status of Azure Traffic Manager endpoint which is successfully accepted under the traffic
+                    manager Profile.
                   properties:
                     cluster:
                       description: Cluster is where the endpoint is exported from.
@@ -207,34 +199,18 @@ spec:
                       - cluster
                       type: object
                     name:
-                      description: Name is a unique Azure Traffic Manager endpoint
-                        name generated by the controller.
+                      description: Name of the endpoint.
                       type: string
-                    properties:
+                    target:
+                      description: The fully-qualified DNS name or IP address of the
+                        endpoint.
+                      type: string
+                    weight:
                       description: |-
-                        TrafficManagerEndpointProperties defines the properties of the Traffic Manager endpoint.
-                        For now, only AzureEndpoints are supported.
-                        It assumes the service is exposed via PublicIPAddress in Azure and must have a DNS name assigned.
-                        Note: To use Traffic Manager with endpoints from other subscriptions, the controller needs to have read access to
-                        the endpoint.
-                      properties:
-                        target:
-                          description: |-
-                            The fully-qualified DNS name or IP address of the endpoint.
-                            READ-ONLY; populated in the status.
-                          type: string
-                        weight:
-                          description: |-
-                            The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
-                            Possible values are from 1 to 1000.
-                            It is required when the routing method is 'Weighted'.
-                            For example, if there are two clusters exporting the service via public ip, each public ip will be configured
-                            as "Weight"/2.
-                          format: int64
-                          maximum: 1000
-                          minimum: 1
-                          type: integer
-                      type: object
+                        The weight of this endpoint when using the 'Weighted' traffic routing method.
+                        Possible values are from 1 to 1000.
+                      format: int64
+                      type: integer
                   required:
                   - name
                   type: object

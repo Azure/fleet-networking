@@ -19,9 +19,6 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.routingMethod
-      name: Routing-Method
-      type: string
     - jsonPath: .status.dnsName
       name: DNS-Name
       type: string
@@ -58,60 +55,129 @@ spec:
           spec:
             description: The desired state of TrafficManagerProfile.
             properties:
-              properties:
-                description: Representing the Traffic Manager profile properties.
+              monitorConfig:
+                description: The endpoint monitoring settings of the Traffic Manager
+                  profile.
                 properties:
-                  monitorConfig:
-                    description: The endpoint monitoring settings of the Traffic Manager
-                      profile.
+                  intervalInSeconds:
+                    default: 30
+                    description: |-
+                      The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health
+                      of each endpoint in this profile.
+                      You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).
+                    format: int64
+                    type: integer
+                  path:
+                    default: /
+                    description: The path relative to the endpoint domain name used
+                      to probe for endpoint health.
+                    type: string
+                  port:
+                    default: 80
+                    description: The TCP port used to probe for endpoint health.
+                    format: int64
+                    type: integer
+                  protocol:
+                    default: HTTP
+                    description: The protocol (HTTP, HTTPS or TCP) used to probe for
+                      endpoint health.
+                    enum:
+                    - HTTP
+                    - HTTPS
+                    - TCP
+                    type: string
+                  timeoutInSeconds:
+                    description: |-
+                      The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
+                      to response to the health check.
+                      * If the IntervalInSeconds is set to 30 seconds, then you can set the Timeout value between 5 and 10 seconds.
+                        If no value is specified, it uses a default value of 10 seconds.
+                      * If the IntervalInSeconds is set to 10 seconds, then you can set the Timeout value between 5 and 9 seconds.
+                        If no Timeout value is specified, it uses a default value of 9 seconds.
+                    format: int64
+                    type: integer
+                  toleratedNumberOfFailures:
+                    default: 3
+                    description: |-
+                      The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile
+                      Degraded after the next failed health check.
+                    format: int64
+                    maximum: 9
+                    minimum: 0
+                    type: integer
+                type: object
+              namespaces:
+                default:
+                  from: Same
+                description: |-
+                  Namespaces indicates namespaces from which TrafficManagerBackend may be attached to this
+                  Profile. This is restricted to the namespace of this Profile by default.
+                properties:
+                  from:
+                    default: Same
+                    description: |-
+                      From indicates where TrafficManagerBackend will be selected for this Profile. Possible
+                      values are:
+
+
+                      * All: TrafficManagerBackends in all namespaces may be used by this Profile.
+                      * Selector: TrafficManagerBackends in namespaces selected by the selector may be used by
+                        this Profile.
+                      * Same: Only TrafficManagerBackends in the same namespace may be used by this Profile.
+                    enum:
+                    - All
+                    - Selector
+                    - Same
+                    type: string
+                  selector:
+                    description: |-
+                      Selector must be specified when From is set to "Selector". In that case,
+                      only TrafficManagerBackends in Namespaces matching this Selector will be selected by this
+                      Profile. This field is ignored for other values of "From".
                     properties:
-                      intervalInSeconds:
-                        default: 30
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
                         description: |-
-                          The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health
-                          of each endpoint in this profile.
-                          You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).
-                        format: int64
-                        type: integer
-                      path:
-                        default: /
-                        description: The path relative to the endpoint domain name
-                          used to probe for endpoint health.
-                        type: string
-                      port:
-                        default: 80
-                        description: The TCP port used to probe for endpoint health.
-                        format: int64
-                        type: integer
-                      protocol:
-                        default: HTTP
-                        description: The protocol (HTTP, HTTPS or TCP) used to probe
-                          for endpoint health.
-                        enum:
-                        - HTTP
-                        - HTTPS
-                        - TCP
-                        type: string
-                      timeoutInSeconds:
-                        description: |-
-                          The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
-                          to response to the health check.
-                          * If the IntervalInSeconds is set to 30 seconds, then you can set the Timeout value between 5 and 10 seconds.
-                            If no value is specified, it uses a default value of 10 seconds.
-                          * If the IntervalInSeconds is set to 10 seconds, then you can set the Timeout value between 5 and 9 seconds.
-                            If no Timeout value is specified, it uses a default value of 9 seconds.
-                        format: int64
-                        type: integer
-                      toleratedNumberOfFailures:
-                        default: 3
-                        description: |-
-                          The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile
-                          Degraded after the next failed health check.
-                        format: int64
-                        maximum: 9
-                        minimum: 0
-                        type: integer
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
                     type: object
+                    x-kubernetes-map-type: atomic
                 type: object
             type: object
           status:
@@ -193,7 +259,7 @@ spec:
               dnsName:
                 description: |-
                   DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile.
-                  For example, azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net
+                  For example, "azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net"
                 type: string
             type: object
         required:

@@ -52,8 +52,13 @@ spec:
                   IP. This is only applicable for Load Balancer type Services.
                 type: string
               isDNSLabelConfigured:
-                description: IsDNSLabelConfigured determines if the Service has a
-                  DNS label configured.
+                description: |-
+                  IsDNSLabelConfigured determines if the Service has a DNS label configured.
+                  A valid "service.beta.kubernetes.io/azure-dns-label-name" should be configured when the public IP address of the
+                  Service is configured as an Azure Traffic Manager endpoint.
+                  Reference link:
+                  * https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+                  * https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types#azure-endpoints
                 type: boolean
               isInternalLoadBalancer:
                 description: IsInternalLoadBalancer determines if the Service is an

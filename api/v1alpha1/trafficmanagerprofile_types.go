@@ -7,7 +7,6 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tmp
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:JSONPath=`.spec.routingMethod`,name="Routing-Method",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.dnsName`,name="DNS-Name",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Programmed')].status`,name="Is-Programmed",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
@@ -29,15 +28,52 @@ type TrafficManagerProfile struct {
 
 // TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile.
 type TrafficManagerProfileSpec struct {
-	// Representing the Traffic Manager profile properties.
-	Properties TrafficManagerProfileProperties `json:"properties,omitempty"`
-}
-
-type TrafficManagerProfileProperties struct {
 	// The endpoint monitoring settings of the Traffic Manager profile.
 	// +optional
 	MonitorConfig *MonitorConfig `json:"monitorConfig,omitempty"`
+
+	// Namespaces indicates namespaces from which TrafficManagerBackend may be attached to this
+	// Profile. This is restricted to the namespace of this Profile by default.
+	// +optional
+	// +kubebuilder:default={from: Same}
+	Namespaces *BackendNamespaces `json:"namespaces,omitempty"`
 }
+
+// BackendNamespaces indicate which namespaces TrafficManagerBackend should be selected from.
+type BackendNamespaces struct {
+	// From indicates where TrafficManagerBackend will be selected for this Profile. Possible
+	// values are:
+	//
+	// * All: TrafficManagerBackends in all namespaces may be used by this Profile.
+	// * Selector: TrafficManagerBackends in namespaces selected by the selector may be used by
+	//   this Profile.
+	// * Same: Only TrafficManagerBackends in the same namespace may be used by this Profile.
+	// +optional
+	// +kubebuilder:default=Same
+	From *FromNamespaces `json:"from,omitempty"`
+
+	// Selector must be specified when From is set to "Selector". In that case,
+	// only TrafficManagerBackends in Namespaces matching this Selector will be selected by this
+	// Profile. This field is ignored for other values of "From".
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+}
+
+// FromNamespaces specifies namespace from which TrafficManagerBackend may be attached to a Profile.
+//
+// +kubebuilder:validation:Enum=All;Selector;Same
+type FromNamespaces string
+
+const (
+	// NamespacesFromAll defines TrafficManagerBackends in all namespaces may be attached to this Profile.
+	NamespacesFromAll FromNamespaces = "All"
+	// NamespacesFromSelector defines that only TrafficManagerBackends in namespaces selected by the selector may be
+	// attached to this Profile.
+	NamespacesFromSelector FromNamespaces = "Selector"
+	// NamespacesFromSame defines that only TrafficManagerBackends in the same namespace as the Profile may be attached
+	// to this Profile.
+	NamespacesFromSame FromNamespaces = "Same"
+)
 
 // MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-monitoring
@@ -94,7 +130,7 @@ const (
 
 type TrafficManagerProfileStatus struct {
 	// DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile.
-	// For example, azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net
+	// For example, "azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net"
 	// +optional
 	DNSName *string `json:"dnsName,omitempty"`
 

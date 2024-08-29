@@ -21,10 +21,15 @@ type InternalServiceExportSpec struct {
 	ServiceReference ExportedObjectReference `json:"serviceReference"`
 	// Type is the type of the Service in each cluster.
 	Type corev1.ServiceType `json:"type,omitempty"`
+	// IsDNSLabelConfigured determines if the Service has a DNS label configured.
+	// A valid "service.beta.kubernetes.io/azure-dns-label-name" should be configured when the public IP address of the
+	// Service is configured as an Azure Traffic Manager endpoint.
+	// Reference link:
+	// * https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+	// * https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types#azure-endpoints
+	IsDNSLabelConfigured bool `json:"isDNSLabelConfigured,omitempty"`
 	// IsInternalLoadBalancer determines if the Service is an internal load balancer type.
 	IsInternalLoadBalancer bool `json:"isInternalLoadBalancer,omitempty"`
-	// IsDNSLabelConfigured determines if the Service has a DNS label configured.
-	IsDNSLabelConfigured bool `json:"isDNSLabelConfigured,omitempty"`
 	// ExternalIPResourceID is the Azure Resource URI of external IP. This is only applicable for Load Balancer type Services.
 	ExternalIPResourceID *string `json:"externalIPResourceID,omitempty"`
 }
