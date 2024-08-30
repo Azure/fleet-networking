@@ -81,11 +81,6 @@ spec:
                   name:
                     description: Name is the name of the referenced trafficManagerProfile.
                     type: string
-                  namespace:
-                    description: |-
-                      Namespace is the namespace where the referenced TrafficManagerProfile is located.
-                      If the namespace is omitted, it is assumed to be the same namespace as the TrafficManagerBackend.
-                    type: string
                 required:
                 - name
                 type: object

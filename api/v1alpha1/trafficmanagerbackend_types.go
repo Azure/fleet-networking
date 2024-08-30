@@ -49,12 +49,8 @@ type TrafficManagerBackendSpec struct {
 	Weight *int64 `json:"weight,omitempty"`
 }
 
-// ProfileRef is a reference to a trafficManagerProfile object.
+// ProfileRef is a reference to a trafficManagerProfile object in the same namespace as this TrafficManagerBackend object.
 type ProfileRef struct {
-	// Namespace is the namespace where the referenced TrafficManagerProfile is located.
-	// If the namespace is omitted, it is assumed to be the same namespace as the TrafficManagerBackend.
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
 	// Name is the name of the referenced trafficManagerProfile.
 	Name string `json:"name"`
 }
