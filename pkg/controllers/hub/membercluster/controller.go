@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
@@ -19,6 +20,8 @@ import (
 type Reconciler struct {
 	client.Client
 	Recorder record.EventRecorder
+	// the wait time in minutes before we force delete a member cluster.
+	ForceDeleteWaitTime time.Duration
 }
 
 // Reconcile handles the deletion of the member cluster and garbage collects all the resources in the cluster namespace.
@@ -39,17 +42,87 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to get memberCluster", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
-	// Handle deleting/leaving member cluster, garbage collect all the resources in the cluster namespace.
-	if !mc.DeletionTimestamp.IsZero() {
+	// Handle deleting/leaving member cluster, garbage collect all the resources in the cluster namespace
+	// after member cluster force delete wait time.
+	if !mc.DeletionTimestamp.IsZero() && time.Since(mc.DeletionTimestamp.Time) >= r.ForceDeleteWaitTime {
 		klog.V(2).InfoS("The member cluster is leaving", "memberCluster", mcObjRef)
-		return r.handleDelete(ctx, mc.DeepCopy())
+		return r.garbageCollect(ctx, mc.DeepCopy())
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: r.ForceDeleteWaitTime}, nil
 }
 
-func (r *Reconciler) handleDelete(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
+func (r *Reconciler) garbageCollect(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
 	// Garbage collect all the resources in the cluster namespace.
+	mcObjRef := klog.KRef(mc.Namespace, mc.Name)
+	var endpointSliceImportList fleetnetv1alpha1.EndpointSliceImportList
+	err := r.Client.List(ctx, &endpointSliceImportList, client.InNamespace(mc.Namespace))
+	if err != nil {
+		klog.ErrorS(err, "Failed to list endpointSliceImports", "memberCluster", mcObjRef)
+		return ctrl.Result{}, err
+	}
+	if len(endpointSliceImportList.Items) > 0 {
+		klog.V(2).InfoS("Remove finalizers for endpointSliceImports", "memberCluster", mcObjRef)
+		for i := range endpointSliceImportList.Items {
+			esi := &endpointSliceImportList.Items[i]
+			esi.SetFinalizers(nil)
+			if err := r.Client.Update(ctx, esi); err != nil {
+				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", klog.KRef(esi.Namespace, esi.Name))
+				return ctrl.Result{}, err
+			}
+		}
+	}
+	var endpointSliceExportList fleetnetv1alpha1.EndpointSliceExportList
+	err = r.Client.List(ctx, &endpointSliceExportList, client.InNamespace(mc.Namespace))
+	if err != nil {
+		klog.ErrorS(err, "Failed to list endpointSliceExports", "memberCluster", mcObjRef)
+		return ctrl.Result{}, err
+	}
+	if len(endpointSliceExportList.Items) > 0 {
+		klog.V(2).InfoS("Remove finalizers for endpointSliceExports", "memberCluster", mcObjRef)
+		for i := range endpointSliceExportList.Items {
+			ese := &endpointSliceExportList.Items[i]
+			ese.SetFinalizers(nil)
+			if err := r.Client.Update(ctx, ese); err != nil {
+				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceExport", "memberCluster", mcObjRef, "endpointSliceExport", klog.KRef(ese.Namespace, ese.Name))
+				return ctrl.Result{}, err
+			}
+		}
+	}
+	var internalServiceImportList fleetnetv1alpha1.InternalServiceImportList
+	err = r.Client.List(ctx, &internalServiceImportList, client.InNamespace(mc.Namespace))
+	if err != nil {
+		klog.ErrorS(err, "Failed to list internalServiceImports", "memberCluster", mcObjRef)
+		return ctrl.Result{}, err
+	}
+	if len(internalServiceImportList.Items) > 0 {
+		klog.V(2).InfoS("Remove finalizers for internalServiceImports", "memberCluster", mcObjRef)
+		for i := range internalServiceImportList.Items {
+			isi := &internalServiceImportList.Items[i]
+			isi.SetFinalizers(nil)
+			if err := r.Client.Update(ctx, isi); err != nil {
+				klog.ErrorS(err, "Failed to remove finalizers for internalServiceImport", "memberCluster", mcObjRef, "internalServiceImport", klog.KRef(isi.Namespace, isi.Name))
+				return ctrl.Result{}, err
+			}
+		}
+	}
+	var internalServiceExportList fleetnetv1alpha1.InternalServiceExportList
+	err = r.Client.List(ctx, &internalServiceExportList, client.InNamespace(mc.Namespace))
+	if err != nil {
+		klog.ErrorS(err, "Failed to list internalServiceExports", "memberCluster", mcObjRef)
+		return ctrl.Result{}, err
+	}
+	if len(internalServiceExportList.Items) > 0 {
+		klog.V(2).InfoS("Remove finalizers for internalServiceExports", "memberCluster", mcObjRef)
+		for i := range internalServiceExportList.Items {
+			ise := &internalServiceExportList.Items[i]
+			ise.SetFinalizers(nil)
+			if err := r.Client.Update(ctx, ise); err != nil {
+				klog.ErrorS(err, "Failed to remove finalizers for internalServiceExport", "memberCluster", mcObjRef, "internalServiceExport", klog.KRef(ise.Namespace, ise.Name))
+				return ctrl.Result{}, err
+			}
+		}
+	}
 	return ctrl.Result{}, nil
 }
 
