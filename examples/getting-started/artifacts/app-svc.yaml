@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: python
-          image: $REGISTRY/app
+          image: arvindacr.azurecr.io/app
           imagePullPolicy: Always
           ports:
           - containerPort: 8080
