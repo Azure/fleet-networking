@@ -27,6 +27,7 @@ type TrafficManagerProfile struct {
 }
 
 // TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile.
+// For now, only the "Weighted" traffic routing method is supported.
 type TrafficManagerProfileSpec struct {
 	// The endpoint monitoring settings of the Traffic Manager profile.
 	// +optional
