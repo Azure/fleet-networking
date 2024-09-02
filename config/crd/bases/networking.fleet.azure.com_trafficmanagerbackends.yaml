@@ -64,7 +64,9 @@ spec:
             description: The desired state of TrafficManagerBackend.
             properties:
               backend:
-                description: The reference to a backend.
+                description: |-
+                  The reference to a backend.
+                  immutable
                 properties:
                   name:
                     description: Name is the reference to the ServiceImport in the

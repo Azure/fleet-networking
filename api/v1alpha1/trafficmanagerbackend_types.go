@@ -35,6 +35,7 @@ type TrafficManagerBackendSpec struct {
 	Profile ProfileRef `json:"profile"`
 
 	// The reference to a backend.
+	// immutable
 	// +required
 	Backend TrafficManagerBackendRef `json:"backend"`
 
