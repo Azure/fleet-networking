@@ -41,7 +41,7 @@ roleRef:
   name: fleet-networking-controller
 subjects:
   - kind: User
-    name: bc9fc035-bad2-442e-8ce9-44b544100f05
+    name: 96ed43af-4a7f-49ae-92bf-9201b5e4fce9
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -86,4 +86,4 @@ roleRef:
   name: fleet-networking-controller
 subjects:
   - kind: User
-    name: a3ddd76a-bef6-438b-a52c-d785ea813718
+    name: 9953fcdd-da5c-41b9-ac5c-abd41f4bf16e

@@ -2,6 +2,7 @@ package membercluster
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +17,14 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
+var (
+	fleetMemberNamespace = "fleet-member-%s"
+)
+
+const (
+	ControllerName = "membercluster-controller"
+)
+
 // Reconciler reconciles a MemberCluster object.
 type Reconciler struct {
 	client.Client
@@ -24,7 +33,8 @@ type Reconciler struct {
 	ForceDeleteWaitTime time.Duration
 }
 
-// Reconcile handles the deletion of the member cluster and garbage collects all the resources in the cluster namespace.
+// Reconcile handles the deletion of the member cluster and removes finalizers on all the fleet networking resources
+// in the cluster namespace.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	mcObjRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
@@ -55,8 +65,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) garbageCollect(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
 	// Garbage collect all the resources in the cluster namespace.
 	mcObjRef := klog.KRef(mc.Namespace, mc.Name)
+	mcNamespace := fmt.Sprintf(fleetMemberNamespace, mc.Name)
 	var endpointSliceImportList fleetnetv1alpha1.EndpointSliceImportList
-	err := r.Client.List(ctx, &endpointSliceImportList, client.InNamespace(mc.Namespace))
+	err := r.Client.List(ctx, &endpointSliceImportList, client.InNamespace(mcNamespace))
 	if err != nil {
 		klog.ErrorS(err, "Failed to list endpointSliceImports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
@@ -73,7 +84,7 @@ func (r *Reconciler) garbageCollect(ctx context.Context, mc *clusterv1beta1.Memb
 		}
 	}
 	var endpointSliceExportList fleetnetv1alpha1.EndpointSliceExportList
-	err = r.Client.List(ctx, &endpointSliceExportList, client.InNamespace(mc.Namespace))
+	err = r.Client.List(ctx, &endpointSliceExportList, client.InNamespace(mcNamespace))
 	if err != nil {
 		klog.ErrorS(err, "Failed to list endpointSliceExports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
@@ -90,7 +101,7 @@ func (r *Reconciler) garbageCollect(ctx context.Context, mc *clusterv1beta1.Memb
 		}
 	}
 	var internalServiceImportList fleetnetv1alpha1.InternalServiceImportList
-	err = r.Client.List(ctx, &internalServiceImportList, client.InNamespace(mc.Namespace))
+	err = r.Client.List(ctx, &internalServiceImportList, client.InNamespace(mcNamespace))
 	if err != nil {
 		klog.ErrorS(err, "Failed to list internalServiceImports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
@@ -107,7 +118,7 @@ func (r *Reconciler) garbageCollect(ctx context.Context, mc *clusterv1beta1.Memb
 		}
 	}
 	var internalServiceExportList fleetnetv1alpha1.InternalServiceExportList
-	err = r.Client.List(ctx, &internalServiceExportList, client.InNamespace(mc.Namespace))
+	err = r.Client.List(ctx, &internalServiceExportList, client.InNamespace(mcNamespace))
 	if err != nil {
 		klog.ErrorS(err, "Failed to list internalServiceExports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err

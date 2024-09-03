@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: python
-          image: arvindacr.azurecr.io/app
+          image: arvindtestacr.azurecr.io/app
           imagePullPolicy: Always
           ports:
           - containerPort: 8080

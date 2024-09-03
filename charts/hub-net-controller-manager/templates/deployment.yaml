@@ -28,6 +28,7 @@ spec:
             - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --v={{ .Values.logVerbosity }}
             - --add_dir_header
+            - --force-delete-wait-time={{ .Values.forceDeleteWaitTime }}
           ports:
           - name: metrics
             containerPort: 8080
