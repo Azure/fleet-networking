@@ -147,10 +147,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			// trigger reconcile on delete event just in case, if update event is missed.
 			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			// Ignore update events.
+			// If new object is being deleted, trigger reconcile.
+			if e.ObjectNew.GetDeletionTimestamp() != nil {
+				return true
+			}
 			return false
 		},
 	}
