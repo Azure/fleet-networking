@@ -99,16 +99,15 @@ type TrafficManagerBackendStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
-// TrafficManagerEndpointConditionType is a type of condition associated with a TrafficManagerEndpointStatus. This type
-// should be used with the TrafficManagerEndpointStatus.Conditions field.
-type TrafficManagerEndpointConditionType string
+// TrafficManagerBackendConditionType is a type of condition associated with a TrafficManagerBackendStatus. This type
+// should be used with the TrafficManagerBackendStatus.Conditions field.
+type TrafficManagerBackendConditionType string
 
-// TrafficManagerEndpointConditionReason defines the set of reasons that explain why a
-// particular endpoints condition type has been raised.
-type TrafficManagerEndpointConditionReason string
+// TrafficManagerBackendConditionReason defines the set of reasons that explain why a particular backend has been raised.
+type TrafficManagerBackendConditionReason string
 
 const (
-	// EndpointConditionAccepted condition indicates whether endpoints have been created or updated for the profile.
+	// TrafficManagerBackendConditionAccepted condition indicates whether endpoints have been created or updated for the profile.
 	// This does not indicate whether or not the configuration has been propagated to the data plane.
 	//
 	// Possible reasons for this condition to be True are:
@@ -119,19 +118,19 @@ const (
 	//
 	// * "Invalid"
 	// * "Pending"
-	EndpointConditionAccepted TrafficManagerEndpointConditionReason = "Accepted"
+	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionReason = "Accepted"
 
-	// EndpointReasonAccepted is used with the "Accepted" condition when the condition is True.
-	EndpointReasonAccepted TrafficManagerEndpointConditionReason = "Accepted"
+	// TrafficManagerBackendReasonAccepted is used with the "Accepted" condition when the condition is True.
+	TrafficManagerBackendReasonAccepted TrafficManagerBackendConditionReason = "Accepted"
 
-	// EndpointReasonInvalid is used with the "Accepted" condition when one or
+	// TrafficManagerBackendReasonInvalid is used with the "Accepted" condition when one or
 	// more endpoint references have an invalid or unsupported configuration
 	// and cannot be configured on the Profile with more detail in the message.
-	EndpointReasonInvalid TrafficManagerEndpointConditionReason = "Invalid"
+	TrafficManagerBackendReasonInvalid TrafficManagerBackendConditionReason = "Invalid"
 
-	// EndpointReasonPending is used with the "Accepted" when creating or updating endpoint hits an internal error with
+	// TrafficManagerBackendReasonPending is used with the "Accepted" when creating or updating endpoint hits an internal error with
 	// more detail in the message and the controller will keep retry.
-	EndpointReasonPending TrafficManagerEndpointConditionReason = "Pending"
+	TrafficManagerBackendReasonPending TrafficManagerBackendConditionReason = "Pending"
 )
 
 //+kubebuilder:object:root=true

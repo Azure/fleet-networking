@@ -112,7 +112,7 @@ type TrafficManagerProfileConditionType string
 type TrafficManagerProfileConditionReason string
 
 const (
-	// ProfileConditionProgrammed condition indicates whether a profile has been generated that is assumed to be ready
+	// TrafficManagerProfileConditionProgrammed condition indicates whether a profile has been generated that is assumed to be ready
 	// soon in the underlying data plane. This does not indicate whether or not the configuration has been propagated
 	// to the data plane.
 	//
@@ -128,20 +128,20 @@ const (
 	// * "Invalid"
 	// * "AddressNotUsable"
 	// * "Pending"
-	ProfileConditionProgrammed TrafficManagerProfileConditionType = "Programmed"
+	TrafficManagerProfileConditionProgrammed TrafficManagerProfileConditionType = "Programmed"
 
-	// ProfileReasonProgrammed is used with the "Programmed" condition when the condition is true.
-	ProfileReasonProgrammed TrafficManagerProfileConditionReason = "Programmed"
+	// TrafficManagerProfileReasonProgrammed is used with the "Programmed" condition when the condition is true.
+	TrafficManagerProfileReasonProgrammed TrafficManagerProfileConditionReason = "Programmed"
 
-	// ProfileReasonInvalid is used with the "Programmed" when the profile is syntactically or semantically invalid.
-	ProfileReasonInvalid TrafficManagerProfileConditionReason = "Invalid"
+	// TrafficManagerProfileReasonInvalid is used with the "Programmed" when the profile is syntactically or semantically invalid.
+	TrafficManagerProfileReasonInvalid TrafficManagerProfileConditionReason = "Invalid"
 
-	// ProfileReasonAddressNotUsable is used with the "Programmed" condition when the generated DNS name is not usable.
-	ProfileReasonAddressNotUsable TrafficManagerProfileConditionReason = "AddressNotUsable"
+	// TrafficManagerProfileReasonAddressNotUsable is used with the "Programmed" condition when the generated DNS name is not usable.
+	TrafficManagerProfileReasonAddressNotUsable TrafficManagerProfileConditionReason = "AddressNotUsable"
 
-	// ProfileReasonPending is used with the "Programmed" when creating or updating the profile hits an internal error
+	// TrafficManagerProfileReasonPending is used with the "Programmed" when creating or updating the profile hits an internal error
 	// with more detail in the message and the controller will keep retry.
-	ProfileReasonPending TrafficManagerProfileConditionReason = "Pending"
+	TrafficManagerProfileReasonPending TrafficManagerProfileConditionReason = "Pending"
 )
 
 //+kubebuilder:object:root=true
