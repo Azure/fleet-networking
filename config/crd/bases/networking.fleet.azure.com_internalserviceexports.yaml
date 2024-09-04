@@ -48,7 +48,7 @@ spec:
               exported Service are sync'd.
             properties:
               externalIPResourceID:
-                description: ExternalIPResourceID is the Azure Resource URI of external
+                description: PublicIPResourceID is the Azure Resource URI of public
                   IP. This is only applicable for Load Balancer type Services.
                 type: string
               isDNSLabelConfigured:

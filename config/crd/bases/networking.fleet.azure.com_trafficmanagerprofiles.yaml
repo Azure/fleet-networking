@@ -60,7 +60,6 @@ spec:
                   profile.
                 properties:
                   intervalInSeconds:
-                    default: 30
                     description: |-
                       The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health
                       of each endpoint in this profile.
@@ -68,17 +67,14 @@ spec:
                     format: int64
                     type: integer
                   path:
-                    default: /
                     description: The path relative to the endpoint domain name used
                       to probe for endpoint health.
                     type: string
                   port:
-                    default: 80
                     description: The TCP port used to probe for endpoint health.
                     format: int64
                     type: integer
                   protocol:
-                    default: HTTP
                     description: The protocol (HTTP, HTTPS or TCP) used to probe for
                       endpoint health.
                     enum:
@@ -97,7 +93,6 @@ spec:
                     format: int64
                     type: integer
                   toleratedNumberOfFailures:
-                    default: 3
                     description: |-
                       The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile
                       Degraded after the next failed health check.
@@ -111,7 +106,7 @@ spec:
             description: The observed status of TrafficManagerProfile.
             properties:
               conditions:
-                description: Current service state
+                description: Current profile state
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for
@@ -186,7 +181,9 @@ spec:
               dnsName:
                 description: |-
                   DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile.
-                  For example, "azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net"
+                  It consists of profile name and the DNS domain name used by Azure Traffic Manager to form the fully-qualified
+                  domain name (FQDN) of the profile.
+                  For example, "<TrafficManagerProfileName>.trafficmanager.net"
                 type: string
             type: object
         required:

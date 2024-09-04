@@ -41,22 +41,18 @@ type MonitorConfig struct {
 	// of each endpoint in this profile.
 	// You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).
 	// +optional
-	// +kubebuilder:default=30
 	IntervalInSeconds *int64 `json:"intervalInSeconds,omitempty"`
 
 	// The path relative to the endpoint domain name used to probe for endpoint health.
 	// +optional
-	// +kubebuilder:default="/"
 	Path *string `json:"path,omitempty"`
 
 	// The TCP port used to probe for endpoint health.
 	// +optional
-	// +kubebuilder:default=80
 	Port *int64 `json:"port,omitempty"`
 
 	// The protocol (HTTP, HTTPS or TCP) used to probe for endpoint health.
 	// +kubebuilder:validation:Enum=HTTP;HTTPS;TCP
-	// +kubebuilder:default=HTTP
 	// +optional
 	Protocol *TrafficManagerMonitorProtocol `json:"protocol,omitempty"`
 
@@ -72,7 +68,6 @@ type MonitorConfig struct {
 	// The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile
 	// Degraded after the next failed health check.
 	// +optional
-	// +kubebuilder:default=3
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=9
 	ToleratedNumberOfFailures *int64 `json:"toleratedNumberOfFailures,omitempty"`
@@ -89,11 +84,13 @@ const (
 
 type TrafficManagerProfileStatus struct {
 	// DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile.
-	// For example, "azuresdkfornetautoresttrafficmanager3880.tmpreview.watmtest.azure-test.net"
+	// It consists of profile name and the DNS domain name used by Azure Traffic Manager to form the fully-qualified
+	// domain name (FQDN) of the profile.
+	// For example, "<TrafficManagerProfileName>.trafficmanager.net"
 	// +optional
 	DNSName *string `json:"dnsName,omitempty"`
 
-	// Current service state
+	// Current profile state
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -136,8 +133,8 @@ const (
 	// TrafficManagerProfileReasonInvalid is used with the "Programmed" when the profile is syntactically or semantically invalid.
 	TrafficManagerProfileReasonInvalid TrafficManagerProfileConditionReason = "Invalid"
 
-	// TrafficManagerProfileReasonAddressNotUsable is used with the "Programmed" condition when the generated DNS name is not usable.
-	TrafficManagerProfileReasonAddressNotUsable TrafficManagerProfileConditionReason = "AddressNotUsable"
+	// TrafficManagerProfileReasonDNSNameNotAvailable is used with the "Programmed" condition when the generated DNS name is not available.
+	TrafficManagerProfileReasonDNSNameNotAvailable TrafficManagerProfileConditionReason = "DNSNameNotAvailable"
 
 	// TrafficManagerProfileReasonPending is used with the "Programmed" when creating or updating the profile hits an internal error
 	// with more detail in the message and the controller will keep retry.

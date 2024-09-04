@@ -284,8 +284,8 @@ func (in *InternalServiceExportSpec) DeepCopyInto(out *InternalServiceExportSpec
 		}
 	}
 	in.ServiceReference.DeepCopyInto(&out.ServiceReference)
-	if in.ExternalIPResourceID != nil {
-		in, out := &in.ExternalIPResourceID, &out.ExternalIPResourceID
+	if in.PublicIPResourceID != nil {
+		in, out := &in.PublicIPResourceID, &out.PublicIPResourceID
 		*out = new(string)
 		**out = **in
 	}

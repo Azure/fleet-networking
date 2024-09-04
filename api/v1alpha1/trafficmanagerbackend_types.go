@@ -90,7 +90,7 @@ type TrafficManagerBackendStatus struct {
 	// +optional
 	Endpoints []TrafficManagerEndpointStatus `json:"endpoints,omitempty"`
 
-	// Current service state
+	// Current backend state
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge

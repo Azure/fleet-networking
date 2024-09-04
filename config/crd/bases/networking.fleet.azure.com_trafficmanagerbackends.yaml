@@ -105,7 +105,7 @@ spec:
             description: The observed status of TrafficManagerBackend.
             properties:
               conditions:
-                description: Current service state
+                description: Current backend state
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for
