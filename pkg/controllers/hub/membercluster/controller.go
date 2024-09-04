@@ -63,7 +63,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // removeFinalizer removes finalizers on the resources in the cluster namespace.
-// For EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers
+// for EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers
 // are removed by other hub networking controllers on delete.
 func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
 	// Remove finalizer for EndpointSliceImport resources in the cluster namespace.
