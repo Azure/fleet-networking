@@ -1,23 +1,25 @@
 package membercluster
 
 import (
-	"context"
 	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
 const (
+	memberClusterName       = "member-1"
+	fleetMemberNS           = "fleet-member-member-1"
+	endpointSliceImportName = "test-endpoint-slice-import"
+
 	eventuallyTimeout  = time.Minute * 2
 	eventuallyInterval = time.Second * 5
 )
@@ -85,7 +87,11 @@ var _ = Describe("Test MemberCluster Controller", func() {
 		})
 
 		It("should remove finalizer on EndpointSliceImport on fleet member namespace, after force delete wait time is crossed", func() {
-			ctx = context.Background()
+			// ensure EndpointSliceImport has finalizer.
+			var esi fleetnetv1alpha1.EndpointSliceImport
+			Expect(hubClient.Get(ctx, types.NamespacedName{Name: endpointSliceImportName, Namespace: fleetMemberNS}, &esi)).Should(Succeed())
+			Expect(esi.GetFinalizers()).ShouldNot(BeEmpty())
+			// delete member cluster to trigger MC watcher reconcile.
 			var mc clusterv1beta1.MemberCluster
 			Expect(hubClient.Get(ctx, types.NamespacedName{Name: memberClusterName}, &mc)).Should(Succeed())
 			Expect(hubClient.Delete(ctx, &mc)).Should(Succeed())

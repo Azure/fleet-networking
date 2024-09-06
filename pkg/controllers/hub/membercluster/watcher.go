@@ -22,7 +22,7 @@ var (
 )
 
 const (
-	ControllerName = "membercluster-controller"
+	ControllerName = "membercluster-watcher"
 )
 
 // Reconciler reconciles a MemberCluster object.
@@ -76,14 +76,15 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.Mem
 		return ctrl.Result{}, err
 	}
 	if len(endpointSliceImportList.Items) > 0 {
-		klog.V(2).InfoS("Remove finalizers for endpointSliceImports", "memberCluster", mcObjRef)
 		for i := range endpointSliceImportList.Items {
 			esi := &endpointSliceImportList.Items[i]
+			esiObjRef := klog.KRef(esi.Namespace, esi.Name)
 			esi.SetFinalizers(nil)
 			if err := r.Client.Update(ctx, esi); err != nil {
-				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", klog.KRef(esi.Namespace, esi.Name))
+				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
 				return ctrl.Result{}, err
 			}
+			klog.V(2).InfoS("Removed finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
 		}
 	}
 	return ctrl.Result{}, nil

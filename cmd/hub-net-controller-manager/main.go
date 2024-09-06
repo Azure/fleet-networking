@@ -145,13 +145,13 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	klog.V(1).InfoS("Start to setup MemberCluster controller")
+	klog.V(1).InfoS("Start to setup MemberCluster watcher")
 	if err := (&membercluster.Reconciler{
 		Client:              mgr.GetClient(),
 		Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
 		ForceDeleteWaitTime: *forceDeleteWaitTime,
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create MemberCluster controller")
+		klog.ErrorS(err, "Unable to create MemberCluster watcher")
 		exitWithErrorFunc()
 	}
 

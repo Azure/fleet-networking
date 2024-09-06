@@ -22,13 +22,6 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
-const (
-	memberClusterName = "member-1"
-	fleetMemberNS     = "fleet-member-member-1"
-
-	endpointSliceImportName = "test-endpoint-slice-import"
-)
-
 var (
 	hubTestEnv *envtest.Environment
 	hubClient  client.Client
@@ -80,8 +73,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	// Set up the client.
-	// The client must be one with cache (i.e. configured by the controller manager) so as to make use
-	// of the cache indexes.
+	// The client must be one with cache (i.e. configured by the controller manager) to make
+	// use of the cache indexes.
 	hubClient = hubCtrlMgr.GetClient()
 	Expect(hubClient).NotTo(BeNil())
 
