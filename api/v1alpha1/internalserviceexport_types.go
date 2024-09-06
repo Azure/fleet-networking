@@ -6,6 +6,7 @@ Licensed under the MIT license.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,6 +19,19 @@ type InternalServiceExportSpec struct {
 	// The reference to the source Service.
 	// +kubebuilder:validation:Required
 	ServiceReference ExportedObjectReference `json:"serviceReference"`
+	// Type is the type of the Service in each cluster.
+	Type corev1.ServiceType `json:"type,omitempty"`
+	// IsDNSLabelConfigured determines if the Service has a DNS label configured.
+	// A valid DNS label should be configured when the public IP address of the Service is configured as an Azure Traffic
+	// Manager endpoint.
+	// Reference link:
+	// * https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+	// * https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types#azure-endpoints
+	IsDNSLabelConfigured bool `json:"isDNSLabelConfigured,omitempty"`
+	// IsInternalLoadBalancer determines if the Service is an internal load balancer type.
+	IsInternalLoadBalancer bool `json:"isInternalLoadBalancer,omitempty"`
+	// PublicIPResourceID is the Azure Resource URI of public IP. This is only applicable for Load Balancer type Services.
+	PublicIPResourceID *string `json:"externalIPResourceID,omitempty"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.
