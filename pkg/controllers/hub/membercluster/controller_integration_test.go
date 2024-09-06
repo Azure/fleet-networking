@@ -27,7 +27,9 @@ var _ = Describe("Test MemberCluster Controller", func() {
 		BeforeEach(func() {
 			mc := clusterv1beta1.MemberCluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       memberClusterName,
+					Name: memberClusterName,
+					// finalizer is added to ensure MC is not deleted before the force delete wait time,
+					// ideally added and removed by fleet hub member cluster controller.
 					Finalizers: []string{"test-member-cluster-cleanup-finalizer"},
 				},
 				Spec: clusterv1beta1.MemberClusterSpec{
@@ -87,6 +89,7 @@ var _ = Describe("Test MemberCluster Controller", func() {
 			var mc clusterv1beta1.MemberCluster
 			Expect(hubClient.Get(ctx, types.NamespacedName{Name: memberClusterName}, &mc)).Should(Succeed())
 			Expect(hubClient.Delete(ctx, &mc)).Should(Succeed())
+			// the force delete wait time is set to 1 minute for this IT.
 			Eventually(func() error {
 				var esi fleetnetv1alpha1.EndpointSliceImport
 				if err := hubClient.Get(ctx, types.NamespacedName{Name: endpointSliceImportName, Namespace: fleetMemberNS}, &esi); err != nil {
