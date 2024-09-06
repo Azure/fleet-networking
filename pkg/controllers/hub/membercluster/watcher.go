@@ -33,8 +33,8 @@ type Reconciler struct {
 	ForceDeleteWaitTime time.Duration
 }
 
-// Reconcile handles the deletion of the member cluster and removes finalizers on fleet networking resources in the
-// cluster namespace.
+// Reconcile watches the deletion of the member cluster and removes finalizers on fleet networking resources in the
+// member cluster namespace.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	mcObjRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
@@ -62,7 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{RequeueAfter: r.ForceDeleteWaitTime}, nil
 }
 
-// removeFinalizer removes finalizers on the resources in the cluster namespace.
+// removeFinalizer removes finalizers on the resources in the member cluster namespace.
 // for EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers
 // are removed by other hub networking controllers on delete.
 func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {

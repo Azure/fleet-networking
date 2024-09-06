@@ -32,7 +32,7 @@ var (
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "MemberCluster Controller (Hub) Suite")
+	RunSpecs(t, "MemberCluster Watcher (Hub) Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -60,7 +60,7 @@ var _ = BeforeSuite(func() {
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
-	// Start up the EndpointSliceExport controller.
+	// Start up the MemberCluster watcher.
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
 	hubCtrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
