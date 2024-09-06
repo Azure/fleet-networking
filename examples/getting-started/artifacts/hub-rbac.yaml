@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-member-1
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-1]
 rules:
 - apiGroups:
   - coordination.k8s.io
@@ -34,20 +34,20 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-member-1
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-1]
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: fleet-networking-controller
 subjects:
   - kind: User
-    name: 96ed43af-4a7f-49ae-92bf-9201b5e4fce9
+    name: [YOUR-MEMBER-CLUSTER-1-PRINCIPAL-ID]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-member-2
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-2]
 rules:
 - apiGroups:
   - coordination.k8s.io
@@ -79,11 +79,11 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: fleet-networking-controller
-  namespace: fleet-member-member-2
+  namespace: fleet-member-[YOUR-MEMBER-CLUSTER-2]
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: fleet-networking-controller
 subjects:
   - kind: User
-    name: 9953fcdd-da5c-41b9-ac5c-abd41f4bf16e
+    name: [YOUR-MEMBER-CLUSTER-2-PRINCIPAL-ID]
