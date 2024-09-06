@@ -29,7 +29,7 @@ const (
 type Reconciler struct {
 	client.Client
 	Recorder record.EventRecorder
-	// the wait time in minutes before we force delete a member cluster.
+	// the wait time in minutes before we need to force delete a member cluster.
 	ForceDeleteWaitTime time.Duration
 }
 

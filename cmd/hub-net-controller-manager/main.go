@@ -50,8 +50,7 @@ var (
 		"The wait time for the internalserviceexport controller to requeue the request and to wait for the"+
 			"ServiceImport controller to resolve the service Spec")
 
-	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the networking "+
-		"hub member cluster watcher waits before removing finalizers on resources in associated fleet member cluster namespace.")
+	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
 )
 
 func init() {
