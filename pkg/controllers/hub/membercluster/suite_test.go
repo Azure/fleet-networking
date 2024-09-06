@@ -2,27 +2,35 @@ package membercluster
 
 import (
 	"context"
-	"encoding/json"
+	"flag"
+	"go/build"
 	"path/filepath"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+)
+
+const (
+	memberClusterName = "member-1"
+	fleetMemberNS     = "fleet-member-member-1"
+
+	endpointSliceImportName = "test-endpoint-slice-import"
 )
 
 var (
@@ -32,27 +40,12 @@ var (
 	cancel     context.CancelFunc
 )
 
-// fulfilledSvcInUseByAnnotation returns a fulfilled ServiceInUseBy for annotation use.
-func fulfilledServiceInUseByAnnotation() *fleetnetv1alpha1.ServiceInUseBy {
-	return &fleetnetv1alpha1.ServiceInUseBy{
-		MemberClusters: map[fleetnetv1alpha1.ClusterNamespace]fleetnetv1alpha1.ClusterID{
-			"fleet-member-member-1": "0",
-		},
-	}
-}
-
-// fulfilledSvcInUseByAnnotationString returns marshalled ServiceInUseBy data in the string form.
-func fulfilledSvcInUseByAnnotationString() string {
-	data, _ := json.Marshal(fulfilledServiceInUseByAnnotation())
-	return string(data)
-}
-
 // setUpResources help set up resources in the test environment.
 func setUpResources() {
-	// Need to apply MC CRD.
 	mc := clusterv1beta1.MemberCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "member-1",
+			Name:       memberClusterName,
+			Finalizers: []string{"test-member-cluster-cleanup-finalizer"},
 		},
 		Spec: clusterv1beta1.MemberClusterSpec{
 			Identity: rbacv1.Subject{
@@ -65,25 +58,45 @@ func setUpResources() {
 	}
 	Expect(hubClient.Create(ctx, &mc)).Should(Succeed())
 
-	// Add the namespaces.
+	// Create the fleet member namespace.
 	memberNS := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "fleet-member-member-1",
+			Name: fleetMemberNS,
 		},
 	}
 	Expect(hubClient.Create(ctx, &memberNS)).Should(Succeed())
 
-	isi := fleetnetv1alpha1.ServiceImport{
+	// Create the EndpointSliceImport.
+	esi := &fleetnetv1alpha1.EndpointSliceImport{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "fleet-member-member-1",
-			Name:      "app",
-			Annotations: map[string]string{
-				objectmeta.ServiceImportAnnotationServiceInUseBy: fulfilledSvcInUseByAnnotationString(),
+			Namespace:  fleetMemberNS,
+			Name:       endpointSliceImportName,
+			Finalizers: []string{"networking.fleet.azure.com/endpointsliceimport-cleanup"},
+		},
+		Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
+			AddressType: discoveryv1.AddressTypeIPv4,
+			Endpoints: []fleetnetv1alpha1.Endpoint{
+				{
+					Addresses: []string{"1.2.3.4"},
+				},
 			},
-			Finalizers: []string{"networking.fleet.azure.com/serviceimport-cleanup"},
+			EndpointSliceReference: fleetnetv1alpha1.ExportedObjectReference{
+				ClusterID:       memberClusterName,
+				Kind:            "EndpointSlice",
+				Namespace:       fleetMemberNS,
+				Name:            "test-endpoint-slice",
+				ResourceVersion: "0",
+				Generation:      1,
+				UID:             "00000000-0000-0000-0000-000000000000",
+				ExportedSince:   metav1.NewTime(time.Now().Round(time.Second)),
+			},
+			OwnerServiceReference: fleetnetv1alpha1.OwnerServiceReference{
+				Namespace: "work",
+				Name:      "test-service",
+			},
 		},
 	}
-	Expect(hubClient.Create(ctx, &isi)).Should(Succeed())
+	Expect(hubClient.Create(ctx, esi)).Should(Succeed())
 }
 
 func TestAPIs(t *testing.T) {
@@ -93,15 +106,20 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	klog.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	By("Setup klog")
+	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	Expect(fs.Parse([]string{"--v", "5", "-add_dir_header", "true"})).Should(Succeed())
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrap the test environment")
-
-	// Start the clusters.
+	// Start the cluster.
 	hubTestEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "..", "config", "crd", "bases"),
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.10.5", "config", "crd", "bases", "cluster.kubernetes-fleet.io_memberclusters.yaml"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 	hubCfg, err := hubTestEnv.Start()
@@ -113,11 +131,14 @@ var _ = BeforeSuite(func() {
 	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	// Start up the EndpointSliceExport controller.
+	klog.InitFlags(flag.CommandLine)
+	flag.Parse()
 	hubCtrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
 		},
+		Logger: textlogger.NewLogger(textlogger.NewConfig(textlogger.Verbosity(4))),
 	})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -129,7 +150,7 @@ var _ = BeforeSuite(func() {
 
 	err = (&Reconciler{
 		Client:              hubClient,
-		ForceDeleteWaitTime: 2 * time.Minute,
+		ForceDeleteWaitTime: 1 * time.Minute,
 	}).SetupWithManager(hubCtrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
