@@ -33,8 +33,8 @@ type Reconciler struct {
 	ForceDeleteWaitTime time.Duration
 }
 
-// Reconcile handles the deletion of the member cluster and removes finalizers on all the fleet networking resources
-// in the cluster namespace.
+// Reconcile handles the deletion of the member cluster and removes finalizers on fleet networking resources in the
+// cluster namespace.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	mcObjRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
@@ -52,7 +52,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to get memberCluster", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
-	// Handle deleting/leaving member cluster, removes finalizers on all the resources in the cluster namespace
+	// Handle deleting member cluster, removes finalizers on all the resources in the cluster namespace
 	// after member cluster force delete wait time.
 	if !mc.DeletionTimestamp.IsZero() && time.Since(mc.DeletionTimestamp.Time) >= r.ForceDeleteWaitTime {
 		klog.V(2).InfoS("The member cluster is leaving", "memberCluster", mcObjRef)
@@ -92,8 +92,6 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.Mem
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	customPredicate := predicate.Funcs{
-		// Ignoring creation and deletion events because the clusterSchedulingPolicySnapshot status is updated when bindings are create/deleted clusterSchedulingPolicySnapshot
-		// controller enqueues the CRP name for reconciling whenever clusterSchedulingPolicySnapshot is updated.
 		CreateFunc: func(e event.CreateEvent) bool {
 			// Ignore creation events.
 			return false

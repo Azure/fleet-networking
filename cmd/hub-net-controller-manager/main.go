@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,6 +31,7 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
