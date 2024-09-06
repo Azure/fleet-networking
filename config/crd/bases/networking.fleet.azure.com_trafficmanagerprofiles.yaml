@@ -106,7 +106,7 @@ spec:
             description: The observed status of TrafficManagerProfile.
             properties:
               conditions:
-                description: Current profile state
+                description: Current profile status.
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for

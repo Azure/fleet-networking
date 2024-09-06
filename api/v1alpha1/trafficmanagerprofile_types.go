@@ -77,9 +77,9 @@ type MonitorConfig struct {
 type TrafficManagerMonitorProtocol string
 
 const (
-	MonitorProtocolHTTP  TrafficManagerMonitorProtocol = "HTTP"
-	MonitorProtocolHTTPS TrafficManagerMonitorProtocol = "HTTPS"
-	MonitorProtocolTCP   TrafficManagerMonitorProtocol = "TCP"
+	TrafficManagerMonitorProtocolHTTP  TrafficManagerMonitorProtocol = "HTTP"
+	TrafficManagerMonitorProtocolHTTPS TrafficManagerMonitorProtocol = "HTTPS"
+	TrafficManagerMonitorProtocolTCP   TrafficManagerMonitorProtocol = "TCP"
 )
 
 type TrafficManagerProfileStatus struct {
@@ -90,7 +90,7 @@ type TrafficManagerProfileStatus struct {
 	// +optional
 	DNSName *string `json:"dnsName,omitempty"`
 
-	// Current profile state
+	// Current profile status.
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -100,8 +100,7 @@ type TrafficManagerProfileStatus struct {
 }
 
 // TrafficManagerProfileConditionType is a type of condition associated with a
-// Traffic Manager Profile. This type should be used with the TrafficManagerProfileStatus.Conditions
-// field.
+// Traffic Manager Profile. This type should be used within the TrafficManagerProfileStatus.Conditions field.
 type TrafficManagerProfileConditionType string
 
 // TrafficManagerProfileConditionReason defines the set of reasons that explain why a
@@ -123,7 +122,7 @@ const (
 	// Possible reasons for this condition to be False are:
 	//
 	// * "Invalid"
-	// * "AddressNotUsable"
+	// * "DNSNameNotAvailable"
 	// * "Pending"
 	TrafficManagerProfileConditionProgrammed TrafficManagerProfileConditionType = "Programmed"
 
@@ -137,7 +136,7 @@ const (
 	TrafficManagerProfileReasonDNSNameNotAvailable TrafficManagerProfileConditionReason = "DNSNameNotAvailable"
 
 	// TrafficManagerProfileReasonPending is used with the "Programmed" when creating or updating the profile hits an internal error
-	// with more detail in the message and the controller will keep retry.
+	// with more details in the message and the controller will keep retry.
 	TrafficManagerProfileReasonPending TrafficManagerProfileConditionReason = "Pending"
 )
 

@@ -39,7 +39,7 @@ spec:
       openAPIV3Schema:
         description: |-
           TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way.
-          A backend contains one more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
+          A backend contains one or more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
           Manager Profile.
           https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types
         properties:
@@ -70,7 +70,7 @@ spec:
                 properties:
                   name:
                     description: Name is the reference to the ServiceImport in the
-                      same namespace as this TrafficManagerBackend object.
+                      same namespace as the TrafficManagerBackend object.
                     type: string
                 required:
                 - name
@@ -90,7 +90,7 @@ spec:
                 description: |-
                   The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
                   Possible values are from 1 to 1000.
-                  It is required when the routing method is 'Weighted'.
+                  By default, the routing method is 'Weighted', so that it is required for now.
                   For example, if there are two clusters exporting the service via public ip, each public ip will be configured
                   as "Weight"/2.
                 format: int64
@@ -105,7 +105,7 @@ spec:
             description: The observed status of TrafficManagerBackend.
             properties:
               conditions:
-                description: Current backend state
+                description: Current backend status.
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for

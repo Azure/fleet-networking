@@ -12,7 +12,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way.
-// A backend contains one more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
+// A backend contains one or more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
 // Manager Profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types
 type TrafficManagerBackend struct {
@@ -32,7 +32,7 @@ type TrafficManagerBackendSpec struct {
 	// +required
 	// immutable
 	// Which TrafficManagerProfile the backend should be attached to.
-	Profile ProfileRef `json:"profile"`
+	Profile TrafficManagerProfileRef `json:"profile"`
 
 	// The reference to a backend.
 	// immutable
@@ -41,7 +41,7 @@ type TrafficManagerBackendSpec struct {
 
 	// The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
 	// Possible values are from 1 to 1000.
-	// It is required when the routing method is 'Weighted'.
+	// By default, the routing method is 'Weighted', so that it is required for now.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
@@ -50,8 +50,8 @@ type TrafficManagerBackendSpec struct {
 	Weight *int64 `json:"weight,omitempty"`
 }
 
-// ProfileRef is a reference to a trafficManagerProfile object in the same namespace as this TrafficManagerBackend object.
-type ProfileRef struct {
+// TrafficManagerProfileRef is a reference to a trafficManagerProfile object in the same namespace as the TrafficManagerBackend object.
+type TrafficManagerProfileRef struct {
 	// Name is the name of the referenced trafficManagerProfile.
 	Name string `json:"name"`
 }
@@ -59,7 +59,7 @@ type ProfileRef struct {
 // TrafficManagerBackendRef is the reference to a backend.
 // Currently, we only support one backend type: ServiceImport.
 type TrafficManagerBackendRef struct {
-	// Name is the reference to the ServiceImport in the same namespace as this TrafficManagerBackend object.
+	// Name is the reference to the ServiceImport in the same namespace as the TrafficManagerBackend object.
 	// +required
 	Name string `json:"name"`
 }
@@ -90,7 +90,7 @@ type TrafficManagerBackendStatus struct {
 	// +optional
 	Endpoints []TrafficManagerEndpointStatus `json:"endpoints,omitempty"`
 
-	// Current backend state
+	// Current backend status.
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -100,7 +100,7 @@ type TrafficManagerBackendStatus struct {
 }
 
 // TrafficManagerBackendConditionType is a type of condition associated with a TrafficManagerBackendStatus. This type
-// should be used with the TrafficManagerBackendStatus.Conditions field.
+// should be used within the TrafficManagerBackendStatus.Conditions field.
 type TrafficManagerBackendConditionType string
 
 // TrafficManagerBackendConditionReason defines the set of reasons that explain why a particular backend has been raised.
@@ -125,11 +125,11 @@ const (
 
 	// TrafficManagerBackendReasonInvalid is used with the "Accepted" condition when one or
 	// more endpoint references have an invalid or unsupported configuration
-	// and cannot be configured on the Profile with more detail in the message.
+	// and cannot be configured on the Profile with more details in the message.
 	TrafficManagerBackendReasonInvalid TrafficManagerBackendConditionReason = "Invalid"
 
 	// TrafficManagerBackendReasonPending is used with the "Accepted" when creating or updating endpoint hits an internal error with
-	// more detail in the message and the controller will keep retry.
+	// more details in the message and the controller will keep retry.
 	TrafficManagerBackendReasonPending TrafficManagerBackendConditionReason = "Pending"
 )
 
