@@ -80,8 +80,8 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.Mem
 	errs, ctx := errgroup.WithContext(ctx)
 	if len(endpointSliceImportList.Items) > 0 {
 		for i := range endpointSliceImportList.Items {
+			esi := &endpointSliceImportList.Items[i]
 			errs.Go(func() error {
-				esi := &endpointSliceImportList.Items[i]
 				esiObjRef := klog.KRef(esi.Namespace, esi.Name)
 				esi.SetFinalizers(nil)
 				if err := r.Client.Update(ctx, esi); err != nil {
