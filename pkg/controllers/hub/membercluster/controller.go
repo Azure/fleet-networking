@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -55,7 +56,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Handle deleting member cluster, removes finalizers on all the resources in the cluster namespace
 	// after member cluster force delete wait time.
 	if !mc.DeletionTimestamp.IsZero() && time.Since(mc.DeletionTimestamp.Time) >= r.ForceDeleteWaitTime {
-		klog.V(2).InfoS("The member cluster is leaving", "memberCluster", mcObjRef)
+		klog.V(2).InfoS("The member cluster deletion is stuck, "+
+			"garbage collect all the resources in member cluster namespace", "memberCluster", mcObjRef)
 		return r.removeFinalizer(ctx, mc.DeepCopy())
 	}
 
@@ -75,19 +77,25 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.Mem
 		klog.ErrorS(err, "Failed to list endpointSliceImports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
+	errs, ctx := errgroup.WithContext(ctx)
 	if len(endpointSliceImportList.Items) > 0 {
 		for i := range endpointSliceImportList.Items {
-			esi := &endpointSliceImportList.Items[i]
-			esiObjRef := klog.KRef(esi.Namespace, esi.Name)
-			esi.SetFinalizers(nil)
-			if err := r.Client.Update(ctx, esi); err != nil {
-				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
-				return ctrl.Result{}, err
-			}
-			klog.V(2).InfoS("Removed finalizers for endpointSliceImport", "memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
+			errs.Go(func() error {
+				esi := &endpointSliceImportList.Items[i]
+				esiObjRef := klog.KRef(esi.Namespace, esi.Name)
+				esi.SetFinalizers(nil)
+				if err := r.Client.Update(ctx, esi); err != nil {
+					klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport",
+						"memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
+					return err
+				}
+				klog.V(2).InfoS("Removed finalizers for endpointSliceImport",
+					"memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
+				return nil
+			})
 		}
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, errs.Wait()
 }
 
 // SetupWithManager sets up the controller with the Manager.
