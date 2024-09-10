@@ -65,8 +65,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // removeFinalizer removes finalizers on the resources in the member cluster namespace.
-// for EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers
-// are removed by other hub networking controllers on delete.
+// For EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers should be
+// removed by other hub networking controllers when leaving. So this MemberCluster controller only handles
+// EndpointSliceImports here.
 func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
 	// Remove finalizer for EndpointSliceImport resources in the cluster namespace.
 	mcObjRef := klog.KRef(mc.Namespace, mc.Name)
