@@ -41,19 +41,23 @@ type MonitorConfig struct {
 	// of each endpoint in this profile.
 	// You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).
 	// +optional
+	// +kubebuilder:default=30
 	IntervalInSeconds *int64 `json:"intervalInSeconds,omitempty"`
 
 	// The path relative to the endpoint domain name used to probe for endpoint health.
 	// +optional
+	// +kubebuilder:default="/"
 	Path *string `json:"path,omitempty"`
 
 	// The TCP port used to probe for endpoint health.
 	// +optional
+	// +kubebuilder:default=80
 	Port *int64 `json:"port,omitempty"`
 
 	// The protocol (HTTP, HTTPS or TCP) used to probe for endpoint health.
 	// +kubebuilder:validation:Enum=HTTP;HTTPS;TCP
 	// +optional
+	// +kubebuilder:default="HTTP"
 	Protocol *TrafficManagerMonitorProtocol `json:"protocol,omitempty"`
 
 	// The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
@@ -70,6 +74,7 @@ type MonitorConfig struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=9
+	// +kubebuilder:default=3
 	ToleratedNumberOfFailures *int64 `json:"toleratedNumberOfFailures,omitempty"`
 }
 
@@ -86,7 +91,7 @@ type TrafficManagerProfileStatus struct {
 	// DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile.
 	// It consists of profile name and the DNS domain name used by Azure Traffic Manager to form the fully-qualified
 	// domain name (FQDN) of the profile.
-	// For example, "<TrafficManagerProfileName>.trafficmanager.net"
+	// For example, "<TrafficManagerProfileNamespace>-<TrafficManagerProfileName>.trafficmanager.net"
 	// +optional
 	DNSName *string `json:"dnsName,omitempty"`
 

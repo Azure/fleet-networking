@@ -118,7 +118,7 @@ const (
 	//
 	// * "Invalid"
 	// * "Pending"
-	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionReason = "Accepted"
+	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionType = "Accepted"
 
 	// TrafficManagerBackendReasonAccepted is used with the "Accepted" condition when the condition is True.
 	TrafficManagerBackendReasonAccepted TrafficManagerBackendConditionReason = "Accepted"
