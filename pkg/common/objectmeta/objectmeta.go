@@ -39,3 +39,9 @@ const (
 	// an exported object.
 	ExportedObjectAnnotationUniqueName = fleetNetworkingPrefix + "fleet-unique-name"
 )
+
+// Azure Resource Tags
+const (
+	// AzureTrafficManagerProfileTagKey is the key of the Azure Traffic Manager profile tag when the controller creates it.
+	AzureTrafficManagerProfileTagKey = fleetNetworkingPrefix + "trafficManagerProfile"
+)

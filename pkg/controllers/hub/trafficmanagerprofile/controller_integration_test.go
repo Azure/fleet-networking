@@ -40,9 +40,11 @@ func trafficManagerProfileForTest(name string) *fleetnetv1alpha1.TrafficManagerP
 }
 
 var _ = Describe("Test TrafficManagerProfile Controller", func() {
-	Context("When creating valid trafficManagerProfile", Ordered, func() {
+	Context("When updating existing valid trafficManagerProfile", Ordered, func() {
 		name := fakeprovider.ValidProfileName
 		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
+		fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
 
 		It("AzureTrafficManager should be configured", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -58,7 +60,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
-					DNSName: ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
+					DNSName: ptr.To(fqdn),
 					Conditions: []metav1.Condition{
 						{
 							Status: metav1.ConditionTrue,
@@ -73,7 +75,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 		It("Update the trafficManagerProfile spec", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the trafficManagerProfile")
-			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](0)
+			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](10)
+			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
 			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
 		})
 
@@ -86,12 +89,68 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
-					DNSName: ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
 					Conditions: []metav1.Condition{
 						{
 							Status: metav1.ConditionFalse,
 							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
 							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+		})
+	})
+
+	Context("When updating existing valid trafficManagerProfile with no changes", Ordered, func() {
+		name := fakeprovider.ValidProfileName
+		var profile *fleetnetv1alpha1.TrafficManagerProfile
+
+		It("AzureTrafficManager should be configured", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = &fleetnetv1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: testNamespace,
+				},
+				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](10),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To[int64](8080),
+						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](9),
+						ToleratedNumberOfFailures: ptr.To[int64](4),
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+
+			By("By checking profile")
+			want := fleetnetv1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+				},
+				Spec: profile.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
+					// The DNS name is returned by the fake Azure GET call.
+					DNSName: ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
+					Conditions: []metav1.Condition{
+						{
+							Status: metav1.ConditionTrue,
+							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
 						},
 					},
 				},

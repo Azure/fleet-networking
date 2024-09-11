@@ -36,6 +36,7 @@ func NewProfileClient(_ context.Context, subscriptionID string) (*armtrafficmana
 	fakeServer := fake.ProfilesServer{
 		CreateOrUpdate: CreateOrUpdate,
 		Delete:         Delete,
+		Get:            Get,
 	}
 	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
@@ -47,6 +48,45 @@ func NewProfileClient(_ context.Context, subscriptionID string) (*armtrafficmana
 		return nil, err
 	}
 	return clientFactory.NewProfilesClient(), nil
+}
+
+// Get returns the http status code based on the profileName.
+func Get(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientGetOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientGetResponse], errResp azcorefake.ErrorResponder) {
+	if resourceGroupName != DefaultResourceGroupName {
+		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
+		return resp, errResp
+	}
+	switch profileName {
+	case ValidProfileName:
+		profileResp := armtrafficmanager.ProfilesClientGetResponse{
+			Profile: armtrafficmanager.Profile{
+				Name:     ptr.To(profileName),
+				Location: ptr.To("global"),
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						Fqdn:         ptr.To(fmt.Sprintf(ProfileDNSNameFormat, profileName)),
+						RelativeName: ptr.To(profileName),
+						TTL:          ptr.To[int64](30),
+					},
+					Endpoints: []*armtrafficmanager.Endpoint{},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						IntervalInSeconds:         ptr.To(int64(10)),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To(int64(8080)),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To(int64(9)),
+						ToleratedNumberOfFailures: ptr.To(int64(4)),
+					},
+					ProfileStatus:               ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod:        ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
+				},
+			}}
+		resp.SetResponse(http.StatusOK, profileResp, nil)
+	default:
+		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
+	}
+	return resp, errResp
 }
 
 // CreateOrUpdate returns the http status code based on the profileName.
@@ -63,9 +103,11 @@ func CreateOrUpdate(_ context.Context, resourceGroupName string, profileName str
 	case ThrottledErrProfileName:
 		errResp.SetResponseError(http.StatusTooManyRequests, "ThrottledError")
 	case ValidProfileName:
-		if parameters.Properties.MonitorConfig.IntervalInSeconds != nil && *parameters.Properties.MonitorConfig.IntervalInSeconds == 0 {
-			errResp.SetResponseError(http.StatusBadRequest, "BadRequestError")
-			return
+		if parameters.Properties.MonitorConfig.IntervalInSeconds != nil && *parameters.Properties.MonitorConfig.IntervalInSeconds == 10 {
+			if parameters.Properties.MonitorConfig.TimeoutInSeconds != nil && *parameters.Properties.MonitorConfig.TimeoutInSeconds > 9 {
+				errResp.SetResponseError(http.StatusBadRequest, "BadRequestError")
+				return
+			}
 		}
 		profileResp := armtrafficmanager.ProfilesClientCreateOrUpdateResponse{
 			Profile: armtrafficmanager.Profile{
@@ -73,8 +115,8 @@ func CreateOrUpdate(_ context.Context, resourceGroupName string, profileName str
 				Location: ptr.To("global"),
 				Properties: &armtrafficmanager.ProfileProperties{
 					DNSConfig: &armtrafficmanager.DNSConfig{
-						Fqdn:         ptr.To(fmt.Sprintf(ProfileDNSNameFormat, profileName)),
-						RelativeName: ptr.To(profileName),
+						Fqdn:         ptr.To(fmt.Sprintf(ProfileDNSNameFormat, *parameters.Properties.DNSConfig.RelativeName)),
+						RelativeName: parameters.Properties.DNSConfig.RelativeName,
 						TTL:          ptr.To[int64](30),
 					},
 					Endpoints:                   []*armtrafficmanager.Endpoint{},

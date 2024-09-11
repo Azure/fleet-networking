@@ -42,6 +42,10 @@ const (
 	testNamespace = "profile-ns"
 )
 
+var (
+	originalGenerateAzureTrafficManagerProfileNameFunc = generateAzureTrafficManagerProfileNameFunc
+)
+
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -88,6 +92,10 @@ var _ = BeforeSuite(func() {
 	profileClient, err := fakeprovider.NewProfileClient(ctx, "default-sub")
 	Expect(err).Should(Succeed(), "failed to create the fake profile client")
 
+	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
+		return profile.Name
+	}
+
 	err = (&Reconciler{
 		Client:            mgr.GetClient(),
 		ProfilesClient:    profileClient,
@@ -127,4 +135,6 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+
+	generateAzureTrafficManagerProfileNameFunc = originalGenerateAzureTrafficManagerProfileNameFunc
 })
