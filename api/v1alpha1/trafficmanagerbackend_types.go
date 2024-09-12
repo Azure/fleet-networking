@@ -29,14 +29,14 @@ type TrafficManagerBackend struct {
 }
 
 type TrafficManagerBackendSpec struct {
-	// +required
-	// immutable
 	// Which TrafficManagerProfile the backend should be attached to.
+	// +required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.profile is immutable"
 	Profile TrafficManagerProfileRef `json:"profile"`
 
 	// The reference to a backend.
-	// immutable
 	// +required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.backend is immutable"
 	Backend TrafficManagerBackendRef `json:"backend"`
 
 	// The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
@@ -118,7 +118,7 @@ const (
 	//
 	// * "Invalid"
 	// * "Pending"
-	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionReason = "Accepted"
+	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionType = "Accepted"
 
 	// TrafficManagerBackendReasonAccepted is used with the "Accepted" condition when the condition is True.
 	TrafficManagerBackendReasonAccepted TrafficManagerBackendConditionReason = "Accepted"
