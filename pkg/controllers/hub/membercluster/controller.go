@@ -1,3 +1,11 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+// Package membercluster features the MemberCluster controller for watching
+// update/delete events to the MemberCluster object and removes finalizers
+// on all fleet networking resources in the fleet member cluster namespace.
 package membercluster
 
 import (
@@ -14,16 +22,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
-)
 
-var (
-	fleetMemberNamespace = "fleet-member-%s"
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/hubconfig"
 )
 
 const (
-	ControllerName = "membercluster-watcher"
+	ControllerName = "membercluster-controller"
 )
 
 // Reconciler reconciles a MemberCluster object.
@@ -56,9 +62,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Handle deleting member cluster, removes finalizers on all the resources in the cluster namespace
 	// after member cluster force delete wait time.
 	if !mc.DeletionTimestamp.IsZero() && time.Since(mc.DeletionTimestamp.Time) >= r.ForceDeleteWaitTime {
-		klog.V(2).InfoS("The member cluster deletion is stuck, "+
-			"garbage collect all the resources in member cluster namespace", "memberCluster", mcObjRef)
-		return r.removeFinalizer(ctx, mc.DeepCopy())
+		klog.V(2).InfoS("The member cluster deletion is stuck removing the "+
+			"finalizers from  all the resources in member cluster namespace", "memberCluster", mcObjRef)
+		return r.removeFinalizer(ctx, mc)
 	}
 
 	return ctrl.Result{RequeueAfter: r.ForceDeleteWaitTime}, nil
@@ -68,33 +74,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // For EndpointSliceExport, InternalServiceImport & InternalServiceExport resources, the finalizers should be
 // removed by other hub networking controllers when leaving. So this MemberCluster controller only handles
 // EndpointSliceImports here.
-func (r *Reconciler) removeFinalizer(ctx context.Context, mc *clusterv1beta1.MemberCluster) (ctrl.Result, error) {
+func (r *Reconciler) removeFinalizer(ctx context.Context, mc clusterv1beta1.MemberCluster) (ctrl.Result, error) {
 	// Remove finalizer for EndpointSliceImport resources in the cluster namespace.
 	mcObjRef := klog.KRef(mc.Namespace, mc.Name)
-	mcNamespace := fmt.Sprintf(fleetMemberNamespace, mc.Name)
+	mcNamespace := fmt.Sprintf(hubconfig.HubNamespaceNameFormat, mc.Name)
 	var endpointSliceImportList fleetnetv1alpha1.EndpointSliceImportList
-	err := r.Client.List(ctx, &endpointSliceImportList, client.InNamespace(mcNamespace))
-	if err != nil {
+	if err := r.Client.List(ctx, &endpointSliceImportList, client.InNamespace(mcNamespace)); err != nil {
 		klog.ErrorS(err, "Failed to list endpointSliceImports", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
 	errs, ctx := errgroup.WithContext(ctx)
-	if len(endpointSliceImportList.Items) > 0 {
-		for i := range endpointSliceImportList.Items {
-			esi := &endpointSliceImportList.Items[i]
-			errs.Go(func() error {
-				esiObjRef := klog.KRef(esi.Namespace, esi.Name)
-				esi.SetFinalizers(nil)
-				if err := r.Client.Update(ctx, esi); err != nil {
-					klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport",
-						"memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
-					return err
-				}
-				klog.V(2).InfoS("Removed finalizers for endpointSliceImport",
+	for i := range endpointSliceImportList.Items {
+		esi := &endpointSliceImportList.Items[i]
+		errs.Go(func() error {
+			esiObjRef := klog.KRef(esi.Namespace, esi.Name)
+			esi.SetFinalizers(nil)
+			if err := r.Client.Update(ctx, esi); err != nil {
+				klog.ErrorS(err, "Failed to remove finalizers for endpointSliceImport",
 					"memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
-				return nil
-			})
-		}
+				return err
+			}
+			klog.V(2).InfoS("Removed finalizers for endpointSliceImport",
+				"memberCluster", mcObjRef, "endpointSliceImport", esiObjRef)
+			return nil
+		})
 	}
 	return ctrl.Result{}, errs.Wait()
 }

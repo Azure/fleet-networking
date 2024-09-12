@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	//+kubebuilder:scaffold:imports
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
@@ -33,7 +34,6 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
-	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
 var (
@@ -145,13 +145,13 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	klog.V(1).InfoS("Start to setup MemberCluster watcher")
+	klog.V(1).InfoS("Start to setup MemberCluster controller")
 	if err := (&membercluster.Reconciler{
 		Client:              mgr.GetClient(),
 		Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
 		ForceDeleteWaitTime: *forceDeleteWaitTime,
 	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create MemberCluster watcher")
+		klog.ErrorS(err, "Unable to create MemberCluster controller")
 		exitWithErrorFunc()
 	}
 

@@ -1,3 +1,8 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
 package membercluster
 
 import (
@@ -18,8 +23,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 var (
@@ -32,7 +38,7 @@ var (
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "MemberCluster Watcher (Hub) Suite")
+	RunSpecs(t, "MemberCluster Controller (Hub) Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -60,7 +66,7 @@ var _ = BeforeSuite(func() {
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
-	// Start up the MemberCluster watcher.
+	// Start up the MemberCluster controller.
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
 	hubCtrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{
