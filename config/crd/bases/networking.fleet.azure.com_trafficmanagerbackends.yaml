@@ -64,9 +64,7 @@ spec:
             description: The desired state of TrafficManagerBackend.
             properties:
               backend:
-                description: |-
-                  The reference to a backend.
-                  immutable
+                description: The reference to a backend.
                 properties:
                   name:
                     description: Name is the reference to the ServiceImport in the
@@ -75,10 +73,12 @@ spec:
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: spec.backend is immutable
+                  rule: self == oldSelf
               profile:
-                description: |-
-                  immutable
-                  Which TrafficManagerProfile the backend should be attached to.
+                description: Which TrafficManagerProfile the backend should be attached
+                  to.
                 properties:
                   name:
                     description: Name is the name of the referenced trafficManagerProfile.
@@ -86,6 +86,9 @@ spec:
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: spec.profile is immutable
+                  rule: self == oldSelf
               weight:
                 description: |-
                   The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
