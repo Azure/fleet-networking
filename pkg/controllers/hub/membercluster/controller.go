@@ -122,10 +122,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			// If new object is being deleted, trigger reconcile.
-			if e.ObjectNew.GetDeletionTimestamp() != nil {
-				return true
-			}
-			return false
+			return e.ObjectNew.GetDeletionTimestamp() != nil
 		},
 	}
 	// Watch for changes to primary resource MemberCluster
