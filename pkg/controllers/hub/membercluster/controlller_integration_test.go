@@ -140,8 +140,7 @@ var _ = Describe("Test MemberCluster Controller", func() {
 			// Remove finalizer from MemberCluster.
 			var mc clusterv1beta1.MemberCluster
 			Eventually(func() error {
-				err := hubClient.Get(ctx, types.NamespacedName{Name: memberClusterName}, &mc)
-				if err != nil {
+				if err := hubClient.Get(ctx, types.NamespacedName{Name: memberClusterName}, &mc); err != nil {
 					return err
 				}
 				mc.SetFinalizers(nil)

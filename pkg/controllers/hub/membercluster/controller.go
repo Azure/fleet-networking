@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
@@ -59,6 +60,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to get memberCluster", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
+	if mc.DeletionTimestamp == nil {
+		klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("member cluster %s is not being deleted", mc.Name)), "The member cluster should have deletionTimeStamp set to a non-nil value")
+		return ctrl.Result{}, nil // no need to retry.
+	}
+
 	// Handle deleting member cluster, removes finalizers on all the resources in the cluster namespace
 	// after member cluster force delete wait time.
 	if !mc.DeletionTimestamp.IsZero() && time.Since(mc.DeletionTimestamp.Time) >= r.ForceDeleteWaitTime {
@@ -115,7 +121,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			// If new object is being deleted, trigger reconcile.
-			if e.ObjectOld.GetDeletionTimestamp() == nil && e.ObjectNew.GetDeletionTimestamp() != nil {
+			if e.ObjectNew.GetDeletionTimestamp() != nil {
 				return true
 			}
 			return false
