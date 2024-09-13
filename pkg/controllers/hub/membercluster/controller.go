@@ -61,7 +61,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	if mc.DeletionTimestamp == nil {
-		klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("member cluster %s is not being deleted", mc.Name)), "The member cluster should have deletionTimeStamp set to a non-nil value")
+		klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("member cluster %s is not being deleted",
+			mc.Name)), "The member cluster should have deletionTimeStamp set to a non-nil value")
 		return ctrl.Result{}, nil // no need to retry.
 	}
 
