@@ -72,8 +72,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"finalizers from  all the resources in member cluster namespace", "memberCluster", mcObjRef)
 		return r.removeFinalizer(ctx, mc)
 	}
-
-	return ctrl.Result{RequeueAfter: r.ForceDeleteWaitTime}, nil
+	// we need to only wait for force delete wait time, if the update/delete member cluster event takes
+	// longer to be reconciled we need to account for that time.
+	return ctrl.Result{RequeueAfter: r.ForceDeleteWaitTime - time.Since(mc.DeletionTimestamp.Time)}, nil
 }
 
 // removeFinalizer removes finalizers on the resources in the member cluster namespace.
