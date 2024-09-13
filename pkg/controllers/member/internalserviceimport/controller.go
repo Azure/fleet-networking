@@ -9,6 +9,7 @@ package internalserviceimport
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -25,6 +26,8 @@ import (
 type Reconciler struct {
 	MemberClient client.Client
 	HubClient    client.Client
+	// whether to start exporting an EndpointSlice
+	joined atomic.Bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceimports,verbs=get;list;watch;delete
@@ -78,6 +81,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// When the member leaves, the controller will continue to handle the deleted serviceImport as intended.
+	if !r.joined.Load() {
+		klog.V(2).InfoS("InternalServiceImport controller has not joined yet, skip updating serviceImport status and requeue the request", "internalServiceImport", internalSvcImportKRef)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
+	}
+
 	// no status change
 	if equality.Semantic.DeepEqual(internalSvcImport.Status, serviceImport.Status) {
 		return ctrl.Result{}, nil
@@ -101,4 +110,25 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.InternalServiceImport{}).
 		Complete(r)
+}
+
+// Join marks the joined status as true.
+func (r *Reconciler) Join(_ context.Context) error {
+	if r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the internalServiceImport controller joined")
+	r.joined.Store(true)
+	return nil
+}
+
+// Leave marks the joined status as false.
+// When the controller is in the leave state, it will only delete any orphan resources.
+func (r *Reconciler) Leave(_ context.Context) error {
+	if !r.joined.Load() {
+		return nil
+	}
+	klog.InfoS("Mark the internalServiceImport controller left")
+	r.joined.Store(false)
+	return nil
 }

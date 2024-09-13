@@ -17,7 +17,8 @@ require (
 
 require (
 	github.com/stretchr/testify v1.9.0
-	go.goms.io/fleet v0.10.5
+	go.goms.io/fleet v0.10.8
+	golang.org/x/sync v0.7.0
 )
 
 require (

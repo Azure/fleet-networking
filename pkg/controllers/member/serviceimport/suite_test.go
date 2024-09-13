@@ -38,6 +38,7 @@ var (
 	hubClient     client.Client
 	ctx           context.Context
 	cancel        context.CancelFunc
+	reconciler    *Reconciler
 )
 
 const (
@@ -100,13 +101,15 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&Reconciler{
+	reconciler = &Reconciler{
 		MemberClusterID: MemberClusterID,
 		HubNamespace:    HubNamespace,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
-	}).SetupWithManager(mgr)
+	}
+	err = reconciler.SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
+	Expect(reconciler.Join(ctx)).Should(Succeed())
 
 	setupResources()
 
@@ -131,6 +134,7 @@ func setupResources() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+	Expect(reconciler.Leave(ctx)).Should(Succeed())
 	cancel()
 
 	By("tearing down the test environment")

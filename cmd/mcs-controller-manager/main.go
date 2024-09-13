@@ -35,6 +35,7 @@ import (
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
+	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
@@ -241,12 +242,13 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 	hubClient := hubMgr.GetClient()
 
 	klog.V(1).InfoS("Create multiclusterservice reconciler")
-	if err := (&multiclusterservice.Reconciler{
+	mcs := &multiclusterservice.Reconciler{
 		Client:               memberClient,
 		Scheme:               memberMgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
 		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
-	}).SetupWithManager(memberMgr); err != nil {
+	}
+	if err := mcs.SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
 		return err
 	}
@@ -269,6 +271,7 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 			MemberClient: memberClient,
 			HubClient:    hubClient,
 			AgentType:    clusterv1beta1.MultiClusterServiceAgent,
+			Controllers:  []controller.MemberController{mcs},
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err
