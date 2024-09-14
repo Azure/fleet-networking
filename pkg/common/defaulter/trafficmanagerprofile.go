@@ -43,7 +43,7 @@ func SetDefaultsTrafficManagerProfile(obj *fleetnetv1alpha1.TrafficManagerProfil
 	if obj.Spec.MonitorConfig.TimeoutInSeconds == nil {
 		if *obj.Spec.MonitorConfig.IntervalInSeconds == 30 {
 			obj.Spec.MonitorConfig.TimeoutInSeconds = ptr.To(int64(10))
-		} else { // assuming validation wehbook should validate the intervalInSeconds first
+		} else if *obj.Spec.MonitorConfig.IntervalInSeconds == 10 {
 			obj.Spec.MonitorConfig.TimeoutInSeconds = ptr.To(int64(9))
 		}
 	}

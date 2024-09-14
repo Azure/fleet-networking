@@ -61,6 +61,57 @@ func TestSetTrafficManagerProfile(t *testing.T) {
 			},
 		},
 		{
+			name: "TrafficManagerProfile with invalid IntervalInSeconds and nil TimeoutInSeconds",
+			obj: &fleetnetv1alpha1.TrafficManagerProfile{
+				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+						IntervalInSeconds:         ptr.To(int64(40)),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To(int64(8080)),
+						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+						ToleratedNumberOfFailures: ptr.To(int64(4)),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.TrafficManagerProfile{
+				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+						IntervalInSeconds:         ptr.To(int64(40)),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To(int64(8080)),
+						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+						ToleratedNumberOfFailures: ptr.To(int64(4)),
+					},
+				},
+			},
+		},
+		{
+			name: "TrafficManagerProfile with nil IntervalInSeconds and invalid TimeoutInSeconds",
+			obj: &fleetnetv1alpha1.TrafficManagerProfile{
+				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To(int64(8080)),
+						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+						TimeoutInSeconds:          ptr.To(int64(90)),
+						ToleratedNumberOfFailures: ptr.To(int64(4)),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.TrafficManagerProfile{
+				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+						IntervalInSeconds:         ptr.To(int64(30)),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To(int64(8080)),
+						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+						TimeoutInSeconds:          ptr.To(int64(90)),
+						ToleratedNumberOfFailures: ptr.To(int64(4)),
+					},
+				},
+			},
+		},
+		{
 			name: "TrafficManagerProfile with values",
 			obj: &fleetnetv1alpha1.TrafficManagerProfile{
 				Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
@@ -69,7 +120,7 @@ func TestSetTrafficManagerProfile(t *testing.T) {
 						Path:                      ptr.To("/healthz"),
 						Port:                      ptr.To(int64(8080)),
 						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
-						TimeoutInSeconds:          ptr.To(int64(9)),
+						TimeoutInSeconds:          ptr.To(int64(90)),
 						ToleratedNumberOfFailures: ptr.To(int64(4)),
 					},
 				},
@@ -81,7 +132,7 @@ func TestSetTrafficManagerProfile(t *testing.T) {
 						Path:                      ptr.To("/healthz"),
 						Port:                      ptr.To(int64(8080)),
 						Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
-						TimeoutInSeconds:          ptr.To(int64(9)),
+						TimeoutInSeconds:          ptr.To(int64(90)),
 						ToleratedNumberOfFailures: ptr.To(int64(4)),
 					},
 				},
