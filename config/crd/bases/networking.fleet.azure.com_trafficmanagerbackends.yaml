@@ -14,16 +14,13 @@ spec:
     listKind: TrafficManagerBackendList
     plural: trafficmanagerbackends
     shortNames:
-    - tme
+    - tmb
     singular: trafficmanagerbackend
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.profile.name
       name: Profile
-      type: string
-    - jsonPath: .spec.profile.namespace
-      name: Profile-Namespace
       type: string
     - jsonPath: .spec.endpointRef.name
       name: Backend

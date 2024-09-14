@@ -3,10 +3,9 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tme
+// +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tmb
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=`.spec.profile.name`,name="Profile",type=string
-// +kubebuilder:printcolumn:JSONPath=`.spec.profile.namespace`,name="Profile-Namespace",type=string
 // +kubebuilder:printcolumn:JSONPath=`.spec.endpointRef.name`,name="Backend",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Accepted')].status`,name="Is-Accepted",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
@@ -53,6 +52,7 @@ type TrafficManagerBackendSpec struct {
 // TrafficManagerProfileRef is a reference to a trafficManagerProfile object in the same namespace as the TrafficManagerBackend object.
 type TrafficManagerProfileRef struct {
 	// Name is the name of the referenced trafficManagerProfile.
+	// +required
 	Name string `json:"name"`
 }
 

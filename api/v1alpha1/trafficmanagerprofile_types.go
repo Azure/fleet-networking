@@ -42,6 +42,7 @@ type MonitorConfig struct {
 	// You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).
 	// +optional
 	// +kubebuilder:default=30
+	// +kubebuilder:validation:Enum=10;30
 	IntervalInSeconds *int64 `json:"intervalInSeconds,omitempty"`
 
 	// The path relative to the endpoint domain name used to probe for endpoint health.
@@ -67,6 +68,8 @@ type MonitorConfig struct {
 	//   If no value is specified, it uses a default value of 10 seconds.
 	// * If the IntervalInSeconds is set to 10 seconds, then you can set the Timeout value between 5 and 9 seconds.
 	//   If no Timeout value is specified, it uses a default value of 9 seconds.
+	// +kubebuilder:validation:Minimum=5
+	// +kubebuilder:validation:Maximum=10
 	TimeoutInSeconds *int64 `json:"timeoutInSeconds,omitempty"`
 
 	// The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile
