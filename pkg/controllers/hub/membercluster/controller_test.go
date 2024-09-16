@@ -41,8 +41,13 @@ func TestReconcile(t *testing.T) {
 		{
 			name:              "memberCluster deletionTimestamp is nil",
 			memberClusterName: testMemberClusterName,
-			wantResult:        ctrl.Result{},
-			wantErr:           nil,
+			memberCluster: clusterv1beta1.MemberCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-mc",
+				},
+			},
+			wantResult: ctrl.Result{},
+			wantErr:    nil,
 		},
 		{
 			name:              "time since memberCluster deletionTimestamp is less than force delete wait time",
