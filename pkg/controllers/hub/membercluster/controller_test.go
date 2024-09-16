@@ -3,6 +3,7 @@ package membercluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,8 +24,10 @@ const (
 	testMemberClusterName   = "test-mc"
 	testEndpointSliceImport = "test-esi"
 	forceDeleteWaitTime     = 15 * time.Minute
+)
 
-	errorMsg = "fake error for testing"
+var (
+	errFake = errors.New("fake error")
 )
 
 var deletionTimeStamp = time.Now()
@@ -49,7 +52,7 @@ func TestReconcile(t *testing.T) {
 			memberClusterName: testMemberClusterName,
 			shouldGetErr:      true,
 			wantResult:        ctrl.Result{},
-			wantErr:           errors.New(errorMsg),
+			wantErr:           errFake,
 		},
 		{
 			name:              "memberCluster deletionTimestamp is nil",
@@ -97,7 +100,7 @@ func TestReconcile(t *testing.T) {
 					WithScheme(testScheme(t)).
 					WithObjects(&tc.memberCluster).
 					Build(),
-				shouldGetError: tc.shouldGetErr,
+				shouldReadError: tc.shouldGetErr,
 			}
 
 			r := Reconciler{
@@ -106,7 +109,7 @@ func TestReconcile(t *testing.T) {
 			}
 
 			gotResult, gotErr := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.memberClusterName}})
-			if gotErr.Error() != tc.wantErr.Error() {
+			if !errors.Is(gotErr, tc.wantErr) {
 				t.Errorf("Reconcile() error = %+v, want = %+v", gotErr, tc.wantErr)
 			}
 			// Want RequeueAfter is calculated when we expect it to be not zero. Got RequeueAfter from reconcile
@@ -123,7 +126,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		name                string
 		memberCluster       clusterv1beta1.MemberCluster
 		endPointSliceImport fleetnetv1alpha1.EndpointSliceImport
-		shouldGetErr        bool
+		shouldListErr       bool
 		shouldUpdateErr     bool
 		wantResult          ctrl.Result
 		wantErr             error
@@ -136,9 +139,9 @@ func TestRemoveFinalizer(t *testing.T) {
 					Name: memberClusterName,
 				},
 			},
-			shouldGetErr: true,
-			wantResult:   ctrl.Result{},
-			wantErr:      errors.New(errorMsg),
+			shouldListErr: true,
+			wantResult:    ctrl.Result{},
+			wantErr:       errFake,
 		},
 		{
 			name: "failed to update endpointSliceImport",
@@ -148,10 +151,10 @@ func TestRemoveFinalizer(t *testing.T) {
 				},
 			},
 			endPointSliceImport: *buildEndpointSliceImport(testEndpointSliceImport),
-			shouldGetErr:        false,
+			shouldListErr:       false,
 			shouldUpdateErr:     true,
 			wantResult:          ctrl.Result{},
-			wantErr:             errors.New(errorMsg),
+			wantErr:             errFake,
 		},
 	}
 	for _, tc := range testCases {
@@ -161,14 +164,14 @@ func TestRemoveFinalizer(t *testing.T) {
 					WithScheme(testScheme(t)).
 					WithObjects(&tc.endPointSliceImport).
 					Build(),
-				shouldGetError:    tc.shouldGetErr,
-				shouldUpdateError: tc.shouldUpdateErr,
+				shouldReadError:  tc.shouldListErr,
+				shouldWriteError: tc.shouldUpdateErr,
 			}
 			r := Reconciler{
 				Client: errorFakeClient,
 			}
 			gotResult, gotErr := r.removeFinalizer(context.Background(), tc.memberCluster)
-			if gotErr.Error() != tc.wantErr.Error() {
+			if !errors.Is(gotErr, tc.wantErr) {
 				t.Errorf("removeFinalizer() error = %+v, want = %+v", gotErr, tc.wantErr)
 			}
 			if !cmp.Equal(gotResult, tc.wantResult) {
@@ -191,27 +194,27 @@ func testScheme(t *testing.T) *runtime.Scheme {
 
 type errorReturningFakeClient struct {
 	client.Client
-	shouldGetError    bool
-	shouldUpdateError bool
+	shouldReadError  bool
+	shouldWriteError bool
 }
 
 func (fc errorReturningFakeClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-	if fc.shouldGetError {
-		return errors.New(errorMsg)
+	if fc.shouldReadError {
+		return fmt.Errorf("get failed %w", errFake)
 	}
 	return fc.Client.Get(ctx, key, obj, opts...)
 }
 
 func (fc errorReturningFakeClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	if fc.shouldGetError {
-		return errors.New(errorMsg)
+	if fc.shouldReadError {
+		return fmt.Errorf("list failed %w", errFake)
 	}
 	return fc.Client.List(ctx, list, opts...)
 }
 
 func (fc errorReturningFakeClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	if fc.shouldUpdateError {
-		return errors.New(errorMsg)
+	if fc.shouldWriteError {
+		return fmt.Errorf("update failed %w", errFake)
 	}
 	return fc.Client.Update(ctx, obj, opts...)
 }
