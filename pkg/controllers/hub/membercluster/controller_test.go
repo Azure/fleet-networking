@@ -85,15 +85,12 @@ func TestReconcile(t *testing.T) {
 
 			gotResult, gotErr := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.memberClusterName}})
 			if !cmp.Equal(gotErr, tc.wantErr) {
-				t.Errorf("handleDelete() error = %+v, want %+v", gotErr, tc.wantErr)
+				t.Errorf("Reconcile() error = %+v, want %+v", gotErr, tc.wantErr)
 			}
-			if tc.wantResult.RequeueAfter == 0 && !cmp.Equal(gotResult, tc.wantResult) {
-				t.Errorf("handleDelete() result = %+v, want %+v", gotResult, tc.wantResult)
-			}
-			// RequeueAfter calculated when testCase is built and RequeueAfter returned from reconcile
-			// will always be different.
-			if tc.wantResult.RequeueAfter != 0 && gotResult.RequeueAfter == 0 {
-				t.Errorf("handleDelete() result RequeueAfter is not greater than zero")
+			// Want RequeueAfter is calculated when we expect it to be not zero. Got RequeueAfter from reconcile
+			// will always be different from Want RequeueAfter because it calculated when the testCase is built.
+			if got, want := gotResult.RequeueAfter == 0, tc.wantResult.RequeueAfter == 0; got != want {
+				t.Errorf("Reconcile() RequeueAfter is zero = %v, want %v", got, want)
 			}
 		})
 	}

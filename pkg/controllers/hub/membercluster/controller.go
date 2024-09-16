@@ -60,9 +60,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to get memberCluster", "memberCluster", mcObjRef)
 		return ctrl.Result{}, err
 	}
-	if mc.DeletionTimestamp == nil {
+	if mc.DeletionTimestamp.IsZero() {
 		klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("member cluster %s is not being deleted",
-			mc.Name)), "The member cluster should have deletionTimeStamp set to a non-nil value")
+			mc.Name)), "The member cluster should have deletionTimeStamp set to a non-zero/non-nil value")
 		return ctrl.Result{}, nil // no need to retry.
 	}
 
@@ -123,7 +123,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			// If new object is being deleted, trigger reconcile.
-			return e.ObjectNew.GetDeletionTimestamp() != nil
+			return !e.ObjectNew.GetDeletionTimestamp().IsZero()
 		},
 	}
 	// Watch for changes to primary resource MemberCluster
