@@ -34,7 +34,7 @@ const (
 
 	// Naming pattern of member cluster namespace in hub cluster, should be the same as envValue as defined in
 	// https://github.com/Azure/fleet/blob/main/pkg/utils/common.go
-	hubNamespaceNameFormat = "fleet-member-%s"
+	HubNamespaceNameFormat = "fleet-member-%s"
 )
 
 // PrepareHubConfig return the config holding attributes for a Kubernetes client to request hub cluster.
@@ -115,5 +115,5 @@ func FetchMemberClusterNamespace() (string, error) {
 		klog.ErrorS(err, "Member cluster name cannot be empty")
 		return "", err
 	}
-	return fmt.Sprintf(hubNamespaceNameFormat, mcName), nil
+	return fmt.Sprintf(HubNamespaceNameFormat, mcName), nil
 }

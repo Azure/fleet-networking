@@ -26,6 +26,7 @@ rules:
   - patch
 - apiGroups: 
   - networking.fleet.azure.com
+  - cluster.kubernetes-fleet.io
   resources: ["*"]
   verbs: ["*"]
 ---
@@ -70,6 +71,7 @@ rules:
   - patch
 - apiGroups: 
   - networking.fleet.azure.com
+  - cluster.kubernetes-fleet.io
   resources: ["*"]
   verbs: ["*"]
 ---

@@ -129,6 +129,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+    - cluster.kubernetes-fleet.io
+  resources:
+    - memberclusters
+  verbs:
+    - get
+    - list
+    - watch
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

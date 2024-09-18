@@ -161,7 +161,7 @@ func TestFetchMemberClusterNamespace(t *testing.T) {
 			name:     "environment variable is present",
 			envKey:   "MEMBER_CLUSTER_NAME",
 			envValue: memberCluster,
-			want:     fmt.Sprintf(hubNamespaceNameFormat, memberCluster),
+			want:     fmt.Sprintf(HubNamespaceNameFormat, memberCluster),
 			wantErr:  false,
 		},
 		{

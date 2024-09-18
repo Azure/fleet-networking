@@ -26,11 +26,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	//+kubebuilder:scaffold:imports
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
 )
 
@@ -47,11 +49,14 @@ var (
 	internalServiceExportRetryInterval = flag.Duration("internalserviceexport-retry-interval", 2*time.Second,
 		"The wait time for the internalserviceexport controller to requeue the request and to wait for the"+
 			"ServiceImport controller to resolve the service Spec")
+
+	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
 	klog.InitFlags(nil)
 	//+kubebuilder:scaffold:scheme
 }
@@ -137,6 +142,16 @@ func main() {
 		Recorder: mgr.GetEventRecorderFor(serviceimport.ControllerName),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create ServiceImport controller")
+		exitWithErrorFunc()
+	}
+
+	klog.V(1).InfoS("Start to setup MemberCluster controller")
+	if err := (&membercluster.Reconciler{
+		Client:              mgr.GetClient(),
+		Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+		ForceDeleteWaitTime: *forceDeleteWaitTime,
+	}).SetupWithManager(mgr); err != nil {
+		klog.ErrorS(err, "Unable to create MemberCluster controller")
 		exitWithErrorFunc()
 	}
 
