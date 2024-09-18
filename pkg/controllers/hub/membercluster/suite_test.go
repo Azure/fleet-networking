@@ -54,7 +54,8 @@ var _ = BeforeSuite(func() {
 	hubTestEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "..", "config", "crd", "bases"),
-			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.10.5", "config", "crd", "bases", "cluster.kubernetes-fleet.io_memberclusters.yaml"),
+			// The package name must match with the version of the fleet package in use.
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.10.10", "config", "crd", "bases", "cluster.kubernetes-fleet.io_memberclusters.yaml"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
