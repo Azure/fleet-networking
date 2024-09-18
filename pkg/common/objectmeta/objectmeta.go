@@ -38,6 +38,9 @@ const (
 	// ExportedObjectAnnotationUniqueName is an annotation that marks the fleet-scoped unique name assigned to
 	// an exported object.
 	ExportedObjectAnnotationUniqueName = fleetNetworkingPrefix + "fleet-unique-name"
+
+	// AzureLoadBalancerInternalAnnotation is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
+	AzureLoadBalancerInternalAnnotation = "service.beta.kubernetes.io/azure-load-balancer-internal"
 )
 
 // Azure Resource Tags
