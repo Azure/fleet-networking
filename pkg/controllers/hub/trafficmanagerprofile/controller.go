@@ -43,9 +43,14 @@ const (
 var (
 	// create the func as a variable so that the integration test can use a customized function.
 	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
-		return fmt.Sprintf(AzureResourceProfileNameFormat, profile.UID)
+		return GenerateAzureTrafficManagerProfileName(profile)
 	}
 )
+
+// GenerateAzureTrafficManagerProfileName generates the Azure Traffic Manager profile name based on the profile.
+func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
+	return fmt.Sprintf(AzureResourceProfileNameFormat, profile.UID)
+}
 
 // Reconciler reconciles a TrafficManagerProfile object.
 type Reconciler struct {
@@ -117,11 +122,12 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1
 			return ctrl.Result{}, err
 		}
 	}
+	klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
 
 	controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
 	if err := r.Client.Update(ctx, profile); err != nil {
 		klog.ErrorS(err, "Failed to remove trafficManagerProfile finalizer", "trafficManagerProfile", profileKObj)
-		return ctrl.Result{}, err
+		return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 	}
 	klog.V(2).InfoS("Removed trafficManagerProfile finalizer", "trafficManagerProfile", profileKObj)
 	return ctrl.Result{}, nil
@@ -157,6 +163,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 			"azureProfileName", azureProfileName,
 			"errorCode", responseError.ErrorCode, "statusCode", responseError.StatusCode)
 	}
+	klog.V(2).InfoS("Created or updated Azure Traffic Manager Profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 

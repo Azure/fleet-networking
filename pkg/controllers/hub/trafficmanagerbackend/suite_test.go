@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package trafficmanagerprofile
+package trafficmanagerbackend
 
 import (
 	"context"
@@ -39,17 +39,18 @@ var (
 )
 
 const (
-	testNamespace = "profile-ns"
+	testNamespace = "backend-ns"
 )
 
 var (
-	originalGenerateAzureTrafficManagerProfileNameFunc = generateAzureTrafficManagerProfileNameFunc
+	originalGenerateAzureTrafficManagerProfileNameFunc        = generateAzureTrafficManagerProfileNameFunc
+	originalGenerateAzureTrafficManagerEndpointNamePrefixFunc = generateAzureTrafficManagerEndpointNamePrefixFunc
 )
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "TrafficManagerProfile Controller Suite")
+	RunSpecs(t, "TrafficManagerBackend Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -92,18 +93,24 @@ var _ = BeforeSuite(func() {
 	profileClient, err := fakeprovider.NewProfileClient("default-sub")
 	Expect(err).Should(Succeed(), "failed to create the fake profile client")
 
+	endpointClient, err := fakeprovider.NewEndpointsClient("default-sub")
+	Expect(err).Should(Succeed(), "failed to create the fake endpoint client")
+
 	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
 		return profile.Name
 	}
+	generateAzureTrafficManagerEndpointNamePrefixFunc = func(backend *fleetnetv1alpha1.TrafficManagerBackend) string {
+		return backend.Name
+	}
 
+	ctx, cancel = context.WithCancel(context.TODO())
 	err = (&Reconciler{
 		Client:            mgr.GetClient(),
 		ProfilesClient:    profileClient,
+		EndpointsClient:   endpointClient,
 		ResourceGroupName: fakeprovider.DefaultResourceGroupName,
-	}).SetupWithManager(mgr)
+	}).SetupWithManager(ctx, mgr)
 	Expect(err).ToNot(HaveOccurred())
-
-	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("Create profile namespace")
 	ns := corev1.Namespace{
@@ -137,4 +144,5 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	generateAzureTrafficManagerProfileNameFunc = originalGenerateAzureTrafficManagerProfileNameFunc
+	generateAzureTrafficManagerEndpointNamePrefixFunc = originalGenerateAzureTrafficManagerEndpointNamePrefixFunc
 })

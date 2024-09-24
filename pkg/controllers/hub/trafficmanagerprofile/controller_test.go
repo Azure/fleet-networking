@@ -10,10 +10,24 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/google/go-cmp/cmp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
+
+func TestGenerateAzureTrafficManagerProfileName(t *testing.T) {
+	profile := &fleetnetv1alpha1.TrafficManagerProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			UID: "abc",
+		},
+	}
+	want := "fleet-abc"
+	got := GenerateAzureTrafficManagerProfileName(profile)
+	if want != got {
+		t.Errorf("GenerateAzureTrafficManagerProfileName() = %s, want %s", got, want)
+	}
+}
 
 func TestConvertToTrafficManagerProfileSpec(t *testing.T) {
 	tests := []struct {

@@ -23,20 +23,29 @@ import (
 const (
 	DefaultResourceGroupName = "default-resource-group-name"
 
-	ValidProfileName             = "valid-profile"
-	ConflictErrProfileName       = "conflict-err-profile"
-	InternalServerErrProfileName = "internal-server-err-profile"
-	ThrottledErrProfileName      = "throttled-err-profile"
+	ValidProfileName              = "valid-profile"
+	ValidProfileWithEndpointsName = "valid-profile-with-endpoints"
+	ConflictErrProfileName        = "conflict-err-profile"
+	InternalServerErrProfileName  = "internal-server-err-profile"
+	ThrottledErrProfileName       = "throttled-err-profile"
+
+	ValidBackendName  = "valid-backend"
+	ServiceImportName = "test-import"
+	ClusterName       = "member-1"
 
 	ProfileDNSNameFormat = "%s.trafficmanager.net"
 )
 
+var (
+	ValidEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+)
+
 // NewProfileClient creates a client which talks to a fake profile server.
-func NewProfileClient(_ context.Context, subscriptionID string) (*armtrafficmanager.ProfilesClient, error) {
+func NewProfileClient(subscriptionID string) (*armtrafficmanager.ProfilesClient, error) {
 	fakeServer := fake.ProfilesServer{
-		CreateOrUpdate: CreateOrUpdate,
-		Delete:         Delete,
-		Get:            Get,
+		CreateOrUpdate: ProfileCreateOrUpdate,
+		Delete:         ProfileDelete,
+		Get:            ProfileGet,
 	}
 	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
@@ -50,14 +59,14 @@ func NewProfileClient(_ context.Context, subscriptionID string) (*armtrafficmana
 	return clientFactory.NewProfilesClient(), nil
 }
 
-// Get returns the http status code based on the profileName.
-func Get(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientGetOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientGetResponse], errResp azcorefake.ErrorResponder) {
+// ProfileGet returns the http status code based on the profileName.
+func ProfileGet(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientGetOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientGetResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
 		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
 		return resp, errResp
 	}
 	switch profileName {
-	case ValidProfileName:
+	case ValidProfileName, ValidProfileWithEndpointsName:
 		profileResp := armtrafficmanager.ProfilesClientGetResponse{
 			Profile: armtrafficmanager.Profile{
 				Name:     ptr.To(profileName),
@@ -82,6 +91,16 @@ func Get(_ context.Context, resourceGroupName string, profileName string, _ *arm
 					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
 				},
 			}}
+		if profileName == ValidProfileWithEndpointsName {
+			profileResp.Profile.Properties.Endpoints = []*armtrafficmanager.Endpoint{
+				{
+					Name: ptr.To(ValidEndpointName),
+				},
+				{
+					Name: ptr.To("other-endpoint"),
+				},
+			}
+		}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:
 		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
@@ -89,8 +108,8 @@ func Get(_ context.Context, resourceGroupName string, profileName string, _ *arm
 	return resp, errResp
 }
 
-// CreateOrUpdate returns the http status code based on the profileName.
-func CreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, parameters armtrafficmanager.Profile, _ *armtrafficmanager.ProfilesClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
+// ProfileCreateOrUpdate returns the http status code based on the profileName.
+func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, parameters armtrafficmanager.Profile, _ *armtrafficmanager.ProfilesClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
 		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
 		return resp, errResp
@@ -133,8 +152,8 @@ func CreateOrUpdate(_ context.Context, resourceGroupName string, profileName str
 	return resp, errResp
 }
 
-// Delete returns the http status code based on the profileName.
-func Delete(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientDeleteOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientDeleteResponse], errResp azcorefake.ErrorResponder) {
+// ProfileDelete returns the http status code based on the profileName.
+func ProfileDelete(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientDeleteOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientDeleteResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
 		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
 		return resp, errResp
