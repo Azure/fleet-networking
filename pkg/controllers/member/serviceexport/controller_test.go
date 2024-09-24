@@ -989,236 +989,14 @@ func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 	}
 }
 
-func TestFetchPublicIPResourceID(t *testing.T) {
-	tests := []struct {
-		name                       string
-		svc                        *corev1.Service
-		loadBalancerGetResponse    *armnetwork.LoadBalancer
-		loadBalancerGetResponseErr error
-		want                       *string
-		wantErr                    bool
-	}{
-		{
-			name: "return valid public IP resource id",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("publicIPID"),
-								},
-							},
-						},
-					},
-				},
-			},
-			want: ptr.To("publicIPID"),
-		},
-		{
-			name:                       "error when getting load balancer",
-			loadBalancerGetResponseErr: errors.New("error"),
-			wantErr:                    true,
-		},
-		{
-			name: "fronted IP cannot be found",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("aauid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("publicIPID"),
-								},
-							},
-						},
-						{
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("publicIPID"),
-								},
-							},
-						},
-					},
-				},
-			},
-			want: nil,
-		},
-		{
-			name: "the properties of load balancer is nil",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{},
-			want:                    nil,
-		},
-		{
-			name: "the properties of fronted IP is nil",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-						},
-					},
-				},
-			},
-			want: nil,
-		},
-		{
-			name: "the public ip address of fronted IP is nil",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name:       ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{},
-						},
-					},
-				},
-			},
-			want: nil,
-		},
-		{
-			name: "the id of public ip address is nil",
-			svc: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					UID: "uid",
-				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{},
-							},
-						},
-					},
-				},
-			},
-			want: nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Reconciler{
-				AzureLoadBalancerClient: &fakeLoadBalancerClient{GetResponse: tt.loadBalancerGetResponse, GetError: tt.loadBalancerGetResponseErr},
-			}
-			got, err := r.fetchPublicIPResourceID(context.Background(), tt.svc)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("fetchPublicIPResourceID() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("fetchPublicIPResourceID() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestIsDNSLabelConfigured(t *testing.T) {
-	tests := []struct {
-		name                          string
-		publicIP                      string
-		publicIPAddressGetResponse    *armnetwork.PublicIPAddress
-		publicIPAddressGetResponseErr error
-		want                          bool
-		wantErr                       bool
-	}{
-		{
-			name:     "dns label is configured",
-			publicIP: "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip",
-			publicIPAddressGetResponse: &armnetwork.PublicIPAddress{
-				Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-					DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
-						DomainNameLabel: ptr.To("dnsLabel"),
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "invalid resource id",
-			publicIP: "invalid",
-			wantErr:  true,
-		},
-		{
-			name:                          "error when getting public ip address",
-			publicIP:                      "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip",
-			publicIPAddressGetResponseErr: errors.New("error"),
-			wantErr:                       true,
-		},
-		{
-			name:                       "properties is nil",
-			publicIP:                   "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip",
-			publicIPAddressGetResponse: &armnetwork.PublicIPAddress{},
-			want:                       false,
-		},
-		{
-			name:     "dns setting is nil",
-			publicIP: "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip",
-			publicIPAddressGetResponse: &armnetwork.PublicIPAddress{
-				Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-					DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
-				},
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Reconciler{
-				AzurePublicIPAddressClient: &fakePublicIPAddressClient{GetResponse: tt.publicIPAddressGetResponse, GetError: tt.publicIPAddressGetResponseErr},
-			}
-			got, err := r.isDNSLabelConfigured(context.Background(), tt.publicIP)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("isDNSLabelConfigured() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("isDNSLabelConfigured() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSetAzureRelatedInformation(t *testing.T) {
 	tests := []struct {
-		name    string
-		service *corev1.Service
-
-		loadBalancerGetResponse       *armnetwork.LoadBalancer
-		loadBalancerGetResponseErr    error
-		publicIPAddressGetResponse    *armnetwork.PublicIPAddress
-		publicIPAddressGetResponseErr error
-		want                          *fleetnetv1alpha1.InternalServiceExport
-		wantErr                       bool
+		name                           string
+		service                        *corev1.Service
+		publicIPAddressListResponse    []*armnetwork.PublicIPAddress
+		publicIPAddressListResponseErr error
+		want                           *fleetnetv1alpha1.InternalServiceExport
+		wantErr                        bool
 	}{
 		{
 			name: "load balancer type with public ip",
@@ -1229,25 +1007,29 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-								},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
 							},
 						},
 					},
 				},
 			},
-			publicIPAddressGetResponse: &armnetwork.PublicIPAddress{
-				Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-					DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
-						DomainNameLabel: ptr.To("dnsLabel"),
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
+							DomainNameLabel: ptr.To("dnsLabel"),
+						},
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
 					},
 				},
 			},
@@ -1269,24 +1051,26 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-								},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
 							},
 						},
 					},
 				},
 			},
-			publicIPAddressGetResponse: &armnetwork.PublicIPAddress{
-				Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-					DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+						IPAddress:   ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{},
 				},
 			},
 			want: &fleetnetv1alpha1.InternalServiceExport{
@@ -1345,11 +1129,11 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
-			loadBalancerGetResponseErr: errors.New("error"),
-			wantErr:                    true,
+			publicIPAddressListResponseErr: errors.New("error"),
+			wantErr:                        true,
 		},
 		{
-			name: "nil public ip resource",
+			name: "stale service ingress ip",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
@@ -1357,23 +1141,32 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
 							},
 						},
 					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+						IPAddress:   ptr.To("1.2.3.7"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{},
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "empty public ip resource id",
+			name: "service ingress ip is not set",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
@@ -1382,24 +1175,9 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To(""),
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
 		},
 		{
-			name: "error when getting public ip address",
+			name: "service ingress ip is set but empty",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
@@ -1407,30 +1185,22 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
-			},
-			loadBalancerGetResponse: &armnetwork.LoadBalancer{
-				Properties: &armnetwork.LoadBalancerPropertiesFormat{
-					FrontendIPConfigurations: []*armnetwork.FrontendIPConfiguration{
-						{
-							Name: ptr.To("auid"),
-							Properties: &armnetwork.FrontendIPConfigurationPropertiesFormat{
-								PublicIPAddress: &armnetwork.PublicIPAddress{
-									ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-								},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "",
 							},
 						},
 					},
 				},
 			},
-			publicIPAddressGetResponseErr: errors.New("error"),
-			wantErr:                       true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Reconciler{
-				AzureLoadBalancerClient:    &fakeLoadBalancerClient{GetResponse: tt.loadBalancerGetResponse, GetError: tt.loadBalancerGetResponseErr},
-				AzurePublicIPAddressClient: &fakePublicIPAddressClient{GetResponse: tt.publicIPAddressGetResponse, GetError: tt.publicIPAddressGetResponseErr},
+				AzurePublicIPAddressClient: &fakePublicIPAddressClient{ListResponse: tt.publicIPAddressListResponse, ListError: tt.publicIPAddressListResponseErr},
 			}
 			got := &fleetnetv1alpha1.InternalServiceExport{}
 			err := r.setAzureRelatedInformation(context.Background(), tt.service, got)
@@ -1448,38 +1218,13 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 	}
 }
 
-type fakeLoadBalancerClient struct {
-	GetResponse *armnetwork.LoadBalancer
-	GetError    error
-}
-
-func (c *fakeLoadBalancerClient) Get(_ context.Context, _ string, _ string, _ *string) (*armnetwork.LoadBalancer, error) {
-	return c.GetResponse, c.GetError
-}
-
-func (c *fakeLoadBalancerClient) CreateOrUpdate(_ context.Context, _ string, _ string, _ armnetwork.LoadBalancer) (*armnetwork.LoadBalancer, error) {
-	return nil, nil
-}
-
-func (c *fakeLoadBalancerClient) Delete(_ context.Context, _ string, _ string) error {
-	return nil
-}
-
-func (c *fakeLoadBalancerClient) List(_ context.Context, _ string) ([]*armnetwork.LoadBalancer, error) {
-	return nil, nil
-}
-
-func (c *fakeLoadBalancerClient) MigrateToIPBased(_ context.Context, _ string, _ string, _ *armnetwork.LoadBalancersClientMigrateToIPBasedOptions) (armnetwork.LoadBalancersClientMigrateToIPBasedResponse, error) {
-	return armnetwork.LoadBalancersClientMigrateToIPBasedResponse{}, nil
-}
-
 type fakePublicIPAddressClient struct {
-	GetResponse *armnetwork.PublicIPAddress
-	GetError    error
+	ListResponse []*armnetwork.PublicIPAddress
+	ListError    error
 }
 
 func (c *fakePublicIPAddressClient) Get(_ context.Context, _ string, _ string, _ *string) (*armnetwork.PublicIPAddress, error) {
-	return c.GetResponse, c.GetError
+	return nil, nil
 }
 
 func (c *fakePublicIPAddressClient) CreateOrUpdate(_ context.Context, _ string, _ string, _ armnetwork.PublicIPAddress) (*armnetwork.PublicIPAddress, error) {
@@ -1491,5 +1236,5 @@ func (c *fakePublicIPAddressClient) Delete(_ context.Context, _ string, _ string
 }
 
 func (c *fakePublicIPAddressClient) List(_ context.Context, _ string) ([]*armnetwork.PublicIPAddress, error) {
-	return nil, nil
+	return c.ListResponse, c.ListError
 }
