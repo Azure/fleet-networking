@@ -9,16 +9,20 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -80,7 +84,8 @@ func main() {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	hubConfig := ctrl.GetConfigOrDie()
+	mgr, err := ctrl.NewManager(hubConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: *metricsAddr,
@@ -145,14 +150,18 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	klog.V(1).InfoS("Start to setup MemberCluster controller")
-	if err := (&membercluster.Reconciler{
-		Client:              mgr.GetClient(),
-		Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
-		ForceDeleteWaitTime: *forceDeleteWaitTime,
-	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create MemberCluster controller")
-		exitWithErrorFunc()
+	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
+	gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
+	if checkCRDInstalled(discoverClient, gvk) == nil {
+		klog.V(1).InfoS("Start to setup MemberCluster controller")
+		if err := (&membercluster.Reconciler{
+			Client:              mgr.GetClient(),
+			Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+			ForceDeleteWaitTime: *forceDeleteWaitTime,
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create MemberCluster controller")
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
@@ -160,4 +169,26 @@ func main() {
 		klog.ErrorS(err, "Problem running manager")
 		exitWithErrorFunc()
 	}
+}
+
+// checkCRDInstalled checks if the custom resource definition is installed
+func checkCRDInstalled(discoveryClient discovery.DiscoveryInterface, gvk schema.GroupVersionKind) error {
+	startTime := time.Now()
+	err := retry.OnError(retry.DefaultBackoff, func(err error) bool { return true }, func() error {
+		resourceList, err := discoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
+		if err != nil {
+			return err
+		}
+		for _, r := range resourceList.APIResources {
+			if r.Kind == gvk.Kind {
+				return nil
+			}
+		}
+		return fmt.Errorf("kind not found in group version resources")
+	})
+
+	if err != nil {
+		klog.ErrorS(err, "Failed to find resources", "gvk", gvk, "waiting time", time.Since(startTime))
+	}
+	return err
 }
