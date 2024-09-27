@@ -79,3 +79,7 @@ require (
 	sigs.k8s.io/work-api v0.0.0-20220407021756-586d707fdb2c // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+// Fleet repo is using a custom version of work-api.
+// Without the replace the compile will fail.
+replace sigs.k8s.io/work-api => github.com/Azure/k8s-work-api v0.5.0
