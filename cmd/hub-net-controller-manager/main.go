@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/klog/v2"
@@ -27,6 +28,7 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+	"go.goms.io/fleet/pkg/utils"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
@@ -80,7 +82,8 @@ func main() {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	hubConfig := ctrl.GetConfigOrDie()
+	mgr, err := ctrl.NewManager(hubConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: *metricsAddr,
@@ -145,14 +148,18 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	klog.V(1).InfoS("Start to setup MemberCluster controller")
-	if err := (&membercluster.Reconciler{
-		Client:              mgr.GetClient(),
-		Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
-		ForceDeleteWaitTime: *forceDeleteWaitTime,
-	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "Unable to create MemberCluster controller")
-		exitWithErrorFunc()
+	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
+	gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
+	if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
+		klog.V(1).InfoS("Start to setup MemberCluster controller")
+		if err := (&membercluster.Reconciler{
+			Client:              mgr.GetClient(),
+			Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+			ForceDeleteWaitTime: *forceDeleteWaitTime,
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create MemberCluster controller")
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")

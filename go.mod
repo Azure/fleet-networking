@@ -73,7 +73,13 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.30.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20240620174524-b456828f718b // indirect
+	k8s.io/metrics v0.25.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+	sigs.k8s.io/work-api v0.0.0-20220407021756-586d707fdb2c // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+// Fleet repo is using a custom version of work-api.
+// Without the replace the compile will fail.
+replace sigs.k8s.io/work-api => github.com/Azure/k8s-work-api v0.5.0
