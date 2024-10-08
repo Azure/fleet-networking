@@ -1,5 +1,5 @@
 # Fleet-networking
-[![CI](https://github.com/Azure/fleet-networking/actions/workflows/workflow.yml/badge.svg?branch=main)](https://github.com/Azure/fleet-networking/actions/workflows/workflow.yml?query=branch%3Amain)
+[![CI](https://github.com/Azure/fleet-networking/actions/workflows/unit-integration-tests.yml/badge.svg?branch=main)](https://github.com/Azure/fleet-networking/actions/workflows/unit-integration-tests.yml?query=branch%3Amain)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/fleet-networking)](https://goreportcard.com/report/github.com/Azure/fleet-networking)
 [![Releases](https://img.shields.io/gitlab/v/release/Azure/fleet-networking)](https://github.com/Azure/fleet-networking/releases)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/fleet-networking)
