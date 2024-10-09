@@ -25,6 +25,7 @@ rules:
   - watch
 - apiGroups:
   - cluster.kubernetes-fleet.io
+  - fleet.azure.com
   resources:
   - internalmemberclusters
   verbs:
@@ -33,6 +34,7 @@ rules:
   - watch
 - apiGroups:
   - cluster.kubernetes-fleet.io
+  - fleet.azure.com
   resources:
   - internalmemberclusters/status
   verbs:
@@ -52,49 +54,16 @@ rules:
   - update
   - watch
 - apiGroups:
-  - fleet.azure.com
-  resources:
-  - internalmemberclusters
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - fleet.azure.com
-  resources:
-  - internalmemberclusters/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - networking.fleet.azure.com
   resources:
   - endpointsliceexports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
   - endpointsliceimports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
   - internalserviceexports
+  - internalserviceimports
+  - multiclusterservices
+  - serviceexports
+  - serviceimports
+  - trafficmanagerprofiles
   verbs:
   - create
   - delete
@@ -107,105 +76,27 @@ rules:
   - networking.fleet.azure.com
   resources:
   - internalserviceexports/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalserviceexports/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalserviceimports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - multiclusterservices
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - multiclusterservices/finalizers
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - multiclusterservices/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - serviceexports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
   - serviceexports/finalizers
   verbs:
   - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+  - internalserviceexports/status
+  - multiclusterservices/status
   - serviceexports/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - serviceimports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - serviceimports/finalizers
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
   - serviceimports/status
+  - trafficmanagerprofiles/status
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - multiclusterservices/finalizers
+  - serviceimports/finalizers
+  - trafficmanagerprofiles/finalizers
+  verbs:
+  - get
   - update
