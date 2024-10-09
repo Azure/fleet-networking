@@ -152,12 +152,6 @@ var _ = Describe("Test MultiClusterService Controller", func() {
 						Ingress: []corev1.LoadBalancerIngress{
 							{
 								IP: "10.0.0.1",
-								Ports: []corev1.PortStatus{
-									{
-										Port:     8080,
-										Protocol: corev1.ProtocolTCP,
-									},
-								},
 							},
 						},
 					},

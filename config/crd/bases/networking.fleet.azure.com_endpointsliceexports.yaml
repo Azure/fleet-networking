@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.16.0
   name: endpointsliceexports.networking.fleet.azure.com
 spec:
   group: networking.fleet.azure.com
@@ -181,6 +181,7 @@ spec:
                       format: int32
                       type: integer
                     protocol:
+                      default: TCP
                       description: |-
                         protocol represents the IP protocol for this port.
                         Must be UDP, TCP, or SCTP.

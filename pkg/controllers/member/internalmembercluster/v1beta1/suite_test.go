@@ -13,6 +13,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/config"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -104,6 +107,9 @@ var _ = BeforeSuite(func() {
 		Scheme: scheme.Scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
+		},
+		Controller: config.Controller{
+			SkipNameValidation: ptr.To(true),
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())

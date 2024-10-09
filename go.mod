@@ -9,15 +9,15 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
-	github.com/prometheus/client_golang v1.20.4
-	github.com/prometheus/common v0.60.0
+	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/common v0.55.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/sync v0.8.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/cloud-provider-azure/pkg/azclient v0.0.50
 	sigs.k8s.io/controller-runtime v0.19.0
 )
@@ -49,8 +49,6 @@ require (
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.17.10 // indirect
-	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
