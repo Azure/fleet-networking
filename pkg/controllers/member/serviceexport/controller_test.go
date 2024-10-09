@@ -1128,6 +1128,15 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
 			},
 			publicIPAddressListResponseErr: errors.New("error"),
 			wantErr:                        true,
@@ -1163,7 +1172,11 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					Properties: &armnetwork.PublicIPAddressPropertiesFormat{},
 				},
 			},
-			wantErr: true,
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
 		},
 		{
 			name: "service ingress ip is not set",
@@ -1172,6 +1185,11 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					UID: "uid",
 				},
 				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
@@ -1193,6 +1211,11 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
 		},
