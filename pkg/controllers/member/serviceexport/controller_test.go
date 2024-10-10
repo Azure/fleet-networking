@@ -38,6 +38,8 @@ const (
 	hubNSForMember     = "bravelion"
 	svcName            = "app"
 	svcResourceVersion = "0"
+
+	validResourceGroup = "valid-rg"
 )
 
 // ignoredCondFields are fields that should be ignored when comparing conditions.
@@ -1003,6 +1005,10 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+					},
 				},
 				Spec: corev1.ServiceSpec{
 					Type: corev1.ServiceTypeLoadBalancer,
@@ -1086,7 +1092,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
 					Annotations: map[string]string{
-						objectmeta.AzureLoadBalancerInternalAnnotation: "true",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
 					},
 				},
 				Spec: corev1.ServiceSpec{
@@ -1106,7 +1112,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
 					Annotations: map[string]string{
-						objectmeta.AzureLoadBalancerInternalAnnotation: "true",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
 					},
 				},
 				Spec: corev1.ServiceSpec{
@@ -1219,11 +1225,36 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "invalid load balancer resource group",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "invalid",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Reconciler{
 				AzurePublicIPAddressClient: &fakePublicIPAddressClient{ListResponse: tt.publicIPAddressListResponse, ListError: tt.publicIPAddressListResponseErr},
+				ResourceGroupName:          validResourceGroup,
 			}
 			got := &fleetnetv1alpha1.InternalServiceExport{}
 			err := r.setAzureRelatedInformation(context.Background(), tt.service, got)
@@ -1258,6 +1289,9 @@ func (c *fakePublicIPAddressClient) Delete(_ context.Context, _ string, _ string
 	return nil
 }
 
-func (c *fakePublicIPAddressClient) List(_ context.Context, _ string) ([]*armnetwork.PublicIPAddress, error) {
-	return c.ListResponse, c.ListError
+func (c *fakePublicIPAddressClient) List(_ context.Context, rg string) ([]*armnetwork.PublicIPAddress, error) {
+	if rg == validResourceGroup {
+		return c.ListResponse, c.ListError
+	}
+	return nil, errors.New("invalid resource group")
 }

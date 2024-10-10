@@ -39,8 +39,12 @@ const (
 	// an exported object.
 	ExportedObjectAnnotationUniqueName = fleetNetworkingPrefix + "fleet-unique-name"
 
-	// AzureLoadBalancerInternalAnnotation is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
-	AzureLoadBalancerInternalAnnotation = "service.beta.kubernetes.io/azure-load-balancer-internal"
+	// ServiceAnnotationAzureLoadBalancerInternal is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
+	ServiceAnnotationAzureLoadBalancerInternal = "service.beta.kubernetes.io/azure-load-balancer-internal"
+
+	// ServiceAnnotationLoadBalancerResourceGroup is the annotation used on the service to specify the resource group of
+	// load balancer objects that are not in the same resource group as the cluster.
+	ServiceAnnotationLoadBalancerResourceGroup = "service.beta.kubernetes.io/azure-load-balancer-resource-group"
 )
 
 // Azure Resource Tags

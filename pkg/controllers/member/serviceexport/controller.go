@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
@@ -269,7 +270,9 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
 		return nil
 	}
-	export.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.AzureLoadBalancerInternalAnnotation] == "true"
+	// The annotation value is case-sensitive.
+	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
+	export.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
 	if export.Spec.IsInternalLoadBalancer {
 		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
 		return nil
@@ -307,10 +310,15 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 
 // TODO: can improve the performance by caching the public IP address resource ID.
 func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Context, service *corev1.Service) (*armnetwork.PublicIPAddress, error) {
+	// The customer can specify the resource group for the public IP address in the service annotation.
+	rg := strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationLoadBalancerResourceGroup])
+	if len(rg) == 0 {
+		rg = r.ResourceGroupName
+	}
 	serviceKObj := klog.KObj(service)
-	pips, err := r.AzurePublicIPAddressClient.List(ctx, r.ResourceGroupName)
+	pips, err := r.AzurePublicIPAddressClient.List(ctx, rg)
 	if err != nil {
-		klog.ErrorS(err, "Failed to list Azure public IP addresses", "service", serviceKObj)
+		klog.ErrorS(err, "Failed to list Azure public IP addresses", "service", serviceKObj, "resourceGroup", rg)
 		return nil, err
 	}
 	for _, pip := range pips {
@@ -319,7 +327,7 @@ func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Contex
 			return pip, nil
 		}
 	}
-	klog.V(2).InfoS("The public IP address resource ID cannot be found in the public IP lists", "service", serviceKObj, "ip", service.Status.LoadBalancer.Ingress[0].IP)
+	klog.V(2).InfoS("The public IP address resource ID cannot be found in the public IP lists", "service", serviceKObj, "ip", service.Status.LoadBalancer.Ingress[0].IP, "resourceGroup", rg)
 	return nil, nil
 }
 
