@@ -7,26 +7,30 @@ package serviceexport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -34,6 +38,8 @@ const (
 	hubNSForMember     = "bravelion"
 	svcName            = "app"
 	svcResourceVersion = "0"
+
+	validResourceGroup = "valid-rg"
 )
 
 // ignoredCondFields are fields that should be ignored when comparing conditions.
@@ -743,7 +749,7 @@ func TestUnexportService(t *testing.T) {
 
 			var deletedInternalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
 			internalSvcExportKey := types.NamespacedName{Namespace: tc.internalSvcExport.Namespace, Name: internalSvcExportName}
-			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !errors.IsNotFound(err) {
+			if err := fakeHubClient.Get(ctx, internalSvcExportKey, deletedInternalSvcExport); !apierrors.IsNotFound(err) {
 				t.Fatalf("internalSvcExport Get(%+v), got error %v, want not found error", internalSvcExportKey, err)
 			}
 		})
@@ -983,4 +989,309 @@ func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetAzureRelatedInformation(t *testing.T) {
+	tests := []struct {
+		name                           string
+		service                        *corev1.Service
+		publicIPAddressListResponse    []*armnetwork.PublicIPAddress
+		publicIPAddressListResponseErr error
+		want                           *fleetnetv1alpha1.InternalServiceExport
+		wantErr                        bool
+	}{
+		{
+			name: "load balancer type with public ip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
+							DomainNameLabel: ptr.To("dnsLabel"),
+						},
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsDNSLabelConfigured:   true,
+					IsInternalLoadBalancer: false,
+					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
+		{
+			name: "load balancer type with public ip and dns label is not set",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+						IPAddress:   ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:               corev1.ServiceTypeLoadBalancer,
+					PublicIPResourceID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
+		{
+			name: "load balancer type with internal ip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsInternalLoadBalancer: true,
+				},
+			},
+		},
+		{
+			name: "NodePort type service",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeNodePort,
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeNodePort,
+				},
+			},
+		},
+		{
+			name: "error when getting public ip resource",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponseErr: errors.New("error"),
+			wantErr:                        true,
+		},
+		{
+			name: "stale service ingress ip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+						IPAddress:   ptr.To("1.2.3.7"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+		},
+		{
+			name: "service ingress ip is not set",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+		},
+		{
+			name: "service ingress ip is set but empty",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "",
+							},
+						},
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+			},
+		},
+		{
+			name: "invalid load balancer resource group",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "invalid",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Reconciler{
+				AzurePublicIPAddressClient: &fakePublicIPAddressClient{ListResponse: tt.publicIPAddressListResponse, ListError: tt.publicIPAddressListResponseErr},
+				ResourceGroupName:          validResourceGroup,
+			}
+			got := &fleetnetv1alpha1.InternalServiceExport{}
+			err := r.setAzureRelatedInformation(context.Background(), tt.service, got)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("setAzureRelatedInformation() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("setAzureRelatedInformation() internalServiceExport mismatch (-want, +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+type fakePublicIPAddressClient struct {
+	ListResponse []*armnetwork.PublicIPAddress
+	ListError    error
+}
+
+func (c *fakePublicIPAddressClient) Get(_ context.Context, _ string, _ string, _ *string) (*armnetwork.PublicIPAddress, error) {
+	return nil, nil
+}
+
+func (c *fakePublicIPAddressClient) CreateOrUpdate(_ context.Context, _ string, _ string, _ armnetwork.PublicIPAddress) (*armnetwork.PublicIPAddress, error) {
+	return nil, nil
+}
+
+func (c *fakePublicIPAddressClient) Delete(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (c *fakePublicIPAddressClient) List(_ context.Context, rg string) ([]*armnetwork.PublicIPAddress, error) {
+	if rg == validResourceGroup {
+		return c.ListResponse, c.ListError
+	}
+	return nil, errors.New("invalid resource group")
 }

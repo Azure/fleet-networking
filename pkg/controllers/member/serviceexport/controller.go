@@ -11,8 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -20,14 +22,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
+	"go.goms.io/fleet/pkg/utils/controller"
+
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -52,6 +58,9 @@ type Reconciler struct {
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
 	Recorder     record.EventRecorder
+
+	ResourceGroupName          string // default resource group name to create public IP address
+	AzurePublicIPAddressClient publicipaddressclient.Interface
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -254,6 +263,72 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *corev1.Service, export *fleetnetv1alpha1.InternalServiceExport) error {
+	export.Spec.Type = service.Spec.Type
+	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		return nil
+	}
+	// The annotation value is case-sensitive.
+	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
+	export.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	if export.Spec.IsInternalLoadBalancer {
+		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
+		return nil
+	}
+
+	serviceKObj := klog.KObj(service)
+	if len(service.Status.LoadBalancer.Ingress) == 0 {
+		// Assuming once the service status is updated, the controller will be triggered again.
+		klog.V(2).InfoS("The load balancer IP is not assigned yet", "service", serviceKObj)
+		return nil
+	}
+
+	if service.Status.LoadBalancer.Ingress[0].IP == "" {
+		err := errors.New("the service ingress is not nil but with empty IP")
+		klog.ErrorS(controller.NewUnexpectedBehaviorError(err), "Failed to get the load balancer IP from service", "service", serviceKObj, "status", service.Status)
+		return nil
+	}
+
+	pip, err := r.lookupPublicIPResourceIDByLoadBalancerIP(ctx, service)
+	if err != nil {
+		return err
+	}
+	if pip == nil {
+		klog.V(2).InfoS("The public IP is in the progressing", "service", serviceKObj, "ip", service.Status.LoadBalancer.Ingress[0].IP)
+		// Assuming once the service status is updated, the controller will be triggered again in instead of retrying here
+		// to avoid sending Azure requests.
+		return nil
+	}
+	export.Spec.PublicIPResourceID = pip.ID
+	// Note the user can set the dns label via the Azure portal or Azure CLI without updating service.
+	// This information may be stale as we don't monitor the public IP address resource.
+	export.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
+	return nil
+}
+
+// TODO: can improve the performance by caching the public IP address resource ID.
+func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Context, service *corev1.Service) (*armnetwork.PublicIPAddress, error) {
+	// The customer can specify the resource group for the public IP address in the service annotation.
+	rg := strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationLoadBalancerResourceGroup])
+	if len(rg) == 0 {
+		rg = r.ResourceGroupName
+	}
+	serviceKObj := klog.KObj(service)
+	pips, err := r.AzurePublicIPAddressClient.List(ctx, rg)
+	if err != nil {
+		klog.ErrorS(err, "Failed to list Azure public IP addresses", "service", serviceKObj, "resourceGroup", rg)
+		return nil, err
+	}
+	for _, pip := range pips {
+		if pip.Properties != nil && pip.Properties.IPAddress != nil &&
+			*pip.Properties.IPAddress == service.Status.LoadBalancer.Ingress[0].IP {
+			return pip, nil
+		}
+	}
+	klog.V(2).InfoS("The public IP address resource ID cannot be found in the public IP lists", "service", serviceKObj, "ip", service.Status.LoadBalancer.Ingress[0].IP, "resourceGroup", rg)
+	return nil, nil
 }
 
 // SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
