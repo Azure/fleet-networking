@@ -22,11 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
-	"go.goms.io/fleet/pkg/utils/controller"
-
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
 const (
@@ -61,8 +59,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	if mc.DeletionTimestamp.IsZero() {
-		klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("member cluster %s is not being deleted",
-			mc.Name)), "The member cluster should have deletionTimeStamp set to a non-zero/non-nil value")
+		klog.V(3).InfoS("The member cluster is not being deleted, ignore it", "memberCluster", mcObjRef)
 		return ctrl.Result{}, nil // no need to retry.
 	}
 
