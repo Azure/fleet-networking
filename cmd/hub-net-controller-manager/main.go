@@ -53,6 +53,9 @@ var (
 			"ServiceImport controller to resolve the service Spec")
 
 	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
+
+	enableV1Alpha1APIs = flag.Bool("enable-v1alpha1-apis", false, "If set, the agents will watch for the v1alpha1 APIs.")
+	enableV1Beta1APIs  = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 )
 
 func init() {
