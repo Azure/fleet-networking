@@ -54,8 +54,7 @@ var (
 
 	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
 
-	enableV1Alpha1APIs = flag.Bool("enable-v1alpha1-apis", false, "If set, the agents will watch for the v1alpha1 APIs.")
-	enableV1Beta1APIs  = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
+	enableV1Beta1APIs = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 )
 
 func init() {
@@ -151,17 +150,19 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
-	gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
-	if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
-		klog.V(1).InfoS("Start to setup MemberCluster controller")
-		if err := (&membercluster.Reconciler{
-			Client:              mgr.GetClient(),
-			Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
-			ForceDeleteWaitTime: *forceDeleteWaitTime,
-		}).SetupWithManager(mgr); err != nil {
-			klog.ErrorS(err, "Unable to create MemberCluster controller")
-			exitWithErrorFunc()
+	if *enableV1Beta1APIs {
+		discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
+		gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
+		if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
+			klog.V(1).InfoS("Start to setup MemberCluster controller")
+			if err := (&membercluster.Reconciler{
+				Client:              mgr.GetClient(),
+				Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+				ForceDeleteWaitTime: *forceDeleteWaitTime,
+			}).SetupWithManager(mgr); err != nil {
+				klog.ErrorS(err, "Unable to create MemberCluster controller")
+				exitWithErrorFunc()
+			}
 		}
 	}
 
