@@ -2,6 +2,10 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+const (
+	TrafficManagerBackendKind = "TrafficManagerBackend"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tmb
 // +kubebuilder:subresource:status

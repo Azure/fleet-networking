@@ -66,6 +66,8 @@ var (
 
 	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", true, "If set, the agents will watch for the v1alpha1 APIs.")
 	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
+
+	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
 )
 
 func init() {
@@ -310,13 +312,14 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		return err
 	}
 
-	klog.V(1).InfoS("Create serviceexport reconciler")
+	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
 	if err := (&serviceexport.Reconciler{
-		MemberClient:    memberClient,
-		HubClient:       hubClient,
-		MemberClusterID: mcName,
-		HubNamespace:    mcHubNamespace,
-		Recorder:        memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
+		MemberClient:                memberClient,
+		HubClient:                   hubClient,
+		MemberClusterID:             mcName,
+		HubNamespace:                mcHubNamespace,
+		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
+		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
