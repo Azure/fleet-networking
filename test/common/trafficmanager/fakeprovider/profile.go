@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -94,7 +95,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 		if profileName == ValidProfileWithEndpointsName {
 			profileResp.Profile.Properties.Endpoints = []*armtrafficmanager.Endpoint{
 				{
-					Name: ptr.To(ValidEndpointName),
+					Name: ptr.To(strings.ToUpper(ValidEndpointName)), // test case-insensitive
 				},
 				{
 					Name: ptr.To("other-endpoint"),

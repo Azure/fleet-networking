@@ -40,7 +40,7 @@ func EndpointDelete(_ context.Context, resourceGroupName string, profileName str
 		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
 		return resp, errResp
 	}
-	if strings.HasPrefix(profileName, ValidProfileName) && endpointType == armtrafficmanager.EndpointTypeAzureEndpoints && strings.HasPrefix(endpointName, ValidBackendName+"#") {
+	if strings.HasPrefix(profileName, ValidProfileName) && endpointType == armtrafficmanager.EndpointTypeAzureEndpoints && strings.HasPrefix(strings.ToLower(endpointName), ValidBackendName+"#") {
 		endpointResp := armtrafficmanager.EndpointsClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
 	} else {

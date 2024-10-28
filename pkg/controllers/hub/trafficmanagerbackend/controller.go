@@ -170,7 +170,8 @@ func (r *Reconciler) deleteAzureTrafficManagerEndpoints(ctx context.Context, bac
 			klog.ErrorS(err, "Invalid Traffic Manager endpoint", "azureEndpoint", endpoint)
 			continue
 		}
-		if !strings.HasPrefix(*endpoint.Name, generateAzureTrafficManagerEndpointNamePrefixFunc(backend)) {
+		// Traffic manager endpoint name is case-insensitive.
+		if !strings.HasPrefix(strings.ToLower(*endpoint.Name), generateAzureTrafficManagerEndpointNamePrefixFunc(backend)) {
 			continue // skipping deleting the endpoints which are not created by this backend
 		}
 		errs.Go(func() error {
