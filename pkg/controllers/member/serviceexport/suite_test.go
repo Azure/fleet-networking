@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -105,12 +107,32 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
+	publicIPAddressListResponse := []*armnetwork.PublicIPAddress{
+		{
+			Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+				DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
+					DomainNameLabel: ptr.To("dnsLabel"),
+				},
+				IPAddress: ptr.To(testIngressIP),
+			},
+			ID: ptr.To(testPublicIPResourceID),
+		},
+		{
+			Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+				IPAddress: ptr.To("1.2.5.6"),
+			},
+		},
+	}
+
 	err = (&Reconciler{
-		MemberClusterID: memberClusterID,
-		MemberClient:    memberClient,
-		HubClient:       hubClient,
-		HubNamespace:    hubNSForMember,
-		Recorder:        ctrlMgr.GetEventRecorderFor(ControllerName),
+		MemberClusterID:             memberClusterID,
+		MemberClient:                memberClient,
+		HubClient:                   hubClient,
+		HubNamespace:                hubNSForMember,
+		Recorder:                    ctrlMgr.GetEventRecorderFor(ControllerName),
+		AzurePublicIPAddressClient:  &fakePublicIPAddressClient{ListResponse: publicIPAddressListResponse},
+		ResourceGroupName:           validResourceGroup,
+		EnableTrafficManagerFeature: true,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
