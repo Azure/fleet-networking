@@ -32,6 +32,7 @@ import (
 	"go.goms.io/fleet/pkg/utils"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/cloudconfig"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -58,6 +59,8 @@ var (
 	enableV1Beta1APIs = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
+
+	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
 var (
@@ -65,6 +68,11 @@ var (
 		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerProfileKind),
 		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerBackendKind),
 	}
+)
+
+const (
+	// defaultUserAgent is the default user agent string to access Azure resources.
+	defaultUserAgent = "fleet-net-controller-manager"
 )
 
 func init() {
@@ -184,6 +192,15 @@ func main() {
 			}
 		}
 		// TODO: start the traffic manager controllers
+
+		cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
+		if err != nil {
+			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+			exitWithErrorFunc()
+		}
+		cloudConfig.SetUserAgent(defaultUserAgent)
+		// TODO: replace this with a proper usage of the cloud config
+		klog.V(1).InfoS("Cloud config loaded", "config", cloudConfig)
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")

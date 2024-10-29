@@ -29,6 +29,7 @@ spec:
             - --v={{ .Values.logVerbosity }}
             - --add_dir_header
             - --force-delete-wait-time={{ .Values.forceDeleteWaitTime }}
+            - --cloud-config=/etc/kubernetes/provider/azure.json
           ports:
           - name: metrics
             containerPort: 8080
@@ -46,6 +47,10 @@ spec:
               port: healthz
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - name: cloud-provider-config
+            mountPath: /etc/kubernetes/provider
+            readOnly: true
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -58,3 +63,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+      - name: cloud-provider-config
+        secret:
+          secretName: azure-cloud-config
