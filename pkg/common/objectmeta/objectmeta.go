@@ -20,6 +20,10 @@ const (
 	// TrafficManagerProfileFinalizer a finalizer added by the TrafficManagerProfile controller to all trafficManagerProfiles,
 	// to make sure that the controller can react to profile deletions if necessary.
 	TrafficManagerProfileFinalizer = fleetNetworkingPrefix + "traffic-manager-profile-cleanup"
+
+	// TrafficManagerBackendFinalizer a finalizer added by the TrafficManagerBackend controller to all trafficManagerBackends,
+	// to make sure that the controller can react to backend deletions if necessary.
+	TrafficManagerBackendFinalizer = fleetNetworkingPrefix + "traffic-manager-backend-cleanup"
 )
 
 // Labels
