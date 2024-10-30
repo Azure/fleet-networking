@@ -61,6 +61,8 @@ type Reconciler struct {
 
 	ResourceGroupName          string // default resource group name to create public IP address
 	AzurePublicIPAddressClient publicipaddressclient.Interface
+
+	EnableTrafficManagerFeature bool
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -232,6 +234,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		internalSvcExport.Spec.Ports = svcExportPorts
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
+
+		if r.EnableTrafficManagerFeature {
+			klog.V(2).InfoS("Collecting Traffic Manager related information", "service", svcRef)
+			if err := r.setAzureRelatedInformation(ctx, &svc, &internalSvcExport); err != nil {
+				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature", "service", svcRef)
+				return err
+			}
+		}
 		return nil
 	})
 	statusErr := &apierrors.StatusError{}

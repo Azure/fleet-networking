@@ -15,6 +15,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
@@ -55,6 +56,15 @@ var (
 	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
 
 	enableV1Beta1APIs = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
+
+	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
+)
+
+var (
+	trafficManagerFeatureRequiredGVKs = []schema.GroupVersionKind{
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerProfileKind),
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerBackendKind),
+	}
 )
 
 func init() {
@@ -150,8 +160,8 @@ func main() {
 		exitWithErrorFunc()
 	}
 
+	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
 	if *enableV1Beta1APIs {
-		discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
 		gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
 		if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
 			klog.V(1).InfoS("Start to setup MemberCluster controller")
@@ -164,6 +174,16 @@ func main() {
 				exitWithErrorFunc()
 			}
 		}
+	}
+	if *enableTrafficManagerFeature {
+		klog.V(1).InfoS("Traffic manager feature is enabled, checking the required CRDs")
+		for _, gvk := range trafficManagerFeatureRequiredGVKs {
+			if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
+				klog.ErrorS(err, "Unable to find the required CRD", "GVK", gvk)
+				exitWithErrorFunc()
+			}
+		}
+		// TODO: start the traffic manager controllers
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
