@@ -30,14 +30,14 @@ var (
 	commonCmpOptions = cmp.Options{
 		cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion", "UID", "CreationTimestamp", "ManagedFields", "Generation"),
 		cmpopts.IgnoreFields(metav1.OwnerReference{}, "UID"),
-	}
-	cmpTrafficManagerProfileOptions = cmp.Options{
-		commonCmpOptions,
-		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerProfile{}, "TypeMeta"),
 		cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime", "ObservedGeneration"),
 		cmpopts.SortSlices(func(c1, c2 metav1.Condition) bool {
 			return c1.Type < c2.Type
 		}),
+	}
+	cmpTrafficManagerProfileOptions = cmp.Options{
+		commonCmpOptions,
+		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerProfile{}, "TypeMeta"),
 	}
 )
 
