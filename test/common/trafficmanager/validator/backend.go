@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -17,6 +19,13 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
+)
+
+var (
+	cmpTrafficManagerBackendOptions = cmp.Options{
+		commonCmpOptions,
+		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerBackend{}, "TypeMeta"),
+	}
 )
 
 // IsTrafficManagerBackendFinalizerAdded validates whether the backend is created with the finalizer or not.
@@ -31,6 +40,21 @@ func IsTrafficManagerBackendFinalizerAdded(ctx context.Context, k8sClient client
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Failed to add finalizer to trafficManagerBackend %s", name)
+}
+
+// ValidateTrafficManagerBackend validates the trafficManagerBackend object.
+func ValidateTrafficManagerBackend(ctx context.Context, k8sClient client.Client, want *fleetnetv1alpha1.TrafficManagerBackend) {
+	key := types.NamespacedName{Name: want.Name, Namespace: want.Namespace}
+	backend := &fleetnetv1alpha1.TrafficManagerBackend{}
+	gomega.Eventually(func() error {
+		if err := k8sClient.Get(ctx, key, backend); err != nil {
+			return err
+		}
+		if diff := cmp.Diff(want, backend, cmpTrafficManagerBackendOptions); diff != "" {
+			return fmt.Errorf("trafficManagerBackend mismatch (-want, +got) :\n%s", diff)
+		}
+		return nil
+	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend mismatch")
 }
 
 // IsTrafficManagerBackendDeleted validates whether the backend is deleted or not.
