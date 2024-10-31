@@ -228,7 +228,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 	} else if updateErr != nil {
 		cond = metav1.Condition{
 			Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-			Status:             metav1.ConditionFalse,
+			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: profile.Generation,
 			Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
 			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", updateErr),

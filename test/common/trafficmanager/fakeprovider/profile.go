@@ -24,11 +24,12 @@ import (
 const (
 	DefaultResourceGroupName = "default-resource-group-name"
 
-	ValidProfileName              = "valid-profile"
-	ValidProfileWithEndpointsName = "valid-profile-with-endpoints"
-	ConflictErrProfileName        = "conflict-err-profile"
-	InternalServerErrProfileName  = "internal-server-err-profile"
-	ThrottledErrProfileName       = "throttled-err-profile"
+	ValidProfileName                  = "valid-profile"
+	ValidProfileWithEndpointsName     = "valid-profile-with-endpoints"
+	ValidProfileWithNilPropertiesName = "valid-profile-with-empty-properties"
+	ConflictErrProfileName            = "conflict-err-profile"
+	InternalServerErrProfileName      = "internal-server-err-profile"
+	ThrottledErrProfileName           = "throttled-err-profile"
 
 	ValidBackendName  = "valid-backend"
 	ServiceImportName = "test-import"
@@ -38,7 +39,8 @@ const (
 )
 
 var (
-	ValidEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+	ValidEndpointName       = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+	NotFoundErrEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
@@ -100,8 +102,19 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				{
 					Name: ptr.To("other-endpoint"),
 				},
+				{
+					// used to test not-found endpoint
+					Name: ptr.To(NotFoundErrEndpointName),
+				},
 			}
 		}
+		resp.SetResponse(http.StatusOK, profileResp, nil)
+	case ValidProfileWithNilPropertiesName:
+		profileResp := armtrafficmanager.ProfilesClientGetResponse{
+			Profile: armtrafficmanager.Profile{
+				Name:     ptr.To(profileName),
+				Location: ptr.To("global"),
+			}}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:
 		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
