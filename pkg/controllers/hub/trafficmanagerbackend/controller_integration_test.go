@@ -8,11 +8,13 @@ package trafficmanagerbackend
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/validator"
 )
@@ -57,7 +59,24 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, namespacedName)
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: []metav1.Condition{
+						{
+							Status: metav1.ConditionFalse,
+							Type:   string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+							Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -175,6 +194,110 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend", func() {
 			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerBackend", func() {
+			err := k8sClient.Delete(ctx, backend)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
+		})
+
+		It("Validating trafficManagerBackend is deleted", func() {
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+		})
+	})
+
+	Context("When creating trafficManagerBackend with not accepted profile", Ordered, func() {
+		profileName := fakeprovider.ValidProfileWithEndpointsName
+		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
+		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		backendName := fakeprovider.ValidBackendName
+		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
+		var backend *fleetnetv1alpha1.TrafficManagerBackend
+
+		It("Creating a new TrafficManagerProfile", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = trafficManagerProfileForTest(profileName)
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+		})
+
+		It("Updating TrafficManagerProfile status to accepted false", func() {
+			By("By updating TrafficManagerProfile status")
+			cond := metav1.Condition{
+				Status:             metav1.ConditionFalse,
+				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+				ObservedGeneration: profile.Generation,
+				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+			}
+			meta.SetStatusCondition(&profile.Status.Conditions, cond)
+			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+		})
+
+		It("Creating TrafficManagerBackend", func() {
+			backend = trafficManagerBackendForTest(backendName, profileName, "not-exist")
+			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: []metav1.Condition{
+						{
+							Status: metav1.ConditionFalse,
+							Type:   string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+							Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating TrafficManagerProfile status to accepted unknown and it should trigger controller", func() {
+			By("By updating TrafficManagerProfile status")
+			cond := metav1.Condition{
+				Status:             metav1.ConditionUnknown,
+				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+				ObservedGeneration: profile.Generation,
+				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+			}
+			meta.SetStatusCondition(&profile.Status.Conditions, cond)
+			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: []metav1.Condition{
+						{
+							Status: metav1.ConditionUnknown,
+							Type:   string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+							Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
 		})
 
 		It("Deleting trafficManagerBackend", func() {

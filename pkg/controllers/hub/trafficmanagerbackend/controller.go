@@ -16,6 +16,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -24,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"go.goms.io/fleet/pkg/utils/condition"
 	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -200,8 +203,83 @@ func isEndpointOwnedByBackend(backend *fleetnetv1alpha1.TrafficManagerBackend, e
 	return strings.HasPrefix(strings.ToLower(endpoint), generateAzureTrafficManagerEndpointNamePrefixFunc(backend))
 }
 
-func (r *Reconciler) handleUpdate(_ context.Context, _ *fleetnetv1alpha1.TrafficManagerBackend) (ctrl.Result, error) {
+func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend) (ctrl.Result, error) {
+	backendKObj := klog.KObj(backend)
+	profile, err := r.validateTrafficManagerProfile(ctx, backend)
+	if err != nil || profile == nil {
+		// We don't need to requeue the invalid Profile because when the profile becomes valid, the controller will be re-triggered again.
+		return ctrl.Result{}, err
+	}
+	klog.V(2).InfoS("Found the valid trafficManagerProfile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", klog.KObj(profile))
 	return ctrl.Result{}, nil
+}
+
+// validateTrafficManagerProfile returns not nil profile when the profile is valid.
+func (r *Reconciler) validateTrafficManagerProfile(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend) (*fleetnetv1alpha1.TrafficManagerProfile, error) {
+	backendKObj := klog.KObj(backend)
+	var cond metav1.Condition
+	profile := &fleetnetv1alpha1.TrafficManagerProfile{}
+	if getProfileErr := r.Client.Get(ctx, types.NamespacedName{Name: backend.Spec.Profile.Name, Namespace: backend.Namespace}, profile); getProfileErr != nil {
+		if apierrors.IsNotFound(getProfileErr) {
+			klog.V(2).InfoS("NotFound trafficManagerProfile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", backend.Spec.Profile.Name)
+			cond = metav1.Condition{
+				Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: backend.Generation,
+				Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+				Message:            fmt.Sprintf("TrafficManagerProfile %q is not found", backend.Spec.Profile.Name),
+			}
+			meta.SetStatusCondition(&backend.Status.Conditions, cond)
+			backend.Status.Endpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{}
+			return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
+		}
+		klog.ErrorS(getProfileErr, "Failed to get trafficManagerProfile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", backend.Spec.Profile.Name)
+		setUnknownCondition(backend, fmt.Sprintf("Failed to get the trafficManagerProfile %q: %v", backend.Spec.Profile.Name, getProfileErr))
+		if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
+			return nil, err
+		}
+		return nil, getProfileErr // need to return the error to requeue the request
+	}
+	programmedCondition := meta.FindStatusCondition(profile.Status.Conditions, string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed))
+	if condition.IsConditionStatusTrue(programmedCondition, profile.GetGeneration()) {
+		return profile, nil // return directly if the trafficManagerProfile is programmed
+	} else if condition.IsConditionStatusFalse(programmedCondition, profile.GetGeneration()) {
+		cond = metav1.Condition{
+			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: backend.Generation,
+			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+			Message:            fmt.Sprintf("Invalid trafficManagerProfile %q: %v", backend.Spec.Profile.Name, programmedCondition.Message),
+		}
+		backend.Status.Endpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{}
+		meta.SetStatusCondition(&backend.Status.Conditions, cond)
+	} else {
+		setUnknownCondition(backend, fmt.Sprintf("In the processing of trafficManagerProfile %q", backend.Spec.Profile.Name))
+	}
+	klog.V(2).InfoS("Profile has not been accepted and updating the status", "trafficManagerBackend", backendKObj, "condition", cond)
+	return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
+}
+
+func setUnknownCondition(backend *fleetnetv1alpha1.TrafficManagerBackend, message string) {
+	cond := metav1.Condition{
+		Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+		Status:             metav1.ConditionUnknown,
+		ObservedGeneration: backend.Generation,
+		Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+		Message:            message,
+	}
+	backend.Status.Endpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{}
+	meta.SetStatusCondition(&backend.Status.Conditions, cond)
+}
+
+func (r *Reconciler) updateTrafficManagerBackendStatus(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend) error {
+	backendKObj := klog.KObj(backend)
+	if err := r.Client.Status().Update(ctx, backend); err != nil {
+		klog.ErrorS(err, "Failed to update trafficManagerBackend status", "trafficManagerBackend", backendKObj)
+		return controller.NewUpdateIgnoreConflictError(err)
+	}
+	klog.V(2).InfoS("Updated trafficManagerBackend status", "trafficManagerBackend", backendKObj, "status", backend.Status)
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
