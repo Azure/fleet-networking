@@ -146,31 +146,31 @@ func (r *Reconciler) deleteAzureTrafficManagerEndpoints(ctx context.Context, bac
 	}
 
 	profileKObj := klog.KObj(profile)
-	azureProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
-	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, azureProfileName, nil)
+	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, atmProfileName, nil)
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
-			klog.ErrorS(getErr, "Failed to get the Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+			klog.ErrorS(getErr, "Failed to get the Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return getErr
 		}
-		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 		return nil // skip handling endpoints deletion
 	}
 	return r.cleanupEndpoints(ctx, backend, &getRes.Profile)
 }
 
-func (r *Reconciler) cleanupEndpoints(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, azureProfile *armtrafficmanager.Profile) error {
+func (r *Reconciler) cleanupEndpoints(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, atmProfile *armtrafficmanager.Profile) error {
 	backendKObj := klog.KObj(backend)
-	if azureProfile.Properties == nil {
-		klog.V(2).InfoS("Azure Traffic Manager profile has nil properties and skipping handling endpoints deletion", "trafficManagerBackend", backendKObj, "azureProfileName", azureProfile.Name)
+	if atmProfile.Properties == nil {
+		klog.V(2).InfoS("Azure Traffic Manager profile has nil properties and skipping handling endpoints deletion", "trafficManagerBackend", backendKObj, "atmProfileName", atmProfile.Name)
 		return nil
 	}
 
 	klog.V(2).InfoS("Deleting Azure Traffic Manager endpoints", "trafficManagerBackend", backendKObj, "trafficManagerProfile", backend.Spec.Profile.Name)
-	azureProfileName := *azureProfile.Name
+	atmProfileName := *atmProfile.Name
 	errs, cctx := errgroup.WithContext(ctx)
-	for i := range azureProfile.Properties.Endpoints {
-		endpoint := azureProfile.Properties.Endpoints[i]
+	for i := range atmProfile.Properties.Endpoints {
+		endpoint := atmProfile.Properties.Endpoints[i]
 		if endpoint.Name == nil {
 			err := controller.NewUnexpectedBehaviorError(errors.New("azure Traffic Manager endpoint name is nil"))
 			klog.ErrorS(err, "Invalid Traffic Manager endpoint", "azureEndpoint", endpoint)
@@ -181,15 +181,15 @@ func (r *Reconciler) cleanupEndpoints(ctx context.Context, backend *fleetnetv1al
 			continue // skipping deleting the endpoints which are not created by this backend
 		}
 		errs.Go(func() error {
-			if _, err := r.EndpointsClient.Delete(cctx, r.ResourceGroupName, azureProfileName, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, nil); err != nil {
+			if _, err := r.EndpointsClient.Delete(cctx, r.ResourceGroupName, atmProfileName, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, nil); err != nil {
 				if azureerrors.IsNotFound(err) {
-					klog.V(2).InfoS("Ignoring NotFound Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "azureProfileName", azureProfileName, "azureEndpointName", *endpoint.Name)
+					klog.V(2).InfoS("Ignoring NotFound Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "azureEndpointName", *endpoint.Name)
 					return nil
 				}
-				klog.ErrorS(err, "Failed to delete the endpoint", "trafficManagerBackend", backendKObj, "azureProfileName", azureProfileName, "azureEndpointName", *endpoint.Name)
+				klog.ErrorS(err, "Failed to delete the endpoint", "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "azureEndpointName", *endpoint.Name)
 				return err
 			}
-			klog.V(2).InfoS("Deleted Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "azureProfileName", azureProfileName, "azureEndpointName", *endpoint.Name)
+			klog.V(2).InfoS("Deleted Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "azureEndpointName", *endpoint.Name)
 			return nil
 		})
 	}
