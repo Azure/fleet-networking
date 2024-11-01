@@ -31,3 +31,16 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+config:
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    tenantId: ""
+    subscriptionId: ""
+    useManagedIdentityExtension: false
+    userAssignedIdentityID: ""
+    aadClientId: ""
+    aadClientSecret: ""
+    userAgent: ""
+    resourceGroup: ""
+    location: ""
