@@ -61,8 +61,8 @@ func TestNewCloudConfigFromFile(t *testing.T) {
 			if got := err != nil; got != test.expectErr {
 				t.Errorf("Failed to run NewCloudConfigFromFile(%s): got %v, want %v", test.filePath, got, test.expectErr)
 			}
-			if !cmp.Equal(config, test.expectedConfig) {
-				t.Errorf("NewCloudConfigFromFile(%s) = %v, want %v", test.filePath, config, test.expectedConfig)
+			if diff := cmp.Diff(config, test.expectedConfig); diff != "" {
+				t.Errorf("NewCloudConfigFromFile(%s) = %v, want %v, diff %s", test.filePath, config, test.expectedConfig, diff)
 			}
 		})
 	}
@@ -112,8 +112,8 @@ func TestTrimSpace(t *testing.T) {
 			},
 		}
 		config.trimSpace()
-		if !cmp.Equal(config, expected) {
-			t.Errorf("failed to test TrimSpace: expect config fields are trimmed, got: %v, want: %v", config, expected)
+		if diff := cmp.Diff(config, expected); diff != "" {
+			t.Errorf("failed to test TrimSpace: expect config fields are trimmed, got: %v, want: %v, diff: %s", config, expected, diff)
 		}
 	})
 }
