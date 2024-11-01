@@ -121,7 +121,11 @@ const (
 	// Possible reasons for this condition to be False are:
 	//
 	// * "Invalid"
+	//
+	// Possible reasons for this condition to be Unknown are:
+	//
 	// * "Pending"
+	//
 	TrafficManagerBackendConditionAccepted TrafficManagerBackendConditionType = "Accepted"
 
 	// TrafficManagerBackendReasonAccepted is used with the "Accepted" condition when the condition is True.

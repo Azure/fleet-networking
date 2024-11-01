@@ -114,15 +114,15 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1
 		return ctrl.Result{}, nil
 	}
 
-	azureProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
-	klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
-	if _, err := r.ProfilesClient.Delete(ctx, r.ResourceGroupName, azureProfileName, nil); err != nil {
+	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+	klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+	if _, err := r.ProfilesClient.Delete(ctx, r.ResourceGroupName, atmProfileName, nil); err != nil {
 		if !azureerrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+			klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return ctrl.Result{}, err
 		}
 	}
-	klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+	klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 
 	controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
 	if err := r.Client.Update(ctx, profile); err != nil {
@@ -135,35 +135,35 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1
 
 func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
-	azureProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	var responseError *azcore.ResponseError
-	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, azureProfileName, nil)
+	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, atmProfileName, nil)
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
-			klog.ErrorS(getErr, "Failed to get the profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+			klog.ErrorS(getErr, "Failed to get the profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return ctrl.Result{}, getErr
 		}
-		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	} else {
 		existingSpec := convertToTrafficManagerProfileSpec(&getRes.Profile)
 		if equality.Semantic.DeepEqual(existingSpec, profile.Spec) {
 			// skip creating or updating the profile
-			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return r.updateProfileStatus(ctx, profile, getRes.Profile, nil)
 		}
 	}
 
-	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, r.ResourceGroupName, azureProfileName, generateAzureTrafficManagerProfile(profile), nil)
+	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, r.ResourceGroupName, atmProfileName, generateAzureTrafficManagerProfile(profile), nil)
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {
-			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return ctrl.Result{}, updateErr
 		}
 		klog.ErrorS(updateErr, "Failed to create or update a profile", "trafficManagerProfile", profileKObj,
-			"azureProfileName", azureProfileName,
+			"atmProfileName", atmProfileName,
 			"errorCode", responseError.ErrorCode, "statusCode", responseError.StatusCode)
 	}
-	klog.V(2).InfoS("Created or updated Azure Traffic Manager Profile", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfileName)
+	klog.V(2).InfoS("Created or updated Azure Traffic Manager Profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 
@@ -187,15 +187,15 @@ func convertToTrafficManagerProfileSpec(profile *armtrafficmanager.Profile) flee
 	return fleetnetv1alpha1.TrafficManagerProfileSpec{}
 }
 
-func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile, azureProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {
+func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile, atmProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
 	if updateErr == nil {
-		// azureProfile.Properties.DNSConfig.Fqdn should not be nil
-		if azureProfile.Properties != nil && azureProfile.Properties.DNSConfig != nil {
-			profile.Status.DNSName = azureProfile.Properties.DNSConfig.Fqdn
+		// atmProfile.Properties.DNSConfig.Fqdn should not be nil
+		if atmProfile.Properties != nil && atmProfile.Properties.DNSConfig != nil {
+			profile.Status.DNSName = atmProfile.Properties.DNSConfig.Fqdn
 		} else {
 			err := fmt.Errorf("got nil DNSConfig for Azure Traffic Manager profile")
-			klog.ErrorS(controller.NewUnexpectedBehaviorError(err), "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "azureProfileName", azureProfile.Name)
+			klog.ErrorS(controller.NewUnexpectedBehaviorError(err), "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfile.Name)
 			profile.Status.DNSName = nil // reset the DNS name
 		}
 	} else {
@@ -228,7 +228,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 	} else if updateErr != nil {
 		cond = metav1.Condition{
 			Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-			Status:             metav1.ConditionFalse,
+			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: profile.Generation,
 			Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
 			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", updateErr),

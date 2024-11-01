@@ -41,6 +41,10 @@ func EndpointDelete(_ context.Context, resourceGroupName string, profileName str
 		return resp, errResp
 	}
 	if strings.HasPrefix(profileName, ValidProfileName) && endpointType == armtrafficmanager.EndpointTypeAzureEndpoints && strings.HasPrefix(strings.ToLower(endpointName), ValidBackendName+"#") {
+		if endpointName == NotFoundErrEndpointName {
+			errResp.SetResponseError(http.StatusNotFound, "NotFound")
+			return resp, errResp
+		}
 		endpointResp := armtrafficmanager.EndpointsClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
 	} else {

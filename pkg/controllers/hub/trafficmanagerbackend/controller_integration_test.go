@@ -70,6 +70,90 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 	})
 
+	Context("When creating trafficManagerBackend with not found Azure Traffic Manager profile", Ordered, func() {
+		profileName := "not-found-azure-profile"
+		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
+		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		backendName := fakeprovider.ValidBackendName
+		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
+		var backend *fleetnetv1alpha1.TrafficManagerBackend
+
+		It("Creating a new TrafficManagerProfile", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = trafficManagerProfileForTest(profileName)
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+		})
+
+		It("Creating TrafficManagerBackend", func() {
+			backend = trafficManagerBackendForTest(backendName, profileName, "not-exist")
+			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerBackend", func() {
+			err := k8sClient.Delete(ctx, backend)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
+		})
+
+		It("Validating trafficManagerBackend is deleted", func() {
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+		})
+	})
+
+	Context("When creating trafficManagerBackend with Azure Traffic Manager profile which has nil properties", Ordered, func() {
+		profileName := fakeprovider.ValidProfileWithNilPropertiesName
+		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
+		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		backendName := fakeprovider.ValidBackendName
+		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
+		var backend *fleetnetv1alpha1.TrafficManagerBackend
+
+		It("Creating a new TrafficManagerProfile", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = trafficManagerProfileForTest(profileName)
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+		})
+
+		It("Creating TrafficManagerBackend", func() {
+			backend = trafficManagerBackendForTest(backendName, profileName, "not-exist")
+			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerBackend", func() {
+			err := k8sClient.Delete(ctx, backend)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
+		})
+
+		It("Validating trafficManagerBackend is deleted", func() {
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+		})
+	})
+
 	Context("When creating trafficManagerBackend with valid profile", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
