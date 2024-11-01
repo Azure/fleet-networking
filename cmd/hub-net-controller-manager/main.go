@@ -72,7 +72,7 @@ var (
 
 const (
 	// defaultUserAgent is the default user agent string to access Azure resources.
-	defaultUserAgent = "fleet-net-controller-manager"
+	defaultUserAgent = "fleet-hub-net-controller-manager"
 )
 
 func init() {

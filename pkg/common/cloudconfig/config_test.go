@@ -59,7 +59,7 @@ func TestNewCloudConfigFromFile(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			config, err := NewCloudConfigFromFile(test.filePath)
 			if got := err != nil; got != test.expectErr {
-				t.Errorf("failed to run NewCloudConfigFromFile(%s): got %v, want %v", test.filePath, got, test.expectErr)
+				t.Errorf("Failed to run NewCloudConfigFromFile(%s): got %v, want %v", test.filePath, got, test.expectErr)
 			}
 			if !cmp.Equal(config, test.expectedConfig) {
 				t.Errorf("NewCloudConfigFromFile(%s) = %v, want %v", test.filePath, config, test.expectedConfig)
@@ -270,7 +270,7 @@ func TestDefaultAndValidate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := test.config.validate()
 			if got := err == nil; got != test.expectPass {
-				t.Errorf("failed to test whether validate returns error: got %v, want %v", got, test.expectPass)
+				t.Errorf("validate() = %v, want %v", got, test.expectPass)
 			}
 		})
 	}
