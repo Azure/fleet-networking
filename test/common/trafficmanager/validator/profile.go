@@ -24,6 +24,8 @@ import (
 const (
 	timeout  = time.Second * 10
 	interval = time.Millisecond * 250
+	// duration used by consistently
+	duration = time.Second * 30
 )
 
 var (

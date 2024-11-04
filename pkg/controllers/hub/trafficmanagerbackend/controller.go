@@ -212,7 +212,17 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1
 		// The controller will retry when err is not nil.
 		return ctrl.Result{}, err
 	}
-	klog.V(2).InfoS("Found the valid trafficManagerProfile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", klog.KObj(profile))
+	profileKObj := klog.KObj(profile)
+	klog.V(2).InfoS("Found the valid trafficManagerProfile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj)
+
+	atmProfile, err := r.validateAzureTrafficManagerProfile(ctx, backend, profile)
+	if err != nil || atmProfile == nil {
+		// We don't need to requeue the invalid Azure Traffic Manager profile (err == nil and atmProfile == nil) as when
+		// the profile becomes valid, the controller will be re-triggered again.
+		// The controller will retry when err is not nil.
+		return ctrl.Result{}, err
+	}
+	klog.V(2).InfoS("Found the valid Azure Traffic Manager Profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfile.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -244,6 +254,35 @@ func (r *Reconciler) validateTrafficManagerProfile(ctx context.Context, backend 
 	}
 	klog.V(2).InfoS("Profile has not been accepted and updating the status", "trafficManagerBackend", backendKObj, "condition", cond)
 	return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
+}
+
+// validateAzureTrafficManagerProfile returns not nil Azure Traffic Manager profile when the atm profile is valid.
+func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *fleetnetv1alpha1.TrafficManagerProfile) (*armtrafficmanager.Profile, error) {
+	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+	backendKObj := klog.KObj(backend)
+	profileKObj := klog.KObj(profile)
+	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, atmProfileName, nil)
+	if getErr != nil {
+		if azureerrors.IsNotFound(getErr) {
+			// We've already checked the TrafficManagerProfile condition before getting Azure resource.
+			// It may happen when
+			// 1. customers delete the azure profile manually
+			// 2. the TrafficManagerProfile info is stale.
+			// For the case 1, retry won't help to recover the Azure Traffic Manager profile resource.
+			// For the case 2, the controller will be re-triggered when the TrafficManagerProfile is updated.
+			klog.ErrorS(getErr, "NotFound Azure Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+			// none of the endpoints are accepted by the TrafficManager
+			setFalseCondition(backend, nil, fmt.Sprintf("Azure Traffic Manager profile %q is not found", atmProfileName))
+			return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
+		}
+		klog.V(2).InfoS("Failed to get Azure Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+		setUnknownCondition(backend, fmt.Sprintf("Failed to get the Azure Traffic Manager profile %q: %v", atmProfileName, getErr))
+		if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
+			return nil, err
+		}
+		return nil, getErr // need to return the error to requeue the request
+	}
+	return &getRes.Profile, nil
 }
 
 func setFalseCondition(backend *fleetnetv1alpha1.TrafficManagerBackend, acceptedEndpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus, message string) {
