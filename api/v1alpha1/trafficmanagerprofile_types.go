@@ -135,7 +135,11 @@ const (
 	//
 	// * "Invalid"
 	// * "DNSNameNotAvailable"
+	//
+	// Possible reasons for this condition to be Unknown are:
+	//
 	// * "Pending"
+	//
 	TrafficManagerProfileConditionProgrammed TrafficManagerProfileConditionType = "Programmed"
 
 	// TrafficManagerProfileReasonProgrammed is used with the "Programmed" condition when the condition is true.

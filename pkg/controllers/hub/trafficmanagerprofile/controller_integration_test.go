@@ -228,7 +228,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionFalse,
+							Status: metav1.ConditionUnknown,
 							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
 							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
 						},
@@ -308,7 +308,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionFalse,
+							Status: metav1.ConditionUnknown,
 							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
 							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
 						},
