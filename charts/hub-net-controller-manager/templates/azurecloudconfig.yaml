@@ -1,0 +1,10 @@
+{{- if .Values.enableTrafficManagerFeature }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-cloud-config
+  namespace: {{ .Values.fleetSystemNamespace }}
+type: Opaque
+data:
+  azure.json: {{ .Values.config.azureCloudConfig | toJson | indent 4 | b64enc | quote }}
+{{- end }}

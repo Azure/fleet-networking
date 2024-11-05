@@ -29,6 +29,10 @@ spec:
             - --v={{ .Values.logVerbosity }}
             - --add_dir_header
             - --force-delete-wait-time={{ .Values.forceDeleteWaitTime }}
+            - --enable-traffic-manager-feature={{ .Values.enableTrafficManagerFeature }}
+            {{- if .Values.enableTrafficManagerFeature }}
+            - --cloud-config=/etc/kubernetes/provider/azure.json
+            {{- end }}
           ports:
           - name: metrics
             containerPort: 8080
@@ -46,6 +50,12 @@ spec:
               port: healthz
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.enableTrafficManagerFeature }}
+          volumeMounts:
+          - name: cloud-provider-config
+            mountPath: /etc/kubernetes/provider
+            readOnly: true
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -57,4 +67,10 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.enableTrafficManagerFeature }}
+      volumes:
+      - name: cloud-provider-config
+        secret:
+          secretName: azure-cloud-config
       {{- end }}
