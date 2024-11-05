@@ -59,7 +59,7 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
 
-	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
+	// cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
 var (
