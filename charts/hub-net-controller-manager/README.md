@@ -35,11 +35,12 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 | logVerbosity | Log level. Uses V logs (klog) | `2` |
 | leaderElectionNamespace | The namespace in which the leader election resource will be created. | `fleet-system` |
 | fleetSystemNamespace | The namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
+| enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
-| config.azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled** |
+| config.azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
 
 ## Override Azure cloud config
 
@@ -58,7 +59,7 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 | `userAgent`                   | The userAgent provided to Azure when accessing Azure resources. | |
 | `location`                    | The azure region where resource group and its resources is deployed. |  |
 
-You can create a file `azure.yaml` with the following content, and pass it to `helm install` command: `helm install <release-name> <chart-name> -f azure.yaml`
+You can create a file `azure.yaml` with the following content, and pass it to `helm install` command: `helm install <release-name> <chart-name> --set enableTrafficManagerFeature=true -f azure.yaml`
 
 ```yaml
 config:

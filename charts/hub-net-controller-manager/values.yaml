@@ -15,6 +15,7 @@ logVerbosity: 2
 leaderElectionNamespace: fleet-system
 fleetSystemNamespace: fleet-system
 forceDeleteWaitTime: 2m0s
+enableTrafficManagerFeature: false
 
 resources:
   limits:

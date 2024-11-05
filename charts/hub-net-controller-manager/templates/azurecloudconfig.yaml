@@ -1,3 +1,4 @@
+{{- if .Values.enableTrafficManagerFeature }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -6,3 +7,4 @@ metadata:
 type: Opaque
 data:
   azure.json: {{ .Values.config.azureCloudConfig | toJson | indent 4 | b64enc | quote }}
+{{- end }}
