@@ -32,7 +32,6 @@ import (
 	"go.goms.io/fleet/pkg/utils"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/cloudconfig"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -193,14 +192,14 @@ func main() {
 		}
 		// TODO: start the traffic manager controllers
 
-		cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
-		if err != nil {
-			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
-			exitWithErrorFunc()
-		}
-		cloudConfig.SetUserAgent(defaultUserAgent)
-		// TODO: replace this with a proper usage of the cloud config
-		klog.V(1).InfoS("Cloud config loaded", "config", cloudConfig)
+		// TODO: load the cloud config
+		// cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
+		// if err != nil {
+		// 	klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+		// 	exitWithErrorFunc()
+		// }
+		// cloudConfig.SetUserAgent(defaultUserAgent)
+		// klog.V(1).InfoS("Cloud config loaded", "config", cloudConfig)
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
