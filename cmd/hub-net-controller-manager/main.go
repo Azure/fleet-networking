@@ -69,11 +69,6 @@ var (
 	}
 )
 
-const (
-	// defaultUserAgent is the default user agent string to access Azure resources.
-	defaultUserAgent = "fleet-hub-net-controller-manager"
-)
-
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
@@ -198,7 +193,7 @@ func main() {
 		// 	klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
 		// 	exitWithErrorFunc()
 		// }
-		// cloudConfig.SetUserAgent(defaultUserAgent)
+		// cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
 		// klog.V(1).InfoS("Cloud config loaded", "config", cloudConfig)
 	}
 
