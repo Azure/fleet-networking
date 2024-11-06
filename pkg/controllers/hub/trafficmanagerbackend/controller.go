@@ -272,11 +272,11 @@ func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, bac
 			// For the case 2, the controller will be re-triggered when the TrafficManagerProfile is updated.
 			klog.ErrorS(getErr, "NotFound Azure Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			// none of the endpoints are accepted by the TrafficManager
-			setFalseCondition(backend, nil, fmt.Sprintf("Azure Traffic Manager profile %q is not found", atmProfileName))
+			setFalseCondition(backend, nil, fmt.Sprintf("Azure Traffic Manager profile %q under %q is not found", atmProfileName, r.ResourceGroupName))
 			return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
 		}
 		klog.V(2).InfoS("Failed to get Azure Traffic Manager profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-		setUnknownCondition(backend, fmt.Sprintf("Failed to get the Azure Traffic Manager profile %q: %v", atmProfileName, getErr))
+		setUnknownCondition(backend, fmt.Sprintf("Failed to get the Azure Traffic Manager profile %q under %q: %v", atmProfileName, r.ResourceGroupName, getErr))
 		if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
 			return nil, err
 		}

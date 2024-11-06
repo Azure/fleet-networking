@@ -68,8 +68,8 @@ func IsTrafficManagerBackendDeleted(ctx context.Context, k8sClient client.Client
 	}, timeout, interval).Should(gomega.Succeed(), "Failed to remove trafficManagerBackend %s ", name)
 }
 
-// ConsistentlyTrafficManagerConsistentlyExist validates whether the backend consistently exists.
-func ConsistentlyTrafficManagerConsistentlyExist(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
+// ValidateTrafficManagerConsistentlyExist validates whether the backend consistently exists.
+func ValidateTrafficManagerConsistentlyExist(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
 	gomega.Consistently(func() error {
 		backend := &fleetnetv1alpha1.TrafficManagerBackend{}
 		if err := k8sClient.Get(ctx, name, backend); errors.IsNotFound(err) {

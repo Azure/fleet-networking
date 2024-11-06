@@ -6,6 +6,7 @@ Licensed under the MIT license.
 package trafficmanagerbackend
 
 import (
+	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -74,6 +75,17 @@ func buildUnknownCondition() []metav1.Condition {
 	}
 }
 
+func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) {
+	cond := metav1.Condition{
+		Status:             metav1.ConditionTrue,
+		Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+		ObservedGeneration: profile.Generation,
+		Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+	}
+	meta.SetStatusCondition(&profile.Status.Conditions, cond)
+	Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+}
+
 var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with invalid profile", Ordered, func() {
 		name := fakeprovider.ValidBackendName
@@ -129,16 +141,24 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
 		})
 
-		It("Updating TrafficManagerProfile status to accepted true and it should trigger controller", func() {
-			By("By updating TrafficManagerProfile status")
-			cond := metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildUnknownCondition(),
+				},
 			}
-			meta.SetStatusCondition(&profile.Status.Conditions, cond)
-			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating TrafficManagerProfile status to programmed true and it should trigger controller", func() {
+			By("By updating TrafficManagerProfile status")
+			updateTrafficManagerProfileStatusToTrue(ctx, profile)
 		})
 
 		It("Validating trafficManagerBackend", func() {
@@ -189,16 +209,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
 		})
 
-		It("Updating TrafficManagerProfile status to accepted true", func() {
+		It("Updating TrafficManagerProfile status to programmed true", func() {
 			By("By updating TrafficManagerProfile status")
-			cond := metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
-			}
-			meta.SetStatusCondition(&profile.Status.Conditions, cond)
-			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+			updateTrafficManagerProfileStatusToTrue(ctx, profile)
 		})
 
 		It("Creating TrafficManagerBackend", func() {
@@ -227,7 +240,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend cannot be deleted", func() {
-			validator.ConsistentlyTrafficManagerConsistentlyExist(ctx, k8sClient, backendNamespacedName)
+			validator.ValidateTrafficManagerConsistentlyExist(ctx, k8sClient, backendNamespacedName)
 		})
 
 		It("Removing the finalizer from trafficManagerBackend", func() {
@@ -268,16 +281,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
 		})
 
-		It("Updating TrafficManagerProfile status to accepted true", func() {
+		It("Updating TrafficManagerProfile status to programmed true", func() {
 			By("By updating TrafficManagerProfile status")
-			cond := metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
-			}
-			meta.SetStatusCondition(&profile.Status.Conditions, cond)
-			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+			updateTrafficManagerProfileStatusToTrue(ctx, profile)
 		})
 
 		It("Creating TrafficManagerBackend", func() {
@@ -322,16 +328,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
 		})
 
-		It("Updating TrafficManagerProfile status to accepted true", func() {
+		It("Updating TrafficManagerProfile status to programmed true", func() {
 			By("By updating TrafficManagerProfile status")
-			cond := metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
-			}
-			meta.SetStatusCondition(&profile.Status.Conditions, cond)
-			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+			updateTrafficManagerProfileStatusToTrue(ctx, profile)
 		})
 
 		It("Creating TrafficManagerBackend", func() {
@@ -376,7 +375,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
 		})
 
-		It("Updating TrafficManagerProfile status to accepted false", func() {
+		It("Updating TrafficManagerProfile status to programmed false", func() {
 			By("By updating TrafficManagerProfile status")
 			cond := metav1.Condition{
 				Status:             metav1.ConditionFalse,
