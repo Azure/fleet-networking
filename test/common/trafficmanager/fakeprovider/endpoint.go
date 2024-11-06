@@ -44,6 +44,9 @@ func EndpointDelete(_ context.Context, resourceGroupName string, profileName str
 		if endpointName == NotFoundErrEndpointName {
 			errResp.SetResponseError(http.StatusNotFound, "NotFound")
 			return resp, errResp
+		} else if endpointName == FailToDeleteEndpointName {
+			errResp.SetResponseError(http.StatusInternalServerError, "InternalServerError")
+			return resp, errResp
 		}
 		endpointResp := armtrafficmanager.EndpointsClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
