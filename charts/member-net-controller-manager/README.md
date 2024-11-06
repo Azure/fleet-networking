@@ -114,5 +114,40 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
+| enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
+| azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
+
+## Override Azure cloud config
+
+**If AzureTrafficManager feature is enabled, then an Azure cloud configuration is required.** Azure cloud configuration provides resource metadata and credentials for `fleet-hub-net-controller-manager` and `fleet-member-net-controller-manager` to manipulate Azure resources. It's embedded into a Kubernetes secret and mounted to the pods. The values can be modified under `config.azureCloudConfig` section in values.yaml or can be provided as a separate file.
+
+| configuration value                                   | description | Remark                                                                               |
+|-------------------------------------------------------| --- |--------------------------------------------------------------------------------------|
+| `cloud`                       | The cloud where Azure resources belong. Choose from `AzurePublicCloud`, `AzureChinaCloud`, and `AzureGovernmentCloud`. | Required, helm chart defaults to `AzurePublicCloud`                                  |
+| `tenantId`                    | The AAD Tenant ID for the subscription where the Azure resources are deployed. |                                                                                      |
+| `subscriptionId`              | The ID of the subscription where Azure resources are deployed. |                                                                                      |
+| `useManagedIdentityExtension` | Boolean indicating whether or not to use a managed identity. | `true` or `false`                                                                    |
+| `userAssignedIdentityID`      | ClientID of the user-assigned managed identity with RBAC access to Azure resources. | Required for UserAssignedIdentity and ommited for SystemAssignedIdentity. |
+| `aadClientId`                 | The ClientID for an AAD application with RBAC access to Azure resources. | Required if `useManagedIdentityExtension` is set to `false`.                         |
+| `aadClientSecret`             | The ClientSecret for an AAD application with RBAC access to Azure resources. | Required if `useManagedIdentityExtension` is set to `false`.                         |
+| `resourceGroup`               | The name of the resource group where cluster resources are deployed. |                                                                                      |
+| `userAgent`                   | The userAgent provided to Azure when accessing Azure resources. | |
+| `location`                    | The azure region where resource group and its resources is deployed. |  |
+
+You can create a file `azure.yaml` with the following content, and pass it to `helm install` command: `helm install <release-name> <chart-name> --set enableTrafficManagerFeature=true -f azure.yaml`
+
+```yaml
+azureCloudConfig:
+  cloud: "AzurePublicCloud"
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+  useManagedIdentityExtension: false
+  userAssignedIdentityID: "00000000-0000-0000-0000-000000000000"
+  aadClientId: "00000000-0000-0000-0000-000000000000"
+  aadClientSecret: "<your secret>"
+  userAgent: "fleet-member-net-controller"
+  resourceGroup: "<resource group name>"
+  location: "<resource group location>"
+```
 
 ## Contributing Changes
