@@ -40,7 +40,7 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
-| config.azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
+| azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
 
 ## Override Azure cloud config
 
@@ -62,18 +62,17 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 You can create a file `azure.yaml` with the following content, and pass it to `helm install` command: `helm install <release-name> <chart-name> --set enableTrafficManagerFeature=true -f azure.yaml`
 
 ```yaml
-config:
-  azureCloudConfig:
-    cloud: "AzurePublicCloud"
-    tenantId: "00000000-0000-0000-0000-000000000000"
-    subscriptionId: "00000000-0000-0000-0000-000000000000"
-    useManagedIdentityExtension: false
-    userAssignedIdentityID: "00000000-0000-0000-0000-000000000000"
-    aadClientId: "00000000-0000-0000-0000-000000000000"
-    aadClientSecret: "<your secret>"
-    userAgent: "fleet-hub-net-controller-controller"
-    resourceGroup: "<resource group name>"
-    location: "<resource group location>"
+azureCloudConfig:
+  cloud: "AzurePublicCloud"
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+  useManagedIdentityExtension: false
+  userAssignedIdentityID: "00000000-0000-0000-0000-000000000000"
+  aadClientId: "00000000-0000-0000-0000-000000000000"
+  aadClientSecret: "<your secret>"
+  userAgent: "fleet-hub-net-controller"
+  resourceGroup: "<resource group name>"
+  location: "<resource group location>"
 ```
 
 ## Contributing Changes

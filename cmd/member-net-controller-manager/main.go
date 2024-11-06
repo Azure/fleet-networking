@@ -68,6 +68,8 @@ var (
 	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
+
+	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
 func init() {
@@ -310,6 +312,17 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceimport controller")
 		return err
+	}
+
+	if *enableTrafficManagerFeature {
+		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config", "cloudConfigFile", *cloudConfigFile)
+		// TODO: load the cloud config
+		// cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
+		// if err != nil {
+		// 	klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+		// 	exitWithErrorFunc()
+		// }
+		// cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
 	}
 
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
