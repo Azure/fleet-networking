@@ -30,6 +30,7 @@ const (
 	ConflictErrProfileName            = "conflict-err-profile"
 	InternalServerErrProfileName      = "internal-server-err-profile"
 	ThrottledErrProfileName           = "throttled-err-profile"
+	RequestTimeoutProfileName         = "request-timeout-profile"
 
 	ValidBackendName  = "valid-backend"
 	ServiceImportName = "test-import"
@@ -116,6 +117,8 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				Location: ptr.To("global"),
 			}}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
+	case RequestTimeoutProfileName:
+		errResp.SetResponseError(http.StatusRequestTimeout, "RequestTimeoutError")
 	default:
 		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
 	}
