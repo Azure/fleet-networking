@@ -24,13 +24,14 @@ import (
 const (
 	DefaultResourceGroupName = "default-resource-group-name"
 
-	ValidProfileName                  = "valid-profile"
-	ValidProfileWithEndpointsName     = "valid-profile-with-endpoints"
-	ValidProfileWithNilPropertiesName = "valid-profile-with-empty-properties"
-	ConflictErrProfileName            = "conflict-err-profile"
-	InternalServerErrProfileName      = "internal-server-err-profile"
-	ThrottledErrProfileName           = "throttled-err-profile"
-	RequestTimeoutProfileName         = "request-timeout-profile"
+	ValidProfileName                         = "valid-profile"
+	ValidProfileWithEndpointsName            = "valid-profile-with-endpoints"
+	ValidProfileWithNilPropertiesName        = "valid-profile-with-empty-properties"
+	ValidProfileWithFailToDeleteEndpointName = "valid-profile-with-fail-to-delete-endpoint"
+	ConflictErrProfileName                   = "conflict-err-profile"
+	InternalServerErrProfileName             = "internal-server-err-profile"
+	ThrottledErrProfileName                  = "throttled-err-profile"
+	RequestTimeoutProfileName                = "request-timeout-profile"
 
 	ValidBackendName  = "valid-backend"
 	ServiceImportName = "test-import"
@@ -40,8 +41,9 @@ const (
 )
 
 var (
-	ValidEndpointName       = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
-	NotFoundErrEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
+	ValidEndpointName        = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+	NotFoundErrEndpointName  = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
+	FailToDeleteEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
@@ -70,7 +72,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 		return resp, errResp
 	}
 	switch profileName {
-	case ValidProfileName, ValidProfileWithEndpointsName:
+	case ValidProfileName, ValidProfileWithEndpointsName, ValidProfileWithFailToDeleteEndpointName:
 		profileResp := armtrafficmanager.ProfilesClientGetResponse{
 			Profile: armtrafficmanager.Profile{
 				Name:     ptr.To(profileName),
@@ -106,6 +108,12 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				{
 					// used to test not-found endpoint
 					Name: ptr.To(NotFoundErrEndpointName),
+				},
+			}
+		} else if profileName == ValidProfileWithFailToDeleteEndpointName {
+			profileResp.Profile.Properties.Endpoints = []*armtrafficmanager.Endpoint{
+				{
+					Name: ptr.To(FailToDeleteEndpointName),
 				},
 			}
 		}

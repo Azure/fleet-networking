@@ -223,6 +223,15 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1
 		return ctrl.Result{}, err
 	}
 	klog.V(2).InfoS("Found the valid Azure Traffic Manager Profile", "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfile.Name)
+
+	serviceImport, err := r.validateServiceImportAndCleanupEndpointsIfInvalid(ctx, backend, atmProfile)
+	if err != nil || serviceImport == nil {
+		// We don't need to requeue the invalid serviceImport (err == nil and serviceImport == nil) as when the serviceImport
+		// becomes valid, the controller will be re-triggered again.
+		// The controller will retry when err is not nil.
+		return ctrl.Result{}, err
+	}
+	klog.V(2).InfoS("Found the serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", klog.KObj(serviceImport), "clusters", serviceImport.Status.Clusters)
 	return ctrl.Result{}, nil
 }
 
@@ -283,6 +292,39 @@ func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, bac
 		return nil, getErr // need to return the error to requeue the request
 	}
 	return &getRes.Profile, nil
+}
+
+// validateServiceImportAndCleanupEndpointsIfInvalid returns not nil serviceImport when the serviceImport is valid.
+func (r *Reconciler) validateServiceImportAndCleanupEndpointsIfInvalid(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, azureProfile *armtrafficmanager.Profile) (*fleetnetv1alpha1.ServiceImport, error) {
+	backendKObj := klog.KObj(backend)
+	var cond metav1.Condition
+	serviceImport := &fleetnetv1alpha1.ServiceImport{}
+	if getServiceImportErr := r.Client.Get(ctx, types.NamespacedName{Name: backend.Spec.Backend.Name, Namespace: backend.Namespace}, serviceImport); getServiceImportErr != nil {
+		if apierrors.IsNotFound(getServiceImportErr) {
+			klog.V(2).InfoS("NotFound serviceImport and starting deleting any stale endpoints", "trafficManagerBackend", backendKObj, "serviceImport", backend.Spec.Backend.Name)
+			if err := r.cleanupEndpoints(ctx, backend, azureProfile); err != nil {
+				klog.ErrorS(err, "Failed to delete stale endpoints for an invalid serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", backend.Spec.Backend.Name)
+				return nil, err
+			}
+			cond = metav1.Condition{
+				Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: backend.Generation,
+				Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+				Message:            fmt.Sprintf("ServiceImport %q is not found", backend.Spec.Backend.Name),
+			}
+			meta.SetStatusCondition(&backend.Status.Conditions, cond)
+			backend.Status.Endpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{} // none of the endpoints are accepted by the TrafficManager
+			return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
+		}
+		klog.ErrorS(getServiceImportErr, "Failed to get serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", backend.Spec.Backend.Name)
+		setUnknownCondition(backend, fmt.Sprintf("Failed to get the serviceImport %q: %v", backend.Spec.Profile.Name, getServiceImportErr))
+		if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
+			return nil, err
+		}
+		return nil, getServiceImportErr // need to return the error to requeue the request
+	}
+	return serviceImport, nil
 }
 
 func setFalseCondition(backend *fleetnetv1alpha1.TrafficManagerBackend, acceptedEndpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus, message string) {
