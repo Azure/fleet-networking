@@ -8,6 +8,7 @@ package trafficmanagerbackend
 import (
 	"context"
 	"flag"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -46,6 +48,88 @@ const (
 var (
 	originalGenerateAzureTrafficManagerProfileNameFunc        = generateAzureTrafficManagerProfileNameFunc
 	originalGenerateAzureTrafficManagerEndpointNamePrefixFunc = generateAzureTrafficManagerEndpointNamePrefixFunc
+
+	memberClusterNames     = []string{"member-1", "member-2", "member-3"}
+	internalServiceExports = []fleetnetv1alpha1.InternalServiceExport{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "valid-endpoint",
+				Namespace: memberClusterNames[0],
+			},
+			Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+				Ports: []fleetnetv1alpha1.ServicePort{
+					{
+						Name:       "portA",
+						Protocol:   "TCP",
+						Port:       8080,
+						TargetPort: intstr.IntOrString{IntVal: 8080},
+					},
+				},
+				ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+					ClusterID:       memberClusterNames[0],
+					Kind:            "Service",
+					Namespace:       testNamespace,
+					Name:            serviceName,
+					ResourceVersion: "0",
+					Generation:      0,
+					UID:             "0",
+				},
+				Type:                 corev1.ServiceTypeLoadBalancer,
+				IsDNSLabelConfigured: true,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "invalid-endpoint",
+				Namespace: memberClusterNames[1],
+			},
+			Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+				Ports: []fleetnetv1alpha1.ServicePort{
+					{
+						Name:       "portA",
+						Protocol:   "TCP",
+						Port:       8080,
+						TargetPort: intstr.IntOrString{IntVal: 8080},
+					},
+				},
+				ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+					ClusterID:       memberClusterNames[1],
+					Kind:            "Service",
+					Namespace:       testNamespace,
+					Name:            serviceName,
+					ResourceVersion: "0",
+					Generation:      0,
+					UID:             "0",
+				},
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "other-service",
+				Namespace: memberClusterNames[2],
+			},
+			Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+				Ports: []fleetnetv1alpha1.ServicePort{
+					{
+						Name:       "portA",
+						Protocol:   "TCP",
+						Port:       8080,
+						TargetPort: intstr.IntOrString{IntVal: 8080},
+					},
+				},
+				ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+					ClusterID:       memberClusterNames[2],
+					Kind:            "Service",
+					Namespace:       testNamespace,
+					Name:            "other-service",
+					ResourceVersion: "0",
+					Generation:      0,
+					UID:             "0",
+				},
+			},
+		},
+	}
 )
 
 func TestAPIs(t *testing.T) {
@@ -123,6 +207,19 @@ var _ = BeforeSuite(func() {
 	}
 	Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
 
+	for i, name := range memberClusterNames {
+		By(fmt.Sprintf("Create member cluster system namespace %v", name))
+		ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+
+		By(fmt.Sprintf("Create internalServiceExport %v", internalServiceExports[i].Name))
+		Expect(k8sClient.Create(ctx, &internalServiceExports[i])).Should(Succeed(), "failed to create internalServiceExport")
+	}
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
@@ -132,6 +229,19 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+
+	for i, name := range memberClusterNames {
+		By(fmt.Sprintf("Delete internalServiceExport %v", internalServiceExports[i].Name))
+		Expect(k8sClient.Delete(ctx, &internalServiceExports[i])).Should(Succeed(), "failed to delete internalServiceExport")
+
+		By(fmt.Sprintf("Delete member cluster system namespace %v", name))
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}
+		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
+	}
 
 	By("delete profile namespace")
 	ns := corev1.Namespace{
