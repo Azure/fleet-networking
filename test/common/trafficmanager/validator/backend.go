@@ -57,6 +57,21 @@ func ValidateTrafficManagerBackend(ctx context.Context, k8sClient client.Client,
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend mismatch")
 }
 
+// ValidateTrafficManagerBackendConsistently validates the trafficManagerBackend object consistently.
+func ValidateTrafficManagerBackendConsistently(ctx context.Context, k8sClient client.Client, want *fleetnetv1alpha1.TrafficManagerBackend) {
+	key := types.NamespacedName{Name: want.Name, Namespace: want.Namespace}
+	backend := &fleetnetv1alpha1.TrafficManagerBackend{}
+	gomega.Consistently(func() error {
+		if err := k8sClient.Get(ctx, key, backend); err != nil {
+			return err
+		}
+		if diff := cmp.Diff(want, backend, cmpTrafficManagerBackendOptions); diff != "" {
+			return fmt.Errorf("trafficManagerBackend mismatch (-want, +got) :\n%s", diff)
+		}
+		return nil
+	}, duration, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend mismatch")
+}
+
 // IsTrafficManagerBackendDeleted validates whether the backend is deleted or not.
 func IsTrafficManagerBackendDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
 	gomega.Eventually(func() error {
