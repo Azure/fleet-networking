@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -25,6 +26,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/policy/ratelimit"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -35,6 +39,7 @@ import (
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
+	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/env"
@@ -314,15 +319,21 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		return err
 	}
 
+	var azurePublicIPAddressClient publicipaddressclient.Interface
 	if *enableTrafficManagerFeature {
-		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config", "cloudConfigFile", *cloudConfigFile)
-		// TODO: load the cloud config
-		// cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
-		// if err != nil {
-		// 	klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
-		// 	exitWithErrorFunc()
-		// }
-		// cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
+		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
+		cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
+		if err != nil {
+			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+			return err
+		}
+		cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
+
+		azurePublicIPAddressClient, err = initializeAzureNetworkClients(cloudConfig)
+		if err != nil {
+			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
+			return err
+		}
 	}
 
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
@@ -333,6 +344,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubNamespace:                mcHubNamespace,
 		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
 		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
+		AzurePublicIPAddressClient:  azurePublicIPAddressClient,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
@@ -375,4 +387,33 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")
 	return nil
+}
+
+// initializeAzureNetworkClients initializes the Azure network resource clients, currently only publicIPAddressClient.
+func initializeAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, error) {
+	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
+	}
+
+	factoryConfig := &azclient.ClientFactoryConfig{
+		CloudProviderBackoff: true,
+		SubscriptionID:       cloudConfig.SubscriptionID,
+	}
+	options, err := azclient.GetDefaultResourceClientOption(&cloudConfig.ARMClientConfig, factoryConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default resource client option: %w", err)
+	}
+
+	rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config)
+	if rateLimitPolicy != nil {
+		options.ClientOptions.PerCallPolicies = append(options.ClientOptions.PerCallPolicies, rateLimitPolicy)
+	}
+
+	pipClient, err := publicipaddressclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure PublicIPAddress client: %w", err)
+	}
+
+	return pipClient, nil
 }
