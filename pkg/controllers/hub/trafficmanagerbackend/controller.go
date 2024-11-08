@@ -601,9 +601,14 @@ func (r *Reconciler) internalServiceExportEventHandler() handler.MapFunc {
 			return []reconcile.Request{}
 		}
 		for _, cs := range serviceImport.Status.Clusters {
-			// When cluster is part of the ServiceImport, the ServiceImport event will re-trigger the controller.
-			// Here we ignore such clusters which either has not been handled by the serviceImport or it has conflicts with
-			// other clusters.
+			// When the cluster exposes the service, first we will check whether the cluster can be exposed or not.
+			// For example, whether the service spec conflicts with other existing services.
+			// If the cluster is not in the serviceImport status, there are two possibilities:
+			// * the controller is still in the processing of this cluster.
+			// * the cluster cannot be exposed because of the conflicted spec, which will be clearly indicated in the
+			// serviceExport status.
+			// For the first case, when the processing is finished, serviceImport will be updated so that this controller
+			// will be triggered again.
 			if cs.Cluster == internalServiceExport.Spec.ServiceReference.ClusterID {
 				return r.enqueueTrafficManagerBackendByServiceImport(ctx, serviceImport)
 			}
