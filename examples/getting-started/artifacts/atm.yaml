@@ -1,0 +1,29 @@
+# Prerequisites:
+# 1. Apply the deployment and LoadBalancer typed service specified in the app-svc.yaml file.
+# 2. Apply the service export specified in the svc-export.yaml file to export the service.
+# The created service has namespacedName: work/app.
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: TrafficManagerProfile
+metadata:
+  name: myatm
+  namespace: work # TrafficManagerProfile, TrafficManagerBackend, and services should be placed under the same namespace.
+spec:
+  monitorConfig:
+    protocol: HTTP
+    path: /
+    port: 8080
+    intervalInSeconds: 30
+    timeoutInSeconds: 10
+    toleratedNumberOfFailures: 3
+---
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: TrafficManagerBackend
+metadata:
+  name: app
+  namespace: work
+spec:
+  profile:
+    name: myatm # The TrafficManagerProfile name
+  backend:
+    name: app # the service name
+  weight: 100
