@@ -9,11 +9,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -22,6 +24,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/policy/ratelimit"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -30,6 +34,7 @@ import (
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	"go.goms.io/fleet/pkg/utils"
+	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
@@ -59,7 +64,7 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", false, "If set, the traffic manager feature will be enabled.")
 
-	// cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
+	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
 var (
@@ -185,16 +190,23 @@ func main() {
 				exitWithErrorFunc()
 			}
 		}
-		// TODO: start the traffic manager controllers
 
-		// TODO: load the cloud config
-		// cloudConfig, err := cloudconfig.NewCloudConfigFromFile(*cloudConfigFile)
-		// if err != nil {
-		// 	klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
-		// 	exitWithErrorFunc()
-		// }
-		// cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
-		// klog.V(1).InfoS("Cloud config loaded", "config", cloudConfig)
+		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
+		cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
+		if err != nil {
+			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+			exitWithErrorFunc()
+		}
+		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
+		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
+
+		_, _, err = initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
+		if err != nil {
+			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
+			exitWithErrorFunc()
+		}
+
+		// TODO: start the traffic manager controllers
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
@@ -202,4 +214,36 @@ func main() {
 		klog.ErrorS(err, "Problem running manager")
 		exitWithErrorFunc()
 	}
+}
+
+// initAzureTrafficManagerClients initializes the Azure Traffic Manager profiles and endpoints clients.
+func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtrafficmanager.ProfilesClient, *armtrafficmanager.EndpointsClient, error) {
+	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
+	}
+
+	factoryConfig := &azclient.ClientFactoryConfig{
+		CloudProviderBackoff: true,
+		SubscriptionID:       cloudConfig.SubscriptionID,
+	}
+	options, err := azclient.GetDefaultResourceClientOption(&cloudConfig.ARMClientConfig, factoryConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get default resource client option: %w", err)
+	}
+
+	if rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config); rateLimitPolicy != nil {
+		options.ClientOptions.PerCallPolicies = append(options.ClientOptions.PerCallPolicies, rateLimitPolicy)
+	}
+
+	profilesClient, err := armtrafficmanager.NewProfilesClient(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Azure trafficManager profiles client: %w", err)
+	}
+
+	endpointsClient, err := armtrafficmanager.NewEndpointsClient(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Azure trafficManager endpoints client: %w", err)
+	}
+	return profilesClient, endpointsClient, nil
 }
