@@ -39,8 +39,8 @@ var (
 	cancel    context.CancelFunc
 )
 
-const (
-	testNamespace = "profile-ns"
+var (
+	testNamespace = fakeprovider.ProfileNamespace
 )
 
 var (

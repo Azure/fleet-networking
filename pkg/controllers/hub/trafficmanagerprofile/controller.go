@@ -14,7 +14,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -136,6 +135,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1
 func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+	desiredATMProfile := generateAzureTrafficManagerProfile(profile)
 	var responseError *azcore.ResponseError
 	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, atmProfileName, nil)
 	if getErr != nil {
@@ -145,15 +145,14 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 		}
 		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	} else {
-		existingSpec := convertToTrafficManagerProfileSpec(&getRes.Profile)
-		if equality.Semantic.DeepEqual(existingSpec, profile.Spec) {
+		if compareAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
 			// skip creating or updating the profile
 			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return r.updateProfileStatus(ctx, profile, getRes.Profile, nil)
 		}
 	}
 
-	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, r.ResourceGroupName, atmProfileName, generateAzureTrafficManagerProfile(profile), nil)
+	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, r.ResourceGroupName, atmProfileName, desiredATMProfile, nil)
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {
 			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -167,24 +166,45 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 
-func convertToTrafficManagerProfileSpec(profile *armtrafficmanager.Profile) fleetnetv1alpha1.TrafficManagerProfileSpec {
-	if profile.Properties != nil && profile.Properties.MonitorConfig != nil {
-		var protocol fleetnetv1alpha1.TrafficManagerMonitorProtocol
-		if profile.Properties.MonitorConfig.Protocol != nil {
-			protocol = fleetnetv1alpha1.TrafficManagerMonitorProtocol(*profile.Properties.MonitorConfig.Protocol)
-		}
-		return fleetnetv1alpha1.TrafficManagerProfileSpec{
-			MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
-				IntervalInSeconds:         profile.Properties.MonitorConfig.IntervalInSeconds,
-				Path:                      profile.Properties.MonitorConfig.Path,
-				Port:                      profile.Properties.MonitorConfig.Port,
-				Protocol:                  &protocol,
-				TimeoutInSeconds:          profile.Properties.MonitorConfig.TimeoutInSeconds,
-				ToleratedNumberOfFailures: profile.Properties.MonitorConfig.ToleratedNumberOfFailures,
-			},
+// compareAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
+// by ignoring others.
+// The desired profile is built by the controllers and all the required fields should not be nil.
+func compareAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
+	// location and dnsConfig is not immutable
+	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil {
+		return false
+	}
+
+	if current.Properties.MonitorConfig.IntervalInSeconds == nil || current.Properties.MonitorConfig.Path == nil ||
+		current.Properties.MonitorConfig.Port == nil || current.Properties.MonitorConfig.Protocol == nil ||
+		current.Properties.MonitorConfig.TimeoutInSeconds == nil || current.Properties.MonitorConfig.ToleratedNumberOfFailures == nil {
+		return false
+	}
+
+	if *current.Properties.MonitorConfig.IntervalInSeconds != *desired.Properties.MonitorConfig.IntervalInSeconds ||
+		*current.Properties.MonitorConfig.Path != *desired.Properties.MonitorConfig.Path ||
+		*current.Properties.MonitorConfig.Port != *desired.Properties.MonitorConfig.Port ||
+		*current.Properties.MonitorConfig.Protocol != *desired.Properties.MonitorConfig.Protocol ||
+		*current.Properties.MonitorConfig.TimeoutInSeconds != *desired.Properties.MonitorConfig.TimeoutInSeconds ||
+		*current.Properties.MonitorConfig.ToleratedNumberOfFailures != *desired.Properties.MonitorConfig.ToleratedNumberOfFailures {
+		return false
+	}
+
+	if *current.Properties.ProfileStatus != *desired.Properties.ProfileStatus || *current.Properties.TrafficRoutingMethod != *desired.Properties.TrafficRoutingMethod {
+		return false
+	}
+
+	if current.Tags == nil {
+		return false
+	}
+
+	for key, value := range desired.Tags {
+		currentValue := current.Tags[key]
+		if (value == nil && currentValue != nil) || (value != nil && currentValue == nil) || (currentValue == nil || *currentValue != *value) {
+			return false
 		}
 	}
-	return fleetnetv1alpha1.TrafficManagerProfileSpec{}
+	return true
 }
 
 func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile, atmProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {

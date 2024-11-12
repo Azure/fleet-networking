@@ -15,12 +15,14 @@ import (
 	azcorefake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager/fake"
+	"k8s.io/utils/ptr"
 )
 
 // NewEndpointsClient creates a client which talks to a fake endpoint server.
 func NewEndpointsClient(subscriptionID string) (*armtrafficmanager.EndpointsClient, error) {
 	fakeServer := fake.EndpointsServer{
-		Delete: EndpointDelete,
+		Delete:         EndpointDelete,
+		CreateOrUpdate: EndpointCreateOrUpdate,
 	}
 	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
@@ -49,6 +51,34 @@ func EndpointDelete(_ context.Context, resourceGroupName string, profileName str
 			return resp, errResp
 		}
 		endpointResp := armtrafficmanager.EndpointsClientDeleteResponse{}
+		resp.SetResponse(http.StatusOK, endpointResp, nil)
+	} else {
+		if endpointType != armtrafficmanager.EndpointTypeAzureEndpoints {
+			// controller should not send other endpoint types.
+			errResp.SetResponseError(http.StatusBadRequest, "InvalidEndpointType")
+		} else {
+			errResp.SetResponseError(http.StatusNotFound, "NotFound")
+		}
+	}
+	return resp, errResp
+}
+
+func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, endpointType armtrafficmanager.EndpointType, endpointName string, _ armtrafficmanager.Endpoint, _ *armtrafficmanager.EndpointsClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.EndpointsClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
+	if resourceGroupName != DefaultResourceGroupName {
+		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
+		return resp, errResp
+	}
+	if strings.HasPrefix(profileName, ValidProfileName) && endpointType == armtrafficmanager.EndpointTypeAzureEndpoints && strings.HasPrefix(strings.ToLower(endpointName), ValidBackendName+"#") {
+		endpointResp := armtrafficmanager.EndpointsClientCreateOrUpdateResponse{
+			Endpoint: armtrafficmanager.Endpoint{
+				Name: ptr.To(endpointName),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To(ValidPublicIPResourceID),
+					Weight:           ptr.To(Weight),
+				},
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+			},
+		}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
 	} else {
 		if endpointType != armtrafficmanager.EndpointTypeAzureEndpoints {

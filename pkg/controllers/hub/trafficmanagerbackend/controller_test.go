@@ -8,7 +8,9 @@ package trafficmanagerbackend
 import (
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
@@ -68,6 +70,119 @@ func TestIsValidTrafficManagerEndpoint(t *testing.T) {
 			err := isValidTrafficManagerEndpoint(tt.export)
 			if got := err != nil; got != tt.wantErr {
 				t.Errorf("isValidTrafficManagerEndpoint() = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCompareAzureTrafficManagerEndpoint(t *testing.T) {
+	tests := []struct {
+		name    string
+		current armtrafficmanager.Endpoint
+		want    bool
+	}{
+		{
+			name: "endpoints are equal though current has other properties",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("resourceID"),
+					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
+					Weight:           ptr.To(int64(100)),
+					Priority:         ptr.To(int64(1)),
+					EndpointLocation: ptr.To("location"),
+				},
+			},
+			want: true,
+		},
+		{
+			name:    "type is nil",
+			current: armtrafficmanager.Endpoint{},
+		},
+		{
+			name: "type is different",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeNestedEndpoints)),
+			},
+		},
+		{
+			name: "Properties is nil",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+			},
+		},
+		{
+			name: "Properties.TargetResourceID is nil",
+			current: armtrafficmanager.Endpoint{
+				Type:       ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{},
+			},
+		},
+		{
+			name: "Properties.Weight is nil",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("resourceID"),
+				},
+			},
+		},
+		{
+			name: "Properties.EndpointStatus is nil",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("resourceID"),
+					Weight:           ptr.To(int64(100)),
+				},
+			},
+		},
+		{
+			name: "Properties.TargetResourceID is different",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("invalid-resourceID"),
+					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
+					Weight:           ptr.To(int64(100)),
+				},
+			},
+		},
+		{
+			name: "Properties.Weight is different",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("invalid-resourceID"),
+					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
+					Weight:           ptr.To(int64(10)),
+				},
+			},
+		},
+		{
+			name: "Properties.EndpointStatus is different",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("resourceID"),
+					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusDisabled),
+					Weight:           ptr.To(int64(100)),
+				},
+			},
+		},
+	}
+	desired := armtrafficmanager.Endpoint{
+		Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+		Properties: &armtrafficmanager.EndpointProperties{
+			TargetResourceID: ptr.To("resourceID"),
+			EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
+			Weight:           ptr.To(int64(100)),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := compareAzureTrafficManagerEndpoint(tt.current, desired); got != tt.want {
+				t.Errorf("compareAzureTrafficManagerEndpoint() = %v, want %v", got, tt.want)
 			}
 		})
 	}
