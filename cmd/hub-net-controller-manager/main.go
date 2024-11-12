@@ -198,8 +198,9 @@ func main() {
 			exitWithErrorFunc()
 		}
 		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
+		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		_, _, err = initializeAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
+		_, _, err = initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
 		if err != nil {
 			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
 			exitWithErrorFunc()
@@ -215,8 +216,8 @@ func main() {
 	}
 }
 
-// initializeAzureTrafficManagerClients initializes the Azure Traffic Manager profiles and endpoints clients.
-func initializeAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtrafficmanager.ProfilesClient, *armtrafficmanager.EndpointsClient, error) {
+// initAzureTrafficManagerClients initializes the Azure Traffic Manager profiles and endpoints clients.
+func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtrafficmanager.ProfilesClient, *armtrafficmanager.EndpointsClient, error) {
 	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
@@ -231,8 +232,7 @@ func initializeAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armt
 		return nil, nil, fmt.Errorf("failed to get default resource client option: %w", err)
 	}
 
-	rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config)
-	if rateLimitPolicy != nil {
+	if rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config); rateLimitPolicy != nil {
 		options.ClientOptions.PerCallPolicies = append(options.ClientOptions.PerCallPolicies, rateLimitPolicy)
 	}
 

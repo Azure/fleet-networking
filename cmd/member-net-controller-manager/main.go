@@ -320,6 +320,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	}
 
 	var azurePublicIPAddressClient publicipaddressclient.Interface
+	var resourceGroupName string
 	if *enableTrafficManagerFeature {
 		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
 		cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
@@ -328,12 +329,15 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 			return err
 		}
 		cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
+		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		azurePublicIPAddressClient, err = initializeAzureNetworkClients(cloudConfig)
+		azurePublicIPAddressClient, err = initAzureNetworkClients(cloudConfig)
 		if err != nil {
 			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
 			return err
 		}
+
+		resourceGroupName = cloudConfig.ResourceGroup
 	}
 
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
@@ -344,6 +348,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubNamespace:                mcHubNamespace,
 		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
 		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
+		ResourceGroupName:           resourceGroupName,
 		AzurePublicIPAddressClient:  azurePublicIPAddressClient,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
@@ -389,8 +394,8 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	return nil
 }
 
-// initializeAzureNetworkClients initializes the Azure network resource clients, currently only publicIPAddressClient.
-func initializeAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, error) {
+// initAzureNetworkClients initializes the Azure network resource clients, currently only publicIPAddressClient.
+func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, error) {
 	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
@@ -405,8 +410,7 @@ func initializeAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddr
 		return nil, fmt.Errorf("failed to get default resource client option: %w", err)
 	}
 
-	rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config)
-	if rateLimitPolicy != nil {
+	if rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config); rateLimitPolicy != nil {
 		options.ClientOptions.PerCallPolicies = append(options.ClientOptions.PerCallPolicies, rateLimitPolicy)
 	}
 
