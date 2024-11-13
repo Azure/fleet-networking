@@ -33,7 +33,7 @@ az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source
 az acr update --name $REGISTRY_NAME --anonymous-pull-enabled -g $RESOURCE_GROUP
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
-export TAG=`git rev-parse --short=7 HEAD`
+export TAG=$(git rev-parse --short=7 HEAD)
 make push
 
 # Create hub and member clusters and wait until all clusters are ready.
@@ -41,18 +41,48 @@ export HUB_CLUSTER=hub
 export MEMBER_CLUSTER_1=member-1
 export MEMBER_CLUSTER_2=member-2
 export NODE_COUNT=2
+export ENABLE_TRAFFIC_MANAGER="${ENABLE_TRAFFIC_MANAGER:-false}"
+export AKS_ID_NAME=${AKS_ID_NAME:-"fleet-net-aks-id"}
+export AKS_KUBELET_ID_NAME=${AKS_KUBELET_ID_NAME:-"fleet-net-aks-kubelet-id"}
 
-# Create aks hub cluster
-az aks create \
-    --location $LOCATION \
-    --resource-group $RESOURCE_GROUP \
-    --name $HUB_CLUSTER \
-    --node-count $NODE_COUNT \
-    --generate-ssh-keys \
-    --enable-aad \
-    --enable-azure-rbac \
-    --network-plugin azure \
-    --no-wait
+if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
+  # Create aks hub cluster
+  echo "Creating aks cluster: ${HUB_CLUSTER}"
+  az aks create \
+       --location $LOCATION \
+       --resource-group $RESOURCE_GROUP \
+       --name $HUB_CLUSTER \
+       --node-count $NODE_COUNT \
+       --generate-ssh-keys \
+       --enable-aad \
+       --enable-azure-rbac \
+       --network-plugin azure \
+       --no-wait
+else
+  # Create aks identity
+  echo "Creating control-plane identity: ${AKS_ID_NAME}"
+  AKS_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${AKS_ID_NAME})
+  echo "Creating kubelet identity: ${AKS_KUBELET_ID_NAME}"
+  AKS_KUBELET_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${AKS_KUBELET_ID_NAME})
+
+  AKS_IDENTITY_ID=$(echo ${AKS_IDENTITY} | jq -r '. | .id')
+  AKS_KUBELET_IDENTITY_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .id')
+  KUBELET_PRINCIPAL_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .principalId')
+  KUBELET_CLIENT_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
+
+  echo "Creating aks cluster: ${HUB_CLUSTER}"
+  az aks create \
+         --location $LOCATION \
+         --resource-group $RESOURCE_GROUP \
+         --name $HUB_CLUSTER \
+         --node-count $NODE_COUNT \
+         --generate-ssh-keys \
+         --enable-aad \
+         --enable-azure-rbac \
+         --network-plugin azure \
+         --enable-managed-identity --assign-identity ${AKS_IDENTITY_ID} --assign-kubelet-identity ${AKS_KUBELET_IDENTITY_ID} \
+         --no-wait
+fi
 
 AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
 case $AZURE_NETWORK_SETTING in
@@ -93,6 +123,26 @@ if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
     az aks wait --created --interval 10 --name $MEMBER_CLUSTER_3 --resource-group $RESOURCE_GROUP --timeout 1800
     az aks wait --created --interval 10 --name $MEMBER_CLUSTER_4 --resource-group $RESOURCE_GROUP --timeout 1800
+fi
+
+if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
+  # hack: add role assignments to kubelet identity
+  echo "Assigning roles to kubelet identity"
+  az role assignment create --role "Network Contributor" --assignee ${KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
+
+  # Creating azure configuration file for the controllers
+  echo "Generating azure configuration file:" $(pwd)/azure_config.yaml
+  cat << EOF > $(pwd)/azure_config.yaml
+  {
+      "cloud": "AzurePublicCloud",
+      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
+      "useManagedIdentityExtension": true,
+      "userAssignedIdentityID": "${KUBELET_CLIENT_ID}",
+      "resourceGroup": "${AKS_NODE_RESOURCE_GROUP}",
+      "location": "${LOCATION}",
+      "vnetName": "my-vnet",
+  }
+EOF
 fi
 
 # Export kubeconfig.
@@ -174,6 +224,7 @@ helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
     --set image.tag=$TAG
+    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin

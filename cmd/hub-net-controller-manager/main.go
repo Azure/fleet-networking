@@ -10,6 +10,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerbackend"
 	"os"
 	"time"
 
@@ -42,6 +43,7 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
 
 var (
@@ -167,6 +169,12 @@ func main() {
 		exitWithErrorFunc()
 	}
 
+	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
+	if err := mgr.Start(ctx); err != nil {
+		klog.ErrorS(err, "Problem running manager")
+		exitWithErrorFunc()
+	}
+
 	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
 	if *enableV1Beta1APIs {
 		gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
@@ -200,19 +208,31 @@ func main() {
 		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
 		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		_, _, err = initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
+		profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
 		if err != nil {
 			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
 			exitWithErrorFunc()
 		}
+		klog.V(1).InfoS("Start to setup TrafficManagerProfile controller")
+		if err := (&trafficmanagerprofile.Reconciler{
+			Client:            mgr.GetClient(),
+			ProfilesClient:    profilesClient,
+			ResourceGroupName: cloudConfig.ResourceGroup,
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
 
-		// TODO: start the traffic manager controllers
-	}
-
-	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
-	if err := mgr.Start(ctx); err != nil {
-		klog.ErrorS(err, "Problem running manager")
-		exitWithErrorFunc()
+		klog.V(1).InfoS("Start to setup TrafficManagerBackend controller")
+		if err := (&trafficmanagerbackend.Reconciler{
+			Client:            mgr.GetClient(),
+			ProfilesClient:    profilesClient,
+			EndpointsClient:   endpointsClient,
+			ResourceGroupName: cloudConfig.ResourceGroup,
+		}).SetupWithManager(ctx, mgr); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
 	}
 }
 
