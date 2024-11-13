@@ -259,10 +259,13 @@ var (
 		}
 		return nil
 	}
-	// serviceIsExportedToHubActual runs with Eventually and Consistently assertion to make sure that
-	// the Service referred by svcOrSvcExportKey has been exported to the hub cluster, i.e. a corresponding
-	// internalServiceExport has been created.
-	serviceIsExportedToHubActual = func(serviceType corev1.ServiceType, isPublicAzureLoadBalancer bool) error {
+)
+
+// serviceIsExportedToHubActual runs with Eventually and Consistently assertion to make sure that
+// the Service referred by svcOrSvcExportKey has been exported to the hub cluster, i.e. a corresponding
+// internalServiceExport has been created.
+func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureLoadBalancer bool) func() error {
+	return func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
 			return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
@@ -310,7 +313,7 @@ var (
 		}
 		return nil
 	}
-)
+}
 
 var _ = Describe("serviceexport controller", func() {
 	Context("export non-existent service", func() {

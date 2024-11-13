@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -61,7 +62,9 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	klog.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
+	klog.SetLogger(logger)
+	log.SetLogger(logger)
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
