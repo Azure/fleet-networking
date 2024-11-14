@@ -1,0 +1,8 @@
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    subscriptionId: "c4528d9e-c99a-48bb-b12d-fde2176a43b8"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "f882963a-abce-416c-9e44-172f678475f9"
+    resourceGroup: "MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus"
+    location: "westcentralus"
+    vnetName: "my-vnet"

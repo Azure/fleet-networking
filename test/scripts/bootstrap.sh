@@ -5,21 +5,23 @@ set -o pipefail
 set -x
 
 # Check required variables.
-[[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
+#[[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
+export AZURE_SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-c4528d9e-c99a-48bb-b12d-fde2176a43b8}"
 
 az account set -s ${AZURE_SUBSCRIPTION_ID}
+export AZURE_NETWORK_SETTING=shared-vnet
 
 # Create resource group to host hub and member clusters.
 # RANDOM ID promises workflow runs don't interface one another.
-export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-fleet-networking-e2e-$RANDOM}"
-export LOCATION="${LOCATION:-eastus2}"
+export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-zhiyinglin-fleet-networking-e2e-atm-1}"
+export LOCATION="${LOCATION:-westcentralus}"
 az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
 
 # Defer function to recycle created Azure resource.
-function cleanup {
-    az group delete -n $RESOURCE_GROUP --no-wait --yes
-}
-trap cleanup INT TERM
+#function cleanup {
+#    az group delete -n $RESOURCE_GROUP --no-wait --yes
+#}
+#trap cleanup INT TERM
 
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
@@ -41,9 +43,14 @@ export HUB_CLUSTER=hub
 export MEMBER_CLUSTER_1=member-1
 export MEMBER_CLUSTER_2=member-2
 export NODE_COUNT=2
-export ENABLE_TRAFFIC_MANAGER="${ENABLE_TRAFFIC_MANAGER:-false}"
-export AKS_ID_NAME=${AKS_ID_NAME:-"fleet-net-aks-id"}
-export AKS_KUBELET_ID_NAME=${AKS_KUBELET_ID_NAME:-"fleet-net-aks-kubelet-id"}
+
+export ENABLE_TRAFFIC_MANAGER="${ENABLE_TRAFFIC_MANAGER:-"true"}"
+export HUB_CLUSTER_AKS_ID_NAME=${HUB_CLUSTER_AKS_ID_NAME:-"fleet-net-hub-aks-id"}
+export HUB_CLUSTER_AKS_KUBELET_ID_NAME=${HUB_CLUSTER_AKS_KUBELET_ID_NAME:-"fleet-net-hub-aks-kubelet-id"}
+export MEMBER_CLUSTER_1_AKS_ID_NAME=${MEMBER_CLUSTER_1_AKS_ID_NAME:-"fleet-net-member-1-aks-id"}
+export MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME:-"fleet-net-member-1-aks-kubelet-id"}
+export MEMBER_CLUSTER_2_AKS_ID_NAME=${MEMBER_CLUSTER_2_AKS_ID_NAME:-"fleet-net-member-2-aks-id"}
+export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME:-"fleet-net-member-2-aks-kubelet-id"}
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   # Create aks hub cluster
@@ -60,15 +67,15 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
        --no-wait
 else
   # Create aks identity
-  echo "Creating control-plane identity: ${AKS_ID_NAME}"
-  AKS_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${AKS_ID_NAME})
-  echo "Creating kubelet identity: ${AKS_KUBELET_ID_NAME}"
-  AKS_KUBELET_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${AKS_KUBELET_ID_NAME})
+  echo "Creating hub control-plane identity: ${HUB_CLUSTER_AKS_ID_NAME}"
+  HUB_CLUSTER_AKS_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${HUB_CLUSTER_AKS_ID_NAME})
+  echo "Creating hub kubelet identity: ${HUB_CLUSTER_AKS_KUBELET_ID_NAME}"
+  HUB_CLUSTER_AKS_KUBELET_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${HUB_CLUSTER_AKS_KUBELET_ID_NAME})
 
-  AKS_IDENTITY_ID=$(echo ${AKS_IDENTITY} | jq -r '. | .id')
-  AKS_KUBELET_IDENTITY_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .id')
-  KUBELET_PRINCIPAL_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .principalId')
-  KUBELET_CLIENT_ID=$(echo ${AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
+  HUB_CLUSTER_AKS_IDENTITY_ID=$(echo ${HUB_CLUSTER_AKS_IDENTITY} | jq -r '. | .id')
+  HUB_CLUSTER_AKS_KUBELET_IDENTITY_ID=$(echo ${HUB_CLUSTER_AKS_KUBELET_IDENTITY} | jq -r '. | .id')
+  HUB_CLUSTER_KUBELET_PRINCIPAL_ID=$(echo ${HUB_CLUSTER_AKS_KUBELET_IDENTITY} | jq -r '. | .principalId')
+  HUB_CLUSTER_KUBELET_CLIENT_ID=$(echo ${HUB_CLUSTER_AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
 
   echo "Creating aks cluster: ${HUB_CLUSTER}"
   az aks create \
@@ -80,8 +87,30 @@ else
          --enable-aad \
          --enable-azure-rbac \
          --network-plugin azure \
-         --enable-managed-identity --assign-identity ${AKS_IDENTITY_ID} --assign-kubelet-identity ${AKS_KUBELET_IDENTITY_ID} \
+         --enable-managed-identity --assign-identity ${HUB_CLUSTER_AKS_IDENTITY_ID} --assign-kubelet-identity ${HUB_CLUSTER_AKS_KUBELET_IDENTITY_ID} \
          --no-wait
+
+  # Create aks identity for member-1
+  echo "Creating member-1 control-plane identity: ${MEMBER_CLUSTER_1_AKS_ID_NAME}"
+  MEMBER_CLUSTER_1_AKS_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${MEMBER_CLUSTER_1_AKS_ID_NAME})
+  echo "Creating member-1 kubelet identity: ${MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME}"
+  MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME})
+
+  export MEMBER_CLUSTER_1_AKS_IDENTITY_ID=$(echo ${MEMBER_CLUSTER_1_AKS_IDENTITY} | jq -r '. | .id')
+  export MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID=$(echo ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY} | jq -r '. | .id')
+  export MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID=$(echo ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY} | jq -r '. | .principalId')
+  export MEMBER_CLUSTER_1_KUBELET_CLIENT_ID=$(echo ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
+
+  # Create aks identity for member-2
+  echo "Creating member-2 control-plane identity: ${MEMBER_CLUSTER_2_AKS_ID_NAME}"
+  MEMBER_CLUSTER_2_AKS_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${MEMBER_CLUSTER_2_AKS_ID_NAME})
+  echo "Creating member-2 kubelet identity: ${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME}"
+  MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY=$(az identity create -g ${RESOURCE_GROUP} -n ${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME})
+
+  export MEMBER_CLUSTER_2_AKS_IDENTITY_ID=$(echo ${MEMBER_CLUSTER_2_AKS_IDENTITY} | jq -r '. | .id')
+  export MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID=$(echo ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY} | jq -r '. | .id')
+  export MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID=$(echo ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY} | jq -r '. | .principalId')
+  export MEMBER_CLUSTER_2_KUBELET_CLIENT_ID=$(echo ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
 fi
 
 AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
@@ -125,23 +154,60 @@ then
     az aks wait --created --interval 10 --name $MEMBER_CLUSTER_4 --resource-group $RESOURCE_GROUP --timeout 1800
 fi
 
+# hack: add role assignments to kubelet identity
 if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
-  # hack: add role assignments to kubelet identity
-  echo "Assigning roles to kubelet identity"
-  az role assignment create --role "Network Contributor" --assignee ${KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
+  echo "Assigning roles to hub kubelet identity on the resourceGroup of the hub cluster"
+  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
-  echo "Generating azure configuration file:" $(pwd)/azure_config.yaml
-  cat << EOF > $(pwd)/azure_config.yaml
-  {
-      "cloud": "AzurePublicCloud",
-      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
-      "useManagedIdentityExtension": true,
-      "userAssignedIdentityID": "${KUBELET_CLIENT_ID}",
-      "resourceGroup": "${AKS_NODE_RESOURCE_GROUP}",
-      "location": "${LOCATION}",
-      "vnetName": "my-vnet",
-  }
+  echo "Generating azure configuration file:" $(pwd)/hub_azure_config.yaml
+  cat << EOF > $(pwd)/hub_azure_config.yaml
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "${HUB_CLUSTER_KUBELET_CLIENT_ID}"
+    resourceGroup: "${RESOURCE_GROUP}"
+    location: "${LOCATION}"
+    vnetName: "my-vnet"
+EOF
+
+  AKS_MEMBER_1=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_1)
+  AKS_MEMBER_1_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_1} | jq -r '. | .nodeResourceGroup')
+
+  echo "Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
+
+  # Creating azure configuration file for the controllers
+  echo "Generating azure configuration file:" $(pwd)/member_1_azure_config.yaml
+  cat << EOF > $(pwd)/member_1_azure_config.yaml
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "${MEMBER_CLUSTER_1_KUBELET_CLIENT_ID}"
+    resourceGroup: "${AKS_MEMBER_1_NODE_RESOURCE_GROUP}"
+    location: "${LOCATION}"
+    vnetName: "my-vnet"
+EOF
+
+  AKS_MEMBER_2=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_2)
+  AKS_MEMBER_2_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_2} | jq -r '. | .nodeResourceGroup')
+
+  echo "Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
+
+  # Creating azure configuration file for the controllers
+  echo "Generating azure configuration file:" $(pwd)/member_2_azure_config.yaml
+  cat << EOF > $(pwd)/member_2_azure_config.yaml
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "${MEMBER_CLUSTER_2_KUBELET_CLIENT_ID}"
+    resourceGroup: "${AKS_MEMBER_2_NODE_RESOURCE_GROUP}"
+    location: "${LOCATION}"
+    vnetName: "my-vnet"
 EOF
 fi
 
@@ -157,16 +223,23 @@ fi
 export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
 
 # Setup hub cluster credentials.
-export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
-export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
-if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
-then
+if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
+  export CLIENT_ID_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+  export PRINCIPAL_FOR_MEMBER_1=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_1"_"$MEMBER_1_LOCATION" | jq --arg identity $MEMBER_CLUSTER_1-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+  export CLIENT_ID_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+  export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_2"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_CLUSTER_2-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+  if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
+  then
     export CLIENT_ID_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
     export PRINCIPAL_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
     export CLIENT_ID_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
     export PRINCIPAL_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+    fi
+else
+  export CLIENT_ID_FOR_MEMBER_1=$MEMBER_CLUSTER_1_KUBELET_CLIENT_ID
+  export PRINCIPAL_FOR_MEMBER_1=$MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID
+  export CLIENT_ID_FOR_MEMBER_2=$MEMBER_CLUSTER_2_KUBELET_CLIENT_ID
+  export PRINCIPAL_FOR_MEMBER_2=$MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID
 fi
 
 kubectl config use-context $HUB_CLUSTER-admin
@@ -223,8 +296,8 @@ kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
-    --set image.tag=$TAG
-    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f azure_config.yaml" )
+    --set image.tag=$TAG \
+    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
@@ -243,7 +316,8 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
-    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1
+    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1 \
+    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml" )
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
 kubectl apply -f config/crd/*
@@ -261,7 +335,8 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
-    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2
+    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2 \
+    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_2_azure_config.yaml" )
 
 # TODO(mainred): Before the app image is publicly available in MCR, we build and publish the image to the test registry.
 # Build and publish the app image dedicated for fleet networking test.
@@ -292,7 +367,7 @@ then
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
-    
+
     kubectl config use-context $MEMBER_CLUSTER_4-admin
     kubectl apply -f config/crd/*
     helm install mcs-controller-manager \

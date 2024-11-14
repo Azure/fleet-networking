@@ -1,0 +1,1195 @@
+bash test/scripts/bootstrap.sh
++ export AZURE_SUBSCRIPTION_ID=c4528d9e-c99a-48bb-b12d-fde2176a43b8
++ AZURE_SUBSCRIPTION_ID=c4528d9e-c99a-48bb-b12d-fde2176a43b8
++ az account set -s c4528d9e-c99a-48bb-b12d-fde2176a43b8
++ export AZURE_NETWORK_SETTING=shared-vnet
++ AZURE_NETWORK_SETTING=shared-vnet
++ export RESOURCE_GROUP=zhiyinglin-fleet-networking-e2e-atm-1
++ RESOURCE_GROUP=zhiyinglin-fleet-networking-e2e-atm-1
++ export LOCATION=westcentralus
++ LOCATION=westcentralus
++ az group create --name zhiyinglin-fleet-networking-e2e-atm-1 --location westcentralus --tags source=fleet-networking
+{
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1",
+  "location": "westcentralus",
+  "managedBy": null,
+  "name": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "properties": {
+    "provisioningState": "Succeeded"
+  },
+  "tags": {
+    "source": "fleet-networking"
+  },
+  "type": "Microsoft.Resources/resourceGroups"
+}
++ export REGISTRY_NAME=zhiyinglinfleetnetworkinge2eatm1
++ REGISTRY_NAME=zhiyinglinfleetnetworkinge2eatm1
++ az acr create -g zhiyinglin-fleet-networking-e2e-atm-1 -n zhiyinglinfleetnetworkinge2eatm1 --sku standard --tags source=fleet-networking
+{
+  "adminUserEnabled": false,
+  "anonymousPullEnabled": false,
+  "creationDate": "2024-11-18T08:17:17.389876+00:00",
+  "dataEndpointEnabled": false,
+  "dataEndpointHostNames": [],
+  "encryption": {
+    "keyVaultProperties": null,
+    "status": "disabled"
+  },
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerRegistry/registries/zhiyinglinfleetnetworkinge2eatm1",
+  "identity": null,
+  "location": "westcentralus",
+  "loginServer": "zhiyinglinfleetnetworkinge2eatm1.azurecr.io",
+  "metadataSearch": "Disabled",
+  "name": "zhiyinglinfleetnetworkinge2eatm1",
+  "networkRuleBypassOptions": "AzureServices",
+  "networkRuleSet": null,
+  "policies": {
+    "azureAdAuthenticationAsArmPolicy": {
+      "status": "enabled"
+    },
+    "exportPolicy": {
+      "status": "enabled"
+    },
+    "quarantinePolicy": {
+      "status": "disabled"
+    },
+    "retentionPolicy": {
+      "days": 7,
+      "lastUpdatedTime": "2024-11-18T08:17:30.358791+00:00",
+      "status": "disabled"
+    },
+    "softDeletePolicy": {
+      "lastUpdatedTime": "2024-11-18T08:17:30.358832+00:00",
+      "retentionDays": 7,
+      "status": "disabled"
+    },
+    "trustPolicy": {
+      "status": "disabled",
+      "type": "Notary"
+    }
+  },
+  "privateEndpointConnections": [],
+  "provisioningState": "Succeeded",
+  "publicNetworkAccess": "Enabled",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "sku": {
+    "name": "Standard",
+    "tier": "Standard"
+  },
+  "status": null,
+  "systemData": {
+    "createdAt": "2024-11-18T08:17:17.389876+00:00",
+    "createdBy": "zhiyinglin@microsoft.com",
+    "createdByType": "User",
+    "lastModifiedAt": "2024-11-18T08:17:17.389876+00:00",
+    "lastModifiedBy": "zhiyinglin@microsoft.com",
+    "lastModifiedByType": "User"
+  },
+  "tags": {
+    "source": "fleet-networking"
+  },
+  "type": "Microsoft.ContainerRegistry/registries",
+  "zoneRedundancy": "Disabled"
+}
++ az acr update --name zhiyinglinfleetnetworkinge2eatm1 --anonymous-pull-enabled -g zhiyinglin-fleet-networking-e2e-atm-1
+{
+  "adminUserEnabled": false,
+  "anonymousPullEnabled": true,
+  "creationDate": "2024-11-18T08:17:17.389876+00:00",
+  "dataEndpointEnabled": false,
+  "dataEndpointHostNames": [],
+  "encryption": {
+    "keyVaultProperties": null,
+    "status": "disabled"
+  },
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerRegistry/registries/zhiyinglinfleetnetworkinge2eatm1",
+  "identity": null,
+  "location": "westcentralus",
+  "loginServer": "zhiyinglinfleetnetworkinge2eatm1.azurecr.io",
+  "metadataSearch": "Disabled",
+  "name": "zhiyinglinfleetnetworkinge2eatm1",
+  "networkRuleBypassOptions": "AzureServices",
+  "networkRuleSet": null,
+  "policies": {
+    "azureAdAuthenticationAsArmPolicy": {
+      "status": "enabled"
+    },
+    "exportPolicy": {
+      "status": "enabled"
+    },
+    "quarantinePolicy": {
+      "status": "disabled"
+    },
+    "retentionPolicy": {
+      "days": 7,
+      "lastUpdatedTime": "2024-11-18T08:17:30.358791+00:00",
+      "status": "disabled"
+    },
+    "softDeletePolicy": {
+      "lastUpdatedTime": "2024-11-18T08:17:30.358832+00:00",
+      "retentionDays": 7,
+      "status": "disabled"
+    },
+    "trustPolicy": {
+      "status": "disabled",
+      "type": "Notary"
+    }
+  },
+  "privateEndpointConnections": [],
+  "provisioningState": "Succeeded",
+  "publicNetworkAccess": "Enabled",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "sku": {
+    "name": "Standard",
+    "tier": "Standard"
+  },
+  "status": null,
+  "systemData": {
+    "createdAt": "2024-11-18T08:17:17.389876+00:00",
+    "createdBy": "zhiyinglin@microsoft.com",
+    "createdByType": "User",
+    "lastModifiedAt": "2024-11-18T08:17:39.910321+00:00",
+    "lastModifiedBy": "zhiyinglin@microsoft.com",
+    "lastModifiedByType": "User"
+  },
+  "tags": {
+    "source": "fleet-networking"
+  },
+  "type": "Microsoft.ContainerRegistry/registries",
+  "zoneRedundancy": "Disabled"
+}
++ az acr login -n zhiyinglinfleetnetworkinge2eatm1
+Login Succeeded
++ export REGISTRY=zhiyinglinfleetnetworkinge2eatm1.azurecr.io
++ REGISTRY=zhiyinglinfleetnetworkinge2eatm1.azurecr.io
+++ git rev-parse --short=7 HEAD
++ export TAG=99f243b
++ TAG=99f243b
++ make push
+make[1]: Entering directory '/home/zhiyinglin/go/src/go.goms.io/fleet-networking'
+make OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+make[2]: Entering directory '/home/zhiyinglin/go/src/go.goms.io/fleet-networking'
+img-builder*       docker-container
+
+Cannot load builder desktop-linux: protocol not available
+ \_ img-builder0    \_ unix:///var/run/docker.sock   running   v0.13.1    linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/arm64, linux/riscv64, linux/ppc64le, linux/s390x, linux/386, linux/mips64le, linux/mips64, linux/arm/v7, linux/arm/v6
+go mod tidy && go mod vendor
+docker buildx build \
+        --file docker/hub-net-controller-manager.Dockerfile \
+        --output=type=registry \
+        --platform="linux/amd64" \
+        --pull \
+        --tag zhiyinglinfleetnetworkinge2eatm1.azurecr.io/hub-net-controller-manager:99f243b .
+[+] Building 17.9s (19/19) FINISHED                                                        docker-container:img-builder
+ => [internal] load build definition from hub-net-controller-manager.Dockerfile                                    0.0s
+ => => transferring dockerfile: 991B                                                                               0.0s
+ => [internal] load metadata for gcr.io/distroless/static:nonroot                                                  0.7s
+ => [internal] load metadata for docker.io/library/golang:1.22.7                                                   2.7s
+ => [internal] load .dockerignore                                                                                  0.0s
+ => => transferring context: 2B                                                                                    0.0s
+ => [builder 1/9] FROM docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5  0.1s
+ => => resolve docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5972bb415  0.1s
+ => [internal] load build context                                                                                  1.2s
+ => => transferring context: 67.16MB                                                                               1.2s
+ => [stage-1 1/3] FROM gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473  0.1s
+ => => resolve gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473a4c32ed0  0.1s
+ => CACHED [builder 2/9] WORKDIR /workspace                                                                        0.0s
+ => CACHED [builder 3/9] COPY go.mod go.mod                                                                        0.0s
+ => CACHED [builder 4/9] COPY go.sum go.sum                                                                        0.0s
+ => CACHED [builder 5/9] COPY vendor/ vendor/                                                                      0.0s
+ => CACHED [builder 6/9] COPY cmd/hub-net-controller-manager/main.go main.go                                       0.0s
+ => CACHED [builder 7/9] COPY api/ api/                                                                            0.0s
+ => CACHED [builder 8/9] COPY pkg/ pkg/                                                                            0.0s
+ => CACHED [builder 9/9] RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -o hub-net-controller-  0.0s
+ => CACHED [stage-1 2/3] COPY --from=builder /workspace/hub-net-controller-manager .                               0.0s
+ => exporting to image                                                                                            13.5s
+ => => exporting layers                                                                                            0.0s
+ => => exporting manifest sha256:1a26af84e14d5437e8439409b028bca562f935e618036719c29fae217bb38acb                  0.0s
+ => => exporting config sha256:41a5850fbe5339dd92782fecad72e4d3552181777c5818e7b18b173be726d4d4                    0.0s
+ => => exporting attestation manifest sha256:72fd68e98eda3dfc3fe4c177d8a575d63923485f443b67728038040f437c8aa7      0.1s
+ => => exporting manifest list sha256:2f5f7691ef36a8253f8d3e056d351bd63a84c31923c69857721d75a3bd10da29             0.0s
+ => => pushing layers                                                                                             11.2s
+ => => pushing manifest for zhiyinglinfleetnetworkinge2eatm1.azurecr.io/hub-net-controller-manager:99f243b@sha256  2.2s
+ => [auth] hub-net-controller-manager:pull,push token for zhiyinglinfleetnetworkinge2eatm1.azurecr.io              0.0s
+ => [auth] hub-net-controller-manager:pull,push member-net-controller-manager:pull token for zhiyinglinfleetnetwo  0.0s
+docker buildx build \
+        --file docker/member-net-controller-manager.Dockerfile \
+        --output=type=registry \
+        --platform="linux/amd64" \
+        --pull \
+        --tag zhiyinglinfleetnetworkinge2eatm1.azurecr.io/member-net-controller-manager:99f243b .
+[+] Building 15.7s (19/19) FINISHED                                                        docker-container:img-builder
+ => [internal] load build definition from member-net-controller-manager.Dockerfile                                 0.0s
+ => => transferring dockerfile: 1.01kB                                                                             0.0s
+ => [internal] load metadata for gcr.io/distroless/static:nonroot                                                  0.4s
+ => [internal] load metadata for docker.io/library/golang:1.22.7                                                   1.2s
+ => [internal] load .dockerignore                                                                                  0.0s
+ => => transferring context: 2B                                                                                    0.0s
+ => [stage-1 1/3] FROM gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473  0.1s
+ => => resolve gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473a4c32ed0  0.1s
+ => [builder 1/9] FROM docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5  0.1s
+ => => resolve docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5972bb415  0.1s
+ => [internal] load build context                                                                                  0.3s
+ => => transferring context: 566.94kB                                                                              0.3s
+ => CACHED [builder 2/9] WORKDIR /workspace                                                                        0.0s
+ => CACHED [builder 3/9] COPY go.mod go.mod                                                                        0.0s
+ => CACHED [builder 4/9] COPY go.sum go.sum                                                                        0.0s
+ => CACHED [builder 5/9] COPY vendor/ vendor/                                                                      0.0s
+ => CACHED [builder 6/9] COPY cmd/member-net-controller-manager/main.go main.go                                    0.0s
+ => CACHED [builder 7/9] COPY api/ api/                                                                            0.0s
+ => CACHED [builder 8/9] COPY pkg/ pkg/                                                                            0.0s
+ => CACHED [builder 9/9] RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -o member-net-controll  0.0s
+ => CACHED [stage-1 2/3] COPY --from=builder /workspace/member-net-controller-manager .                            0.0s
+ => exporting to image                                                                                            13.8s
+ => => exporting layers                                                                                            0.0s
+ => => exporting manifest sha256:97cb5972e22485ef0e579e3ea5e5439e6d0abeaa7a75dbbc276862d9bd3f1fc3                  0.0s
+ => => exporting config sha256:3144fd3a1337634ba2abb2c966664ee3a07b7d0fc7a321850ff2bdff8f308848                    0.0s
+ => => exporting attestation manifest sha256:6f7ccd03528dbf26182a9136f52f0a782cbffa3ffc8c38f56c9e32b60bfcd412      0.0s
+ => => exporting manifest list sha256:e893c65e8f8895f3b20aa770d3d32acd4e9bd9c638c160c602f89864441f7c77             0.0s
+ => => pushing layers                                                                                             11.3s
+ => => pushing manifest for zhiyinglinfleetnetworkinge2eatm1.azurecr.io/member-net-controller-manager:99f243b@sha  2.3s
+ => [auth] member-net-controller-manager:pull,push token for zhiyinglinfleetnetworkinge2eatm1.azurecr.io           0.0s
+ => [auth] mcs-controller-manager:pull member-net-controller-manager:pull,push token for zhiyinglinfleetnetworkin  0.0s
+docker buildx build \
+        --file docker/mcs-controller-manager.Dockerfile \
+        --output=type=registry \
+        --platform="linux/amd64" \
+        --pull \
+        --tag zhiyinglinfleetnetworkinge2eatm1.azurecr.io/mcs-controller-manager:99f243b .
+[+] Building 13.1s (19/19) FINISHED                                                        docker-container:img-builder
+ => [internal] load build definition from mcs-controller-manager.Dockerfile                                        0.0s
+ => => transferring dockerfile: 971B                                                                               0.0s
+ => [internal] load metadata for gcr.io/distroless/static:nonroot                                                  0.4s
+ => [internal] load metadata for docker.io/library/golang:1.22.7                                                   1.2s
+ => [internal] load .dockerignore                                                                                  0.0s
+ => => transferring context: 2B                                                                                    0.0s
+ => [stage-1 1/3] FROM gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473  0.1s
+ => => resolve gcr.io/distroless/static:nonroot@sha256:d71f4b239be2d412017b798a0a401c44c3049a3ca454838473a4c32ed0  0.1s
+ => [builder 1/9] FROM docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5  0.1s
+ => => resolve docker.io/library/golang:1.22.7@sha256:ddad33062f94a276b78c1d536b70d23f5d2548f619e3dd67aa5972bb415  0.0s
+ => [internal] load build context                                                                                  0.3s
+ => => transferring context: 561.20kB                                                                              0.3s
+ => CACHED [builder 2/9] WORKDIR /workspace                                                                        0.0s
+ => CACHED [builder 3/9] COPY go.mod go.mod                                                                        0.0s
+ => CACHED [builder 4/9] COPY go.sum go.sum                                                                        0.0s
+ => CACHED [builder 5/9] COPY vendor/ vendor/                                                                      0.0s
+ => CACHED [builder 6/9] COPY cmd/mcs-controller-manager/main.go main.go                                           0.0s
+ => CACHED [builder 7/9] COPY api/ api/                                                                            0.0s
+ => CACHED [builder 8/9] COPY pkg/ pkg/                                                                            0.0s
+ => CACHED [builder 9/9] RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -o mcs-controller-mana  0.0s
+ => CACHED [stage-1 2/3] COPY --from=builder /workspace/mcs-controller-manager .                                   0.0s
+ => exporting to image                                                                                            11.2s
+ => => exporting layers                                                                                            0.0s
+ => => exporting manifest sha256:54de87bac2542d85a8e247273df93eea1b297a33832655de3877a518cf10131b                  0.0s
+ => => exporting config sha256:b9ea92fa8170748d5f42d8bc226edff5e9847b5f98f78a4262b9c43c1b8779e3                    0.0s
+ => => exporting attestation manifest sha256:96437789bcc029e92dad311109320b8412b1e0b099361901852c22c84c48bcae      0.0s
+ => => exporting manifest list sha256:ec726c9d56bdd8ea018dd5b8c5bcac8561167d1c2b4d565e97456fdcebb2c006             0.0s
+ => => pushing layers                                                                                              8.6s
+ => => pushing manifest for zhiyinglinfleetnetworkinge2eatm1.azurecr.io/mcs-controller-manager:99f243b@sha256:ec7  2.4s
+ => [auth] mcs-controller-manager:pull,push token for zhiyinglinfleetnetworkinge2eatm1.azurecr.io                  0.0s
+ => [auth] mcs-controller-manager:pull,push member-net-controller-manager:pull token for zhiyinglinfleetnetworkin  0.0s
+make[2]: Leaving directory '/home/zhiyinglin/go/src/go.goms.io/fleet-networking'
+make[1]: Leaving directory '/home/zhiyinglin/go/src/go.goms.io/fleet-networking'
++ export HUB_CLUSTER=hub
++ HUB_CLUSTER=hub
++ export MEMBER_CLUSTER_1=member-1
++ MEMBER_CLUSTER_1=member-1
++ export MEMBER_CLUSTER_2=member-2
++ MEMBER_CLUSTER_2=member-2
++ export NODE_COUNT=2
++ NODE_COUNT=2
++ export ENABLE_TRAFFIC_MANAGER=true
++ ENABLE_TRAFFIC_MANAGER=true
++ export HUB_CLUSTER_AKS_ID_NAME=fleet-net-hub-aks-id
++ HUB_CLUSTER_AKS_ID_NAME=fleet-net-hub-aks-id
++ export HUB_CLUSTER_AKS_KUBELET_ID_NAME=fleet-net-hub-aks-kubelet-id
++ HUB_CLUSTER_AKS_KUBELET_ID_NAME=fleet-net-hub-aks-kubelet-id
++ export MEMBER_CLUSTER_1_AKS_ID_NAME=fleet-net-member-1-aks-id
++ MEMBER_CLUSTER_1_AKS_ID_NAME=fleet-net-member-1-aks-id
++ export MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME=fleet-net-member-1-aks-kubelet-id
++ MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME=fleet-net-member-1-aks-kubelet-id
++ export MEMBER_CLUSTER_2_AKS_ID_NAME=fleet-net-member-2-aks-id
++ MEMBER_CLUSTER_2_AKS_ID_NAME=fleet-net-member-2-aks-id
++ export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=fleet-net-member-2-aks-kubelet-id
++ MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=fleet-net-member-2-aks-kubelet-id
++ '[' true == false ']'
++ echo 'Creating hub control-plane identity: fleet-net-hub-aks-id'
+Creating hub control-plane identity: fleet-net-hub-aks-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-hub-aks-id
++ HUB_CLUSTER_AKS_IDENTITY='{
+  "clientId": "fb8a9dc1-fb57-4238-839a-b39c5decef53",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-id",
+  "location": "westcentralus",
+  "name": "fleet-net-hub-aks-id",
+  "principalId": "c9b342cc-d18d-4608-aba5-0f54c2fbc2e6",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
++ echo 'Creating hub kubelet identity: fleet-net-hub-aks-kubelet-id'
+Creating hub kubelet identity: fleet-net-hub-aks-kubelet-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-hub-aks-kubelet-id
++ HUB_CLUSTER_AKS_KUBELET_IDENTITY='{
+  "clientId": "aab3e00d-6427-48b0-af5d-ddffb2a284e0",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-kubelet-id",
+  "location": "westcentralus",
+  "name": "fleet-net-hub-aks-kubelet-id",
+  "principalId": "f3ed82a6-9fe8-405f-916a-c29939bae93f",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
+++ echo '{' '"clientId":' '"fb8a9dc1-fb57-4238-839a-b39c5decef53",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-hub-aks-id",' '"principalId":' '"c9b342cc-d18d-4608-aba5-0f54c2fbc2e6",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .id'
++ HUB_CLUSTER_AKS_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-id
+++ echo '{' '"clientId":' '"aab3e00d-6427-48b0-af5d-ddffb2a284e0",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-hub-aks-kubelet-id",' '"principalId":' '"f3ed82a6-9fe8-405f-916a-c29939bae93f",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .principalId'
++ HUB_CLUSTER_KUBELET_PRINCIPAL_ID=f3ed82a6-9fe8-405f-916a-c29939bae93f
+++ echo '{' '"clientId":' '"aab3e00d-6427-48b0-af5d-ddffb2a284e0",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-hub-aks-kubelet-id",' '"principalId":' '"f3ed82a6-9fe8-405f-916a-c29939bae93f",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .clientId'
++ HUB_CLUSTER_KUBELET_CLIENT_ID=aab3e00d-6427-48b0-af5d-ddffb2a284e0
++ echo 'Creating aks cluster: hub'
+Creating aks cluster: hub
++ az aks create --location westcentralus --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --name hub --node-count 2 --generate-ssh-keys --enable-aad --enable-azure-rbac --network-plugin azure --enable-managed-identity --assign-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-id --assign-kubelet-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-hub-aks-kubelet-id --no-wait
+The behavior of this command has been altered by the following extension: aks-preview
+AAD role propagation done[############################################]  100.0000%+ echo 'Creating member-1 control-plane identity: fleet-net-member-1-aks-id'
+Creating member-1 control-plane identity: fleet-net-member-1-aks-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-member-1-aks-id
++ MEMBER_CLUSTER_1_AKS_IDENTITY='{
+  "clientId": "fa883050-c3dc-4f3c-bf6b-04db0c6b1a89",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id",
+  "location": "westcentralus",
+  "name": "fleet-net-member-1-aks-id",
+  "principalId": "97e982e3-cc9f-4592-b0b7-403ed856206b",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
++ echo 'Creating member-1 kubelet identity: fleet-net-member-1-aks-kubelet-id'
+Creating member-1 kubelet identity: fleet-net-member-1-aks-kubelet-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-member-1-aks-kubelet-id
++ MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY='{
+  "clientId": "f882963a-abce-416c-9e44-172f678475f9",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id",
+  "location": "westcentralus",
+  "name": "fleet-net-member-1-aks-kubelet-id",
+  "principalId": "d2bdfc2f-7080-46e1-926d-dfb64e063da3",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
+++ echo '{' '"clientId":' '"fa883050-c3dc-4f3c-bf6b-04db0c6b1a89",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-1-aks-id",' '"principalId":' '"97e982e3-cc9f-4592-b0b7-403ed856206b",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .id'
++ export MEMBER_CLUSTER_1_AKS_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id
++ MEMBER_CLUSTER_1_AKS_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id
+++ echo '{' '"clientId":' '"f882963a-abce-416c-9e44-172f678475f9",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-1-aks-kubelet-id",' '"principalId":' '"d2bdfc2f-7080-46e1-926d-dfb64e063da3",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .id'
++ export MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id
++ MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id
+++ echo '{' '"clientId":' '"f882963a-abce-416c-9e44-172f678475f9",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-1-aks-kubelet-id",' '"principalId":' '"d2bdfc2f-7080-46e1-926d-dfb64e063da3",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .principalId'
++ export MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID=d2bdfc2f-7080-46e1-926d-dfb64e063da3
++ MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID=d2bdfc2f-7080-46e1-926d-dfb64e063da3
+++ echo '{' '"clientId":' '"f882963a-abce-416c-9e44-172f678475f9",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-1-aks-kubelet-id",' '"principalId":' '"d2bdfc2f-7080-46e1-926d-dfb64e063da3",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .clientId'
++ export MEMBER_CLUSTER_1_KUBELET_CLIENT_ID=f882963a-abce-416c-9e44-172f678475f9
++ MEMBER_CLUSTER_1_KUBELET_CLIENT_ID=f882963a-abce-416c-9e44-172f678475f9
++ echo 'Creating member-2 control-plane identity: fleet-net-member-2-aks-id'
+Creating member-2 control-plane identity: fleet-net-member-2-aks-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-member-2-aks-id
++ MEMBER_CLUSTER_2_AKS_IDENTITY='{
+  "clientId": "6a02bf82-8a7e-4238-9b0b-7d213b62b0d8",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id",
+  "location": "westcentralus",
+  "name": "fleet-net-member-2-aks-id",
+  "principalId": "91116af0-e1ad-4c8f-b4d1-f58bc607b4a6",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
++ echo 'Creating member-2 kubelet identity: fleet-net-member-2-aks-kubelet-id'
+Creating member-2 kubelet identity: fleet-net-member-2-aks-kubelet-id
+++ az identity create -g zhiyinglin-fleet-networking-e2e-atm-1 -n fleet-net-member-2-aks-kubelet-id
++ MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY='{
+  "clientId": "30d298c0-bf15-402a-b072-8fef4b3653ef",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id",
+  "location": "westcentralus",
+  "name": "fleet-net-member-2-aks-kubelet-id",
+  "principalId": "efa22456-d56c-4c84-926d-6b9d51f8b98a",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "systemData": null,
+  "tags": {},
+  "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}'
+++ echo '{' '"clientId":' '"6a02bf82-8a7e-4238-9b0b-7d213b62b0d8",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-2-aks-id",' '"principalId":' '"91116af0-e1ad-4c8f-b4d1-f58bc607b4a6",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .id'
++ export MEMBER_CLUSTER_2_AKS_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id
++ MEMBER_CLUSTER_2_AKS_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id
+++ echo '{' '"clientId":' '"30d298c0-bf15-402a-b072-8fef4b3653ef",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-2-aks-kubelet-id",' '"principalId":' '"efa22456-d56c-4c84-926d-6b9d51f8b98a",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .id'
++ export MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id
++ MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID=/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id
+++ echo '{' '"clientId":' '"30d298c0-bf15-402a-b072-8fef4b3653ef",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-2-aks-kubelet-id",' '"principalId":' '"efa22456-d56c-4c84-926d-6b9d51f8b98a",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .principalId'
++ export MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID=efa22456-d56c-4c84-926d-6b9d51f8b98a
++ MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID=efa22456-d56c-4c84-926d-6b9d51f8b98a
+++ echo '{' '"clientId":' '"30d298c0-bf15-402a-b072-8fef4b3653ef",' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id",' '"location":' '"westcentralus",' '"name":' '"fleet-net-member-2-aks-kubelet-id",' '"principalId":' '"efa22456-d56c-4c84-926d-6b9d51f8b98a",' '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"systemData":' null, '"tags":' '{},' '"tenantId":' '"72f988bf-86f1-41af-91ab-2d7cd011db47",' '"type":' '"Microsoft.ManagedIdentity/userAssignedIdentities"' '}'
+++ jq -r '. | .clientId'
++ export MEMBER_CLUSTER_2_KUBELET_CLIENT_ID=30d298c0-bf15-402a-b072-8fef4b3653ef
++ MEMBER_CLUSTER_2_KUBELET_CLIENT_ID=30d298c0-bf15-402a-b072-8fef4b3653ef
++ AZURE_NETWORK_SETTING=shared-vnet
++ case $AZURE_NETWORK_SETTING in
++ export MEMBER_1_LOCATION=westcentralus
++ MEMBER_1_LOCATION=westcentralus
++ export MEMBER_2_LOCATION=westcentralus
++ MEMBER_2_LOCATION=westcentralus
++ bash test/scripts/aks-shared-vnet.sh
++ export VNET=fleet
++ VNET=fleet
++ export MEMBER_1_SUBNET=member-1
++ MEMBER_1_SUBNET=member-1
++ export MEMBER_2_SUBNET=member-2
++ MEMBER_2_SUBNET=member-2
++ az network vnet create --name fleet --location westcentralus -g zhiyinglin-fleet-networking-e2e-atm-1 --address-prefixes 10.0.0.0/8
+{
+  "newVNet": {
+    "addressSpace": {
+      "addressPrefixes": [
+        "10.0.0.0/8"
+      ]
+    },
+    "enableDdosProtection": false,
+    "etag": "W/\"55d761bd-7537-491f-b1b0-97d086ca2e9b\"",
+    "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet",
+    "location": "westcentralus",
+    "name": "fleet",
+    "provisioningState": "Succeeded",
+    "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+    "resourceGuid": "c9c1df62-7dd6-437b-8bd0-b2bd99bfd2df",
+    "subnets": [],
+    "type": "Microsoft.Network/virtualNetworks",
+    "virtualNetworkPeerings": []
+  }
+}
++ az network vnet subnet create --vnet-name fleet --name member-1 -g zhiyinglin-fleet-networking-e2e-atm-1 --address-prefixes 10.1.0.0/16
+{
+  "addressPrefix": "10.1.0.0/16",
+  "delegations": [],
+  "etag": "W/\"a8d09755-e567-487e-9d86-9c516c00078a\"",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-1",
+  "name": "member-1",
+  "privateEndpointNetworkPolicies": "Disabled",
+  "privateLinkServiceNetworkPolicies": "Enabled",
+  "provisioningState": "Succeeded",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "type": "Microsoft.Network/virtualNetworks/subnets"
+}
++ az network vnet subnet create --vnet-name fleet --name member-2 -g zhiyinglin-fleet-networking-e2e-atm-1 --address-prefixes 10.2.0.0/16
+{
+  "addressPrefix": "10.2.0.0/16",
+  "delegations": [],
+  "etag": "W/\"050c9e1d-42f2-4aed-80d6-00916230e3cd\"",
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-2",
+  "name": "member-2",
+  "privateEndpointNetworkPolicies": "Disabled",
+  "privateLinkServiceNetworkPolicies": "Enabled",
+  "provisioningState": "Succeeded",
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "type": "Microsoft.Network/virtualNetworks/subnets"
+}
++ '[' true == false ']'
++ az aks create --location westcentralus --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --name member-1 --node-count 2 --generate-ssh-keys --network-plugin azure --vnet-subnet-id /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-1 --enable-managed-identity --assign-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id --assign-kubelet-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id --no-wait
+The behavior of this command has been altered by the following extension: aks-preview
+AAD role propagation done[############################################]  100.0000%+ '[' true == false ']'
++ az aks create --location westcentralus --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --name member-2 --node-count 2 --generate-ssh-keys --network-plugin azure --vnet-subnet-id /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-2 --enable-managed-identity --assign-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id --assign-kubelet-identity /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id --no-wait
+The behavior of this command has been altered by the following extension: aks-preview
+AAD role propagation done[############################################]  100.0000%+ az aks wait --created --interval 10 --name hub --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --timeout 1800
+The behavior of this command has been altered by the following extension: aks-preview
++ az aks wait --created --interval 10 --name member-1 --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --timeout 1800
+The behavior of this command has been altered by the following extension: aks-preview
++ az aks wait --created --interval 10 --name member-2 --resource-group zhiyinglin-fleet-networking-e2e-atm-1 --timeout 1800
+The behavior of this command has been altered by the following extension: aks-preview
++ '[' shared-vnet == perf-test ']'
++ '[' true == true ']'
++ echo 'Assigning roles to hub kubelet identity on the resourceGroup of the hub cluster'
+Assigning roles to hub kubelet identity on the resourceGroup of the hub cluster
++ az role assignment create --role 'Network Contributor' --assignee f3ed82a6-9fe8-405f-916a-c29939bae93f --scope /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1
+++ pwd
++ echo 'Generating azure configuration file:' /home/zhiyinglin/go/src/go.goms.io/fleet-networking/hub_azure_config.yaml
+Generating azure configuration file: /home/zhiyinglin/go/src/go.goms.io/fleet-networking/hub_azure_config.yaml
++ cat
+++ pwd
+++ az aks show -g zhiyinglin-fleet-networking-e2e-atm-1 -n member-1
+WARNING: The behavior of this command has been altered by the following extension: aks-preview
++ AKS_MEMBER_1='{
+  "aadProfile": null,
+  "addonProfiles": null,
+  "agentPoolProfiles": [
+    {
+      "artifactStreamingProfile": null,
+      "availabilityZones": null,
+      "capacityReservationGroupId": null,
+      "count": 2,
+      "creationData": null,
+      "currentOrchestratorVersion": "1.30.6",
+      "eTag": "eb573421-5e77-4ef9-9814-9843f7d9d66a",
+      "enableAutoScaling": false,
+      "enableCustomCaTrust": false,
+      "enableEncryptionAtHost": false,
+      "enableFips": false,
+      "enableNodePublicIp": false,
+      "enableUltraSsd": false,
+      "gatewayProfile": null,
+      "gpuInstanceProfile": null,
+      "gpuProfile": null,
+      "hostGroupId": null,
+      "kubeletConfig": null,
+      "kubeletDiskType": "OS",
+      "linuxOsConfig": null,
+      "maxCount": null,
+      "maxPods": 30,
+      "messageOfTheDay": null,
+      "minCount": null,
+      "mode": "System",
+      "name": "nodepool1",
+      "networkProfile": {
+        "allowedHostPorts": null,
+        "applicationSecurityGroups": null,
+        "nodePublicIpTags": null
+      },
+      "nodeImageVersion": "AKSUbuntu-2204gen2containerd-202411.03.0",
+      "nodeInitializationTaints": null,
+      "nodeLabels": null,
+      "nodePublicIpPrefixId": null,
+      "nodeTaints": null,
+      "orchestratorVersion": "1.30",
+      "osDiskSizeGb": 128,
+      "osDiskType": "Managed",
+      "osSku": "Ubuntu",
+      "osType": "Linux",
+      "podIpAllocationMode": null,
+      "podSubnetId": null,
+      "powerState": {
+        "code": "Running"
+      },
+      "provisioningState": "Succeeded",
+      "proximityPlacementGroupId": null,
+      "scaleDownMode": null,
+      "scaleSetEvictionPolicy": null,
+      "scaleSetPriority": null,
+      "securityProfile": {
+        "enableSecureBoot": false,
+        "enableVtpm": false,
+        "sshAccess": "LocalUser"
+      },
+      "spotMaxPrice": null,
+      "tags": null,
+      "type": "VirtualMachineScaleSets",
+      "upgradeSettings": {
+        "drainTimeoutInMinutes": null,
+        "maxSurge": "10%",
+        "nodeSoakDurationInMinutes": null
+      },
+      "virtualMachineNodesStatus": null,
+      "virtualMachinesProfile": null,
+      "vmSize": "Standard_DS2_v2",
+      "vnetSubnetId": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-1",
+      "windowsProfile": null,
+      "workloadRuntime": "OCIContainer"
+    }
+  ],
+  "aiToolchainOperatorProfile": null,
+  "apiServerAccessProfile": null,
+  "autoScalerProfile": null,
+  "autoUpgradeProfile": {
+    "nodeOsUpgradeChannel": "NodeImage",
+    "upgradeChannel": null
+  },
+  "azureMonitorProfile": null,
+  "azurePortalFqdn": "member-1-zhiyinglin-fleet-c4528d-ilvi89po.portal.hcp.westcentralus.azmk8s.io",
+  "bootstrapProfile": {
+    "artifactSource": "Direct",
+    "containerRegistryId": null
+  },
+  "creationData": null,
+  "currentKubernetesVersion": "1.30.6",
+  "disableLocalAccounts": false,
+  "diskEncryptionSetId": null,
+  "dnsPrefix": "member-1-zhiyinglin-fleet-c4528d",
+  "eTag": "3d7ef94e-d0a4-4a61-9b2b-527dac3fa0fd",
+  "enableNamespaceResources": null,
+  "enablePodSecurityPolicy": false,
+  "enableRbac": true,
+  "extendedLocation": null,
+  "fqdn": "member-1-zhiyinglin-fleet-c4528d-ilvi89po.hcp.westcentralus.azmk8s.io",
+  "fqdnSubdomain": null,
+  "httpProxyConfig": null,
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerService/managedClusters/member-1",
+  "identity": {
+    "delegatedResources": null,
+    "principalId": null,
+    "tenantId": null,
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id": {
+        "clientId": "fa883050-c3dc-4f3c-bf6b-04db0c6b1a89",
+        "principalId": "97e982e3-cc9f-4592-b0b7-403ed856206b"
+      }
+    }
+  },
+  "identityProfile": {
+    "kubeletidentity": {
+      "clientId": "f882963a-abce-416c-9e44-172f678475f9",
+      "objectId": "d2bdfc2f-7080-46e1-926d-dfb64e063da3",
+      "resourceId": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id"
+    }
+  },
+  "ingressProfile": null,
+  "kind": "Base",
+  "kubernetesVersion": "1.30",
+  "linuxProfile": {
+    "adminUsername": "azureuser",
+    "ssh": {
+      "publicKeys": [
+        {
+          "keyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDaAcbTy7gPcu51wjC16/DFb1g+k8JfBGYurf3khcPK5EmkE3nIzZADjsb8gcYznp6w8wYstx6tw3F55IYAoJ+RsCqKhp3+/RlhtX6L12j9sqybLlpolIGrPVjUrGDBYc6cifLKZjQAHnM/iZ0biQYtWfySxp9kUDrwYGc8lDgiPaxpxpIV5+6tPRbJ195W8LgB1No0nIrgOrw0gziG6of22pSY5x/t22iFZqe3UZpQrZaQtAx51Juf11HDR1fKCOaa4VTcjifQQMHaRHATak/Al7K/L41EbWrmi5aoB3OaMUYjef3/+lZlw5odzr0oIyoS80sW3wTRLBVuLfUfjRTB"
+        }
+      ]
+    }
+  },
+  "location": "westcentralus",
+  "maxAgentPools": 100,
+  "metricsProfile": {
+    "costAnalysis": {
+      "enabled": false
+    }
+  },
+  "name": "member-1",
+  "networkProfile": {
+    "dnsServiceIp": "10.0.0.10",
+    "ipFamilies": [
+      "IPv4"
+    ],
+    "kubeProxyConfig": null,
+    "loadBalancerProfile": {
+      "allocatedOutboundPorts": null,
+      "backendPoolType": "nodeIPConfiguration",
+      "clusterServiceLoadBalancerHealthProbeMode": "servicenodeport",
+      "effectiveOutboundIPs": [
+        {
+          "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus/providers/Microsoft.Network/publicIPAddresses/05ab69e2-685f-4742-be46-9bb246783634",
+          "resourceGroup": "MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus"
+        }
+      ],
+      "enableMultipleStandardLoadBalancers": null,
+      "idleTimeoutInMinutes": null,
+      "managedOutboundIPs": {
+        "count": 1,
+        "countIpv6": null
+      },
+      "outboundIPs": null,
+      "outboundIpPrefixes": null
+    },
+    "loadBalancerSku": "standard",
+    "monitoring": null,
+    "natGatewayProfile": null,
+    "networkDataplane": "azure",
+    "networkMode": null,
+    "networkPlugin": "azure",
+    "networkPluginMode": null,
+    "networkPolicy": "none",
+    "outboundType": "loadBalancer",
+    "podCidr": null,
+    "podCidrs": null,
+    "serviceCidr": "10.0.0.0/16",
+    "serviceCidrs": [
+      "10.0.0.0/16"
+    ],
+    "staticEgressGatewayProfile": null
+  },
+  "nodeProvisioningProfile": {
+    "mode": "Manual"
+  },
+  "nodeResourceGroup": "MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus",
+  "nodeResourceGroupProfile": null,
+  "oidcIssuerProfile": {
+    "enabled": false,
+    "issuerUrl": null
+  },
+  "podIdentityProfile": null,
+  "powerState": {
+    "code": "Running"
+  },
+  "privateFqdn": null,
+  "privateLinkResources": null,
+  "provisioningState": "Succeeded",
+  "publicNetworkAccess": null,
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "resourceUid": "673af8ee7b486c0001c733e7",
+  "safeguardsProfile": null,
+  "securityProfile": {
+    "azureKeyVaultKms": null,
+    "customCaTrustCertificates": null,
+    "defender": null,
+    "imageCleaner": null,
+    "imageIntegrity": null,
+    "nodeRestriction": null,
+    "workloadIdentity": null
+  },
+  "serviceMeshProfile": null,
+  "servicePrincipalProfile": {
+    "clientId": "msi"
+  },
+  "sku": {
+    "name": "Base",
+    "tier": "Free"
+  },
+  "storageProfile": {
+    "blobCsiDriver": null,
+    "diskCsiDriver": {
+      "enabled": true,
+      "version": "v1"
+    },
+    "fileCsiDriver": {
+      "enabled": true
+    },
+    "snapshotController": {
+      "enabled": true
+    }
+  },
+  "supportPlan": "KubernetesOfficial",
+  "systemData": null,
+  "type": "Microsoft.ContainerService/ManagedClusters",
+  "upgradeSettings": null,
+  "windowsProfile": {
+    "adminPassword": null,
+    "adminUsername": "azureuser",
+    "enableCsiProxy": true,
+    "gmsaProfile": null,
+    "licenseType": null
+  },
+  "workloadAutoScalerProfile": {
+    "keda": null,
+    "verticalPodAutoscaler": null
+  }
+}'
+++ jq -r '. | .nodeResourceGroup'
+++ echo '{' '"aadProfile":' null, '"addonProfiles":' null, '"agentPoolProfiles":' '[' '{' '"artifactStreamingProfile":' null, '"availabilityZones":' null, '"capacityReservationGroupId":' null, '"count":' 2, '"creationData":' null, '"currentOrchestratorVersion":' '"1.30.6",' '"eTag":' '"eb573421-5e77-4ef9-9814-9843f7d9d66a",' '"enableAutoScaling":' false, '"enableCustomCaTrust":' false, '"enableEncryptionAtHost":' false, '"enableFips":' false, '"enableNodePublicIp":' false, '"enableUltraSsd":' false, '"gatewayProfile":' null, '"gpuInstanceProfile":' null, '"gpuProfile":' null, '"hostGroupId":' null, '"kubeletConfig":' null, '"kubeletDiskType":' '"OS",' '"linuxOsConfig":' null, '"maxCount":' null, '"maxPods":' 30, '"messageOfTheDay":' null, '"minCount":' null, '"mode":' '"System",' '"name":' '"nodepool1",' '"networkProfile":' '{' '"allowedHostPorts":' null, '"applicationSecurityGroups":' null, '"nodePublicIpTags":' null '},' '"nodeImageVersion":' '"AKSUbuntu-2204gen2containerd-202411.03.0",' '"nodeInitializationTaints":' null, '"nodeLabels":' null, '"nodePublicIpPrefixId":' null, '"nodeTaints":' null, '"orchestratorVersion":' '"1.30",' '"osDiskSizeGb":' 128, '"osDiskType":' '"Managed",' '"osSku":' '"Ubuntu",' '"osType":' '"Linux",' '"podIpAllocationMode":' null, '"podSubnetId":' null, '"powerState":' '{' '"code":' '"Running"' '},' '"provisioningState":' '"Succeeded",' '"proximityPlacementGroupId":' null, '"scaleDownMode":' null, '"scaleSetEvictionPolicy":' null, '"scaleSetPriority":' null, '"securityProfile":' '{' '"enableSecureBoot":' false, '"enableVtpm":' false, '"sshAccess":' '"LocalUser"' '},' '"spotMaxPrice":' null, '"tags":' null, '"type":' '"VirtualMachineScaleSets",' '"upgradeSettings":' '{' '"drainTimeoutInMinutes":' null, '"maxSurge":' '"10%",' '"nodeSoakDurationInMinutes":' null '},' '"virtualMachineNodesStatus":' null, '"virtualMachinesProfile":' null, '"vmSize":' '"Standard_DS2_v2",' '"vnetSubnetId":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-1",' '"windowsProfile":' null, '"workloadRuntime":' '"OCIContainer"' '}' '],' '"aiToolchainOperatorProfile":' null, '"apiServerAccessProfile":' null, '"autoScalerProfile":' null, '"autoUpgradeProfile":' '{' '"nodeOsUpgradeChannel":' '"NodeImage",' '"upgradeChannel":' null '},' '"azureMonitorProfile":' null, '"azurePortalFqdn":' '"member-1-zhiyinglin-fleet-c4528d-ilvi89po.portal.hcp.westcentralus.azmk8s.io",' '"bootstrapProfile":' '{' '"artifactSource":' '"Direct",' '"containerRegistryId":' null '},' '"creationData":' null, '"currentKubernetesVersion":' '"1.30.6",' '"disableLocalAccounts":' false, '"diskEncryptionSetId":' null, '"dnsPrefix":' '"member-1-zhiyinglin-fleet-c4528d",' '"eTag":' '"3d7ef94e-d0a4-4a61-9b2b-527dac3fa0fd",' '"enableNamespaceResources":' null, '"enablePodSecurityPolicy":' false, '"enableRbac":' true, '"extendedLocation":' null, '"fqdn":' '"member-1-zhiyinglin-fleet-c4528d-ilvi89po.hcp.westcentralus.azmk8s.io",' '"fqdnSubdomain":' null, '"httpProxyConfig":' null, '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerService/managedClusters/member-1",' '"identity":' '{' '"delegatedResources":' null, '"principalId":' null, '"tenantId":' null, '"type":' '"UserAssigned",' '"userAssignedIdentities":' '{' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-id":' '{' '"clientId":' '"fa883050-c3dc-4f3c-bf6b-04db0c6b1a89",' '"principalId":' '"97e982e3-cc9f-4592-b0b7-403ed856206b"' '}' '}' '},' '"identityProfile":' '{' '"kubeletidentity":' '{' '"clientId":' '"f882963a-abce-416c-9e44-172f678475f9",' '"objectId":' '"d2bdfc2f-7080-46e1-926d-dfb64e063da3",' '"resourceId":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-1-aks-kubelet-id"' '}' '},' '"ingressProfile":' null, '"kind":' '"Base",' '"kubernetesVersion":' '"1.30",' '"linuxProfile":' '{' '"adminUsername":' '"azureuser",' '"ssh":' '{' '"publicKeys":' '[' '{' '"keyData":' '"ssh-rsa' 'AAAAB3NzaC1yc2EAAAADAQABAAABAQDaAcbTy7gPcu51wjC16/DFb1g+k8JfBGYurf3khcPK5EmkE3nIzZADjsb8gcYznp6w8wYstx6tw3F55IYAoJ+RsCqKhp3+/RlhtX6L12j9sqybLlpolIGrPVjUrGDBYc6cifLKZjQAHnM/iZ0biQYtWfySxp9kUDrwYGc8lDgiPaxpxpIV5+6tPRbJ195W8LgB1No0nIrgOrw0gziG6of22pSY5x/t22iFZqe3UZpQrZaQtAx51Juf11HDR1fKCOaa4VTcjifQQMHaRHATak/Al7K/L41EbWrmi5aoB3OaMUYjef3/+lZlw5odzr0oIyoS80sW3wTRLBVuLfUfjRTB"' '}' ']' '}' '},' '"location":' '"westcentralus",' '"maxAgentPools":' 100, '"metricsProfile":' '{' '"costAnalysis":' '{' '"enabled":' false '}' '},' '"name":' '"member-1",' '"networkProfile":' '{' '"dnsServiceIp":' '"10.0.0.10",' '"ipFamilies":' '[' '"IPv4"' '],' '"kubeProxyConfig":' null, '"loadBalancerProfile":' '{' '"allocatedOutboundPorts":' null, '"backendPoolType":' '"nodeIPConfiguration",' '"clusterServiceLoadBalancerHealthProbeMode":' '"servicenodeport",' '"effectiveOutboundIPs":' '[' '{' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus/providers/Microsoft.Network/publicIPAddresses/05ab69e2-685f-4742-be46-9bb246783634",' '"resourceGroup":' '"MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus"' '}' '],' '"enableMultipleStandardLoadBalancers":' null, '"idleTimeoutInMinutes":' null, '"managedOutboundIPs":' '{' '"count":' 1, '"countIpv6":' null '},' '"outboundIPs":' null, '"outboundIpPrefixes":' null '},' '"loadBalancerSku":' '"standard",' '"monitoring":' null, '"natGatewayProfile":' null, '"networkDataplane":' '"azure",' '"networkMode":' null, '"networkPlugin":' '"azure",' '"networkPluginMode":' null, '"networkPolicy":' '"none",' '"outboundType":' '"loadBalancer",' '"podCidr":' null, '"podCidrs":' null, '"serviceCidr":' '"10.0.0.0/16",' '"serviceCidrs":' '[' '"10.0.0.0/16"' '],' '"staticEgressGatewayProfile":' null '},' '"nodeProvisioningProfile":' '{' '"mode":' '"Manual"' '},' '"nodeResourceGroup":' '"MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus",' '"nodeResourceGroupProfile":' null, '"oidcIssuerProfile":' '{' '"enabled":' false, '"issuerUrl":' null '},' '"podIdentityProfile":' null, '"powerState":' '{' '"code":' '"Running"' '},' '"privateFqdn":' null, '"privateLinkResources":' null, '"provisioningState":' '"Succeeded",' '"publicNetworkAccess":' null, '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"resourceUid":' '"673af8ee7b486c0001c733e7",' '"safeguardsProfile":' null, '"securityProfile":' '{' '"azureKeyVaultKms":' null, '"customCaTrustCertificates":' null, '"defender":' null, '"imageCleaner":' null, '"imageIntegrity":' null, '"nodeRestriction":' null, '"workloadIdentity":' null '},' '"serviceMeshProfile":' null, '"servicePrincipalProfile":' '{' '"clientId":' '"msi"' '},' '"sku":' '{' '"name":' '"Base",' '"tier":' '"Free"' '},' '"storageProfile":' '{' '"blobCsiDriver":' null, '"diskCsiDriver":' '{' '"enabled":' true, '"version":' '"v1"' '},' '"fileCsiDriver":' '{' '"enabled":' true '},' '"snapshotController":' '{' '"enabled":' true '}' '},' '"supportPlan":' '"KubernetesOfficial",' '"systemData":' null, '"type":' '"Microsoft.ContainerService/ManagedClusters",' '"upgradeSettings":' null, '"windowsProfile":' '{' '"adminPassword":' null, '"adminUsername":' '"azureuser",' '"enableCsiProxy":' true, '"gmsaProfile":' null, '"licenseType":' null '},' '"workloadAutoScalerProfile":' '{' '"keda":' null, '"verticalPodAutoscaler":' null '}' '}'
++ AKS_MEMBER_1_NODE_RESOURCE_GROUP=MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus
++ echo 'Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster'
+Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster
++ az role assignment create --role 'Network Contributor' --assignee d2bdfc2f-7080-46e1-926d-dfb64e063da3 --scope /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-1_westcentralus
+++ pwd
++ echo 'Generating azure configuration file:' /home/zhiyinglin/go/src/go.goms.io/fleet-networking/member_1_azure_config.yaml
+Generating azure configuration file: /home/zhiyinglin/go/src/go.goms.io/fleet-networking/member_1_azure_config.yaml
++ cat
+++ pwd
+++ az aks show -g zhiyinglin-fleet-networking-e2e-atm-1 -n member-2
+WARNING: The behavior of this command has been altered by the following extension: aks-preview
++ AKS_MEMBER_2='{
+  "aadProfile": null,
+  "addonProfiles": null,
+  "agentPoolProfiles": [
+    {
+      "artifactStreamingProfile": null,
+      "availabilityZones": null,
+      "capacityReservationGroupId": null,
+      "count": 2,
+      "creationData": null,
+      "currentOrchestratorVersion": "1.30.6",
+      "eTag": "775efa1a-acea-4848-966d-2f8ca3b4c9c3",
+      "enableAutoScaling": false,
+      "enableCustomCaTrust": false,
+      "enableEncryptionAtHost": false,
+      "enableFips": false,
+      "enableNodePublicIp": false,
+      "enableUltraSsd": false,
+      "gatewayProfile": null,
+      "gpuInstanceProfile": null,
+      "gpuProfile": null,
+      "hostGroupId": null,
+      "kubeletConfig": null,
+      "kubeletDiskType": "OS",
+      "linuxOsConfig": null,
+      "maxCount": null,
+      "maxPods": 30,
+      "messageOfTheDay": null,
+      "minCount": null,
+      "mode": "System",
+      "name": "nodepool1",
+      "networkProfile": {
+        "allowedHostPorts": null,
+        "applicationSecurityGroups": null,
+        "nodePublicIpTags": null
+      },
+      "nodeImageVersion": "AKSUbuntu-2204gen2containerd-202411.03.0",
+      "nodeInitializationTaints": null,
+      "nodeLabels": null,
+      "nodePublicIpPrefixId": null,
+      "nodeTaints": null,
+      "orchestratorVersion": "1.30",
+      "osDiskSizeGb": 128,
+      "osDiskType": "Managed",
+      "osSku": "Ubuntu",
+      "osType": "Linux",
+      "podIpAllocationMode": null,
+      "podSubnetId": null,
+      "powerState": {
+        "code": "Running"
+      },
+      "provisioningState": "Succeeded",
+      "proximityPlacementGroupId": null,
+      "scaleDownMode": null,
+      "scaleSetEvictionPolicy": null,
+      "scaleSetPriority": null,
+      "securityProfile": {
+        "enableSecureBoot": false,
+        "enableVtpm": false,
+        "sshAccess": "LocalUser"
+      },
+      "spotMaxPrice": null,
+      "tags": null,
+      "type": "VirtualMachineScaleSets",
+      "upgradeSettings": {
+        "drainTimeoutInMinutes": null,
+        "maxSurge": "10%",
+        "nodeSoakDurationInMinutes": null
+      },
+      "virtualMachineNodesStatus": null,
+      "virtualMachinesProfile": null,
+      "vmSize": "Standard_DS2_v2",
+      "vnetSubnetId": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-2",
+      "windowsProfile": null,
+      "workloadRuntime": "OCIContainer"
+    }
+  ],
+  "aiToolchainOperatorProfile": null,
+  "apiServerAccessProfile": null,
+  "autoScalerProfile": null,
+  "autoUpgradeProfile": {
+    "nodeOsUpgradeChannel": "NodeImage",
+    "upgradeChannel": null
+  },
+  "azureMonitorProfile": null,
+  "azurePortalFqdn": "member-2-zhiyinglin-fleet-c4528d-0anufjyg.portal.hcp.westcentralus.azmk8s.io",
+  "bootstrapProfile": {
+    "artifactSource": "Direct",
+    "containerRegistryId": null
+  },
+  "creationData": null,
+  "currentKubernetesVersion": "1.30.6",
+  "disableLocalAccounts": false,
+  "diskEncryptionSetId": null,
+  "dnsPrefix": "member-2-zhiyinglin-fleet-c4528d",
+  "eTag": "1a75e1e5-a8b4-4996-bd5c-8021a2b180cb",
+  "enableNamespaceResources": null,
+  "enablePodSecurityPolicy": false,
+  "enableRbac": true,
+  "extendedLocation": null,
+  "fqdn": "member-2-zhiyinglin-fleet-c4528d-0anufjyg.hcp.westcentralus.azmk8s.io",
+  "fqdnSubdomain": null,
+  "httpProxyConfig": null,
+  "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerService/managedClusters/member-2",
+  "identity": {
+    "delegatedResources": null,
+    "principalId": null,
+    "tenantId": null,
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id": {
+        "clientId": "6a02bf82-8a7e-4238-9b0b-7d213b62b0d8",
+        "principalId": "91116af0-e1ad-4c8f-b4d1-f58bc607b4a6"
+      }
+    }
+  },
+  "identityProfile": {
+    "kubeletidentity": {
+      "clientId": "30d298c0-bf15-402a-b072-8fef4b3653ef",
+      "objectId": "efa22456-d56c-4c84-926d-6b9d51f8b98a",
+      "resourceId": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id"
+    }
+  },
+  "ingressProfile": null,
+  "kind": "Base",
+  "kubernetesVersion": "1.30",
+  "linuxProfile": {
+    "adminUsername": "azureuser",
+    "ssh": {
+      "publicKeys": [
+        {
+          "keyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDaAcbTy7gPcu51wjC16/DFb1g+k8JfBGYurf3khcPK5EmkE3nIzZADjsb8gcYznp6w8wYstx6tw3F55IYAoJ+RsCqKhp3+/RlhtX6L12j9sqybLlpolIGrPVjUrGDBYc6cifLKZjQAHnM/iZ0biQYtWfySxp9kUDrwYGc8lDgiPaxpxpIV5+6tPRbJ195W8LgB1No0nIrgOrw0gziG6of22pSY5x/t22iFZqe3UZpQrZaQtAx51Juf11HDR1fKCOaa4VTcjifQQMHaRHATak/Al7K/L41EbWrmi5aoB3OaMUYjef3/+lZlw5odzr0oIyoS80sW3wTRLBVuLfUfjRTB"
+        }
+      ]
+    }
+  },
+  "location": "westcentralus",
+  "maxAgentPools": 100,
+  "metricsProfile": {
+    "costAnalysis": {
+      "enabled": false
+    }
+  },
+  "name": "member-2",
+  "networkProfile": {
+    "dnsServiceIp": "10.0.0.10",
+    "ipFamilies": [
+      "IPv4"
+    ],
+    "kubeProxyConfig": null,
+    "loadBalancerProfile": {
+      "allocatedOutboundPorts": null,
+      "backendPoolType": "nodeIPConfiguration",
+      "clusterServiceLoadBalancerHealthProbeMode": "servicenodeport",
+      "effectiveOutboundIPs": [
+        {
+          "id": "/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus/providers/Microsoft.Network/publicIPAddresses/5be2ba44-c295-4bc9-8143-0f7de7590aaa",
+          "resourceGroup": "MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus"
+        }
+      ],
+      "enableMultipleStandardLoadBalancers": null,
+      "idleTimeoutInMinutes": null,
+      "managedOutboundIPs": {
+        "count": 1,
+        "countIpv6": null
+      },
+      "outboundIPs": null,
+      "outboundIpPrefixes": null
+    },
+    "loadBalancerSku": "standard",
+    "monitoring": null,
+    "natGatewayProfile": null,
+    "networkDataplane": "azure",
+    "networkMode": null,
+    "networkPlugin": "azure",
+    "networkPluginMode": null,
+    "networkPolicy": "none",
+    "outboundType": "loadBalancer",
+    "podCidr": null,
+    "podCidrs": null,
+    "serviceCidr": "10.0.0.0/16",
+    "serviceCidrs": [
+      "10.0.0.0/16"
+    ],
+    "staticEgressGatewayProfile": null
+  },
+  "nodeProvisioningProfile": {
+    "mode": "Manual"
+  },
+  "nodeResourceGroup": "MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus",
+  "nodeResourceGroupProfile": null,
+  "oidcIssuerProfile": {
+    "enabled": false,
+    "issuerUrl": null
+  },
+  "podIdentityProfile": null,
+  "powerState": {
+    "code": "Running"
+  },
+  "privateFqdn": null,
+  "privateLinkResources": null,
+  "provisioningState": "Succeeded",
+  "publicNetworkAccess": null,
+  "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+  "resourceUid": "673af9117b486c0001c733e8",
+  "safeguardsProfile": null,
+  "securityProfile": {
+    "azureKeyVaultKms": null,
+    "customCaTrustCertificates": null,
+    "defender": null,
+    "imageCleaner": null,
+    "imageIntegrity": null,
+    "nodeRestriction": null,
+    "workloadIdentity": null
+  },
+  "serviceMeshProfile": null,
+  "servicePrincipalProfile": {
+    "clientId": "msi"
+  },
+  "sku": {
+    "name": "Base",
+    "tier": "Free"
+  },
+  "storageProfile": {
+    "blobCsiDriver": null,
+    "diskCsiDriver": {
+      "enabled": true,
+      "version": "v1"
+    },
+    "fileCsiDriver": {
+      "enabled": true
+    },
+    "snapshotController": {
+      "enabled": true
+    }
+  },
+  "supportPlan": "KubernetesOfficial",
+  "systemData": null,
+  "type": "Microsoft.ContainerService/ManagedClusters",
+  "upgradeSettings": null,
+  "windowsProfile": {
+    "adminPassword": null,
+    "adminUsername": "azureuser",
+    "enableCsiProxy": true,
+    "gmsaProfile": null,
+    "licenseType": null
+  },
+  "workloadAutoScalerProfile": {
+    "keda": null,
+    "verticalPodAutoscaler": null
+  }
+}'
+++ jq -r '. | .nodeResourceGroup'
+++ echo '{' '"aadProfile":' null, '"addonProfiles":' null, '"agentPoolProfiles":' '[' '{' '"artifactStreamingProfile":' null, '"availabilityZones":' null, '"capacityReservationGroupId":' null, '"count":' 2, '"creationData":' null, '"currentOrchestratorVersion":' '"1.30.6",' '"eTag":' '"775efa1a-acea-4848-966d-2f8ca3b4c9c3",' '"enableAutoScaling":' false, '"enableCustomCaTrust":' false, '"enableEncryptionAtHost":' false, '"enableFips":' false, '"enableNodePublicIp":' false, '"enableUltraSsd":' false, '"gatewayProfile":' null, '"gpuInstanceProfile":' null, '"gpuProfile":' null, '"hostGroupId":' null, '"kubeletConfig":' null, '"kubeletDiskType":' '"OS",' '"linuxOsConfig":' null, '"maxCount":' null, '"maxPods":' 30, '"messageOfTheDay":' null, '"minCount":' null, '"mode":' '"System",' '"name":' '"nodepool1",' '"networkProfile":' '{' '"allowedHostPorts":' null, '"applicationSecurityGroups":' null, '"nodePublicIpTags":' null '},' '"nodeImageVersion":' '"AKSUbuntu-2204gen2containerd-202411.03.0",' '"nodeInitializationTaints":' null, '"nodeLabels":' null, '"nodePublicIpPrefixId":' null, '"nodeTaints":' null, '"orchestratorVersion":' '"1.30",' '"osDiskSizeGb":' 128, '"osDiskType":' '"Managed",' '"osSku":' '"Ubuntu",' '"osType":' '"Linux",' '"podIpAllocationMode":' null, '"podSubnetId":' null, '"powerState":' '{' '"code":' '"Running"' '},' '"provisioningState":' '"Succeeded",' '"proximityPlacementGroupId":' null, '"scaleDownMode":' null, '"scaleSetEvictionPolicy":' null, '"scaleSetPriority":' null, '"securityProfile":' '{' '"enableSecureBoot":' false, '"enableVtpm":' false, '"sshAccess":' '"LocalUser"' '},' '"spotMaxPrice":' null, '"tags":' null, '"type":' '"VirtualMachineScaleSets",' '"upgradeSettings":' '{' '"drainTimeoutInMinutes":' null, '"maxSurge":' '"10%",' '"nodeSoakDurationInMinutes":' null '},' '"virtualMachineNodesStatus":' null, '"virtualMachinesProfile":' null, '"vmSize":' '"Standard_DS2_v2",' '"vnetSubnetId":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.Network/virtualNetworks/fleet/subnets/member-2",' '"windowsProfile":' null, '"workloadRuntime":' '"OCIContainer"' '}' '],' '"aiToolchainOperatorProfile":' null, '"apiServerAccessProfile":' null, '"autoScalerProfile":' null, '"autoUpgradeProfile":' '{' '"nodeOsUpgradeChannel":' '"NodeImage",' '"upgradeChannel":' null '},' '"azureMonitorProfile":' null, '"azurePortalFqdn":' '"member-2-zhiyinglin-fleet-c4528d-0anufjyg.portal.hcp.westcentralus.azmk8s.io",' '"bootstrapProfile":' '{' '"artifactSource":' '"Direct",' '"containerRegistryId":' null '},' '"creationData":' null, '"currentKubernetesVersion":' '"1.30.6",' '"disableLocalAccounts":' false, '"diskEncryptionSetId":' null, '"dnsPrefix":' '"member-2-zhiyinglin-fleet-c4528d",' '"eTag":' '"1a75e1e5-a8b4-4996-bd5c-8021a2b180cb",' '"enableNamespaceResources":' null, '"enablePodSecurityPolicy":' false, '"enableRbac":' true, '"extendedLocation":' null, '"fqdn":' '"member-2-zhiyinglin-fleet-c4528d-0anufjyg.hcp.westcentralus.azmk8s.io",' '"fqdnSubdomain":' null, '"httpProxyConfig":' null, '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ContainerService/managedClusters/member-2",' '"identity":' '{' '"delegatedResources":' null, '"principalId":' null, '"tenantId":' null, '"type":' '"UserAssigned",' '"userAssignedIdentities":' '{' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-id":' '{' '"clientId":' '"6a02bf82-8a7e-4238-9b0b-7d213b62b0d8",' '"principalId":' '"91116af0-e1ad-4c8f-b4d1-f58bc607b4a6"' '}' '}' '},' '"identityProfile":' '{' '"kubeletidentity":' '{' '"clientId":' '"30d298c0-bf15-402a-b072-8fef4b3653ef",' '"objectId":' '"efa22456-d56c-4c84-926d-6b9d51f8b98a",' '"resourceId":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourcegroups/zhiyinglin-fleet-networking-e2e-atm-1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fleet-net-member-2-aks-kubelet-id"' '}' '},' '"ingressProfile":' null, '"kind":' '"Base",' '"kubernetesVersion":' '"1.30",' '"linuxProfile":' '{' '"adminUsername":' '"azureuser",' '"ssh":' '{' '"publicKeys":' '[' '{' '"keyData":' '"ssh-rsa' 'AAAAB3NzaC1yc2EAAAADAQABAAABAQDaAcbTy7gPcu51wjC16/DFb1g+k8JfBGYurf3khcPK5EmkE3nIzZADjsb8gcYznp6w8wYstx6tw3F55IYAoJ+RsCqKhp3+/RlhtX6L12j9sqybLlpolIGrPVjUrGDBYc6cifLKZjQAHnM/iZ0biQYtWfySxp9kUDrwYGc8lDgiPaxpxpIV5+6tPRbJ195W8LgB1No0nIrgOrw0gziG6of22pSY5x/t22iFZqe3UZpQrZaQtAx51Juf11HDR1fKCOaa4VTcjifQQMHaRHATak/Al7K/L41EbWrmi5aoB3OaMUYjef3/+lZlw5odzr0oIyoS80sW3wTRLBVuLfUfjRTB"' '}' ']' '}' '},' '"location":' '"westcentralus",' '"maxAgentPools":' 100, '"metricsProfile":' '{' '"costAnalysis":' '{' '"enabled":' false '}' '},' '"name":' '"member-2",' '"networkProfile":' '{' '"dnsServiceIp":' '"10.0.0.10",' '"ipFamilies":' '[' '"IPv4"' '],' '"kubeProxyConfig":' null, '"loadBalancerProfile":' '{' '"allocatedOutboundPorts":' null, '"backendPoolType":' '"nodeIPConfiguration",' '"clusterServiceLoadBalancerHealthProbeMode":' '"servicenodeport",' '"effectiveOutboundIPs":' '[' '{' '"id":' '"/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus/providers/Microsoft.Network/publicIPAddresses/5be2ba44-c295-4bc9-8143-0f7de7590aaa",' '"resourceGroup":' '"MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus"' '}' '],' '"enableMultipleStandardLoadBalancers":' null, '"idleTimeoutInMinutes":' null, '"managedOutboundIPs":' '{' '"count":' 1, '"countIpv6":' null '},' '"outboundIPs":' null, '"outboundIpPrefixes":' null '},' '"loadBalancerSku":' '"standard",' '"monitoring":' null, '"natGatewayProfile":' null, '"networkDataplane":' '"azure",' '"networkMode":' null, '"networkPlugin":' '"azure",' '"networkPluginMode":' null, '"networkPolicy":' '"none",' '"outboundType":' '"loadBalancer",' '"podCidr":' null, '"podCidrs":' null, '"serviceCidr":' '"10.0.0.0/16",' '"serviceCidrs":' '[' '"10.0.0.0/16"' '],' '"staticEgressGatewayProfile":' null '},' '"nodeProvisioningProfile":' '{' '"mode":' '"Manual"' '},' '"nodeResourceGroup":' '"MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus",' '"nodeResourceGroupProfile":' null, '"oidcIssuerProfile":' '{' '"enabled":' false, '"issuerUrl":' null '},' '"podIdentityProfile":' null, '"powerState":' '{' '"code":' '"Running"' '},' '"privateFqdn":' null, '"privateLinkResources":' null, '"provisioningState":' '"Succeeded",' '"publicNetworkAccess":' null, '"resourceGroup":' '"zhiyinglin-fleet-networking-e2e-atm-1",' '"resourceUid":' '"673af9117b486c0001c733e8",' '"safeguardsProfile":' null, '"securityProfile":' '{' '"azureKeyVaultKms":' null, '"customCaTrustCertificates":' null, '"defender":' null, '"imageCleaner":' null, '"imageIntegrity":' null, '"nodeRestriction":' null, '"workloadIdentity":' null '},' '"serviceMeshProfile":' null, '"servicePrincipalProfile":' '{' '"clientId":' '"msi"' '},' '"sku":' '{' '"name":' '"Base",' '"tier":' '"Free"' '},' '"storageProfile":' '{' '"blobCsiDriver":' null, '"diskCsiDriver":' '{' '"enabled":' true, '"version":' '"v1"' '},' '"fileCsiDriver":' '{' '"enabled":' true '},' '"snapshotController":' '{' '"enabled":' true '}' '},' '"supportPlan":' '"KubernetesOfficial",' '"systemData":' null, '"type":' '"Microsoft.ContainerService/ManagedClusters",' '"upgradeSettings":' null, '"windowsProfile":' '{' '"adminPassword":' null, '"adminUsername":' '"azureuser",' '"enableCsiProxy":' true, '"gmsaProfile":' null, '"licenseType":' null '},' '"workloadAutoScalerProfile":' '{' '"keda":' null, '"verticalPodAutoscaler":' null '}' '}'
++ AKS_MEMBER_2_NODE_RESOURCE_GROUP=MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus
++ echo 'Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster'
+Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster
++ az role assignment create --role 'Network Contributor' --assignee efa22456-d56c-4c84-926d-6b9d51f8b98a --scope /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/MC_zhiyinglin-fleet-networking-e2e-atm-1_member-2_westcentralus
+++ pwd
++ echo 'Generating azure configuration file:' /home/zhiyinglin/go/src/go.goms.io/fleet-networking/member_2_azure_config.yaml
+Generating azure configuration file: /home/zhiyinglin/go/src/go.goms.io/fleet-networking/member_2_azure_config.yaml
++ cat
+++ pwd
++ az aks get-credentials --name hub -g zhiyinglin-fleet-networking-e2e-atm-1 --admin --overwrite-existing
+The behavior of this command has been altered by the following extension: aks-preview
+Merged "hub-admin" as current context in /home/zhiyinglin/.kube/config
++ az aks get-credentials --name member-1 -g zhiyinglin-fleet-networking-e2e-atm-1 --admin --overwrite-existing
+The behavior of this command has been altered by the following extension: aks-preview
+Merged "member-1-admin" as current context in /home/zhiyinglin/.kube/config
++ az aks get-credentials --name member-2 -g zhiyinglin-fleet-networking-e2e-atm-1 --admin --overwrite-existing
+The behavior of this command has been altered by the following extension: aks-preview
+Merged "member-2-admin" as current context in /home/zhiyinglin/.kube/config
++ '[' shared-vnet == perf-test ']'
+++ cat /home/zhiyinglin/.kube/config
+++ yq eval '.clusters | .[] | select(.name=="hub") | .cluster.server'
++ export HUB_URL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443
++ HUB_URL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443
++ '[' true == false ']'
++ export CLIENT_ID_FOR_MEMBER_1=f882963a-abce-416c-9e44-172f678475f9
++ CLIENT_ID_FOR_MEMBER_1=f882963a-abce-416c-9e44-172f678475f9
++ export PRINCIPAL_FOR_MEMBER_1=d2bdfc2f-7080-46e1-926d-dfb64e063da3
++ PRINCIPAL_FOR_MEMBER_1=d2bdfc2f-7080-46e1-926d-dfb64e063da3
++ export CLIENT_ID_FOR_MEMBER_2=30d298c0-bf15-402a-b072-8fef4b3653ef
++ CLIENT_ID_FOR_MEMBER_2=30d298c0-bf15-402a-b072-8fef4b3653ef
++ export PRINCIPAL_FOR_MEMBER_2=efa22456-d56c-4c84-926d-6b9d51f8b98a
++ PRINCIPAL_FOR_MEMBER_2=efa22456-d56c-4c84-926d-6b9d51f8b98a
++ kubectl config use-context hub-admin
+Switched to context "hub-admin".
++ '[' shared-vnet '!=' perf-test ']'
++ helm install e2e-hub-resources ./examples/getting-started/charts/hub --set 'memberClusterConfigs[0].memberID=member-1' --set 'memberClusterConfigs[0].principalID=d2bdfc2f-7080-46e1-926d-dfb64e063da3' --set 'memberClusterConfigs[1].memberID=member-2' --set 'memberClusterConfigs[1].principalID=efa22456-d56c-4c84-926d-6b9d51f8b98a'
+NAME: e2e-hub-resources
+LAST DEPLOYED: Mon Nov 18 16:25:28 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
++ kubectl config use-context member-1-admin
+Switched to context "member-1-admin".
++ helm install e2e-member-resources ./examples/getting-started/charts/members --set memberID=member-1
+NAME: e2e-member-resources
+LAST DEPLOYED: Mon Nov 18 16:25:35 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
++ kubectl config use-context member-2-admin
+Switched to context "member-2-admin".
++ helm install e2e-member-resources ./examples/getting-started/charts/members --set memberID=member-2
+NAME: e2e-member-resources
+LAST DEPLOYED: Mon Nov 18 16:25:41 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
++ '[' shared-vnet == perf-test ']'
++ kubectl config use-context hub-admin
+Switched to context "hub-admin".
+++ go env GOPATH
++ kubectl apply -f /home/zhiyinglin/go/pkg/mod/go.goms.io/fleet@v0.11.3/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
+customresourcedefinition.apiextensions.k8s.io/internalmemberclusters.cluster.kubernetes-fleet.io created
++ kubectl apply -f config/crd/bases
+customresourcedefinition.apiextensions.k8s.io/endpointsliceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/endpointsliceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/multiclusterservices.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerbackends.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerprofiles.networking.fleet.azure.com created
+++ '[' true = true ']'
+++ echo '--set enableTrafficManagerFeature=true -f hub_azure_config.yaml'
++ helm install hub-net-controller-manager ./charts/hub-net-controller-manager/ --set image.repository=zhiyinglinfleetnetworkinge2eatm1.azurecr.io/hub-net-controller-manager --set image.tag=99f243b --set enableTrafficManagerFeature=true -f hub_azure_config.yaml
+NAME: hub-net-controller-manager
+LAST DEPLOYED: Mon Nov 18 16:25:57 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
++ kubectl config use-context member-1-admin
+Switched to context "member-1-admin".
++ kubectl apply -f config/crd/bases
+customresourcedefinition.apiextensions.k8s.io/endpointsliceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/endpointsliceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/multiclusterservices.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerbackends.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerprofiles.networking.fleet.azure.com created
++ helm install mcs-controller-manager ./charts/mcs-controller-manager --set image.repository=zhiyinglinfleetnetworkinge2eatm1.azurecr.io/mcs-controller-manager --set image.tag=99f243b --set config.hubURL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443 --set config.provider=azure --set config.memberClusterName=member-1 --set azure.clientid=f882963a-abce-416c-9e44-172f678475f9
+NAME: mcs-controller-manager
+LAST DEPLOYED: Mon Nov 18 16:26:12 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+++ '[' true = true ']'
+++ echo '--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml'
++ helm install member-net-controller-manager ./charts/member-net-controller-manager/ --set image.repository=zhiyinglinfleetnetworkinge2eatm1.azurecr.io/member-net-controller-manager --set image.tag=99f243b --set config.hubURL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443 --set config.provider=azure --set config.memberClusterName=member-1 --set azure.clientid=f882963a-abce-416c-9e44-172f678475f9 --set enableTrafficManagerFeature=true -f member_1_azure_config.yaml
+NAME: member-net-controller-manager
+LAST DEPLOYED: Mon Nov 18 16:26:19 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
++ kubectl config use-context member-2-admin
+Switched to context "member-2-admin".
++ kubectl apply -f config/crd/bases
+customresourcedefinition.apiextensions.k8s.io/endpointsliceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/endpointsliceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/internalserviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/multiclusterservices.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceexports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/serviceimports.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerbackends.networking.fleet.azure.com created
+customresourcedefinition.apiextensions.k8s.io/trafficmanagerprofiles.networking.fleet.azure.com created
++ helm install mcs-controller-manager ./charts/mcs-controller-manager --set image.repository=zhiyinglinfleetnetworkinge2eatm1.azurecr.io/mcs-controller-manager --set image.tag=99f243b --set config.hubURL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443 --set config.provider=azure --set config.memberClusterName=member-2 --set azure.clientid=30d298c0-bf15-402a-b072-8fef4b3653ef
+NAME: mcs-controller-manager
+LAST DEPLOYED: Mon Nov 18 16:26:33 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+++ '[' true = true ']'
+++ echo '--set enableTrafficManagerFeature=true -f member_2_azure_config.yaml'
++ helm install member-net-controller-manager ./charts/member-net-controller-manager/ --set image.repository=zhiyinglinfleetnetworkinge2eatm1.azurecr.io/member-net-controller-manager --set image.tag=99f243b --set config.hubURL=https://hub-zhiyinglin-fleet-c4528d-k1h9vks3.hcp.westcentralus.azmk8s.io:443 --set config.provider=azure --set config.memberClusterName=member-2 --set azure.clientid=30d298c0-bf15-402a-b072-8fef4b3653ef --set enableTrafficManagerFeature=true -f member_2_azure_config.yaml
+NAME: member-net-controller-manager
+LAST DEPLOYED: Mon Nov 18 16:26:40 2024
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+

@@ -169,12 +169,6 @@ func main() {
 		exitWithErrorFunc()
 	}
 
-	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
-	if err := mgr.Start(ctx); err != nil {
-		klog.ErrorS(err, "Problem running manager")
-		exitWithErrorFunc()
-	}
-
 	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
 	if *enableV1Beta1APIs {
 		gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
@@ -233,6 +227,12 @@ func main() {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
 			exitWithErrorFunc()
 		}
+	}
+
+	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
+	if err := mgr.Start(ctx); err != nil {
+		klog.ErrorS(err, "Problem running manager")
+		exitWithErrorFunc()
 	}
 }
 

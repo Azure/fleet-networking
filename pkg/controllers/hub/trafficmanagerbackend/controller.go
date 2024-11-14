@@ -505,7 +505,7 @@ func generateAzureTrafficManagerEndpoint(backend *fleetnetv1alpha1.TrafficManage
 	endpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, generateAzureTrafficManagerEndpointNamePrefixFunc(backend), backend.Spec.Backend.Name, service.Spec.ServiceReference.ClusterID)
 	return armtrafficmanager.Endpoint{
 		Name: &endpointName,
-		Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+		Type: ptr.To(string("Microsoft.Network/trafficManagerProfiles/" + armtrafficmanager.EndpointTypeAzureEndpoints)),
 		Properties: &armtrafficmanager.EndpointProperties{
 			TargetResourceID: service.Spec.PublicIPResourceID,
 			EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
@@ -637,19 +637,9 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 		return err
 	}
 
-	// add index to quickly query internalServiceExport list by service
-	internalServiceExportIndexerFunc := func(o client.Object) []string {
-		name, ok := o.(*fleetnetv1alpha1.InternalServiceExport)
-		if !ok {
-			return []string{}
-		}
-		return []string{name.Spec.ServiceReference.NamespacedName}
-	}
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &fleetnetv1alpha1.InternalServiceExport{}, exportedServiceFieldNamespacedName, internalServiceExportIndexerFunc); err != nil {
-		klog.ErrorS(err, "Failed to create index", "field", exportedServiceFieldNamespacedName)
-		return err
-	}
-
+	// The index to quickly query internalServiceExport list by service is set when starting the serviceImport controller
+	// of the hub cluster.
+	// Therefore, no need to setup the index here.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.TrafficManagerBackend{}).
 		Watches(

@@ -1,0 +1,9 @@
+  {
+      "cloud": "AzurePublicCloud",
+      "subscriptionId": "c4528d9e-c99a-48bb-b12d-fde2176a43b8",
+      "useManagedIdentityExtension": true,
+      "userAssignedIdentityID": "7099e851-09b2-4214-ba5f-d4d7de33b8a3",
+      "resourceGroup": "zhiyinglin-fleet-networking-e2e-atm-1",
+      "location": "westcentralus",
+      "vnetName": "my-vnet",
+  }
