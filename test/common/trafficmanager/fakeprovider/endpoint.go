@@ -18,6 +18,13 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const (
+	ValidPublicIPResourceID = "valid-public-ip-resource-id"
+	ValidEndpointTarget     = "valid-endpoint-target"
+
+	Weight = int64(50)
+)
+
 // NewEndpointsClient creates a client which talks to a fake endpoint server.
 func NewEndpointsClient(subscriptionID string) (*armtrafficmanager.EndpointsClient, error) {
 	fakeServer := fake.EndpointsServer{
@@ -69,12 +76,21 @@ func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profile
 		return resp, errResp
 	}
 	if strings.HasPrefix(profileName, ValidProfileName) && endpointType == armtrafficmanager.EndpointTypeAzureEndpoints && strings.HasPrefix(strings.ToLower(endpointName), ValidBackendName+"#") {
+		if endpointName == CreateBadRequestErrEndpointName {
+			errResp.SetResponseError(http.StatusBadRequest, "BadRequest")
+			return resp, errResp
+		} else if endpointName == CreateInternalServerErrEndpointName {
+			errResp.SetResponseError(http.StatusInternalServerError, "InternalServerError")
+			return resp, errResp
+		}
+
 		endpointResp := armtrafficmanager.EndpointsClientCreateOrUpdateResponse{
 			Endpoint: armtrafficmanager.Endpoint{
 				Name: ptr.To(endpointName),
 				Properties: &armtrafficmanager.EndpointProperties{
 					TargetResourceID: ptr.To(ValidPublicIPResourceID),
 					Weight:           ptr.To(Weight),
+					Target:           ptr.To(ValidEndpointTarget),
 				},
 				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
 			},

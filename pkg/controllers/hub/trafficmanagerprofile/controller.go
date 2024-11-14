@@ -145,7 +145,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 		}
 		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	} else {
-		if compareAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
+		if EqualAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
 			// skip creating or updating the profile
 			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return r.updateProfileStatus(ctx, profile, getRes.Profile, nil)
@@ -166,10 +166,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 
-// compareAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
+// EqualAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
-func compareAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
+func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
 	// location and dnsConfig is not immutable
 	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil {
 		return false

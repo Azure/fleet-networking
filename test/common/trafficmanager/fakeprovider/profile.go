@@ -35,16 +35,13 @@ const (
 	ThrottledErrProfileName                  = "throttled-err-profile"
 	RequestTimeoutProfileName                = "request-timeout-profile"
 
-	ValidBackendName                  = "valid-backend"
-	ServiceImportName                 = "test-import"
-	ClusterName                       = "member-1"
-	FailedToCreateEndpointClusterName = "failed-to-create-endpoint-cluster"
+	ValidBackendName                           = "valid-backend"
+	ServiceImportName                          = "test-import"
+	ClusterName                                = "member-1"
+	CreateBadRequestErrEndpointClusterName     = "create-bad-request-endpoint-cluster"
+	CreateInternalServerErrEndpointClusterName = "create-internal-err-endpoint-cluster"
 
 	ProfileDNSNameFormat = "%s.trafficmanager.net"
-
-	ValidPublicIPResourceID = "valid-public-ip-resource-id"
-
-	Weight = int64(50)
 )
 
 const (
@@ -52,9 +49,11 @@ const (
 )
 
 var (
-	ValidEndpointName        = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
-	NotFoundErrEndpointName  = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
-	FailToDeleteEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
+	ValidEndpointName                   = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+	NotFoundErrEndpointName             = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
+	FailToDeleteEndpointName            = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
+	CreateBadRequestErrEndpointName     = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateBadRequestErrEndpointClusterName)
+	CreateInternalServerErrEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateInternalServerErrEndpointClusterName)
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.

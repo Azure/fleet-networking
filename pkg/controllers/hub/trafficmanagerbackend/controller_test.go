@@ -75,7 +75,7 @@ func TestIsValidTrafficManagerEndpoint(t *testing.T) {
 	}
 }
 
-func TestCompareAzureTrafficManagerEndpoint(t *testing.T) {
+func TestEqualAzureTrafficManagerEndpoint(t *testing.T) {
 	tests := []struct {
 		name    string
 		current armtrafficmanager.Endpoint
@@ -86,7 +86,7 @@ func TestCompareAzureTrafficManagerEndpoint(t *testing.T) {
 			current: armtrafficmanager.Endpoint{
 				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
 				Properties: &armtrafficmanager.EndpointProperties{
-					TargetResourceID: ptr.To("resourceID"),
+					TargetResourceID: ptr.To("RESourceID"),
 					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
 					Weight:           ptr.To(int64(100)),
 					Priority:         ptr.To(int64(1)),
@@ -181,8 +181,8 @@ func TestCompareAzureTrafficManagerEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := compareAzureTrafficManagerEndpoint(tt.current, desired); got != tt.want {
-				t.Errorf("compareAzureTrafficManagerEndpoint() = %v, want %v", got, tt.want)
+			if got := equalAzureTrafficManagerEndpoint(tt.current, desired); got != tt.want {
+				t.Errorf("equalAzureTrafficManagerEndpoint() = %v, want %v", got, tt.want)
 			}
 		})
 	}

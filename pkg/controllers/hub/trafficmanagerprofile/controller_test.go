@@ -28,7 +28,7 @@ func TestGenerateAzureTrafficManagerProfileName(t *testing.T) {
 	}
 }
 
-func TestCompareAzureTrafficManagerProfile(t *testing.T) {
+func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 	tests := []struct {
 		name    string
 		current armtrafficmanager.Profile
@@ -391,8 +391,8 @@ func TestCompareAzureTrafficManagerProfile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := compareAzureTrafficManagerProfile(tt.current, desired); got != tt.want {
-				t.Errorf("compareAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
+			if got := EqualAzureTrafficManagerProfile(tt.current, desired); got != tt.want {
+				t.Errorf("EqualAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
 			}
 		})
 	}

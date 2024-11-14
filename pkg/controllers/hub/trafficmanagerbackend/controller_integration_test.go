@@ -763,6 +763,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								Cluster: memberClusterNames[0],
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},
 				},
@@ -801,6 +802,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								Cluster: memberClusterNames[0],
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
@@ -808,6 +810,140 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								Cluster: memberClusterNames[3],
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+					{
+						Cluster: memberClusterNames[4], // would fail to create atm endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+					{
+						Cluster: memberClusterNames[5], // would fail to create atm endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildUnknownCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Updating the internalServiceExport to invalid endpoint", func() {
+			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
+			internalServiceExport.Spec.IsInternalLoadBalancer = true
+			Expect(k8sClient.Update(ctx, internalServiceExport)).Should(Succeed(), "failed to create internalServiceExport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+		})
+
+		It("Updating the internalServiceExport to valid endpoint", func() {
+			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
+			internalServiceExport.Spec.IsInternalLoadBalancer = false
+			Expect(k8sClient.Update(ctx, internalServiceExport)).Should(Succeed(), "failed to create internalServiceExport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},
 				},

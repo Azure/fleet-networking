@@ -53,7 +53,9 @@ const (
 	// AzureResourceEndpointNameFormat is the name format of the Azure Traffic Manager Endpoint created by the fleet controller.
 	// The naming convention of a Traffic Manager Endpoint is {AzureResourceEndpointNamePrefix}{ServiceImportName}#{ClusterName}.
 	// which is fleet-{TrafficManagerBackendUUID}#{ServiceImportName}#{ClusterName}.
-	// All the object name length should be restricted to <= 63 characters.
+	// ServiceImportName will be the same as the Service name, which is up to 63 characters (RFC 1035).
+	// https://github.com/kubernetes/kubernetes/pull/29523
+	// The cluster name length should be restricted to <= 63 characters.
 	// The endpoint name must contain no more than 260 characters, excluding the following characters "< > * % $ : \ ? + /".
 	AzureResourceEndpointNameFormat = "%s%s#%s"
 )
@@ -243,7 +245,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1
 
 	desiredEndpointsMaps, invalidServicesMaps, err := r.validateExportedServiceForServiceImport(ctx, backend, serviceImport)
 	if err != nil || (desiredEndpointsMaps == nil && invalidServicesMaps == nil) {
-		// We don't need to requeue not found internalServiceExport(err == nil and desiredEndpointsMaps == nil && invalidServicesMaps)
+		// We don't need to requeue not found internalServiceExport(err == nil and desiredEndpointsMaps == nil && invalidServicesMaps == nil)
 		// as when the serviceImport is updated, the controller will be re-triggered again.
 		// The controller will retry when err is not nil.
 		return ctrl.Result{}, err
@@ -517,7 +519,10 @@ func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster *
 	}
 }
 
-func (r *Reconciler) createOrUpdateTrafficManagerEndpoint(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *armtrafficmanager.Profile, endpoint *armtrafficmanager.Endpoint) (*armtrafficmanager.Endpoint, error) {
+// createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail creates or updates the Azure Traffic Manager endpoint.
+// It only returns the error when the request should be requeued.
+// If the endpoint is nil, the endpoint is invalid and condition will be marked as invalid.
+func (r *Reconciler) createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *armtrafficmanager.Profile, endpoint *armtrafficmanager.Endpoint) (*armtrafficmanager.Endpoint, error) {
 	backendKObj := klog.KObj(backend)
 	var responseError *azcore.ResponseError
 	res, updateErr := r.EndpointsClient.CreateOrUpdate(ctx, r.ResourceGroupName, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, *endpoint, nil)
@@ -529,7 +534,7 @@ func (r *Reconciler) createOrUpdateTrafficManagerEndpoint(ctx context.Context, b
 		var cond metav1.Condition
 		if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
 			cond = metav1.Condition{
-				Type:               string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+				Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: backend.Generation,
 				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
@@ -549,17 +554,17 @@ func (r *Reconciler) createOrUpdateTrafficManagerEndpoint(ctx context.Context, b
 	return &res.Endpoint, nil
 }
 
-// compareAzureTrafficManagerEndpoint compares only few fields of the current and desired Azure Traffic Manager endpoints
+// equalAzureTrafficManagerEndpoint compares only few fields of the current and desired Azure Traffic Manager endpoints
 // by ignoring others.
 // The desired endpoint is built by the controllers and all the required fields should not be nil.
-func compareAzureTrafficManagerEndpoint(current, desired armtrafficmanager.Endpoint) bool {
+func equalAzureTrafficManagerEndpoint(current, desired armtrafficmanager.Endpoint) bool {
 	if current.Type == nil || *current.Type != *desired.Type {
 		return false
 	}
 	if current.Properties == nil || current.Properties.TargetResourceID == nil || current.Properties.Weight == nil || current.Properties.EndpointStatus == nil {
 		return false
 	}
-	return *current.Properties.TargetResourceID == *desired.Properties.TargetResourceID &&
+	return strings.EqualFold(*current.Properties.TargetResourceID, *desired.Properties.TargetResourceID) &&
 		*current.Properties.Weight == *desired.Properties.Weight &&
 		*current.Properties.EndpointStatus == *desired.Properties.EndpointStatus
 }
@@ -576,7 +581,7 @@ func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend 
 
 		endpointName := strings.ToLower(*endpoint.Name) // resource name are case-insensitive
 		if !isEndpointOwnedByBackend(backend, endpointName) {
-			continue // skipping the endpoint which is owned by this backend
+			continue // skipping the endpoint which is not owned by this backend
 		}
 
 		desired, ok := desiredEndpoints[endpointName]
@@ -597,7 +602,7 @@ func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend 
 			klog.V(2).InfoS("Deleted the Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 			continue
 		}
-		if compareAzureTrafficManagerEndpoint(*endpoint, desired.Endpoint) {
+		if equalAzureTrafficManagerEndpoint(*endpoint, desired.Endpoint) {
 			klog.V(2).InfoS("Skipping updating the existing Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 			delete(desiredEndpoints, endpointName) // no need to update the existing endpoint
 			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, &desired.Cluster))
@@ -612,21 +617,25 @@ func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend 
 			endpoint.Properties.EndpointStatus = desired.Endpoint.Properties.EndpointStatus
 		}
 		klog.V(2).InfoS("Updating the existing Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpoint)
-		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpoint(ctx, backend, profile, endpoint)
-		if err != nil {
+		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx, backend, profile, endpoint)
+		if err != nil { // Note: when one of endpoint is invalid, we continue to process other endpoints.
 			return nil, err
 		}
 		delete(desiredEndpoints, endpointName)
-		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &desired.Cluster))
+		if updatedEndpoint != nil { // only append the endpoints when it's valid
+			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &desired.Cluster))
+		}
 	}
 	// The remaining endpoints in the desiredEndpoints should be created.
 	for _, endpoint := range desiredEndpoints {
 		klog.V(2).InfoS("Creating new Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpoint)
-		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpoint(ctx, backend, profile, &endpoint.Endpoint)
-		if err != nil {
+		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx, backend, profile, &endpoint.Endpoint)
+		if err != nil { // Note: when one of endpoint is invalid, we continue to process other endpoints.
 			return nil, err
 		}
-		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &endpoint.Cluster))
+		if updatedEndpoint != nil { // only append the endpoints when it's valid
+			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &endpoint.Cluster))
+		}
 	}
 	return acceptedEndpoints, nil
 }
