@@ -252,26 +252,29 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1
 	}
 	klog.V(2).InfoS("Found the exported services behind the serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", klog.KObj(serviceImport), "numberOfDesiredEndpoints", len(desiredEndpointsMaps), "numberOfInvalidServices", len(invalidServicesMaps))
 
-	acceptedEndpoints, err := r.updateTrafficManagerEndpoints(ctx, backend, atmProfile, desiredEndpointsMaps)
+	acceptedEndpoints, badEndpointsErr, err := r.updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx, backend, atmProfile, desiredEndpointsMaps)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if len(invalidServicesMaps) > 0 {
-		for clusterID, invalidServiceErr := range invalidServicesMaps {
-			message := fmt.Sprintf("%v service(s) exported from clusters cannot be exposed as the Azure Traffic Manager, for example, service exported from %v is invalid: %v", len(invalidServicesMaps), clusterID, invalidServiceErr)
-			setFalseCondition(backend, acceptedEndpoints, message)
-			// Here we only populate the message with the first invalid exported service.
-			// Note, the loop of the invalidServicesMaps is not deterministic.
-			break
-		}
-	} else {
+	if len(invalidServicesMaps) == 0 && len(badEndpointsErr) == 0 {
 		setTrueCondition(backend, acceptedEndpoints)
+	} else {
+		var invalidEndpointErrMessage string
+		if len(badEndpointsErr) > 0 {
+			invalidEndpointErrMessage = fmt.Sprintf("%v endpoint(s) failed to be created/updated in the Azure Traffic Manager, for example, %v; ", len(badEndpointsErr), badEndpointsErr[0])
+		}
+		if len(invalidServicesMaps) > 0 {
+			for clusterID, invalidServiceErr := range invalidServicesMaps {
+				invalidEndpointErrMessage = invalidEndpointErrMessage + fmt.Sprintf("%v service(s) exported from clusters cannot be exposed as the Azure Traffic Manager, for example, service exported from %v is invalid: %v", len(invalidServicesMaps), clusterID, invalidServiceErr)
+				// Here we only populate the message with the first invalid exported service.
+				// Note, the loop of the invalidServicesMaps is not deterministic.
+				break
+			}
+		}
+		setFalseCondition(backend, acceptedEndpoints, invalidEndpointErrMessage)
 	}
 	klog.V(2).InfoS("Updated Traffic Manager endpoints for the serviceImport and updating the condition", "trafficManagerBackend", backendKObj, "status", backend.Status)
-	if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, r.updateTrafficManagerBackendStatus(ctx, backend)
 }
 
 // validateTrafficManagerProfile returns not nil profile when the profile is valid.
@@ -519,41 +522,6 @@ func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster *
 	}
 }
 
-// createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail creates or updates the Azure Traffic Manager endpoint.
-// It only returns the error when the request should be requeued.
-// If the endpoint is nil, the endpoint is invalid and condition will be marked as invalid.
-func (r *Reconciler) createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *armtrafficmanager.Profile, endpoint *armtrafficmanager.Endpoint) (*armtrafficmanager.Endpoint, error) {
-	backendKObj := klog.KObj(backend)
-	var responseError *azcore.ResponseError
-	res, updateErr := r.EndpointsClient.CreateOrUpdate(ctx, r.ResourceGroupName, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, *endpoint, nil)
-	if updateErr != nil {
-		if !errors.As(updateErr, &responseError) {
-			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", *endpoint.Name)
-			return nil, updateErr
-		}
-		var cond metav1.Condition
-		if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
-			cond = metav1.Condition{
-				Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: backend.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
-				Message:            fmt.Sprintf("Invalid Traffic Manager endpoint: %v", updateErr),
-			}
-			meta.SetStatusCondition(&backend.Status.Conditions, cond)
-			return nil, r.updateTrafficManagerBackendStatus(ctx, backend) // requeue won't help until the exported services are updated
-		} else if updateErr != nil {
-			setUnknownCondition(backend, fmt.Sprintf("Failed to create or update %q for %q: %v", *endpoint.Name, *profile.Name, updateErr))
-			if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
-				return nil, err
-			}
-			return nil, updateErr
-		}
-	}
-	klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", *endpoint.Name)
-	return &res.Endpoint, nil
-}
-
 // equalAzureTrafficManagerEndpoint compares only few fields of the current and desired Azure Traffic Manager endpoints
 // by ignoring others.
 // The desired endpoint is built by the controllers and all the required fields should not be nil.
@@ -569,7 +537,9 @@ func equalAzureTrafficManagerEndpoint(current, desired armtrafficmanager.Endpoin
 		*current.Properties.EndpointStatus == *desired.Properties.EndpointStatus
 }
 
-func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *armtrafficmanager.Profile, desiredEndpoints map[string]desiredEndpoint) ([]fleetnetv1alpha1.TrafficManagerEndpointStatus, error) {
+// updateTrafficManagerEndpointsAndUpdateStatusIfUnknown updates the Azure Traffic Manager endpoints.
+// Returns the accepted endpoints and a list of bad endpoints error when it fails to create/update endpoint or not because of bad request.
+func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx context.Context, backend *fleetnetv1alpha1.TrafficManagerBackend, profile *armtrafficmanager.Profile, desiredEndpoints map[string]desiredEndpoint) ([]fleetnetv1alpha1.TrafficManagerEndpointStatus, []error, error) {
 	backendKObj := klog.KObj(backend)
 	acceptedEndpoints := make([]fleetnetv1alpha1.TrafficManagerEndpointStatus, 0, len(desiredEndpoints))
 	for _, endpoint := range profile.Properties.Endpoints {
@@ -595,9 +565,9 @@ func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend 
 				klog.ErrorS(deleteErr, "Failed to delete the Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 				setUnknownCondition(backend, fmt.Sprintf("Failed to cleanup the existing %q for %q: %v", endpointName, *profile.Name, deleteErr))
 				if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
-				return nil, deleteErr
+				return nil, nil, deleteErr
 			}
 			klog.V(2).InfoS("Deleted the Azure Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 			continue
@@ -607,37 +577,37 @@ func (r *Reconciler) updateTrafficManagerEndpoints(ctx context.Context, backend 
 			delete(desiredEndpoints, endpointName) // no need to update the existing endpoint
 			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, &desired.Cluster))
 			continue
-		}
-		endpoint.Type = desired.Endpoint.Type
-		if endpoint.Properties == nil {
-			endpoint.Properties = desired.Endpoint.Properties
-		} else {
-			endpoint.Properties.TargetResourceID = desired.Endpoint.Properties.TargetResourceID
-			endpoint.Properties.Weight = desired.Endpoint.Properties.Weight
-			endpoint.Properties.EndpointStatus = desired.Endpoint.Properties.EndpointStatus
-		}
-		klog.V(2).InfoS("Updating the existing Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpoint)
-		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx, backend, profile, endpoint)
-		if err != nil { // Note: when one of endpoint is invalid, we continue to process other endpoints.
-			return nil, err
-		}
-		delete(desiredEndpoints, endpointName)
-		if updatedEndpoint != nil { // only append the endpoints when it's valid
-			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &desired.Cluster))
-		}
+		} // no need to update the endpoint if it's the same
 	}
-	// The remaining endpoints in the desiredEndpoints should be created.
+	badEndpointsError := make([]error, 0, len(desiredEndpoints))
+	// The remaining endpoints in the desiredEndpoints should be created or updated.
 	for _, endpoint := range desiredEndpoints {
 		klog.V(2).InfoS("Creating new Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpoint)
-		updatedEndpoint, err := r.createOrUpdateTrafficManagerEndpointAndUpdateStatusIfFail(ctx, backend, profile, &endpoint.Endpoint)
-		if err != nil { // Note: when one of endpoint is invalid, we continue to process other endpoints.
-			return nil, err
+		var responseError *azcore.ResponseError
+		endpointName := *endpoint.Endpoint.Name
+		res, updateErr := r.EndpointsClient.CreateOrUpdate(ctx, r.ResourceGroupName, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, endpointName, endpoint.Endpoint, nil)
+		if updateErr != nil {
+			if !errors.As(updateErr, &responseError) {
+				klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", endpointName)
+				return nil, nil, updateErr
+			}
+			klog.ErrorS(updateErr, "Failed to create or update the Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", endpointName)
+			if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
+				// When the failure is caused by the client error, will continue to process others.
+				badEndpointsError = append(badEndpointsError, updateErr)
+				continue
+			}
+			setUnknownCondition(backend, fmt.Sprintf("Failed to create or update %q for %q: %v", *endpoint.Endpoint.Name, *profile.Name, updateErr))
+			if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
+				return nil, nil, err
+			}
+			return nil, nil, updateErr
 		}
-		if updatedEndpoint != nil { // only append the endpoints when it's valid
-			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(updatedEndpoint, &endpoint.Cluster))
-		}
+		klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
+		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, &endpoint.Cluster))
 	}
-	return acceptedEndpoints, nil
+	klog.V(2).InfoS("Successfully updated the Traffic Manager endpoints", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "numberOfAcceptedEndpoints", len(acceptedEndpoints), "numberOfBadEndpoints", len(badEndpointsError))
+	return acceptedEndpoints, badEndpointsError, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

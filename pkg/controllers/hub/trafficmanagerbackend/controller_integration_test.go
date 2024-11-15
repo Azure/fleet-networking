@@ -705,6 +705,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -730,6 +731,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -769,6 +771,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -816,16 +819,17 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the ServiceImport status", func() {
 			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
 				Clusters: []fleetnetv1alpha1.ClusterStatus{
 					{
-						Cluster: memberClusterNames[0], // valid endpoint
+						Cluster: memberClusterNames[4], // would fail to create atm endpoint
 					},
 					{
-						Cluster: memberClusterNames[4], // would fail to create atm endpoint
+						Cluster: memberClusterNames[0], // valid endpoint
 					},
 				},
 			}
@@ -855,16 +859,17 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the ServiceImport status", func() {
 			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
 				Clusters: []fleetnetv1alpha1.ClusterStatus{
 					{
-						Cluster: memberClusterNames[0], // valid endpoint
+						Cluster: memberClusterNames[5], // would fail to create atm endpoint
 					},
 					{
-						Cluster: memberClusterNames[5], // would fail to create atm endpoint
+						Cluster: memberClusterNames[0], // valid endpoint
 					},
 				},
 			}
@@ -884,6 +889,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -917,6 +923,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Updating the internalServiceExport to valid endpoint", func() {
@@ -949,6 +956,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
