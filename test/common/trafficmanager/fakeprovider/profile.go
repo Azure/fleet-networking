@@ -14,11 +14,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager/fake"
-	"k8s.io/utils/ptr"
-
 	azcorefake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager/fake"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -33,17 +35,25 @@ const (
 	ThrottledErrProfileName                  = "throttled-err-profile"
 	RequestTimeoutProfileName                = "request-timeout-profile"
 
-	ValidBackendName  = "valid-backend"
-	ServiceImportName = "test-import"
-	ClusterName       = "member-1"
+	ValidBackendName                           = "valid-backend"
+	ServiceImportName                          = "test-import"
+	ClusterName                                = "member-1"
+	CreateBadRequestErrEndpointClusterName     = "create-bad-request-endpoint-cluster"
+	CreateInternalServerErrEndpointClusterName = "create-internal-err-endpoint-cluster"
 
 	ProfileDNSNameFormat = "%s.trafficmanager.net"
 )
 
+const (
+	ProfileNamespace = "profile-ns" // so that the atm profile is predictable
+)
+
 var (
-	ValidEndpointName        = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
-	NotFoundErrEndpointName  = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
-	FailToDeleteEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
+	ValidEndpointName                   = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, ClusterName)
+	NotFoundErrEndpointName             = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "not-found")
+	FailToDeleteEndpointName            = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
+	CreateBadRequestErrEndpointName     = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateBadRequestErrEndpointClusterName)
+	CreateInternalServerErrEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateInternalServerErrEndpointClusterName)
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
@@ -73,6 +83,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 	}
 	switch profileName {
 	case ValidProfileName, ValidProfileWithEndpointsName, ValidProfileWithFailToDeleteEndpointName:
+		namespacedName := types.NamespacedName{Name: profileName, Namespace: ProfileNamespace}
 		profileResp := armtrafficmanager.ProfilesClientGetResponse{
 			Profile: armtrafficmanager.Profile{
 				Name:     ptr.To(profileName),
@@ -96,11 +107,19 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 					TrafficRoutingMethod:        ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
 					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
 				},
+				Tags: map[string]*string{
+					objectmeta.AzureTrafficManagerProfileTagKey: ptr.To(namespacedName.String()),
+				},
 			}}
 		if profileName == ValidProfileWithEndpointsName {
 			profileResp.Profile.Properties.Endpoints = []*armtrafficmanager.Endpoint{
 				{
 					Name: ptr.To(strings.ToUpper(ValidEndpointName)), // test case-insensitive
+					Properties: &armtrafficmanager.EndpointProperties{
+						TargetResourceID: ptr.To(ValidPublicIPResourceID),
+						Weight:           ptr.To(Weight),
+					},
+					Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
 				},
 				{
 					Name: ptr.To("other-endpoint"),

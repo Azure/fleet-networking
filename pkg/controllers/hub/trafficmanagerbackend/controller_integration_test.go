@@ -27,8 +27,11 @@ import (
 const (
 	timeout  = time.Second * 10
 	interval = time.Millisecond * 250
+)
 
-	serviceName = "test-service"
+var (
+	testNamespace = fakeprovider.ProfileNamespace
+	serviceName   = fakeprovider.ServiceImportName
 )
 
 func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1alpha1.TrafficManagerBackend {
@@ -63,7 +66,7 @@ func buildFalseCondition() []metav1.Condition {
 	return []metav1.Condition{
 		{
 			Status: metav1.ConditionFalse,
-			Type:   string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
 			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
 		},
 	}
@@ -73,8 +76,18 @@ func buildUnknownCondition() []metav1.Condition {
 	return []metav1.Condition{
 		{
 			Status: metav1.ConditionUnknown,
-			Type:   string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
 			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+		},
+	}
+}
+
+func buildTrueCondition() []metav1.Condition {
+	return []metav1.Condition{
+		{
+			Status: metav1.ConditionTrue,
+			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
 		},
 	}
 }
@@ -273,53 +286,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 	Context("When creating trafficManagerBackend with Azure Traffic Manager profile which has nil properties", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithNilPropertiesName
-		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
-		backendName := fakeprovider.ValidBackendName
-		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
-
-		It("Creating a new TrafficManagerProfile", func() {
-			By("By creating a new TrafficManagerProfile")
-			profile = trafficManagerProfileForTest(profileName)
-			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
-		})
-
-		It("Updating TrafficManagerProfile status to programmed true", func() {
-			By("By updating TrafficManagerProfile status")
-			updateTrafficManagerProfileStatusToTrue(ctx, profile)
-		})
-
-		It("Creating TrafficManagerBackend", func() {
-			backend = trafficManagerBackendForTest(backendName, profileName, "not-exist")
-			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
-		})
-
-		It("Validating trafficManagerBackend", func() {
-			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, backendNamespacedName)
-		})
-
-		It("Deleting trafficManagerBackend", func() {
-			err := k8sClient.Delete(ctx, backend)
-			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
-		})
-
-		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
-		})
-
-		It("Deleting trafficManagerProfile", func() {
-			err := k8sClient.Delete(ctx, profile)
-			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
-		})
-
-		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
-		})
-	})
-
-	Context("When creating trafficManagerBackend with valid profile", Ordered, func() {
-		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
 		var profile *fleetnetv1alpha1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
@@ -674,6 +640,322 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(),
 				},
 			}
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Deleting trafficManagerBackend", func() {
+			err := k8sClient.Delete(ctx, backend)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
+		})
+
+		It("Validating trafficManagerBackend is deleted", func() {
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+		})
+
+		It("Deleting serviceImport", func() {
+			deleteServiceImport(types.NamespacedName{Namespace: testNamespace, Name: serviceName})
+		})
+	})
+
+	Context("When creating trafficManagerBackend with valid serviceImport and internalServiceExports", Ordered, func() {
+		profileName := fakeprovider.ValidProfileWithEndpointsName
+		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
+		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		backendName := fakeprovider.ValidBackendName
+		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
+		var backend *fleetnetv1alpha1.TrafficManagerBackend
+
+		var serviceImport *fleetnetv1alpha1.ServiceImport
+
+		It("Creating a new TrafficManagerProfile", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = trafficManagerProfileForTest(profileName)
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+		})
+
+		It("Updating TrafficManagerProfile status to programmed true", func() {
+			By("By updating TrafficManagerProfile status")
+			updateTrafficManagerProfileStatusToTrue(ctx, profile)
+		})
+
+		It("Creating TrafficManagerBackend", func() {
+			backend = trafficManagerBackendForTest(backendName, profileName, serviceName)
+			Expect(k8sClient.Create(ctx, backend)).Should(Succeed())
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Creating a new ServiceImport", func() {
+			serviceImport = &fleetnetv1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serviceName,
+					Namespace: testNamespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildUnknownCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+					{
+						Cluster: memberClusterNames[1], // invalid endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+					{
+						Cluster: memberClusterNames[3], // new endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[3],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[4], // would fail to create atm endpoint
+					},
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[5], // would fail to create atm endpoint
+					},
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildUnknownCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[0], // valid endpoint
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Updating the internalServiceExport to invalid endpoint", func() {
+			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
+			internalServiceExport.Spec.IsInternalLoadBalancer = true
+			Expect(k8sClient.Update(ctx, internalServiceExport)).Should(Succeed(), "failed to create internalServiceExport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the internalServiceExport to valid endpoint", func() {
+			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
+			internalServiceExport.Spec.IsInternalLoadBalancer = false
+			Expect(k8sClient.Update(ctx, internalServiceExport)).Should(Succeed(), "failed to create internalServiceExport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(),
+					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Cluster: &fleetnetv1alpha1.ClusterStatus{
+								Cluster: memberClusterNames[0],
+							},
+							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 

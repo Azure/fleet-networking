@@ -25,6 +25,9 @@ var (
 	cmpTrafficManagerBackendOptions = cmp.Options{
 		commonCmpOptions,
 		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerBackend{}, "TypeMeta"),
+		cmpopts.SortSlices(func(s1, s2 fleetnetv1alpha1.TrafficManagerEndpointStatus) bool {
+			return s1.Cluster.Cluster < s2.Cluster.Cluster
+		}),
 	}
 )
 
