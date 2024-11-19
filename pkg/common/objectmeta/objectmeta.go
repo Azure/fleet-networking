@@ -54,5 +54,6 @@ const (
 // Azure Resource Tags
 const (
 	// AzureTrafficManagerProfileTagKey is the key of the Azure Traffic Manager profile tag when the controller creates it.
-	AzureTrafficManagerProfileTagKey = fleetNetworkingPrefix + "trafficManagerProfile"
+	// Note: The tag name cannot have reserved characters '<,>,%,&,\\,?,/' or control characters.
+	AzureTrafficManagerProfileTagKey = "fleet-networking-trafficManagerProfile"
 )

@@ -92,7 +92,7 @@ func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profile
 					Weight:           ptr.To(Weight),
 					Target:           ptr.To(ValidEndpointTarget),
 				},
-				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+				Type: ptr.To(string(azureTrafficManagerEndpointTypePrefix + armtrafficmanager.EndpointTypeAzureEndpoints)),
 			},
 		}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
