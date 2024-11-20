@@ -306,4 +306,128 @@ var _ = Describe("Test cluster v1 API validation", func() {
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
 		})
 	})
+
+	Context("Test ServiceImport API validation - invalid cases", func() {
+		It("should deny creating API with invalid name size", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, serviceImportName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
+			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, serviceImportName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, serviceImportName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
+			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, serviceImportName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+	})
+
+	Context("Test ServiceImport API validation - valid cases", func() {
+		It("should allow creating API with valid name size", func() {
+			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with alphabet character", func() {
+			var name = "abc-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with numeric character", func() {
+			var name = "123-123456789"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with alphabet character", func() {
+			var name = "123456789-abc"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with numeric character", func() {
+			var name = "123456789-123"
+			// Create the API.
+			serviceImportName := &v1alpha1.ServiceImport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+		})
+	})
 })
