@@ -42,6 +42,8 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerbackend"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
 
 var (
@@ -200,13 +202,33 @@ func main() {
 		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
 		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		_, _, err = initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
+		profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
 		if err != nil {
 			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
 			exitWithErrorFunc()
 		}
+		klog.V(1).InfoS("Start to setup TrafficManagerProfile controller")
+		if err := (&trafficmanagerprofile.Reconciler{
+			Client:            mgr.GetClient(),
+			ProfilesClient:    profilesClient,
+			ResourceGroupName: cloudConfig.ResourceGroup,
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
 
-		// TODO: start the traffic manager controllers
+		klog.V(1).InfoS("Start to setup TrafficManagerBackend controller")
+		if err := (&trafficmanagerbackend.Reconciler{
+			Client:            mgr.GetClient(),
+			ProfilesClient:    profilesClient,
+			EndpointsClient:   endpointsClient,
+			ResourceGroupName: cloudConfig.ResourceGroup,
+			// serviceImport controller has already enabled the internalServiceExportIndexer.
+			// Therefore, no need to setup it again.
+		}).SetupWithManager(ctx, mgr, true); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")

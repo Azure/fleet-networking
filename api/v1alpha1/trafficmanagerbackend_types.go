@@ -10,7 +10,7 @@ const (
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=tmb
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=`.spec.profile.name`,name="Profile",type=string
-// +kubebuilder:printcolumn:JSONPath=`.spec.endpointRef.name`,name="Backend",type=string
+// +kubebuilder:printcolumn:JSONPath=`.spec.backend.name`,name="Backend",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=='Accepted')].status`,name="Is-Accepted",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 

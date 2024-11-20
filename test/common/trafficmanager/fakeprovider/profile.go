@@ -41,10 +41,9 @@ const (
 	CreateBadRequestErrEndpointClusterName     = "create-bad-request-endpoint-cluster"
 	CreateInternalServerErrEndpointClusterName = "create-internal-err-endpoint-cluster"
 
-	ProfileDNSNameFormat = "%s.trafficmanager.net"
-)
+	ProfileDNSNameFormat                  = "%s.trafficmanager.net"
+	azureTrafficManagerEndpointTypePrefix = "Microsoft.Network/trafficManagerProfiles/"
 
-const (
 	ProfileNamespace = "profile-ns" // so that the atm profile is predictable
 )
 
@@ -119,7 +118,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 						TargetResourceID: ptr.To(ValidPublicIPResourceID),
 						Weight:           ptr.To(Weight),
 					},
-					Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),
+					Type: ptr.To(string(azureTrafficManagerEndpointTypePrefix + armtrafficmanager.EndpointTypeAzureEndpoints)),
 				},
 				{
 					Name: ptr.To("other-endpoint"),

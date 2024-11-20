@@ -279,7 +279,7 @@ var _ = BeforeSuite(func() {
 		ProfilesClient:    profileClient,
 		EndpointsClient:   endpointClient,
 		ResourceGroupName: fakeprovider.DefaultResourceGroupName,
-	}).SetupWithManager(ctx, mgr)
+	}).SetupWithManager(ctx, mgr, false)
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Create profile namespace")
