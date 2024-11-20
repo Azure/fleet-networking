@@ -90,6 +90,7 @@ spec:
                     - TCP
                     type: string
                   timeoutInSeconds:
+                    default: 9
                     description: |-
                       The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
                       to response to the health check.
@@ -111,6 +112,14 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: allowed timeoutInSeconds value is dependent on intervalInSeconds
+                    value
+                  rule: (self.intervalInSeconds == 30 && (self.timeoutInSeconds >=
+                    5 && self.timeoutInSeconds <= 10)) || (self.intervalInSeconds
+                    == null && self.timeoutInSeconds == 10) || (self.intervalInSeconds
+                    == 10 && (self.timeoutInSeconds >= 5 && self.timeoutInSeconds
+                    <= 9))
             type: object
           status:
             description: The observed status of TrafficManagerProfile.

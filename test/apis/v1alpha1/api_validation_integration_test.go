@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"k8s.io/utils/ptr"
 	"reflect"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -440,7 +441,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -458,7 +462,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -476,7 +483,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -494,7 +504,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -514,7 +527,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
@@ -529,7 +545,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
@@ -544,7 +563,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
@@ -559,7 +581,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
@@ -574,7 +599,10 @@ var _ = Describe("Test cluster v1 API validation", func() {
 					Name: name,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{},
+					MonitorConfig: &v1alpha1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
 				},
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
