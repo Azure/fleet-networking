@@ -108,6 +108,11 @@ test: manifests generate fmt vet local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic -v
 
+.PHONY: integration-test
+integration-test: $(ENVTEST) ## Run integration tests.
+	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	go test -tags=integration -v ./test/apis/v1alpha1/api_validation_integration_test.go
+
 .PHONY: e2e-setup
 e2e-setup:
 	bash test/scripts/bootstrap.sh
