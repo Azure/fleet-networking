@@ -430,4 +430,351 @@ var _ = Describe("Test cluster v1 API validation", func() {
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
 		})
 	})
+
+	Context("Test TrafficManagerProfile API validation - invalid cases", func() {
+		It("should deny creating API with invalid name size", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerProfileName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
+			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerProfileName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerProfileName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
+			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerProfileName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+	})
+
+	Context("Test TrafficManagerProfile API validation - valid cases", func() {
+		It("should allow creating API with valid name size", func() {
+			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with alphabet character", func() {
+			var name = "abc-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with numeric character", func() {
+			var name = "123-123456789"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with alphabet character", func() {
+			var name = "123456789-abc"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with numeric character", func() {
+			var name = "123456789-123"
+			// Create the API.
+			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerProfileSpec{
+					MonitorConfig: &v1alpha1.MonitorConfig{},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+		})
+	})
+
+	Context("Test TrafficManagerBackend API validation - invalid cases", func() {
+		It("should deny creating API with invalid name size", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerBackendName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
+			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerBackendName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
+			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerBackendName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+
+		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
+			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			var err = hubClient.Create(ctx, trafficManagerBackendName)
+			var statusErr *k8serrors.StatusError
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
+		})
+	})
+
+	Context("Test TrafficManagerBackend API validation - valid cases", func() {
+		It("should allow creating API with valid name size", func() {
+			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with alphabet character", func() {
+			var name = "abc-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name starting with numeric character", func() {
+			var name = "123-123456789"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with alphabet character", func() {
+			var name = "123456789-abc"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+		})
+
+		It("should allow creating API with valid name ending with numeric character", func() {
+			var name = "123456789-123"
+			// Create the API.
+			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: v1alpha1.TrafficManagerBackendSpec{
+					Profile: v1alpha1.TrafficManagerProfileRef{
+						Name: "traffic-manager-profile-ref-name",
+					},
+					Backend: v1alpha1.TrafficManagerBackendRef{
+						Name: "traffic-manager-backend-ref-name",
+					},
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+		})
+	})
 })
