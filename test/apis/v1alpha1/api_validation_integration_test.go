@@ -3,8 +3,9 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
+
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
