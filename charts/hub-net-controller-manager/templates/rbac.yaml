@@ -137,6 +137,60 @@ rules:
     - get
     - list
     - watch
+{{- if .Values.enableTrafficManagerFeature }}
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends/status
+  verbs:
+    - get
+    - patch
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles/status
+  verbs:
+    - get
+    - patch
+    - update
+{{- end }}
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

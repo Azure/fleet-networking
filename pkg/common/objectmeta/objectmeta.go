@@ -6,6 +6,8 @@ Licensed under the MIT license.
 // Package objectmeta defines shared meta const used by the networking objects.
 package objectmeta
 
+import "strings"
+
 const (
 	fleetNetworkingPrefix = "networking.fleet.azure.com/"
 )
@@ -52,7 +54,8 @@ const (
 )
 
 // Azure Resource Tags
-const (
+var (
 	// AzureTrafficManagerProfileTagKey is the key of the Azure Traffic Manager profile tag when the controller creates it.
-	AzureTrafficManagerProfileTagKey = fleetNetworkingPrefix + "trafficManagerProfile"
+	// Note: The tag name cannot have reserved characters '<,>,%,&,\\,?,/' or control characters.
+	AzureTrafficManagerProfileTagKey = strings.ReplaceAll(fleetNetworkingPrefix, "/", ".") + "trafficManagerProfile"
 )

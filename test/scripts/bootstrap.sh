@@ -168,7 +168,7 @@ fi
 kubectl config use-context $HUB_CLUSTER-admin
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
-kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.11.3/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
+kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.11.4/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
 kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
