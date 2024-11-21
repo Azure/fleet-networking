@@ -1,0 +1,19 @@
+apiVersion: placement.kubernetes-fleet.io/v1
+kind: ClusterResourcePlacement
+metadata:
+  name: crp-availability
+spec:
+  resourceSelectors:
+    - group: ""
+      kind: Namespace
+      name: test-app
+      version: v1
+  policy:
+    placementType: PickAll
+#    affinity:
+#      clusterAffinity:
+#        requiredDuringSchedulingIgnoredDuringExecution:
+#          clusterSelectorTerms:
+#            - labelSelector:
+#                matchLabels:
+#                  cluster-name: member-1
