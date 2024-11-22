@@ -158,7 +158,7 @@ spec:
     port: 80
 ```
 Summary:
-- This defines a Traffic Manager Profile named `test-app-profile` in the `test-app` namespace.
+- This defines a Traffic Manager Profile named `nginx-profile` in the `test-app` namespace.
 - It listens on the specified port (80) for health checks.
 
 ```bash
