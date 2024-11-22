@@ -1,6 +1,6 @@
 # Tutorial: Migrating Application Resources to Clusters without Downtime
 
-This tutorial will guide you through the process of migrating application resources to a new cluster without any downtime. 
+This tutorial will guide you through the process of migrating application resources to a new cluster without any downtime using [KubeFleet](https://github.com/Azure/fleet) and networking related features. 
 This is useful when you need to migrate resources to a new cluster for any reason, such as upgrading the cluster version or moving to a different region.
 
 ## Scenario
@@ -14,7 +14,7 @@ Meanwhile, you want to ensure that the application remains available and accessi
 ## Current Application Resources
 ![](before-migrate.png)
 
-The following resources are currently deployed in the Member Cluster 1:
+The following resources are currently deployed in the hub cluster and use clusterResourcePlacement API to place them to the Member Cluster 1:
 
 ### Service
 > Note: Service test file located [here](./testfiles/nginx-service.yaml).
@@ -151,7 +151,7 @@ To expose the service via Traffic Manager, you need to create a trafficManagerPr
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerProfile
 metadata:
-  name: test-app-profile
+  name: nginx-profile
   namespace: test-app
 spec:
   monitorConfig:
@@ -194,7 +194,7 @@ Summary:
 
 
 To migrate the application resources to the new cluster, you need to add the new cluster Member Cluster 2 with label "cluster-name: member-2" 
-as part of the fleet by creating [MemberCluster API](./testfiles/member-cluster-2.yaml) and installing fleet agents following [this document](https://github.com/Azure/fleet/blob/main/docs/howtos/clusters.md).
+as part of the fleet by installing fleet agents and creating MemberCluster API ([sample MemberCluster](./testfiles/member-cluster-2.yaml)) following [this document](https://github.com/Azure/fleet/blob/main/docs/howtos/clusters.md).
 
 ```bash
 kubectl get membercluster -l cluster-name=member-2
@@ -324,7 +324,7 @@ When the new resources are available in the member-cluster by checking the CRP s
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  name: nginx-backend
+  name: nginx-backend-2
   namespace: test-app
 spec:
   profile:
@@ -390,7 +390,7 @@ After the new service is up and running in Member Cluster 2, you can stop servin
 > Note:  Existing client/application may still connect to member cluster 1 caused by a stale DNS query.
 
 ```bash
-kubecl delete trafficmanagerbackend nginx-backend -n test-app
+kubectl delete trafficmanagerbackend nginx-backend -n test-app
 ```
 
 Make sure all the client DNS cache is reset before you mark the Member Cluster 1 as left, so that all the placed resources will be deleted from the cluster.

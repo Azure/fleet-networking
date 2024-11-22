@@ -10,10 +10,4 @@ spec:
       version: v1
   policy:
     placementType: PickAll
-#    affinity:
-#      clusterAffinity:
-#        requiredDuringSchedulingIgnoredDuringExecution:
-#          clusterSelectorTerms:
-#            - labelSelector:
-#                matchLabels:
-#                  cluster-name: member-1
+
