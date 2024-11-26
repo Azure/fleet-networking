@@ -51,6 +51,12 @@ const (
 	// ServiceAnnotationLoadBalancerResourceGroup is the annotation used on the service to specify the resource group of
 	// load balancer objects that are not in the same resource group as the cluster.
 	ServiceAnnotationLoadBalancerResourceGroup = "service.beta.kubernetes.io/azure-load-balancer-resource-group"
+
+	// ServiceAnnotationAzureDNSLabelName is the annotation used on the service to Specify the DNS label name for the
+	// service’s public IP address (PIP). If it is set to empty string, DNS in PIP would be deleted. Because of a bug,
+	// before v1.15.10/v1.16.7/v1.17.3, the DNS label on PIP would also be deleted if the annotation is not specified.
+	// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+	ServiceAnnotationAzureDNSLabelName = "service.beta.kubernetes.io/azure-dns-label-name"
 )
 
 // Azure Resource Tags
