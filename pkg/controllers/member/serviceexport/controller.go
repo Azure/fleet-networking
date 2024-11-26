@@ -317,6 +317,7 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 	// This information may be stale as we don't monitor the public IP address resource.
 	export.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
 	dnsName, found := service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName]
+	klog.V(2).InfoS("Finding whether the DNS is assigned", "service", serviceKObj, "dnsName", dnsName, "isSetOnService", found, "isConfiguredOnPIP", export.Spec.IsDNSLabelConfigured)
 	if !found {
 		// cloud provider won't delete DNS label on pip if the annotation is not set.
 		return nil
