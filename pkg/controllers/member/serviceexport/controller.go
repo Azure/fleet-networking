@@ -312,13 +312,35 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 		return nil
 	}
 	export.Spec.PublicIPResourceID = pip.ID
+
 	// Note the user can set the dns label via the Azure portal or Azure CLI without updating service.
 	// This information may be stale as we don't monitor the public IP address resource.
 	export.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
+
+	// No matter if the customer bring your own IP or not, the cloud provider will reconcile the DNS label based on the
+	// DNS annotation.
+	dnsName, found := service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName]
+	klog.V(2).InfoS("Finding whether the DNS is assigned", "service", serviceKObj, "dnsName", dnsName, "isSetOnService", found, "isConfiguredOnPIP", export.Spec.IsDNSLabelConfigured)
+	// If the annotation is not set, the cloud provider won't reconcile the DNS label and return the current status.
+	if !found {
+		// cloud provider won't delete DNS label on pip if the annotation is not set.
+		return nil
+	}
+	if len(dnsName) == 0 {
+		export.Spec.IsDNSLabelConfigured = false // cloud provider will delete the DNS label on the pip.
+		return nil
+	}
+	if !export.Spec.IsDNSLabelConfigured {
+		err = fmt.Errorf("in the process of adding DNS to the public ip address %s", *pip.ID)
+		klog.ErrorS(err, "Requeue the request to see if the DNS is ready or not", "service", serviceKObj)
+		return err
+	}
 	return nil
 }
 
 // TODO: can improve the performance by caching the public IP address resource ID.
+// Note: we don't support "service.beta.kubernetes.io/azure-pip-prefix-id" annotation, and public ip cannot be found in
+// this case.
 func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Context, service *corev1.Service) (*armnetwork.PublicIPAddress, error) {
 	// The customer can specify the resource group for the public IP address in the service annotation.
 	rg := strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationLoadBalancerResourceGroup])

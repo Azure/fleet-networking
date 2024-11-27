@@ -1001,7 +1001,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 		wantErr                        bool
 	}{
 		{
-			name: "load balancer type with public ip",
+			name: "load balancer type with public ip and dns is assigned to pip",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
@@ -1049,7 +1049,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			},
 		},
 		{
-			name: "load balancer type with public ip and dns label is not set",
+			name: "load balancer type with public ip and dns label is not set and dns is not assigned to pip",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
@@ -1083,6 +1083,190 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:               corev1.ServiceTypeLoadBalancer,
 					PublicIPResourceID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
+		{
+			name: "load balancer type with public ip and dns label and dns label is not assigned in pip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+						objectmeta.ServiceAnnotationAzureDNSLabelName:         "dnsLabel",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{},
+						IPAddress:   ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "load balancer type with public ip and dns label and dns is assigned to pip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+						objectmeta.ServiceAnnotationAzureDNSLabelName:         "dnsLabel",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
+							DomainNameLabel: ptr.To("dnsLabel"),
+						},
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsDNSLabelConfigured:   true,
+					IsInternalLoadBalancer: false,
+					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
+		{
+			name: "load balancer type with public ip and empty dns label and dns is assigned to pip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+						objectmeta.ServiceAnnotationAzureDNSLabelName:         "",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						DNSSettings: &armnetwork.PublicIPAddressDNSSettings{
+							DomainNameLabel: ptr.To("dnsLabel"),
+						},
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsDNSLabelConfigured:   false,
+					IsInternalLoadBalancer: false,
+					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
+		{
+			name: "load balancer type with public ip and empty dns label and dns is not assigned to pip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationLoadBalancerResourceGroup: "   ",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "True", // case sensitive
+						objectmeta.ServiceAnnotationAzureDNSLabelName:         "",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsDNSLabelConfigured:   false,
+					IsInternalLoadBalancer: false,
+					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
 				},
 			},
 		},
