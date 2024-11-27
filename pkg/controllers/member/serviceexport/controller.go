@@ -316,8 +316,12 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 	// Note the user can set the dns label via the Azure portal or Azure CLI without updating service.
 	// This information may be stale as we don't monitor the public IP address resource.
 	export.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
+
+	// No matter if the customer bring your own IP or not, the cloud provider will reconcile the DNS label based on the
+	// DNS annotation.
 	dnsName, found := service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName]
 	klog.V(2).InfoS("Finding whether the DNS is assigned", "service", serviceKObj, "dnsName", dnsName, "isSetOnService", found, "isConfiguredOnPIP", export.Spec.IsDNSLabelConfigured)
+	// If the annotation is not set, the cloud provider won't reconcile the DNS label and return the current status.
 	if !found {
 		// cloud provider won't delete DNS label on pip if the annotation is not set.
 		return nil
