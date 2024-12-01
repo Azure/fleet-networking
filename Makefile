@@ -102,7 +102,7 @@ vet: ## Run go vet against code.
 ## --------------------------------------
 
 .PHONY: test
-test: manifests generate fmt vet local-unit-test
+test: manifests generate fmt vet local-unit-test integration-test
 
 .PHONY: local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
