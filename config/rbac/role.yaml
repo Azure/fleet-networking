@@ -63,7 +63,6 @@ rules:
   - multiclusterservices
   - serviceexports
   - serviceimports
-  - trafficmanagerbackends
   - trafficmanagerprofiles
   verbs:
   - create
@@ -87,7 +86,6 @@ rules:
   - multiclusterservices/status
   - serviceexports/status
   - serviceimports/status
-  - trafficmanagerbackends/status
   - trafficmanagerprofiles/status
   verbs:
   - get
