@@ -76,7 +76,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		It("Update the trafficManagerProfile spec", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the trafficManagerProfile")
 			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](10)
-			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](9)
+			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
 			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
 		})
 
