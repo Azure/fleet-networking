@@ -1,3 +1,7 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
 package v1alpha1
 
 import (
@@ -5,18 +9,17 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/utils/ptr"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	v1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
-var _ = Describe("Test cluster v1 API validation", func() {
-	Context("Test MemberClusterService API validation - invalid cases", func() {
+var _ = Describe("Test networking v1alpha1 API validation", func() {
+	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
 			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 			// Create the API.
