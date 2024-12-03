@@ -2,15 +2,10 @@
 
 This tutorial will guide you through the process of building a multi-cluster application using the ClusterResourcePropagation and Multi-Cluster networking APIs.
 
-Here are few key reasons why multi-cluster applications are valuable:
-- High Availability and Disaster Recovery 
-   - Deploying applications across multiple clusters (in different regions) ensures availability even if one cluster or region goes down due to network issues, hardware failures, or natural disasters.
-- Scalability
-   - Distributing the load across multiple clusters helps in scaling the application horizontally.
-- Fault Isolation
-  - By spreading workloads across multiple clusters, the failure of one cluster can be isolated, preventing it from impacting the entire application.
-
-By using the ClusterResourcePropagation and Multi-Cluster networking APIs, you can build a multi-cluster application that is resilient, scalable, and efficient.
+It will start with a single cluster running a set of application resources which are placed by the ClusterResourcePropagation API and override API.
+The application traffic will be exposed via Azure Traffic Manager by using the fleet networking APIs.
+When another cluster joins, the clusterResourcePropagation will propagate the workloads to the new cluster. 
+The traffic will be automatically split between the clusters and failover to the healthy cluster when one of the clusters is unhealthy.
 
 ## Scenario
 Your fleet consists of the following clusters:
@@ -503,8 +498,8 @@ status:
 ```
 Summary:
 * The traffic is now split between the two clusters, member-1 and member-2, with a weight of 50% each.
-* Similarly, when the cluster is left from the fleet by deleting memberCluster CR, all the placed resources will be removed from the cluster, and it
-will be removed from the Azure Traffic Manager automatically.
+* Similarly, when the cluster is left from the fleet by deleting memberCluster CR, all the placed resources excluding the fleet 
+networking resources, will be left on the cluster, and the exported service will be removed from the Azure Traffic Manager automatically.
 
 ## Automatic Fail Over When One cluster Is Unhealthy
 
