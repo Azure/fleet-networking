@@ -44,11 +44,7 @@ var _ = BeforeSuite(func() {
 	// Start the cluster.
 	hubTestEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-<<<<<<< HEAD
 			filepath.Join("..", "..", "..", "config", "crd", "bases"),
-=======
-			filepath.Join("..", "..", "..", "..", "config", "crd", "bases"),
->>>>>>> ad659a0 (add validation tests for member cluster service)
 		},
 		ErrorIfCRDPathMissing: true,
 	}
