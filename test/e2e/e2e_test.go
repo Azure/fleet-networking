@@ -18,10 +18,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
-
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
+	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 )
 
 var (

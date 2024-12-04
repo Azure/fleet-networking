@@ -102,11 +102,16 @@ vet: ## Run go vet against code.
 ## --------------------------------------
 
 .PHONY: test
-test: manifests generate fmt vet local-unit-test
+test: manifests generate fmt vet local-unit-test integration-test
 
 .PHONY: local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic -v
+
+.PHONY: integration-test
+integration-test: $(ENVTEST) ## Run integration tests.
+	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	go test ./test/... -race -coverprofile=integration_coverage.xml -covermode=atomic
 
 .PHONY: e2e-setup
 e2e-setup:
