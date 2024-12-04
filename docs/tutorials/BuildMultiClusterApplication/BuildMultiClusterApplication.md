@@ -1,10 +1,10 @@
-# Tutorial: Build a Multi-Cluster Application seamlessly with ClusterResourcePropagation and Multi-Cluster Networking APIs
+# Tutorial: Build a Multi-Cluster Application seamlessly with ClusterResourcePlacement and Multi-Cluster Networking APIs
 
-This tutorial will guide you through the process of building a multi-cluster application using the ClusterResourcePropagation and Multi-Cluster networking APIs.
+This tutorial will guide you through the process of building a multi-cluster application using the ClusterResourcePlacement and Multi-Cluster networking APIs.
 
-It will start with a single cluster running a set of application resources which are placed by the ClusterResourcePropagation API and override API.
+It will start with a single cluster running a set of application resources which are placed by the ClusterResourcePlacement API and override API.
 The application traffic will be exposed via Azure Traffic Manager by using the fleet networking APIs.
-When another cluster joins, the clusterResourcePropagation will propagate the workloads to the new cluster. 
+When another cluster joins, the clusterResourcePlacement will propagate the workloads to the new cluster. 
 The traffic will be automatically split between the clusters and failover to the healthy cluster when one of the clusters is unhealthy.
 
 ## Scenario
