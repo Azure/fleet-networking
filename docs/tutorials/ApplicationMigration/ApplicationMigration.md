@@ -202,6 +202,179 @@ NAME       JOINED   AGE   MEMBER-AGENT-LAST-SEEN   NODE-COUNT   AVAILABLE-CPU   
 member-2   True     16h   38s                      2            1848m           10318332Ki
 ```
 
+### Validate the Placement Status For Member Cluster 2
+
+Before migrating the resources, you need to validate the placement status on Member Cluster 2 to ensure that the resources are placed correctly and available.
+
+```bash
+kubectl get crp crp-availability -o yaml
+apiVersion: placement.kubernetes-fleet.io/v1
+kind: ClusterResourcePlacement
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"placement.kubernetes-fleet.io/v1","kind":"ClusterResourcePlacement","metadata":{"annotations":{},"name":"crp-availability"},"spec":{"policy":{"affinity":{"clusterAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"clusterSelectorTerms":[{"labelSelector":{"matchLabels":{"cluster-name":"member-1"}}}]}}},"placementType":"PickAll"},"resourceSelectors":[{"group":"","kind":"Namespace","name":"test-app","version":"v1"}]}}
+  creationTimestamp: "2024-11-21T08:35:49Z"
+  finalizers:
+  - kubernetes-fleet.io/crp-cleanup
+  - kubernetes-fleet.io/scheduler-cleanup
+  generation: 3
+  name: crp-availability
+  resourceVersion: "11491938"
+  uid: df7dc703-6af0-401a-b41b-17e76f8383af
+spec:
+  policy:
+    placementType: PickAll
+  resourceSelectors:
+  - group: ""
+    kind: Namespace
+    name: test-app
+    version: v1
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+status:
+  conditions:
+  - lastTransitionTime: "2024-12-06T08:55:45Z"
+    message: found all cluster needed as specified by the scheduling policy, found
+      2 cluster(s)
+    observedGeneration: 3
+    reason: SchedulingPolicyFulfilled
+    status: "True"
+    type: ClusterResourcePlacementScheduled
+  - lastTransitionTime: "2024-12-06T08:55:46Z"
+    message: All 2 cluster(s) start rolling out the latest resource
+    observedGeneration: 3
+    reason: RolloutStarted
+    status: "True"
+    type: ClusterResourcePlacementRolloutStarted
+  - lastTransitionTime: "2024-12-06T08:55:46Z"
+    message: The selected resources are successfully overridden in 2 cluster(s)
+    observedGeneration: 3
+    reason: OverriddenSucceeded
+    status: "True"
+    type: ClusterResourcePlacementOverridden
+  - lastTransitionTime: "2024-12-06T08:55:46Z"
+    message: Works(s) are succcesfully created or updated in 2 target cluster(s)'
+      namespaces
+    observedGeneration: 3
+    reason: WorkSynchronized
+    status: "True"
+    type: ClusterResourcePlacementWorkSynchronized
+  - lastTransitionTime: "2024-12-06T08:55:46Z"
+    message: The selected resources are successfully applied to 2 cluster(s)
+    observedGeneration: 3
+    reason: ApplySucceeded
+    status: "True"
+    type: ClusterResourcePlacementApplied
+  - lastTransitionTime: "2024-12-06T08:56:01Z"
+    message: The selected resources in 2 cluster(s) are available now
+    observedGeneration: 3
+    reason: ResourceAvailable
+    status: "True"
+    type: ClusterResourcePlacementAvailable
+  observedResourceIndex: "11"
+  placementStatuses:
+  - clusterName: member-2
+    conditions:
+    - lastTransitionTime: "2024-12-06T08:55:45Z"
+      message: 'Successfully scheduled resources for placement in "member-2" (affinity
+        score: 0, topology spread score: 0): picked by scheduling policy'
+      observedGeneration: 3
+      reason: Scheduled
+      status: "True"
+      type: Scheduled
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: Detected the new changes on the resources and started the rollout process
+      observedGeneration: 3
+      reason: RolloutStarted
+      status: "True"
+      type: RolloutStarted
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: No override rules are configured for the selected resources
+      observedGeneration: 3
+      reason: NoOverrideSpecified
+      status: "True"
+      type: Overridden
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: All of the works are synchronized to the latest
+      observedGeneration: 3
+      reason: AllWorkSynced
+      status: "True"
+      type: WorkSynchronized
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: All corresponding work objects are applied
+      observedGeneration: 3
+      reason: AllWorkHaveBeenApplied
+      status: "True"
+      type: Applied
+    - lastTransitionTime: "2024-12-06T08:56:01Z"
+      message: All corresponding work objects are available
+      observedGeneration: 3
+      reason: AllWorkAreAvailable
+      status: "True"
+      type: Available
+  - applicableResourceOverrides:
+    - name: ro-nginx-service-9
+      namespace: test-app
+    clusterName: member-1
+    conditions:
+    - lastTransitionTime: "2024-12-06T08:55:45Z"
+      message: 'Successfully scheduled resources for placement in "member-1" (affinity
+        score: 0, topology spread score: 0): picked by scheduling policy'
+      observedGeneration: 3
+      reason: Scheduled
+      status: "True"
+      type: Scheduled
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: Detected the new changes on the resources and started the rollout process
+      observedGeneration: 3
+      reason: RolloutStarted
+      status: "True"
+      type: RolloutStarted
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: Successfully applied the override rules on the resources
+      observedGeneration: 3
+      reason: OverriddenSucceeded
+      status: "True"
+      type: Overridden
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: All of the works are synchronized to the latest
+      observedGeneration: 3
+      reason: AllWorkSynced
+      status: "True"
+      type: WorkSynchronized
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: All corresponding work objects are applied
+      observedGeneration: 3
+      reason: AllWorkHaveBeenApplied
+      status: "True"
+      type: Applied
+    - lastTransitionTime: "2024-12-06T08:55:46Z"
+      message: All corresponding work objects are available
+      observedGeneration: 3
+      reason: AllWorkAreAvailable
+      status: "True"
+      type: Available
+  selectedResources:
+  - kind: Namespace
+    name: test-app
+    version: v1
+  - group: networking.fleet.azure.com
+    kind: ServiceExport
+    name: nginx-service
+    namespace: test-app
+    version: v1alpha1
+  - kind: Service
+    name: nginx-service
+    namespace: test-app
+    version: v1
+  - kind: ConfigMap
+    name: envelope-configmap
+    namespace: test-app
+    version: v1
+```
+
 ### Validate the TrafficManagerBackend nginx-backend
 
 Before migrating the resources, you need to validate the TrafficManagerBackend resource `nginx-backend` to ensure that the traffic is being routed to the correct cluster.
@@ -251,9 +424,108 @@ Summary:
 to the member-2.
 - The traffic is currently being routed to the nginx-service in Member Cluster 1 only.
 
-### Exposing The deployment In Member Cluster 2 Using Different Service Name
+### Exposing The deployment In Member Cluster 2 Using A Different Service Name
 
-The nginx deployment in Member Cluster 2 will be exposed using a different service name `nginx-service-2` with a different DNS name. All the traffic will be routed via the new Service `nginx-service-2` in Member Cluster 2 instead of `nginx-service`.
+You will stop serving the traffic via the existing service `nginx-service` in Member Cluster 2  and the nginx deployment in Member Cluster 2 will
+be exposed using a different service name `nginx-service-2` with a different DNS name. All the traffic will be routed via the new Service `nginx-service-2` in Member Cluster 2 instead of `nginx-service`.
+
+#### Stop Exposing nginx-service In Member Cluster 2
+
+Before creating the new service in Member Cluster 2, you need to stop exposing the existing service `nginx-service` in Member Cluster 2 by deleting the ServiceExport resource via creating override.
+> Note:  override file located [here,](./testfiles/ro-nginx-service-export.yaml).
+```yaml
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service
+  namespace: test-app
+spec:
+  resourceSelectors:
+    -  group: networking.fleet.azure.com
+       kind: ServiceExport
+       version: v1alpha1
+       name: nginx-service
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-2
+        overrideType: Delete
+
+```
+Summary:
+- The override makes sure serviceExport `nginx-service` won't be applied to the Member Cluster 2.
+
+#### Stop Exposing Deployment via nginx-service Member Cluster 2
+
+To stop exposing the deployment, you need to update ro-nginx-service Override.
+
+> Note:  override file located [here,](./testfiles/ro-nginx-service.yaml).
+
+```yaml
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service
+  namespace: test-app
+spec:
+  resourceSelectors:
+    -  group: ""
+       kind: Service
+       version: v1
+       name: nginx-service
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-1
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-1"}
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-2
+        overrideType: Delete
+```
+
+Summary:
+- The override makes sure the nginx-service won't be applied to the Member Cluster 2 cluster.
+
+#### Create ro-nginx-service-export-2 Override
+
+> Note:  override file located [here,](./testfiles/ro-nginx-service-export-2.yaml) and it should be created before the new service.
+> So that the overrides can be applied to these resources.
+
+To ensure the new service is exposed in Member Cluster 2 only, you need to create an override to delete the serviceExport in Member Cluster 1 when propagating.
+```yaml
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service
+  namespace: test-app
+spec:
+  resourceSelectors:
+    -  group: networking.fleet.azure.com
+       kind: ServiceExport
+       version: v1alpha1
+       name: nginx-service-2
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-1
+        overrideType: Delete
+```
 
 #### Create ro-nginx-service-2 Override
 > Note:  override file located [here,](./testfiles/ro-nginx-service-2.yaml) and it should be created before the new service.
@@ -277,6 +549,12 @@ spec:
           clusterSelectorTerms:
             - labelSelector:
                 matchLabels:
+                  cluster-name: member-1
+        overrideType: Delete
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
                   cluster-name: member-2
         jsonPatchOverrides:
           - op: add
@@ -285,6 +563,7 @@ spec:
               {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-2"}
 ```
 Summary:
+- It deletes the service so that the service won't be applied to the Member Cluster 1.
 - It adds a DNS label for Member Cluster 2 so that the service can be added as Traffic Manager Endpoint.
 
 #### New Service for Member Cluster 2
@@ -393,15 +672,18 @@ After the new service is up and running in Member Cluster 2, you can stop servin
 kubectl delete trafficmanagerbackend nginx-backend -n test-app
 ```
 
-Make sure all the client DNS cache is reset before you mark the Member Cluster 1 as left, so that all the placed resources will be deleted from the cluster.
+You can delete Member Cluster 1 and all the placed resources (excluding fleet networking resources, for example, serviceExport) will be left on the Member Cluster 1.
+Make sure all the client DNS cache is reset before you destroy the service and deployment on the member cluster.
 
 ```bash
 kubectl delete membercluster member-1
 ```
 
-Lastly, clean up the old service and service export resources in member-2 by deleting them in the hub cluster, so that CRP will roll out these changes to the member-2.
+Lastly, clean up the old service, service export and their overrides which are not used anymore in member-2 by deleting them in the hub cluster.
 
 ```bash
+kubectl delete resourceoverrides ro-nginx-service-export -n test-app
+kubectl delete resourceoverrides ro-nginx-service -n test-app
 kubectl delete serviceexport nginx-service -n test-app
 kubectl delete service nginx-service -n test-app
 ```
