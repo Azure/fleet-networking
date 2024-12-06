@@ -21,6 +21,7 @@ export AZURE_SUBSCRIPTION_ID=<YOUR-SUBSCRIPTION-ID>
 # Available values for AZURE_NETWORK_SETTING are shared-vnet, dynamic-ip-allocation and peered-vnet,
 # and detailed explanations for each network setting are provided in the scripts under folder "test/scripts".
 export AZURE_NETWORK_SETTING=shared-vnet
+export ENABLE_TRAFFIC_MANAGER=true
 ```
 
 Run Makefile Target to setup e2e environment:

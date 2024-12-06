@@ -6,8 +6,6 @@ Licensed under the MIT license.
 package e2e
 
 import (
-	"context"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
@@ -27,7 +25,6 @@ import (
 // When member cluster leaves, it will delete all the networking resources and cause the flaky behaviors.
 var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 	var (
-		ctx                    context.Context
 		memberClusterName      = memberClusterNames[0]
 		memberClusterNamespace = "fleet-member-" + memberClusterName
 		imcKey                 = types.NamespacedName{Namespace: memberClusterNamespace, Name: memberClusterName}
@@ -46,7 +43,6 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 	Context("Member cluster agents should join/leave fleet", func() {
 		BeforeEach(func() {
 			By("Creating internalMemberCluster")
-			ctx = context.Background()
 			imc = fleetv1beta1.InternalMemberCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      memberClusterName,
