@@ -15,6 +15,12 @@ spec:
           clusterSelectorTerms:
             - labelSelector:
                 matchLabels:
+                  cluster-name: member-1
+        overrideType: Delete
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
                   cluster-name: member-2
         jsonPatchOverrides:
           - op: add
