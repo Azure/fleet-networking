@@ -211,17 +211,8 @@ kubectl get crp crp-availability -o yaml
 apiVersion: placement.kubernetes-fleet.io/v1
 kind: ClusterResourcePlacement
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"placement.kubernetes-fleet.io/v1","kind":"ClusterResourcePlacement","metadata":{"annotations":{},"name":"crp-availability"},"spec":{"policy":{"affinity":{"clusterAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"clusterSelectorTerms":[{"labelSelector":{"matchLabels":{"cluster-name":"member-1"}}}]}}},"placementType":"PickAll"},"resourceSelectors":[{"group":"","kind":"Namespace","name":"test-app","version":"v1"}]}}
-  creationTimestamp: "2024-11-21T08:35:49Z"
-  finalizers:
-  - kubernetes-fleet.io/crp-cleanup
-  - kubernetes-fleet.io/scheduler-cleanup
-  generation: 3
   name: crp-availability
-  resourceVersion: "11491938"
-  uid: df7dc703-6af0-401a-b41b-17e76f8383af
+  ...
 spec:
   policy:
     placementType: PickAll
@@ -381,21 +372,12 @@ Before migrating the resources, you need to validate the TrafficManagerBackend r
 
 ```bash
 kubectl get tmb nginx-backend -n test-app -o yaml
-
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend","namespace":"test-app"},"spec":{"backend":{"name":"nginx-service"},"profile":{"name":"nginx-profile"},"weight":100}}
-  creationTimestamp: "2024-11-21T05:29:59Z"
-  finalizers:
-  - networking.fleet.azure.com/traffic-manager-backend-cleanup
-  generation: 1
   name: nginx-backend
   namespace: test-app
-  resourceVersion: "1240027"
-  uid: 073a01e7-6f07-49c9-abce-8ce14748984e
+  ...
 spec:
   backend:
     name: nginx-service
@@ -420,9 +402,7 @@ status:
     weight: 100
 ```
 Summary:
-- Since we have not assigned a DNS label for the nginx-service created in the member-2 cluster, the traffic cannot be routed
-to the member-2.
-- The traffic is currently being routed to the nginx-service in Member Cluster 1 only.
+- The traffic is currently being routed to the nginx-service in Member Cluster 1.
 
 ### Exposing The deployment In Member Cluster 2 Using A Different Service Name
 
@@ -504,7 +484,7 @@ Summary:
 > Note:  override file located [here,](./testfiles/ro-nginx-service-export-2.yaml) and it should be created before the new service.
 > So that the overrides can be applied to these resources.
 
-To ensure the new service is exposed in Member Cluster 2 only, you need to create an override to delete the serviceExport in Member Cluster 1 when propagating.
+To ensure the new service is exposed in Member Cluster 2 only, you need to create an override to only place the serviceExport in Member Cluster 2 when propagating.
 ```yaml
 apiVersion: placement.kubernetes-fleet.io/v1alpha1
 kind: ResourceOverride
@@ -597,6 +577,45 @@ Summary:
 
 When the new resources are available in the member-cluster by checking the CRP status, you can create a TrafficManagerBackend resource to expose the new service as a Traffic Manager endpoint.
 
+```bash
+ kubectl get tmb nginx-backend -n test-app -o yaml
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: TrafficManagerBackend
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend","namespace":"test-app"},"spec":{"backend":{"name":"nginx-service"},"profile":{"name":"nginx-profile"},"weight":100}}
+  creationTimestamp: "2024-12-06T08:52:37Z"
+  finalizers:
+  - networking.fleet.azure.com/traffic-manager-backend-cleanup
+  generation: 1
+  name: nginx-backend
+  namespace: test-app
+  resourceVersion: "11498380"
+  uid: 9e519e29-a5bc-4458-92b9-6e6e00ec1e67
+spec:
+  backend:
+    name: nginx-service
+  profile:
+    name: nginx-profile
+  weight: 100
+status:
+  conditions:
+  - lastTransitionTime: "2024-12-06T09:10:10Z"
+    message: 1 service(s) exported from clusters have been accepted as Traffic Manager
+      endpoints
+    observedGeneration: 1
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  endpoints:
+  - cluster:
+      cluster: member-1
+    name: fleet-9e519e29-a5bc-4458-92b9-6e6e00ec1e67#nginx-service#member-1
+    target: fleet-test-member-1.westcentralus.cloudapp.azure.com
+    weight: 100
+```
+
 > Note:  nginx-backend-2 file located [here](./testfiles/nginx-backend-2.yaml)
 
 ```yaml
@@ -618,17 +637,9 @@ kubectl get tmb nginx-backend-2 -n test-app -o yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend-2","namespace":"test-app"},"spec":{"backend":{"name":"nginx-service-2"},"profile":{"name":"nginx-profile"},"weight":100}}
-  creationTimestamp: "2024-11-21T05:44:33Z"
-  finalizers:
-  - networking.fleet.azure.com/traffic-manager-backend-cleanup
-  generation: 1
   name: nginx-backend-2
   namespace: test-app
-  resourceVersion: "1244573"
-  uid: 9bd86bd4-c0d8-4303-a7f9-f20122b18abc
+  ...
 spec:
   backend:
     name: nginx-service-2
@@ -637,25 +648,23 @@ spec:
   weight: 100
 status:
   conditions:
-  - lastTransitionTime: "2024-11-21T05:44:35Z"
-    message: '1 service(s) exported from clusters cannot be exposed as the Azure Traffic
-      Manager, for example, service exported from member-1 is invalid: DNS label is
-      not configured to the public IP'
+  - lastTransitionTime: "2024-12-09T05:30:54Z"
+    message: 1 service(s) exported from clusters have been accepted as Traffic Manager
+      endpoints
     observedGeneration: 1
-    reason: Invalid
-    status: "False"
+    reason: Accepted
+    status: "True"
     type: Accepted
   endpoints:
   - cluster:
       cluster: member-2
-    name: fleet-9bd86bd4-c0d8-4303-a7f9-f20122b18abc#nginx-service-2#member-2
+    name: fleet-6d0c1c31-16dc-4991-97e0-6458d5722e25#nginx-service-2#member-2
     target: fleet-test-member-2.westcentralus.cloudapp.azure.com
     weight: 100
 ```
 
 Summary:
-- Similar to the previous TrafficManagerBackend resource, this one routes all traffic to the new service `nginx-service-2` in Member Cluster 2 since the new service
-of member-1 cannot be added as the Traffic Manager endpoint.
+- Similar to the previous TrafficManagerBackend resource, this one routes all traffic to the new service `nginx-service-2` in Member Cluster 2.
 - Now nginx-profile has two backends now. Each backend has a weight of 100, which means all traffic will be evenly distributed to these two clusters.
 - Adjusting the weight of the backends will allow you to control the traffic distribution between the two clusters.
 
