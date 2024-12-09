@@ -402,7 +402,9 @@ status:
     weight: 100
 ```
 Summary:
-- The traffic is currently being routed to the nginx-service in Member Cluster 1.
+- Since we have not assigned a DNS label for the nginx-service created in the member-2 cluster, the traffic cannot be routed
+to the member-2.
+- The traffic is currently being routed to the nginx-service in Member Cluster 1 only.
 
 ### Exposing The deployment In Member Cluster 2 Using A Different Service Name
 
