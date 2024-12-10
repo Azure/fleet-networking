@@ -584,17 +584,9 @@ When the new resources are available in the member-cluster by checking the CRP s
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend","namespace":"test-app"},"spec":{"backend":{"name":"nginx-service"},"profile":{"name":"nginx-profile"},"weight":100}}
-  creationTimestamp: "2024-12-06T08:52:37Z"
-  finalizers:
-  - networking.fleet.azure.com/traffic-manager-backend-cleanup
-  generation: 1
   name: nginx-backend
   namespace: test-app
-  resourceVersion: "11498380"
-  uid: 9e519e29-a5bc-4458-92b9-6e6e00ec1e67
+  ...
 spec:
   backend:
     name: nginx-service
