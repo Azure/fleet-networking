@@ -21,3 +21,9 @@ spec:
             path: /metadata/annotations
             value:
               {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-1"}
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-2
+        overrideType: Delete
