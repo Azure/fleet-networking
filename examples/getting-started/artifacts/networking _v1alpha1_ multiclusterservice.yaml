@@ -1,0 +1,8 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: MultiClusterService
+metadata:
+  name: abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789
+spec:
+  serviceImport:
+    name: service-import-1
+    namespace: fleet-networking
