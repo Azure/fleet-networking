@@ -37,6 +37,13 @@ jobs:
       fail-fast: false
       matrix:
         network-setting: [shared-vnet, peered-vnet,  dynamic-ip-allocation]
+        include:
+          - network-setting: shared-vnet
+            enable-traffic-manager: true
+          - network-setting: peered-vnet
+            enable-traffic-manager: false
+          - network-setting: dynamic-ip-allocation
+            enable-traffic-manager: false
     runs-on: ubuntu-latest
     needs: [
       detect-noop,
@@ -92,6 +99,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
           AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          ENABLE_TRAFFIC_MANAGER: ${{ matrix.enable-traffic-manager }}
       - name: Run e2e tests
         run: |
           make e2e-tests

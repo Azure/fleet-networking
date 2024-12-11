@@ -1,0 +1,11 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: TrafficManagerBackend
+metadata:
+  name: nginx-backend
+  namespace: multi-cluster-app
+spec:
+  profile:
+    name: "nginx-profile"
+  backend:
+    name: "nginx-service"
+  weight: 100

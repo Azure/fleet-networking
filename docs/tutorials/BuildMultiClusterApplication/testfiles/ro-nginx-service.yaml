@@ -1,14 +1,14 @@
 apiVersion: placement.kubernetes-fleet.io/v1alpha1
 kind: ResourceOverride
 metadata:
-  name: ro-nginx-service-2
-  namespace: test-app
+  name: ro-nginx-service
+  namespace: multi-cluster-app
 spec:
   resourceSelectors:
     -  group: ""
        kind: Service
        version: v1
-       name: nginx-service-2
+       name: nginx-service
   policy:
     overrideRules:
       - clusterSelector:
@@ -16,7 +16,11 @@ spec:
             - labelSelector:
                 matchLabels:
                   cluster-name: member-1
-        overrideType: Delete
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-multi-cluster-app-member-1"}
       - clusterSelector:
           clusterSelectorTerms:
             - labelSelector:
@@ -26,4 +30,4 @@ spec:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-2"}
+              { "service.beta.kubernetes.io/azure-dns-label-name": "fleet-multi-cluster-app-member-2" }

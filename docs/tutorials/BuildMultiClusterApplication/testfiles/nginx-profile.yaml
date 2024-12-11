@@ -1,0 +1,8 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: TrafficManagerProfile
+metadata:
+  name: nginx-profile
+  namespace: multi-cluster-app
+spec:
+  monitorConfig:
+    port: 80
