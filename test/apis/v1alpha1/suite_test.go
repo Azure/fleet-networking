@@ -35,7 +35,6 @@ var (
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-
 	RunSpecs(t, "ClusterResourcePlacement Controller Suite")
 }
 
