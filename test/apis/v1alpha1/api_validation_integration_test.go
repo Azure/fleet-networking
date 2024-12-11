@@ -21,7 +21,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -33,7 +33,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
-			var err = hubClient.Create(ctx, memberClusterServiceName)
+			var err = hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			fmt.Print(err)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -44,7 +44,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -56,7 +56,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
-			err := hubClient.Create(ctx, memberClusterServiceName)
+			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
@@ -66,7 +66,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -78,7 +78,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
-			err := hubClient.Create(ctx, memberClusterServiceName)
+			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
@@ -88,7 +88,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -100,7 +100,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
-			err := hubClient.Create(ctx, memberClusterServiceName)
+			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
@@ -112,7 +112,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -123,15 +123,15 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, memberClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, memberClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			var name = "abc-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -142,15 +142,15 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, memberClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, memberClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
 			var name = "123-123456789"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -161,15 +161,15 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, memberClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, memberClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			var name = "123456789-abc"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -180,15 +180,15 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, memberClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, memberClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
 			var name = "123456789-123"
 
 			// Create the API.
-			memberClusterServiceName := &v1alpha1.MultiClusterService{
+			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: "testnamespace",
@@ -199,8 +199,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, memberClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, memberClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
 		})
 	})
 
