@@ -225,7 +225,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789-123456789"
+			var name = "a-abcdef-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
@@ -242,7 +242,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var name = "abcdef-abcdef-123456789-123456789-123456789-123456789-123456789-a"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
