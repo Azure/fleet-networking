@@ -78,7 +78,7 @@ var _ = BeforeSuite(func() {
 	By("Create testing namespace")
 	var ns = corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testNamespace",
+			Name: "testnamespace",
 		},
 	}
 	Expect(hubClient.Create(ctx, &ns)).Should(Succeed())
