@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -71,6 +74,14 @@ var _ = BeforeSuite(func() {
 	// use of the cache indexes.
 	hubClient = hubCtrlMgr.GetClient()
 	Expect(hubClient).NotTo(BeNil())
+
+	By("Create testing namespace")
+	var ns = corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testNamespace",
+		},
+	}
+	Expect(hubClient.Create(ctx, &ns)).Should(Succeed())
 
 	go func() {
 		defer GinkgoRecover()

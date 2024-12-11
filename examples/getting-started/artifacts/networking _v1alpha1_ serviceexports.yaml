@@ -1,0 +1,4 @@
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: ServiceExport
+metadata:
+  name: abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789
