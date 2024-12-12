@@ -23,12 +23,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -37,7 +37,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -45,12 +45,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			var nameStartingWithNonAlphanum = "-abcdef-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -59,7 +59,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -67,12 +67,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -81,7 +81,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -89,12 +89,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -103,7 +103,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			err := hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -113,12 +113,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test MultiClusterService creation API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -132,12 +132,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
-			var name = "abc-123456789"
+			var nameValid = "abc-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -151,12 +151,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var name = "123-123456789"
+			var nameValid = "123-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -170,12 +170,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var name = "123456789-abc"
+			var nameValid = "123456789-abc"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -189,12 +189,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var name = "123456789-123"
+			var nameValid = "123456789-123"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -210,16 +210,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceExport API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceExportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -227,16 +227,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameStartingWithNonAlphanum = "-abcdef-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -244,16 +244,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var nameEndingWithNonAlphanum = "abcdef-abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -261,16 +261,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceExportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -280,12 +280,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceExport API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -294,12 +294,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
-			var name = "abc-123456789"
+			var nameValid = "abc-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -308,12 +308,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var name = "123-123456789"
+			var nameValid = "123-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -322,12 +322,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var name = "123456789-abc"
+			var nameValid = "123456789-abc"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -336,12 +336,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var name = "123456789-123"
+			var nameValid = "123456789-123"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -352,16 +352,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceImport API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceImportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -369,16 +369,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			var nameStartingWithNonAlphanum = "-abcdef-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -386,16 +386,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -403,16 +403,16 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceImportName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -422,12 +422,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceImport API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -436,12 +436,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
-			var name = "abc-123456789"
+			var nameValid = "abc-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -450,12 +450,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var name = "123-123456789"
+			var nameValid = "123-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -464,12 +464,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var name = "123456789-abc"
+			var nameValid = "123456789-abc"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -478,12 +478,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var name = "123456789-123"
+			var nameValid = "123456789-123"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 			}
@@ -494,12 +494,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerProfile API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -509,7 +509,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -517,12 +517,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			var nameStartingWithNonAlphanum = "-abcdef-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -532,7 +532,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -540,12 +540,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -555,7 +555,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -563,12 +563,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -578,7 +578,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -588,12 +588,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerProfile API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -608,12 +608,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
-			var name = "abc-123456789"
+			var nameValid = "abc-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -628,12 +628,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var name = "123-123456789"
+			var nameValid = "123-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -648,12 +648,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var name = "123456789-abc"
+			var nameValid = "123456789-abc"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -668,12 +668,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var name = "123456789-123"
+			var nameValid = "123456789-123"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -690,12 +690,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerBackend API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -707,7 +707,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -715,12 +715,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
-			var name = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+			var nameStartingWithNonAlphanum = "-abcdef-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -732,7 +732,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -740,12 +740,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var name = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -757,7 +757,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -765,12 +765,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var name = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -782,7 +782,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
+			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
@@ -792,12 +792,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerBackend API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -814,12 +814,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
-			var name = "abc-123456789"
+			var nameValid = "abc-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -836,12 +836,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var name = "123-123456789"
+			var nameValid = "123-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -858,12 +858,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var name = "123456789-abc"
+			var nameValid = "123456789-abc"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -880,12 +880,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var name = "123456789-123"
+			var nameValid = "123456789-123"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      nameValid,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
