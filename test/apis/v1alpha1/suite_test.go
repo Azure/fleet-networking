@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	v1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
 
 var (
@@ -59,7 +59,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hubCfg).NotTo(BeNil())
 
-	Expect(v1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
+	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
