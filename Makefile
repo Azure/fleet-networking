@@ -111,7 +111,7 @@ local-unit-test: $(ENVTEST) ## Run tests.
 .PHONY: integration-test
 integration-test: $(ENVTEST) ## Run integration tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-	go test ./test/apis/... -race -coverprofile=integration_coverage.xml -covermode=atomic
+	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/...
 
 .PHONY: e2e-setup
 e2e-setup:
