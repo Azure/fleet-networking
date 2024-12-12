@@ -27,11 +27,12 @@ import (
 )
 
 var (
-	hubTestEnv    *envtest.Environment
-	hubClient     client.Client
-	ctx           context.Context
-	cancel        context.CancelFunc
-	testNamespace = "testnamespace"
+	hubTestEnv          *envtest.Environment
+	hubClient           client.Client
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	testNamespace       = "testnamespace"
+	nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 )
 
 func TestAPIs(t *testing.T) {

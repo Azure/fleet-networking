@@ -23,7 +23,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
@@ -210,7 +209,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceExport API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
@@ -352,7 +350,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceImport API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
@@ -494,7 +491,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerProfile API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
@@ -690,7 +686,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerBackend API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
-			var nameWithInvalidSize = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
