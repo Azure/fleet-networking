@@ -85,7 +85,7 @@ var _ = BeforeSuite(func() {
 			Name: "testnamespace",
 		},
 	}
-	Expect(hubClient.Create(ctx, &ns)).Should(Succeed())
+	Expect(hubClient.Create(ctx, &ns)).Should(Succeed(), "failed to delete namespace")
 
 	go func() {
 		defer GinkgoRecover()

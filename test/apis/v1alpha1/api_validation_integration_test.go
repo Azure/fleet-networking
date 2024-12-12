@@ -40,7 +40,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
 			var err = hubClient.Create(ctx, multiClusterServiceName)
 			var statusErr *k8serrors.StatusError
-			fmt.Print(err)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -222,8 +221,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
 			var err = hubClient.Create(ctx, serviceExportName)
-			fmt.Println("Print test")
-			fmt.Println(err)
 			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
