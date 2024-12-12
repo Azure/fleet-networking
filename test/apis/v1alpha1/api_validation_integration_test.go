@@ -29,7 +29,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -51,7 +51,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -73,7 +73,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -95,7 +95,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -119,7 +119,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -138,7 +138,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -157,7 +157,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -176,7 +176,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -195,7 +195,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
 					ServiceImport: v1alpha1.ServiceImportRef{
@@ -216,7 +216,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -233,7 +233,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -250,7 +250,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -267,7 +267,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -286,7 +286,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
@@ -300,7 +300,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
@@ -314,7 +314,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
@@ -328,7 +328,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
@@ -342,7 +342,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
@@ -358,7 +358,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -375,7 +375,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -392,7 +392,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -409,7 +409,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", name))
@@ -428,7 +428,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
@@ -442,7 +442,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
@@ -456,7 +456,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
@@ -470,7 +470,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
@@ -484,7 +484,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
@@ -500,7 +500,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -523,7 +523,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -546,7 +546,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -569,7 +569,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -594,7 +594,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -614,7 +614,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -634,7 +634,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -654,7 +654,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -674,7 +674,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
 					MonitorConfig: &v1alpha1.MonitorConfig{
@@ -696,7 +696,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -721,7 +721,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -746,7 +746,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -771,7 +771,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -798,7 +798,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -820,7 +820,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -842,7 +842,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -864,7 +864,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{
@@ -886,7 +886,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: "testnamespace",
+					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
 					Profile: v1alpha1.TrafficManagerProfileRef{

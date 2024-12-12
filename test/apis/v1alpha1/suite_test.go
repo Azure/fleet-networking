@@ -27,10 +27,11 @@ import (
 )
 
 var (
-	hubTestEnv *envtest.Environment
-	hubClient  client.Client
-	ctx        context.Context
-	cancel     context.CancelFunc
+	hubTestEnv    *envtest.Environment
+	hubClient     client.Client
+	ctx           context.Context
+	cancel        context.CancelFunc
+	testNamespace = "testnamespace"
 )
 
 func TestAPIs(t *testing.T) {
@@ -82,7 +83,7 @@ var _ = BeforeSuite(func() {
 	By("Create testing namespace")
 	var ns = corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testnamespace",
+			Name: testNamespace,
 		},
 	}
 	Expect(hubClient.Create(ctx, &ns)).Should(Succeed(), "failed to delete namespace")
