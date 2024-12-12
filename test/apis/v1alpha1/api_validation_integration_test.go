@@ -111,7 +111,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 	})
 
-	Context("Test Member Cluster Service creation API validation - valid cases", func() {
+	Context("Test MultiClusterService creation API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
 			var name = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
