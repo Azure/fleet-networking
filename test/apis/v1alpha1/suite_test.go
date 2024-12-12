@@ -97,6 +97,15 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+
+	By("delete namespace")
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
+	}
+	Expect(hubClient.Delete(ctx, &ns)).Should(Succeed())
+
 	cancel()
 
 	By("tearing down the test environment")
