@@ -110,6 +110,7 @@ local-unit-test: $(ENVTEST) ## Run tests.
 
 .PHONY: integration-test
 integration-test: $(ENVTEST) ## Run integration tests.
+	go install github.com/onsi/ginkgo/v2/ginkgo@v2.21.0
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
 	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/...
 
