@@ -35,6 +35,7 @@ var (
 	fleet          *framework.Fleet
 
 	scheme = runtime.NewScheme()
+	ctx    = context.Background()
 )
 
 func init() {
@@ -92,7 +93,6 @@ var _ = AfterSuite(func() {
 			Name: testNamespace,
 		},
 	}
-	ctx := context.Background()
 	Expect(hubCluster.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, hubClusterName)
 	for _, m := range memberClusters {
 		Expect(m.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, m.Name())
