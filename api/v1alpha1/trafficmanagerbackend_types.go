@@ -18,6 +18,7 @@ const (
 // A backend contains one or more endpoints. Therefore, the controller may create multiple endpoints under the Traffic
 // Manager Profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type TrafficManagerBackend struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional

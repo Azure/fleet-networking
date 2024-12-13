@@ -16,6 +16,7 @@ import (
 // +kubebuilder:subresource:status
 
 // ServiceImport describes a service imported from clusters in a ClusterSet.
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type ServiceImport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
