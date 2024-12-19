@@ -28,351 +28,13 @@ func TestGenerateAzureTrafficManagerProfileName(t *testing.T) {
 	}
 }
 
-func TestEqualAzureTrafficManagerProfile(t *testing.T) {
-	tests := []struct {
-		name    string
-		current armtrafficmanager.Profile
-		want    bool
-	}{
-		{
-			name: "Profiles are equal though current profile has some different fields from the desired",
-			current: armtrafficmanager.Profile{
-				ID:       ptr.To("abc"),
-				Location: ptr.To("global"),
-				Properties: &armtrafficmanager.ProfileProperties{
-					DNSConfig: &armtrafficmanager.DNSConfig{
-						RelativeName: ptr.To("namespace-name"),
-					},
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:               ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod:        ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-					MaxReturn:                   ptr.To(int64(1)),
-					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
-				},
-				Tags: map[string]*string{
-					"tagKey":   ptr.To("tagValue"),
-					"otherKey": ptr.To("otherValue"),
-				},
-			},
-			want: true,
-		},
-		{
-			name: "properties is nil",
-			current: armtrafficmanager.Profile{
-				ID: ptr.To("abc"),
-			},
-		},
-		{
-			name: "MonitorConfig is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{},
-			},
-		},
-		{
-			name: "ProfileStatus is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{},
-				},
-			},
-		},
-		{
-			name: "TrafficRoutingMethod is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{},
-					ProfileStatus: ptr.To(armtrafficmanager.ProfileStatusEnabled),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.IntervalInSeconds is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig:        &armtrafficmanager.MonitorConfig{},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.IntervalInSeconds is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig:        &armtrafficmanager.MonitorConfig{},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Path is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds: ptr.To[int64](30),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Port is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds: ptr.To[int64](30),
-						Path:              ptr.To("/path"),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Protocol is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds: ptr.To[int64](30),
-						Path:              ptr.To("/path"),
-						Port:              ptr.To[int64](80),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.TimeoutInSeconds is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds: ptr.To[int64](30),
-						Path:              ptr.To("/path"),
-						Port:              ptr.To[int64](80),
-						Protocol:          ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.ToleratedNumberOfFailures is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds: ptr.To[int64](30),
-						Path:              ptr.To("/path"),
-						Port:              ptr.To[int64](80),
-						Protocol:          ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:  ptr.To[int64](10),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.IntervalInSeconds is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](10),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Path is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/invalid-path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Port is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](8080),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.Protocol is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTPS),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.TimeoutInSeconds is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](30),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-				},
-			},
-		},
-		{
-			name: "MonitorConfig.ToleratedNumberOfFailures is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](4),
-					},
-				},
-			},
-		},
-		{
-			name: "ProfileStatus is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus: ptr.To(armtrafficmanager.ProfileStatusDisabled),
-				},
-			},
-		},
-		{
-			name: "TrafficMethod is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodPriority),
-				},
-			},
-		},
-		{
-			name: "Tags is nil",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-			},
-		},
-		{
-			name: "Tag key is missing",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-				Tags: map[string]*string{
-					"otherKey": ptr.To("otherValue"),
-				},
-			},
-		},
-		{
-			name: "Tag value is different",
-			current: armtrafficmanager.Profile{
-				Properties: &armtrafficmanager.ProfileProperties{
-					MonitorConfig: &armtrafficmanager.MonitorConfig{
-						IntervalInSeconds:         ptr.To[int64](30),
-						Path:                      ptr.To("/path"),
-						Port:                      ptr.To[int64](80),
-						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-						TimeoutInSeconds:          ptr.To[int64](10),
-						ToleratedNumberOfFailures: ptr.To[int64](3),
-					},
-					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-				},
-				Tags: map[string]*string{
-					"tagKey":   ptr.To("otherValue"),
-					"otherKey": ptr.To("otherValue"),
-				},
-			},
-		},
-	}
-	desired := armtrafficmanager.Profile{
+func buildDesiredProfile() armtrafficmanager.Profile {
+	return armtrafficmanager.Profile{
 		Location: ptr.To("global"),
 		Properties: &armtrafficmanager.ProfileProperties{
 			DNSConfig: &armtrafficmanager.DNSConfig{
 				RelativeName: ptr.To("namespace-name"),
+				TTL:          ptr.To(int64(60)),
 			},
 			MonitorConfig: &armtrafficmanager.MonitorConfig{
 				IntervalInSeconds:         ptr.To[int64](30),
@@ -389,9 +51,228 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 			"tagKey": ptr.To("tagValue"),
 		},
 	}
+}
+
+func TestEqualAzureTrafficManagerProfile(t *testing.T) {
+	tests := []struct {
+		name             string
+		buildCurrentFunc func() armtrafficmanager.Profile
+		want             bool
+	}{
+		{
+			name: "Profiles are equal though buildCurrentFunc profile has some different fields from the desired",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.ID = ptr.To("abc")
+				res.Tags = map[string]*string{
+					"tagKey":   ptr.To("tagValue"),
+					"otherKey": ptr.To("otherValue"),
+				}
+				res.Properties.MaxReturn = ptr.To(int64(1))
+				return res
+			},
+			want: true,
+		},
+		{
+			name: "properties is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig = nil
+				return res
+			},
+		},
+		{
+			name: "ProfileStatus is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.ProfileStatus = nil
+				return res
+			},
+		},
+		{
+			name: "TrafficRoutingMethod is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.TrafficRoutingMethod = nil
+				return res
+			},
+		},
+		{
+			name: "DNSConfig is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.DNSConfig = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.IntervalInSeconds is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.IntervalInSeconds = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Path is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Path = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Port is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Port = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Protocol is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Protocol = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.TimeoutInSeconds is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.TimeoutInSeconds = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.ToleratedNumberOfFailures is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.ToleratedNumberOfFailures = nil
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.IntervalInSeconds is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.IntervalInSeconds = ptr.To[int64](10)
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Path is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Path = ptr.To("/invalid-path")
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Port is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Port = ptr.To[int64](8080)
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.Protocol is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.Protocol = ptr.To(armtrafficmanager.MonitorProtocolHTTPS)
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.TimeoutInSeconds is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.TimeoutInSeconds = ptr.To[int64](30)
+				return res
+			},
+		},
+		{
+			name: "MonitorConfig.ToleratedNumberOfFailures is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.ToleratedNumberOfFailures = ptr.To[int64](4)
+				return res
+			},
+		},
+		{
+			name: "ProfileStatus is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.ProfileStatus = ptr.To(armtrafficmanager.ProfileStatusDisabled)
+				return res
+			},
+		},
+		{
+			name: "TrafficMethod is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.TrafficRoutingMethod = ptr.To(armtrafficmanager.TrafficRoutingMethodPriority)
+				return res
+			},
+		},
+		{
+			name: "DNS TTL is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.DNSConfig.TTL = nil
+				return res
+			},
+		},
+		{
+			name: "DNS TTL is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.DNSConfig.TTL = ptr.To(int64(10))
+				return res
+			},
+		},
+		{
+			name: "Tags is nil",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Tags = nil
+				return res
+			},
+		},
+		{
+			name: "Tag key is missing",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Tags = map[string]*string{
+					"otherKey": ptr.To("otherValue"),
+				}
+				return res
+			},
+		},
+		{
+			name: "Tag value is different",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Tags["tagKey"] = ptr.To("otherValue")
+				return res
+			},
+		},
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := EqualAzureTrafficManagerProfile(tt.current, desired); got != tt.want {
+			desired := buildDesiredProfile()
+			if got := EqualAzureTrafficManagerProfile(tt.buildCurrentFunc(), desired); got != tt.want {
 				t.Errorf("EqualAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
 			}
 		})

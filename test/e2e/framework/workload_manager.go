@@ -138,7 +138,12 @@ func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1alpha1.TrafficManag
 		},
 		Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
 			MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
-				Port: ptr.To(int64(80)),
+				Port:                      ptr.To(int64(80)),
+				Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+				Path:                      ptr.To("/path"),
+				IntervalInSeconds:         ptr.To(int64(10)),
+				ToleratedNumberOfFailures: ptr.To(int64(3)),
+				TimeoutInSeconds:          ptr.To(int64(8)),
 			},
 		},
 	}

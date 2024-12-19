@@ -37,6 +37,11 @@ const (
 	DNSRelativeNameFormat = "%s-%s"
 	// AzureResourceProfileNameFormat is the name format of the Azure Traffic Manager Profile created by the fleet controller.
 	AzureResourceProfileNameFormat = "fleet-%s"
+
+	// DefaultDNSTTL is in seconds. This informs the local DNS resolvers and DNS clients how long to cache DNS responses
+	// provided by this Traffic Manager profile.
+	// Defaults to 60 which is the same as the portal's default config.
+	DefaultDNSTTL = int64(60)
 )
 
 var (
@@ -166,12 +171,12 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 
-// EqualAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
+// EqualAzureTrafficManagerProfile compares only few fields of the buildCurrentFunc and desired Azure Traffic Manager profiles
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
 func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
-	// location and dnsConfig is not immutable
-	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil {
+	// location and dnsConfig (excluding TTL) is not immutable
+	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil || current.Properties.DNSConfig == nil {
 		return false
 	}
 
@@ -191,6 +196,10 @@ func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 	}
 
 	if *current.Properties.ProfileStatus != *desired.Properties.ProfileStatus || *current.Properties.TrafficRoutingMethod != *desired.Properties.TrafficRoutingMethod {
+		return false
+	}
+
+	if current.Properties.DNSConfig.TTL == nil || *current.Properties.DNSConfig.TTL != *desired.Properties.DNSConfig.TTL {
 		return false
 	}
 
@@ -271,6 +280,7 @@ func generateAzureTrafficManagerProfile(profile *fleetnetv1alpha1.TrafficManager
 		Properties: &armtrafficmanager.ProfileProperties{
 			DNSConfig: &armtrafficmanager.DNSConfig{
 				RelativeName: ptr.To(fmt.Sprintf(DNSRelativeNameFormat, profile.Namespace, profile.Name)),
+				TTL:          ptr.To(DefaultDNSTTL), // no default value on the server side, using 60s same as portal's default config
 			},
 			MonitorConfig: &armtrafficmanager.MonitorConfig{
 				IntervalInSeconds:         mc.IntervalInSeconds,
