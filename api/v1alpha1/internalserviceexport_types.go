@@ -13,6 +13,8 @@ import (
 // InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an
 // exported Service are sync'd.
 type InternalServiceExportSpec struct {
+	// ServiceExportSpec contains the spec of the ServiceExport.
+	ServiceExportSpec *ServiceExportSpec `json:"serviceExportSpec,omitempty"`
 	// A list of ports exposed by the exported Service.
 	// +listType=atomic
 	Ports []ServicePort `json:"ports"`
