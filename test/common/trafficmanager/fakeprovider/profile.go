@@ -91,7 +91,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 					DNSConfig: &armtrafficmanager.DNSConfig{
 						Fqdn:         ptr.To(fmt.Sprintf(ProfileDNSNameFormat, profileName)),
 						RelativeName: ptr.To(profileName),
-						TTL:          ptr.To[int64](30),
+						TTL:          ptr.To(int64(60)),
 					},
 					Endpoints: []*armtrafficmanager.Endpoint{},
 					MonitorConfig: &armtrafficmanager.MonitorConfig{
