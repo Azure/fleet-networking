@@ -22,7 +22,6 @@ export AZURE_SUBSCRIPTION_ID=<YOUR-SUBSCRIPTION-ID>
 # and detailed explanations for each network setting are provided in the scripts under folder "test/scripts".
 export AZURE_NETWORK_SETTING=shared-vnet
 export ENABLE_TRAFFIC_MANAGER=true
-export USE_DEFAULT_AZURE_CLIENTS=true
 ```
 
 Run Makefile Target to setup e2e environment:

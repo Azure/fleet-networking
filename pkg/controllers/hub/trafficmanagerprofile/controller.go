@@ -171,7 +171,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
 }
 
-// EqualAzureTrafficManagerProfile compares only few fields of the buildCurrentFunc and desired Azure Traffic Manager profiles
+// EqualAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
 func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {

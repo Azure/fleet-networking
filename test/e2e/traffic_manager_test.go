@@ -26,11 +26,10 @@ var (
 	enabled = os.Getenv("ENABLE_TRAFFIC_MANAGER") == "true"
 )
 
-var _ = FDescribe("Test exporting service via Azure traffic manager", func() {
+var _ = Describe("Test exporting service via Azure traffic manager", func() {
 	var wm *framework.WorkloadManager
 	var profile fleetnetv1alpha1.TrafficManagerProfile
 	var hubClient client.Client
-	//var dnsName string
 
 	BeforeEach(func() {
 		if !enabled {

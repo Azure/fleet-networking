@@ -8,13 +8,11 @@ package e2e
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
-	"go.goms.io/fleet-networking/test/common/trafficmanager/azureprovider"
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -26,20 +24,13 @@ import (
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/test/common/trafficmanager/azureprovider"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
 const (
-	// common environments required by both ci pipeline and local development
 	azureSubscriptionEnv                = "AZURE_SUBSCRIPTION_ID"
 	azureTrafficManagerResourceGroupEnv = "AZURE_RESOURCE_GROUP"
-
-	// environments required by the ci pipeline
-	azureClientIDEnv  = "AZURE_CLIENT_ID"
-	azureTenantIDEnv  = "AZURE_TENANT_ID"
-	federatedTokenEnv = "FED_TOKEN"
-
-	useDefaultAzureClientsEnv = "USE_DEFAULT_AZURE_CLIENTS"
 )
 
 var (
@@ -87,6 +78,7 @@ var _ = BeforeSuite(func() {
 
 	testNamespace = framework.UniqueTestNamespace()
 	createTestNamespace(context.Background())
+
 	initAzureClients()
 })
 
@@ -97,29 +89,9 @@ func initAzureClients() {
 	atmResourceGroup := os.Getenv(azureTrafficManagerResourceGroupEnv)
 	Expect(atmResourceGroup).ShouldNot(BeEmpty(), "Azure traffic manager resource group is not set")
 
-	//createDefaultAzureClients := os.Getenv(useDefaultAzureClientsEnv)
-	var cred azcore.TokenCredential
-	var err error
-	//if createDefaultAzureClients == "true" {
-	cred, err = azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	Expect(err).Should(Succeed(), "Failed to obtain default Azure credential")
-	//} else {
-	//	clientID := os.Getenv(azureClientIDEnv)
-	//	Expect(clientID).ShouldNot(BeEmpty(), "Azure client ID is not set")
-	//	tenantID := os.Getenv(azureTenantIDEnv)
-	//	Expect(tenantID).ShouldNot(BeEmpty(), "Azure tenant ID is not set")
-	//
-	//	options := &azidentity.ClientAssertionCredentialOptions{}
-	//	cred, err = azidentity.NewClientAssertionCredential(
-	//		tenantID,
-	//		clientID,
-	//		func(ctx context.Context) (string, error) {
-	//			return os.Getenv(federatedTokenEnv), nil
-	//		},
-	//		options,
-	//	)
-	//	Expect(err).Should(Succeed(), "Failed to obtain Azure credential")
-	//}
+
 	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, cred, nil)
 	Expect(err).Should(Succeed(), "Failed to create client")
 	atmValidator = &azureprovider.Validator{
