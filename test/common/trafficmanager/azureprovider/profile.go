@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega"
 )
 
 var (
@@ -32,7 +32,7 @@ type Validator struct {
 // ValidateProfile validates the traffic manager profile.
 func (v *Validator) ValidateProfile(ctx context.Context, name string, want armtrafficmanager.Profile) {
 	res, err := v.ProfileClient.Get(ctx, v.ResourceGroup, name, nil)
-	Expect(err).Should(Succeed(), "Failed to get the traffic manager profile")
+	gomega.Expect(err).Should(gomega.Succeed(), "Failed to get the traffic manager profile")
 	diff := cmp.Diff(want, res.Profile, cmpProfileOptions)
-	Expect(diff).Should(BeEmpty(), "trafficManagerProfile mismatch (-want, +got) :\n%s", diff)
+	gomega.Expect(diff).Should(gomega.BeEmpty(), "trafficManagerProfile mismatch (-want, +got) :\n%s", diff)
 }
