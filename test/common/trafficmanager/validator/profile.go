@@ -3,6 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
+// Package validator provides the validation functions for the k8 traffic manager object.
 package validator
 
 import (

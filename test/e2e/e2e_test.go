@@ -8,8 +8,11 @@ package e2e
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -21,7 +24,13 @@ import (
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/test/common/trafficmanager/azureprovider"
 	"go.goms.io/fleet-networking/test/e2e/framework"
+)
+
+const (
+	azureSubscriptionEnv                = "AZURE_SUBSCRIPTION_ID"
+	azureTrafficManagerResourceGroupEnv = "AZURE_RESOURCE_GROUP"
 )
 
 var (
@@ -36,6 +45,8 @@ var (
 
 	scheme = runtime.NewScheme()
 	ctx    = context.Background()
+
+	atmValidator *azureprovider.Validator
 )
 
 func init() {
@@ -67,7 +78,27 @@ var _ = BeforeSuite(func() {
 
 	testNamespace = framework.UniqueTestNamespace()
 	createTestNamespace(context.Background())
+
+	initAzureClients()
 })
+
+func initAzureClients() {
+	subscriptionID := os.Getenv(azureSubscriptionEnv)
+	Expect(subscriptionID).ShouldNot(BeEmpty(), "Azure subscription ID is not set")
+
+	atmResourceGroup := os.Getenv(azureTrafficManagerResourceGroupEnv)
+	Expect(atmResourceGroup).ShouldNot(BeEmpty(), "Azure traffic manager resource group is not set")
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	Expect(err).Should(Succeed(), "Failed to obtain default Azure credential")
+
+	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, cred, nil)
+	Expect(err).Should(Succeed(), "Failed to create client")
+	atmValidator = &azureprovider.Validator{
+		ProfileClient: clientFactory.NewProfilesClient(),
+		ResourceGroup: atmResourceGroup,
+	}
+}
 
 func createTestNamespace(ctx context.Context) {
 	ns := corev1.Namespace{
