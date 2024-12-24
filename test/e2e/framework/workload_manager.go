@@ -220,7 +220,7 @@ func (wm *WorkloadManager) AddServiceDNSLabel(ctx context.Context, cluster *Clus
 
 // BuildServiceDNSLabelName builds the DNS label name for the service.
 func (wm *WorkloadManager) BuildServiceDNSLabelName(cluster *Cluster) string {
-	return fmt.Sprintf("%s-%s-%s", wm.namespace, wm.service.Name, cluster.name)
+	return fmt.Sprintf("%s-%s-%s", wm.namespace, wm.service.Name, cluster.Name())
 }
 
 // RemoveWorkload deletes workload(deployment and its service) from member clusters.
