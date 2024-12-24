@@ -62,32 +62,35 @@ func trafficManagerProfileForTest(name string) *fleetnetv1alpha1.TrafficManagerP
 	}
 }
 
-func buildFalseCondition() []metav1.Condition {
+func buildFalseCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
-			Status: metav1.ConditionFalse,
-			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+			Status:             metav1.ConditionFalse,
+			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+			ObservedGeneration: generation,
 		},
 	}
 }
 
-func buildUnknownCondition() []metav1.Condition {
+func buildUnknownCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
-			Status: metav1.ConditionUnknown,
-			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+			Status:             metav1.ConditionUnknown,
+			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+			ObservedGeneration: generation,
 		},
 	}
 }
 
-func buildTrueCondition() []metav1.Condition {
+func buildTrueCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
-			Status: metav1.ConditionTrue,
-			Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+			Status:             metav1.ConditionTrue,
+			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+			ObservedGeneration: generation,
 		},
 	}
 }
@@ -123,7 +126,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -167,7 +170,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -187,7 +190,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -245,7 +248,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -371,7 +374,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -398,7 +401,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -456,7 +459,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -586,7 +589,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -611,7 +614,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -637,7 +640,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
@@ -701,7 +704,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -727,7 +730,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -757,7 +760,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
@@ -797,7 +800,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildTrueCondition(),
+					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
@@ -845,7 +848,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
@@ -885,7 +888,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(),
+					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -919,7 +922,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildFalseCondition(),
+					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
@@ -942,7 +945,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
-					Conditions: buildTrueCondition(),
+					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),

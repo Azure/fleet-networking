@@ -31,11 +31,14 @@ import (
 const (
 	azureSubscriptionEnv                = "AZURE_SUBSCRIPTION_ID"
 	azureTrafficManagerResourceGroupEnv = "AZURE_RESOURCE_GROUP"
+
+	azureDNSFormat = "%s.%s.cloudapp.azure.com"
 )
 
 var (
 	hubClusterName     = "hub"
 	memberClusterNames = []string{"member-1", "member-2"}
+	clusterLocation    = "eastus2"
 
 	testNamespace string
 

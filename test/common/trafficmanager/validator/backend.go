@@ -32,9 +32,12 @@ var (
 		cmpConditionOptions,
 	}
 
-	cmpTrafficManagerStatusByIgnoringEndpointName = cmp.Options{
+	cmpTrafficManagerBackendStatusByIgnoringEndpointName = cmp.Options{
 		cmpConditionOptions,
 		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerEndpointStatus{}, "Name"), // ignore the generated endpoint name
+		cmpopts.SortSlices(func(s1, s2 fleetnetv1alpha1.TrafficManagerEndpointStatus) bool {
+			return s1.Cluster.Cluster < s2.Cluster.Cluster
+		}),
 	}
 )
 
@@ -54,47 +57,50 @@ func IsTrafficManagerBackendFinalizerAdded(ctx context.Context, k8sClient client
 
 // ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName validates the trafficManagerBackend object if it is accepted
 // while ignoring the generated endpoint name.
-func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, wantEndpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus) fleetnetv1alpha1.TrafficManagerBackendStatus {
-	var wantStatus fleetnetv1alpha1.TrafficManagerBackendStatus
-	if len(wantEndpoints) == 0 {
-		wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
-			Conditions: []metav1.Condition{
-				{
-					Status: metav1.ConditionFalse,
-					Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-					Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
-				},
-			},
-		}
-	} else {
-		wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
-			Conditions: []metav1.Condition{
-				{
-					Status: metav1.ConditionTrue,
-					Type:   string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-					Reason: string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
-				},
-			},
-			Endpoints: wantEndpoints,
-		}
-	}
-
+func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus) fleetnetv1alpha1.TrafficManagerBackendStatus {
+	var gotStatus fleetnetv1alpha1.TrafficManagerBackendStatus
 	gomega.Eventually(func() error {
 		backend := &fleetnetv1alpha1.TrafficManagerBackend{}
 		if err := k8sClient.Get(ctx, backendName, backend); err != nil {
 			return err
 		}
-
+		var wantStatus fleetnetv1alpha1.TrafficManagerBackendStatus
+		if !isAccepted {
+			wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionFalse,
+						Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+						Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+						ObservedGeneration: backend.Generation,
+					},
+				},
+				Endpoints: wantEndpoints,
+			}
+		} else {
+			wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+						Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+						ObservedGeneration: backend.Generation,
+					},
+				},
+				Endpoints: wantEndpoints,
+			}
+		}
+		gotStatus = backend.Status
 		if diff := cmp.Diff(
-			backend.Status,
+			gotStatus,
 			wantStatus,
-			cmpTrafficManagerStatusByIgnoringEndpointName,
+			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
 		); diff != "" {
 			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
-	return wantStatus
+	return gotStatus
 }
 
 // ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently validates the trafficManagerBackend status consistently
@@ -109,7 +115,7 @@ func ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx 
 		if diff := cmp.Diff(
 			backend.Status,
 			want,
-			cmpTrafficManagerStatusByIgnoringEndpointName,
+			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
 		); diff != "" {
 			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
 		}
