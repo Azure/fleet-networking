@@ -24,9 +24,8 @@ var (
 
 // Validator contains the way of accessing the Azure Traffic Manager resources.
 type Validator struct {
-	ProfileClient  *armtrafficmanager.ProfilesClient
-	EndpointClient *armtrafficmanager.EndpointsClient
-	ResourceGroup  string
+	ProfileClient *armtrafficmanager.ProfilesClient
+	ResourceGroup string
 }
 
 // ValidateProfile validates the traffic manager profile.

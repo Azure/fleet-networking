@@ -175,7 +175,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
 func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
-	// location and dnsConfig (excluding TTL) is not immutable
+	// location and dnsConfig (excluding TTL) is immutable
 	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil || current.Properties.DNSConfig == nil {
 		return false
 	}

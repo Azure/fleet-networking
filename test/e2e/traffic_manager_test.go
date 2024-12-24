@@ -49,7 +49,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", func() {
 		By("Validating the trafficManagerProfile status")
 		wantDNSName := validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name})
 
-		By("Validating the atm profile")
+		By("Validating the Azure traffic manager profile")
 		atmName := fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
 		monitorConfig := profile.Spec.MonitorConfig
 		namespacedName := types.NamespacedName{Name: profile.Name, Namespace: profile.Namespace}

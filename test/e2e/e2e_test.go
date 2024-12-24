@@ -95,9 +95,8 @@ func initAzureClients() {
 	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, cred, nil)
 	Expect(err).Should(Succeed(), "Failed to create client")
 	atmValidator = &azureprovider.Validator{
-		ProfileClient:  clientFactory.NewProfilesClient(),
-		EndpointClient: clientFactory.NewEndpointsClient(),
-		ResourceGroup:  atmResourceGroup,
+		ProfileClient: clientFactory.NewProfilesClient(),
+		ResourceGroup: atmResourceGroup,
 	}
 }
 
