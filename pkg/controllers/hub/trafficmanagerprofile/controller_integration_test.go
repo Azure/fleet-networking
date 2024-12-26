@@ -63,9 +63,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					DNSName: ptr.To(fqdn),
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionTrue,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+							Status:             metav1.ConditionTrue,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -91,9 +92,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionFalse,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+							Status:             metav1.ConditionFalse,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -148,9 +150,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					DNSName: ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionTrue,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+							Status:             metav1.ConditionTrue,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -188,9 +191,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionFalse,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonDNSNameNotAvailable),
+							Status:             metav1.ConditionFalse,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonDNSNameNotAvailable),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -228,9 +232,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionUnknown,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+							Status:             metav1.ConditionUnknown,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -268,9 +273,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionFalse,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+							Status:             metav1.ConditionFalse,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},
@@ -308,9 +314,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Status: fleetnetv1alpha1.TrafficManagerProfileStatus{
 					Conditions: []metav1.Condition{
 						{
-							Status: metav1.ConditionUnknown,
-							Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-							Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+							Status:             metav1.ConditionUnknown,
+							Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+							ObservedGeneration: profile.Generation,
 						},
 					},
 				},

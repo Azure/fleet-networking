@@ -24,6 +24,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
@@ -199,6 +200,27 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// AddServiceDNSLabel adds a DNS label to the service in member cluster.
+func (wm *WorkloadManager) AddServiceDNSLabel(ctx context.Context, cluster *Cluster) error {
+	var service corev1.Service
+	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &service); err != nil {
+		return fmt.Errorf("failed to get service %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
+	}
+	if service.Annotations == nil {
+		service.Annotations = make(map[string]string)
+	}
+	service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName] = wm.BuildServiceDNSLabelName(cluster)
+	if err := cluster.kubeClient.Update(ctx, &service); err != nil {
+		return fmt.Errorf("failed to update service %s in cluster %s: %w", service.Name, cluster.Name(), err)
+	}
+	return nil
+}
+
+// BuildServiceDNSLabelName builds the DNS label name for the service.
+func (wm *WorkloadManager) BuildServiceDNSLabelName(cluster *Cluster) string {
+	return fmt.Sprintf("%s-%s-%s", wm.namespace, wm.service.Name, cluster.Name())
 }
 
 // RemoveWorkload deletes workload(deployment and its service) from member clusters.

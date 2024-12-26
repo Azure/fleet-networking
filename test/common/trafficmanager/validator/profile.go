@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	timeout  = time.Second * 10
+	timeout  = time.Second * 60 // need more time to create azure resources
 	interval = time.Millisecond * 250
 	// duration used by consistently
 	duration = time.Second * 30
@@ -39,7 +39,7 @@ var (
 		}),
 	}
 	cmpConditionOptions = cmp.Options{
-		cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime", "ObservedGeneration"),
+		cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
 	}
 	cmpTrafficManagerProfileOptions = cmp.Options{
 		commonCmpOptions,
@@ -64,25 +64,24 @@ func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client,
 }
 
 // ValidateIfTrafficManagerProfileIsProgrammed validates the trafficManagerProfile is programmed and returns the DNSName.
-func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName) string {
+func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName) *fleetnetv1alpha1.TrafficManagerProfile {
 	wantDNSName := fmt.Sprintf("%s-%s.trafficmanager.net", profileName.Namespace, profileName.Name)
-	wantStatus := fleetnetv1alpha1.TrafficManagerProfileStatus{
-		DNSName: ptr.To(wantDNSName),
-		Conditions: []metav1.Condition{
-			{
-				Status: metav1.ConditionTrue,
-				Type:   string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-				Reason: string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
-			},
-		},
-	}
-
+	var profile fleetnetv1alpha1.TrafficManagerProfile
 	gomega.Eventually(func() error {
-		profile := &fleetnetv1alpha1.TrafficManagerProfile{}
-		if err := k8sClient.Get(ctx, profileName, profile); err != nil {
+		if err := k8sClient.Get(ctx, profileName, &profile); err != nil {
 			return err
 		}
-
+		wantStatus := fleetnetv1alpha1.TrafficManagerProfileStatus{
+			DNSName: ptr.To(wantDNSName),
+			Conditions: []metav1.Condition{
+				{
+					Status:             metav1.ConditionTrue,
+					Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+					Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+					ObservedGeneration: profile.Generation,
+				},
+			},
+		}
 		if diff := cmp.Diff(
 			profile.Status,
 			wantStatus,
@@ -92,7 +91,7 @@ func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient 
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerProfile status mismatch")
-	return wantDNSName
+	return &profile
 }
 
 // IsTrafficManagerProfileDeleted validates whether the profile is deleted or not.

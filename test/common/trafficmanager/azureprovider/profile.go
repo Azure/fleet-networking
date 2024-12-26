@@ -13,12 +13,19 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/gomega"
+
+	"go.goms.io/fleet-networking/pkg/common/azureerrors"
 )
 
 var (
 	cmpProfileOptions = cmp.Options{
 		cmpopts.IgnoreFields(armtrafficmanager.Profile{}, "ID", "Name", "Type"),
-		cmpopts.IgnoreFields(armtrafficmanager.MonitorConfig{}, "ProfileMonitorStatus"), // cannot predict the monitor status
+		cmpopts.IgnoreFields(armtrafficmanager.MonitorConfig{}, "ProfileMonitorStatus"),                                                           // cannot predict the monitor status
+		cmpopts.IgnoreFields(armtrafficmanager.Endpoint{}, "ID"),                                                                                  // ignore the resource ID for now
+		cmpopts.IgnoreFields(armtrafficmanager.EndpointProperties{}, "TargetResourceID", "EndpointLocation", "EndpointMonitorStatus", "Priority"), // cannot predict the status
+		cmpopts.SortSlices(func(e1, e2 armtrafficmanager.Endpoint) bool {
+			return *e1.Name < *e2.Name
+		}),
 	}
 )
 
@@ -34,4 +41,10 @@ func (v *Validator) ValidateProfile(ctx context.Context, name string, want armtr
 	gomega.Expect(err).Should(gomega.Succeed(), "Failed to get the traffic manager profile")
 	diff := cmp.Diff(want, res.Profile, cmpProfileOptions)
 	gomega.Expect(diff).Should(gomega.BeEmpty(), "trafficManagerProfile mismatch (-want, +got) :\n%s", diff)
+}
+
+// IsProfileDeleted validates the traffic manager profile is deleted.
+func (v *Validator) IsProfileDeleted(ctx context.Context, name string) {
+	_, err := v.ProfileClient.Get(ctx, v.ResourceGroup, name, nil)
+	gomega.Expect(azureerrors.IsNotFound(err)).Should(gomega.BeTrue(), "trafficManagerProfile %s still exists or hit error %v", name, err)
 }
