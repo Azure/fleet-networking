@@ -223,6 +223,29 @@ func (wm *WorkloadManager) BuildServiceDNSLabelName(cluster *Cluster) string {
 	return fmt.Sprintf("%s-%s-%s", wm.namespace, wm.service.Name, cluster.Name())
 }
 
+// UpdateServiceType updates the service type in the member cluster.
+func (wm *WorkloadManager) UpdateServiceType(ctx context.Context, cluster *Cluster, serviceType corev1.ServiceType, isInternalLoadBalancer bool) error {
+	var service corev1.Service
+	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &service); err != nil {
+		return fmt.Errorf("failed to get service %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
+	}
+	service.Spec.Type = serviceType
+	if serviceType == corev1.ServiceTypeLoadBalancer {
+		if isInternalLoadBalancer {
+			if service.Annotations == nil {
+				service.Annotations = make(map[string]string)
+			}
+			service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] = "true"
+		} else {
+			delete(service.Annotations, objectmeta.ServiceAnnotationAzureLoadBalancerInternal)
+		}
+	}
+	if err := cluster.kubeClient.Update(ctx, &service); err != nil {
+		return fmt.Errorf("failed to update service %s in cluster %s: %w", service.Name, cluster.Name(), err)
+	}
+	return nil
+}
+
 // RemoveWorkload deletes workload(deployment and its service) from member clusters.
 func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 	for _, m := range wm.Fleet.MemberClusters() {

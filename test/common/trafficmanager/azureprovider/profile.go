@@ -23,7 +23,7 @@ var (
 		cmpopts.IgnoreFields(armtrafficmanager.MonitorConfig{}, "ProfileMonitorStatus"),                                                           // cannot predict the monitor status
 		cmpopts.IgnoreFields(armtrafficmanager.Endpoint{}, "ID"),                                                                                  // ignore the resource ID for now
 		cmpopts.IgnoreFields(armtrafficmanager.EndpointProperties{}, "TargetResourceID", "EndpointLocation", "EndpointMonitorStatus", "Priority"), // cannot predict the status
-		cmpopts.SortSlices(func(e1, e2 armtrafficmanager.Endpoint) bool {
+		cmpopts.SortSlices(func(e1, e2 *armtrafficmanager.Endpoint) bool {
 			return *e1.Name < *e2.Name
 		}),
 	}
@@ -31,16 +31,18 @@ var (
 
 // Validator contains the way of accessing the Azure Traffic Manager resources.
 type Validator struct {
-	ProfileClient *armtrafficmanager.ProfilesClient
-	ResourceGroup string
+	ProfileClient  *armtrafficmanager.ProfilesClient
+	EndpointClient *armtrafficmanager.EndpointsClient
+	ResourceGroup  string
 }
 
-// ValidateProfile validates the traffic manager profile.
-func (v *Validator) ValidateProfile(ctx context.Context, name string, want armtrafficmanager.Profile) {
+// ValidateProfile validates the traffic manager profile and returns the actual Azure traffic manager profile.
+func (v *Validator) ValidateProfile(ctx context.Context, name string, want armtrafficmanager.Profile) *armtrafficmanager.Profile {
 	res, err := v.ProfileClient.Get(ctx, v.ResourceGroup, name, nil)
 	gomega.Expect(err).Should(gomega.Succeed(), "Failed to get the traffic manager profile")
 	diff := cmp.Diff(want, res.Profile, cmpProfileOptions)
 	gomega.Expect(diff).Should(gomega.BeEmpty(), "trafficManagerProfile mismatch (-want, +got) :\n%s", diff)
+	return &res.Profile
 }
 
 // IsProfileDeleted validates the traffic manager profile is deleted.
