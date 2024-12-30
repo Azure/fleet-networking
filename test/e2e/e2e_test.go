@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
@@ -50,6 +51,7 @@ var (
 	ctx    = context.Background()
 
 	atmValidator *azureprovider.Validator
+	pipClient    publicipaddressclient.Interface
 )
 
 func init() {
@@ -95,12 +97,15 @@ func initAzureClients() {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	Expect(err).Should(Succeed(), "Failed to obtain default Azure credential")
 
-	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, cred, nil)
-	Expect(err).Should(Succeed(), "Failed to create client")
+	atmClientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, cred, nil)
+	Expect(err).Should(Succeed(), "Failed to create Azure traffic manager clients")
 	atmValidator = &azureprovider.Validator{
-		ProfileClient: clientFactory.NewProfilesClient(),
-		ResourceGroup: atmResourceGroup,
+		ProfileClient:  atmClientFactory.NewProfilesClient(),
+		EndpointClient: atmClientFactory.NewEndpointsClient(),
+		ResourceGroup:  atmResourceGroup,
 	}
+	pipClient, err = publicipaddressclient.New(subscriptionID, cred, nil)
+	Expect(err).Should(Succeed(), "Failed to create Azure public ip address client")
 }
 
 func createTestNamespace(ctx context.Context) {
