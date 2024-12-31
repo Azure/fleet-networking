@@ -764,8 +764,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							Cluster: &fleetnetv1alpha1.ClusterStatus{
-								Cluster: memberClusterNames[0],
+							From: &fleetnetv1alpha1.FromCluster{
+								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -804,16 +806,20 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							Cluster: &fleetnetv1alpha1.ClusterStatus{
-								Cluster: memberClusterNames[0],
+							From: &fleetnetv1alpha1.FromCluster{
+								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
-							Cluster: &fleetnetv1alpha1.ClusterStatus{
-								Cluster: memberClusterNames[3],
+							From: &fleetnetv1alpha1.FromCluster{
+								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+									Cluster: memberClusterNames[3],
+								},
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -852,8 +858,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							Cluster: &fleetnetv1alpha1.ClusterStatus{
-								Cluster: memberClusterNames[0],
+							From: &fleetnetv1alpha1.FromCluster{
+								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -949,8 +957,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							Cluster: &fleetnetv1alpha1.ClusterStatus{
-								Cluster: memberClusterNames[0],
+							From: &fleetnetv1alpha1.FromCluster{
+								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),

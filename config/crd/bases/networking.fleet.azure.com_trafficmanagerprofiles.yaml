@@ -182,6 +182,11 @@ spec:
                   domain name (FQDN) of the profile.
                   For example, "<TrafficManagerProfileNamespace>-<TrafficManagerProfileName>.trafficmanager.net"
                 type: string
+              resourceID:
+                description: |-
+                  ResourceID is the fully qualified Azure resource Id for the resource.
+                  Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{resourceName}
+                type: string
             type: object
         required:
         - spec

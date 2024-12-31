@@ -43,13 +43,20 @@ type TrafficManagerBackendSpec struct {
 	Backend TrafficManagerBackendRef `json:"backend"`
 
 	// The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method.
-	// Possible values are from 1 to 1000.
-	// By default, the routing method is 'Weighted', so that it is required for now.
+	// Possible values are from 0 to 1000.
+	// By default, the routing method is 'Weighted'.
+	// If weight is set to 0, all the endpoints behind the serviceImport will be removed from the profile.
+	// The actual weight of each endpoint is the ceiling value of a number computed as weight/(sum of all weights behind the serviceImport)
+	// * weight of serviceExport.
+	// For example, if the weight is 500 and there are two serviceExports from cluster-1 (weight: 100) and cluster-2 (weight: 200)
+	// behind serviceImport.
+	// As a result, two endpoints will be created.
+	// The weight of endpoint from cluster-1 is 100/(100+200)*500 = 167, and the weight of cluster-2 is 200/(100+200)*500 = 334.
+	// There may be slight deviations from the exact proportions defined in the serviceExports due to ceiling calculations.
 	// +optional
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=1000
-	// For example, if there are two clusters exporting the service via public ip, each public ip will be configured
-	// as "Weight"/2.
+	// +kubebuilder:default=1
 	Weight *int64 `json:"weight,omitempty"`
 }
 
@@ -75,8 +82,12 @@ type TrafficManagerEndpointStatus struct {
 	// +required
 	Name string `json:"name"`
 
+	// ResourceID is the fully qualified Azure resource Id for the resource.
+	// Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}/azureEndpoints/{name}
+	ResourceID string `json:"resourceID,omitempty"`
+
 	// The weight of this endpoint when using the 'Weighted' traffic routing method.
-	// Possible values are from 1 to 1000.
+	// Possible values are from 0 to 1000.
 	// +optional
 	Weight *int64 `json:"weight,omitempty"`
 
@@ -84,9 +95,20 @@ type TrafficManagerEndpointStatus struct {
 	// +optional
 	Target *string `json:"target,omitempty"`
 
-	// Cluster is where the endpoint is exported from.
+	// From is where the endpoint is exported from.
 	// +optional
-	Cluster *ClusterStatus `json:"cluster,omitempty"`
+	From *FromCluster `json:"from,omitempty"`
+}
+
+// FromCluster contains service configuration mapped to a specific source cluster.
+type FromCluster struct {
+	// ClusterStatus describes the source cluster status.
+	ClusterStatus `json:",inline"`
+
+	// Weight defines the weight configured in the serviceExport from the source cluster.
+	// Possible values are from 0 to 1000.
+	// +optional
+	Weight *int64 `json:"weight,omitempty"`
 }
 
 type TrafficManagerBackendStatus struct {
