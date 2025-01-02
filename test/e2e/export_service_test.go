@@ -6,7 +6,6 @@ Licensed under the MIT license.
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,14 +34,10 @@ const (
 
 var _ = Describe("Test exporting service", func() {
 	var (
-		ctx context.Context
-
 		wm *framework.WorkloadManager
 	)
 
 	BeforeEach(func() {
-		ctx = context.Background()
-
 		wm = framework.NewWorkloadManager(fleet)
 
 		By("Deploying workload")

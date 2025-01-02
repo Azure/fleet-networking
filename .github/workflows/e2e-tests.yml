@@ -107,6 +107,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
           AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          ENABLE_TRAFFIC_MANAGER: ${{ matrix.enable-traffic-manager }}
       - name: Cleanup e2e
         if: always()
         run: |

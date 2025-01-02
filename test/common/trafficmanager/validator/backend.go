@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -25,6 +26,15 @@ var (
 	cmpTrafficManagerBackendOptions = cmp.Options{
 		commonCmpOptions,
 		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerBackend{}, "TypeMeta"),
+		cmpopts.SortSlices(func(s1, s2 fleetnetv1alpha1.TrafficManagerEndpointStatus) bool {
+			return s1.From.Cluster < s2.From.Cluster
+		}),
+		cmpConditionOptions,
+	}
+
+	cmpTrafficManagerBackendStatusByIgnoringEndpointName = cmp.Options{
+		cmpConditionOptions,
+		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerEndpointStatus{}, "Name"), // ignore the generated endpoint name
 		cmpopts.SortSlices(func(s1, s2 fleetnetv1alpha1.TrafficManagerEndpointStatus) bool {
 			return s1.Cluster.Cluster < s2.Cluster.Cluster
 		}),
@@ -43,6 +53,74 @@ func IsTrafficManagerBackendFinalizerAdded(ctx context.Context, k8sClient client
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Failed to add finalizer to trafficManagerBackend %s", name)
+}
+
+// ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName validates the trafficManagerBackend object if it is accepted
+// while ignoring the generated endpoint name.
+func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus) fleetnetv1alpha1.TrafficManagerBackendStatus {
+	var gotStatus fleetnetv1alpha1.TrafficManagerBackendStatus
+	gomega.Eventually(func() error {
+		backend := &fleetnetv1alpha1.TrafficManagerBackend{}
+		if err := k8sClient.Get(ctx, backendName, backend); err != nil {
+			return err
+		}
+		var wantStatus fleetnetv1alpha1.TrafficManagerBackendStatus
+		if !isAccepted {
+			wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionFalse,
+						Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+						Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+						ObservedGeneration: backend.Generation,
+					},
+				},
+				Endpoints: wantEndpoints,
+			}
+		} else {
+			wantStatus = fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
+						Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+						ObservedGeneration: backend.Generation,
+					},
+				},
+				Endpoints: wantEndpoints,
+			}
+		}
+		gotStatus = backend.Status
+		if diff := cmp.Diff(
+			gotStatus,
+			wantStatus,
+			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
+		); diff != "" {
+			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
+		}
+		return nil
+	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
+	return gotStatus
+}
+
+// ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently validates the trafficManagerBackend status consistently
+// while ignoring the generated endpoint name.
+func ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, want fleetnetv1alpha1.TrafficManagerBackendStatus) {
+	key := types.NamespacedName{Name: backendName.Name, Namespace: backendName.Namespace}
+	backend := &fleetnetv1alpha1.TrafficManagerBackend{}
+	gomega.Consistently(func() error {
+		if err := k8sClient.Get(ctx, key, backend); err != nil {
+			return err
+		}
+		if diff := cmp.Diff(
+			backend.Status,
+			want,
+			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
+		); diff != "" {
+			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
+		}
+		return nil
+	}, duration, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
 }
 
 // ValidateTrafficManagerBackend validates the trafficManagerBackend object.

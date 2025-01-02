@@ -21,8 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
@@ -113,7 +115,7 @@ func (wm *WorkloadManager) ServiceExport() fleetnetv1alpha1.ServiceExport {
 	}
 }
 
-// ServiceExport returns the MultiClusterService definition from pre-defined service name and namespace.
+// MultiClusterService returns the MultiClusterService definition from pre-defined service name and namespace.
 func (wm *WorkloadManager) MultiClusterService() fleetnetv1alpha1.MultiClusterService {
 	return fleetnetv1alpha1.MultiClusterService{
 		ObjectMeta: metav1.ObjectMeta{
@@ -124,6 +126,45 @@ func (wm *WorkloadManager) MultiClusterService() fleetnetv1alpha1.MultiClusterSe
 			ServiceImport: fleetnetv1alpha1.ServiceImportRef{
 				Name: wm.service.Name,
 			},
+		},
+	}
+}
+
+// TrafficManagerProfile returns the TrafficManagerProfile definition from pre-defined service name and namespace.
+func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1alpha1.TrafficManagerProfile {
+	return fleetnetv1alpha1.TrafficManagerProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: wm.namespace,
+			Name:      wm.service.Name, // use the service name as the profile name
+		},
+		Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
+			MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+				Port:                      ptr.To(int64(80)),
+				Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+				Path:                      ptr.To("/path"),
+				IntervalInSeconds:         ptr.To(int64(10)),
+				ToleratedNumberOfFailures: ptr.To(int64(3)),
+				TimeoutInSeconds:          ptr.To(int64(8)),
+			},
+		},
+	}
+}
+
+// TrafficManagerBackend returns the TrafficManagerBackend definition from pre-defined service name and namespace.
+func (wm *WorkloadManager) TrafficManagerBackend() fleetnetv1alpha1.TrafficManagerBackend {
+	return fleetnetv1alpha1.TrafficManagerBackend{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: wm.namespace,
+			Name:      wm.service.Name, // use the service name as the endpoint name
+		},
+		Spec: fleetnetv1alpha1.TrafficManagerBackendSpec{
+			Profile: fleetnetv1alpha1.TrafficManagerProfileRef{
+				Name: wm.service.Name,
+			},
+			Backend: fleetnetv1alpha1.TrafficManagerBackendRef{
+				Name: wm.service.Name,
+			},
+			Weight: ptr.To(int64(100)),
 		},
 	}
 }
@@ -161,7 +202,28 @@ func (wm *WorkloadManager) DeployWorkload(ctx context.Context) error {
 	return nil
 }
 
-// DeployWorkload deletes workload(deployment and its service) from member clusters.
+// AddServiceDNSLabel adds a DNS label to the service in member cluster.
+func (wm *WorkloadManager) AddServiceDNSLabel(ctx context.Context, cluster *Cluster) error {
+	var service corev1.Service
+	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &service); err != nil {
+		return fmt.Errorf("failed to get service %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
+	}
+	if service.Annotations == nil {
+		service.Annotations = make(map[string]string)
+	}
+	service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName] = wm.BuildServiceDNSLabelName(cluster)
+	if err := cluster.kubeClient.Update(ctx, &service); err != nil {
+		return fmt.Errorf("failed to update service %s in cluster %s: %w", service.Name, cluster.Name(), err)
+	}
+	return nil
+}
+
+// BuildServiceDNSLabelName builds the DNS label name for the service.
+func (wm *WorkloadManager) BuildServiceDNSLabelName(cluster *Cluster) string {
+	return fmt.Sprintf("%s-%s-%s", wm.namespace, wm.service.Name, cluster.Name())
+}
+
+// RemoveWorkload deletes workload(deployment and its service) from member clusters.
 func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		deploymentDef := wm.Deployment(m.Name())
