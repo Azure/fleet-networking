@@ -133,8 +133,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
@@ -151,8 +151,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
@@ -169,8 +169,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
@@ -187,8 +187,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
@@ -205,8 +205,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
+			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
 		})
 	})
 
@@ -286,8 +286,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
+			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
@@ -299,8 +299,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
+			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
@@ -312,8 +312,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
+			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
@@ -325,8 +325,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
+			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
@@ -338,8 +338,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
+			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
 		})
 	})
 
@@ -419,8 +419,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
@@ -432,8 +432,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
@@ -445,8 +445,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
@@ -458,8 +458,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
@@ -471,8 +471,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
+			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
 		})
 	})
 
@@ -582,8 +582,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
@@ -601,8 +601,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
@@ -620,8 +620,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
@@ -639,8 +639,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
@@ -658,8 +658,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 	})
 
@@ -779,8 +779,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
 		})
 
 		It("should allow creating API with valid name starting with alphabet character", func() {
@@ -800,8 +800,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
@@ -821,8 +821,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
@@ -842,8 +842,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
@@ -863,8 +863,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					},
 				},
 			}
-			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed())
-			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed())
+			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
 		})
 	})
 })
