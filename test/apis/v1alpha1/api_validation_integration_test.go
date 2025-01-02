@@ -19,8 +19,14 @@ import (
 )
 
 var (
+	nameContainsUnderscore       = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+	nameEndingWithNonAlphanum    = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 	nameStartingWithNonAlphanum  = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+	nameValid                    = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+	nameValidEndingWithAphabet   = "123456789-abc"
+	nameValidEndingWithNumber    = "123456789-123"
 	nameValidStartingWithAphabet = "abc-123456789"
+	nameValidStartingWithNumber  = "123-123456789"
 	nameWithInvalidSize          = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 )
 
@@ -70,7 +76,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
@@ -92,7 +97,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
@@ -116,7 +120,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test MultiClusterService creation API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
@@ -153,12 +156,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var nameValid = "123-123456789"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -172,12 +174,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var nameValid = "123456789-abc"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -191,12 +192,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var nameValid = "123456789-123"
 
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.MultiClusterServiceSpec{
@@ -244,7 +244,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var nameEndingWithNonAlphanum = "abcdef-abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
@@ -261,7 +260,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
@@ -280,7 +278,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceExport API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
@@ -307,12 +304,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var nameValid = "123-123456789"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
 			}
@@ -321,12 +317,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var nameValid = "123456789-abc"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
 			}
@@ -335,12 +330,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var nameValid = "123456789-123"
 
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
 			}
@@ -383,7 +377,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
@@ -400,7 +393,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
@@ -419,7 +411,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test ServiceImport API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
@@ -446,12 +437,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var nameValid = "123-123456789"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
 			}
@@ -460,12 +450,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var nameValid = "123456789-abc"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
 			}
@@ -474,12 +463,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var nameValid = "123456789-123"
 
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
 			}
@@ -534,7 +522,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
@@ -557,7 +544,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
@@ -582,7 +568,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerProfile API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
@@ -621,12 +606,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var nameValid = "123-123456789"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -641,12 +625,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var nameValid = "123456789-abc"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -661,12 +644,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var nameValid = "123456789-123"
 
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerProfileSpec{
@@ -731,7 +713,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
-			var nameEndingWithNonAlphanum = "abcdef-123456789-123456789-123456789-123456789-123456789-"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
@@ -756,7 +737,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
-			var nameContainsUnderscore = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
@@ -783,7 +763,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 
 	Context("Test TrafficManagerBackend API validation - valid cases", func() {
 		It("should allow creating API with valid name size", func() {
-			var nameValid = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
@@ -826,12 +805,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name starting with numeric character", func() {
-			var nameValid = "123-123456789"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -848,12 +826,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with alphabet character", func() {
-			var nameValid = "123456789-abc"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
@@ -870,12 +847,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		})
 
 		It("should allow creating API with valid name ending with numeric character", func() {
-			var nameValid = "123456789-123"
 
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
+					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
 				Spec: v1alpha1.TrafficManagerBackendSpec{
