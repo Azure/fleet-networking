@@ -102,10 +102,6 @@ type TrafficManagerProfileStatus struct {
 	// +optional
 	DNSName *string `json:"dnsName,omitempty"`
 
-	// ResourceID is the fully qualified Azure resource Id for the resource.
-	// Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{resourceName}
-	ResourceID string `json:"resourceID,omitempty"`
-
 	// Current profile status.
 	// +optional
 	// +patchMergeKey=type

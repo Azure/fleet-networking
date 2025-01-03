@@ -9,27 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	// ExportedAnnotationsWeight is the key for the weight annotation as an exportedAnnotation on a ServiceExport.
-	ExportedAnnotationsWeight = "weight"
-)
-
-// ServiceExportSpec describes an exported service extra information.
-type ServiceExportSpec struct {
-	// exportedLabels describes the labels exported.
-	// +optional
-	ExportedLabels map[string]string `json:"exportedLabels,omitempty"`
-	// exportedAnnotations describes the annotations exported.
-	// Possible Annotations: "weight".
-	// "weight" specifies the proportion of requests forwarded to the cluster within a serviceImport.
-	// This is computed as weight/(sum of all weights in the serviceImport).
-	// If weight is set to 0, no traffic should be forwarded for this entry. If unspecified, weight defaults to 1.
-	// The value should be in the range [0, 1000].
-	//
-	// +optional
-	ExportedAnnotations map[string]string `json:"exportedAnnotations,omitempty"`
-}
-
 // ServiceExportConditionType identifies a specific condition on a ServiceExport.
 type ServiceExportConditionType string
 
@@ -66,9 +45,6 @@ type ServiceExport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// spec defines the behavior of a ServiceExport.
-	// +optional
-	Spec ServiceExportSpec `json:"spec,omitempty"`
 	// +optional
 	Status ServiceExportStatus `json:"status,omitempty"`
 }

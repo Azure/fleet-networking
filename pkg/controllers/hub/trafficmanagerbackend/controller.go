@@ -513,14 +513,12 @@ func generateAzureTrafficManagerEndpoint(backend *fleetnetv1alpha1.TrafficManage
 	}
 }
 
-func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster fleetnetv1alpha1.ClusterStatus) fleetnetv1alpha1.TrafficManagerEndpointStatus {
+func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster *fleetnetv1alpha1.ClusterStatus) fleetnetv1alpha1.TrafficManagerEndpointStatus {
 	return fleetnetv1alpha1.TrafficManagerEndpointStatus{
-		Name:   strings.ToLower(*endpoint.Name), // name is case-insensitive
-		Target: endpoint.Properties.Target,
-		Weight: endpoint.Properties.Weight,
-		From: &fleetnetv1alpha1.FromCluster{
-			ClusterStatus: cluster,
-		},
+		Name:    strings.ToLower(*endpoint.Name), // name is case-insensitive
+		Target:  endpoint.Properties.Target,
+		Weight:  endpoint.Properties.Weight,
+		Cluster: cluster,
 	}
 }
 
@@ -577,7 +575,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 		if equalAzureTrafficManagerEndpoint(*endpoint, desired.Endpoint) {
 			klog.V(2).InfoS("Skipping updating the existing Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 			delete(desiredEndpoints, endpointName) // no need to update the existing endpoint
-			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, desired.Cluster))
+			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, &desired.Cluster))
 			continue
 		} // no need to update the endpoint if it's the same
 	}
@@ -606,7 +604,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 			return nil, nil, updateErr
 		}
 		klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
-		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, endpoint.Cluster))
+		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, &endpoint.Cluster))
 	}
 	klog.V(2).InfoS("Successfully updated the Traffic Manager endpoints", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "numberOfAcceptedEndpoints", len(acceptedEndpoints), "numberOfBadEndpoints", len(badEndpointsError))
 	return acceptedEndpoints, badEndpointsError, nil
