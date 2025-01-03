@@ -20,15 +20,15 @@ import (
 )
 
 var (
-	nameContainsUnderscore       = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
-	nameEndingWithNonAlphanum    = "abcdef-123456789-123456789-123456789-123456789-123456789-"
-	nameStartingWithNonAlphanum  = "-abcdef-123456789-123456789-123456789-123456789-123456789"
-	nameValid                    = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
-	nameValidEndingWithAphabet   = "123456789-abc"
-	nameValidEndingWithNumber    = "123456789-123"
-	nameValidStartingWithAphabet = "abc-123456789"
-	nameValidStartingWithNumber  = "123-123456789"
-	nameWithInvalidSize          = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+	nameContainsUnderscore        = "a_bcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
+	nameEndingWithNonAlphanum     = "abcdef-123456789-123456789-123456789-123456789-123456789-"
+	nameStartingWithNonAlphanum   = "-abcdef-123456789-123456789-123456789-123456789-123456789"
+	nameValid                     = "abc-123456789-123456789-123456789-123456789-123456789-123456789"
+	nameValidEndingWithAlphabet   = "123456789-abc"
+	nameValidEndingWithNumber     = "123456789-123"
+	nameValidStartingWithAlphabet = "abc-123456789"
+	nameValidStartingWithNumber   = "123-123456789"
+	nameWithInvalidSize           = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 )
 
 var _ = Describe("Test networking v1alpha1 API validation", func() {
@@ -52,16 +52,49 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			Name: "traffic-manager-backend-ref-name",
 		},
 	}
+	var objectMetaWithNameSizeInvalid = metav1.ObjectMeta{
+		Name:      nameWithInvalidSize,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithNameStartingNonAlphanum = metav1.ObjectMeta{
+		Name:      nameStartingWithNonAlphanum,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithNameEndingNonAlphanum = metav1.ObjectMeta{
+		Name:      nameEndingWithNonAlphanum,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithNameContainingUnderscore = metav1.ObjectMeta{
+		Name:      nameContainsUnderscore,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithNameValid = metav1.ObjectMeta{
+		Name:      nameValid,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithValidNameStartingAlphabet = metav1.ObjectMeta{
+		Name:      nameValidStartingWithAlphabet,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithValidNameStartingNumber = metav1.ObjectMeta{
+		Name:      nameValidStartingWithNumber,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithValidNameEndingAlphabet = metav1.ObjectMeta{
+		Name:      nameValidEndingWithAlphabet,
+		Namespace: testNamespace,
+	}
+	var objectMetaWithValidNameEndingNumber = metav1.ObjectMeta{
+		Name:      nameValidEndingWithNumber,
+		Namespace: testNamespace,
+	}
 
 	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameWithInvalidSize,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithNameSizeInvalid,
+				Spec:       multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, multiClusterServiceName)
@@ -72,11 +105,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameStartingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithNameStartingNonAlphanum,
+				Spec:       multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -87,11 +117,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameEndingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithNameEndingNonAlphanum,
+				Spec:       multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -102,11 +129,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameContainsUnderscore,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithNameContainingUnderscore,
+				Spec:       multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -119,11 +143,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name size", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithNameValid,
+				Spec:       multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -132,11 +153,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithValidNameStartingAlphabet,
+				Spec:       multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -145,11 +163,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with numeric character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithValidNameStartingNumber,
+				Spec:       multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -158,11 +173,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithValidNameEndingAlphabet,
+				Spec:       multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -171,11 +183,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with numeric character", func() {
 			// Create the API.
 			multiClusterServiceName := &v1alpha1.MultiClusterService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: multiClusterServiceSpec,
+				ObjectMeta: objectMetaWithValidNameEndingNumber,
+				Spec:       multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -186,10 +195,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name size", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameWithInvalidSize,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameSizeInvalid,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceExportName)
@@ -200,10 +206,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameStartingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameStartingNonAlphanum,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
@@ -214,10 +217,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameEndingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameEndingNonAlphanum,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
@@ -228,10 +228,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameContainsUnderscore,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameContainingUnderscore,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceExportName)
@@ -244,10 +241,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name size", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameValid,
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
@@ -256,10 +250,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithAphabet,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameStartingAlphabet,
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
@@ -268,10 +259,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with numeric character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithNumber,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameStartingNumber,
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
@@ -280,10 +268,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithAphabet,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameEndingAlphabet,
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
@@ -292,10 +277,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with numeric character", func() {
 			// Create the API.
 			serviceExportName := &v1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithNumber,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameEndingNumber,
 			}
 			Expect(hubClient.Create(ctx, serviceExportName)).Should(Succeed(), "failed to create serviceExport")
 			Expect(hubClient.Delete(ctx, serviceExportName)).Should(Succeed(), "failed to delete serviceExport")
@@ -306,10 +288,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name size", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameWithInvalidSize,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameSizeInvalid,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceImportName)
@@ -320,10 +299,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameStartingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameStartingNonAlphanum,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
@@ -334,10 +310,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameEndingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameEndingNonAlphanum,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
@@ -348,10 +321,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameContainsUnderscore,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameContainingUnderscore,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceImportName)
@@ -364,10 +334,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name size", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithNameValid,
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
@@ -376,10 +343,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithAphabet,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameStartingAlphabet,
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
@@ -388,10 +352,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with numeric character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithNumber,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameStartingNumber,
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
@@ -400,10 +361,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithAphabet,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameEndingAlphabet,
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
@@ -412,10 +370,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with numeric character", func() {
 			// Create the API.
 			serviceImportName := &v1alpha1.ServiceImport{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithNumber,
-					Namespace: testNamespace,
-				},
+				ObjectMeta: objectMetaWithValidNameEndingNumber,
 			}
 			Expect(hubClient.Create(ctx, serviceImportName)).Should(Succeed(), "failed to create serviceImport")
 			Expect(hubClient.Delete(ctx, serviceImportName)).Should(Succeed(), "failed to delete serviceImport")
@@ -426,11 +381,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name size", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameWithInvalidSize,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithNameSizeInvalid,
+				Spec:       trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -441,11 +393,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameStartingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithNameStartingNonAlphanum,
+				Spec:       trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -456,11 +405,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameEndingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithNameEndingNonAlphanum,
+				Spec:       trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -471,11 +417,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameContainsUnderscore,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithNameContainingUnderscore,
+				Spec:       trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -488,11 +431,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name size", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithNameValid,
+				Spec:       trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -501,11 +441,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithValidNameStartingAlphabet,
+				Spec:       trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -514,11 +451,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with numeric character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithValidNameStartingNumber,
+				Spec:       trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -527,11 +461,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithValidNameEndingAlphabet,
+				Spec:       trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -540,11 +471,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with numeric character", func() {
 			// Create the API.
 			trafficManagerProfileName := &v1alpha1.TrafficManagerProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerProfileSpec,
+				ObjectMeta: objectMetaWithValidNameEndingNumber,
+				Spec:       trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -555,11 +483,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name size", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameWithInvalidSize,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithNameSizeInvalid,
+				Spec:       trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -570,11 +495,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name starting with non-alphanumeric character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameStartingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithNameStartingNonAlphanum,
+				Spec:       trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -585,11 +507,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name ending with non-alphanumeric character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameEndingWithNonAlphanum,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithNameEndingNonAlphanum,
+				Spec:       trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -600,11 +519,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should deny creating API with invalid name containing character that is not alphanumeric and not -", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameContainsUnderscore,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithNameContainingUnderscore,
+				Spec:       trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -617,11 +533,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name size", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValid,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithNameValid,
+				Spec:       trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -630,11 +543,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with alphabet character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithValidNameStartingAlphabet,
+				Spec:       trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -643,11 +553,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name starting with numeric character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidStartingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithValidNameStartingNumber,
+				Spec:       trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -656,11 +563,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with alphabet character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithAphabet,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithValidNameEndingAlphabet,
+				Spec:       trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -669,11 +573,8 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 		It("should allow creating API with valid name ending with numeric character", func() {
 			// Create the API.
 			trafficManagerBackendName := &v1alpha1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nameValidEndingWithNumber,
-					Namespace: testNamespace,
-				},
-				Spec: trafficManagerBackendSpec,
+				ObjectMeta: objectMetaWithValidNameEndingNumber,
+				Spec:       trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
