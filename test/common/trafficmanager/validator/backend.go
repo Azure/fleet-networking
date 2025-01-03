@@ -36,7 +36,7 @@ var (
 		cmpConditionOptions,
 		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerEndpointStatus{}, "Name"), // ignore the generated endpoint name
 		cmpopts.SortSlices(func(s1, s2 fleetnetv1alpha1.TrafficManagerEndpointStatus) bool {
-			return s1.Name < s2.Name
+			return s1.Cluster.Cluster < s2.Cluster.Cluster
 		}),
 	}
 )
