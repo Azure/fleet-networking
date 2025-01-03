@@ -8,12 +8,13 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"reflect"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"reflect"
 
 	v1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 )
