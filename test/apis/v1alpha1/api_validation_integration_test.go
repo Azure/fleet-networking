@@ -33,6 +33,25 @@ var (
 
 var _ = Describe("Test networking v1alpha1 API validation", func() {
 	var statusErr *k8serrors.StatusError
+	var multiClusterServiceSpec = v1alpha1.MultiClusterServiceSpec{
+		ServiceImport: v1alpha1.ServiceImportRef{
+			Name: "service-import-1",
+		},
+	}
+	var trafficManagerProfileSpec = v1alpha1.TrafficManagerProfileSpec{
+		MonitorConfig: &v1alpha1.MonitorConfig{
+			IntervalInSeconds: ptr.To(int64(30)),
+			TimeoutInSeconds:  ptr.To(int64(7)),
+		},
+	}
+	var trafficManagerBackendSpec = v1alpha1.TrafficManagerBackendSpec{
+		Profile: v1alpha1.TrafficManagerProfileRef{
+			Name: "traffic-manager-profile-ref-name",
+		},
+		Backend: v1alpha1.TrafficManagerBackendRef{
+			Name: "traffic-manager-backend-ref-name",
+		},
+	}
 
 	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
@@ -42,11 +61,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-1",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, multiClusterServiceName)
@@ -61,11 +76,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -80,11 +91,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -99,11 +106,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			err := hubClient.Create(ctx, multiClusterServiceName)
@@ -120,11 +123,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValid,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -137,11 +136,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -154,11 +149,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -171,11 +162,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -188,11 +175,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.MultiClusterServiceSpec{
-					ServiceImport: v1alpha1.ServiceImportRef{
-						Name: "service-import-name",
-					},
-				},
+				Spec: multiClusterServiceSpec,
 			}
 			Expect(hubClient.Create(ctx, multiClusterServiceName)).Should(Succeed(), "failed to create multiClusterService")
 			Expect(hubClient.Delete(ctx, multiClusterServiceName)).Should(Succeed(), "failed to delete multiClusterService")
@@ -447,12 +430,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -467,12 +445,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -487,12 +460,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -507,12 +475,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
@@ -529,12 +492,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValid,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -547,12 +505,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -565,12 +518,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -583,12 +531,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -601,12 +544,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerProfileSpec{
-					MonitorConfig: &v1alpha1.MonitorConfig{
-						IntervalInSeconds: ptr.To(int64(30)),
-						TimeoutInSeconds:  ptr.To(int64(7)),
-					},
-				},
+				Spec: trafficManagerProfileSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
@@ -621,14 +559,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameWithInvalidSize,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -643,14 +574,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameStartingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -665,14 +589,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameEndingWithNonAlphanum,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -687,14 +604,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameContainsUnderscore,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
@@ -711,14 +621,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValid,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -731,14 +634,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -751,14 +647,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidStartingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -771,14 +660,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithAphabet,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
@@ -791,14 +673,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 					Name:      nameValidEndingWithNumber,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.TrafficManagerBackendSpec{
-					Profile: v1alpha1.TrafficManagerProfileRef{
-						Name: "traffic-manager-profile-ref-name",
-					},
-					Backend: v1alpha1.TrafficManagerBackendRef{
-						Name: "traffic-manager-backend-ref-name",
-					},
-				},
+				Spec: trafficManagerBackendSpec,
 			}
 			Expect(hubClient.Create(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to create trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, trafficManagerBackendName)).Should(Succeed(), "failed to delete trafficManagerBackend")
