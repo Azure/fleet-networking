@@ -136,9 +136,11 @@ var _ = Describe("Test exporting service via Azure traffic manager", func() {
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 				{
-					Weight:  ptr.To(int64(100)),
-					Target:  ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
-					Cluster: &fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					Weight: ptr.To(int64(100)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
+					From: &fleetnetv1alpha1.FromCluster{
+						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					},
 				},
 			}
 			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, wantEndpoints)
@@ -156,14 +158,18 @@ var _ = Describe("Test exporting service via Azure traffic manager", func() {
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{
 				{
-					Weight:  ptr.To(int64(50)),
-					Target:  ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
-					Cluster: &fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					Weight: ptr.To(int64(50)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
+					From: &fleetnetv1alpha1.FromCluster{
+						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					},
 				},
 				{
-					Weight:  ptr.To(int64(50)),
-					Target:  ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[1]), clusterLocation)),
-					Cluster: &fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					Weight: ptr.To(int64(50)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[1]), clusterLocation)),
+					From: &fleetnetv1alpha1.FromCluster{
+						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					},
 				},
 			}
 			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, true, wantEndpoints)
