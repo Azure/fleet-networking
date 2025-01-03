@@ -17,6 +17,7 @@ const (
 
 // TrafficManagerProfile is used to manage a simple Azure Traffic Manager Profile using cloud native way.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type TrafficManagerProfile struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional

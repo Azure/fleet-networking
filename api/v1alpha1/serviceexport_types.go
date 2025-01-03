@@ -62,6 +62,7 @@ type ServiceExportStatus struct {
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // ServiceExport declares that the associated service should be exported to other clusters.
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type ServiceExport struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional

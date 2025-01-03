@@ -135,6 +135,9 @@ spec:
                 x-kubernetes-list-type: map
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: metadata.name max length is 63
+          rule: size(self.metadata.name) < 64
     served: true
     storage: true
     subresources:
