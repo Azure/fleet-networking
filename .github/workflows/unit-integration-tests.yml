@@ -45,6 +45,10 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
 
+      - name: Set up Ginkgo CLI
+        run: |
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.19.1
+
       - name: Run unit + integration tests & Generate coverage
         run: make test
 
@@ -55,7 +59,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           ## Comma-separated list of files to upload
           files: ./coverage.xml
-
-      - name: Set up Ginkgo CLI
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.19.1
