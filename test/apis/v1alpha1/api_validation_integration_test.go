@@ -32,6 +32,7 @@ var (
 )
 
 var _ = Describe("Test networking v1alpha1 API validation", func() {
+	var statusErr *k8serrors.StatusError
 
 	Context("Test MultiClusterService API validation - invalid cases", func() {
 		It("should deny creating API with invalid name size", func() {
@@ -49,7 +50,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, multiClusterServiceName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -69,7 +69,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
 		})
@@ -89,7 +88,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			err := hubClient.Create(ctx, multiClusterServiceName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
 		})
@@ -109,7 +107,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			err := hubClient.Create(ctx, multiClusterServiceName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("a lowercase RFC 1123 subdomain"))
 		})
@@ -213,7 +210,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceExportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -228,7 +224,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -243,7 +238,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceExportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -258,7 +252,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceExportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -337,7 +330,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, serviceImportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -352,7 +344,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -367,7 +358,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, serviceImportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -382,7 +372,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, serviceImportName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -467,7 +456,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -488,7 +476,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -509,7 +496,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -530,7 +516,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerProfileName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -647,7 +632,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameWithInvalidSize))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
@@ -670,7 +654,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameStartingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -693,7 +676,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameEndingWithNonAlphanum))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"))
 		})
@@ -716,7 +698,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			By(fmt.Sprintf("expecting denial of CREATE API %s", nameContainsUnderscore))
 			var err = hubClient.Create(ctx, trafficManagerBackendName)
-			var statusErr *k8serrors.StatusError
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
