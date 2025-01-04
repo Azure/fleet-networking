@@ -63,6 +63,7 @@ const (
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // MultiClusterService is the Schema for creating north-south L4 load balancer to consume services across clusters.
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type MultiClusterService struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
