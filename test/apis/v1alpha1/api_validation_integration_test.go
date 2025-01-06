@@ -31,7 +31,7 @@ var (
 	nameWithInvalidSize           = "abcdef-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 )
 
-var _ = Describe("Test networking fleetnetv1alpha1 API validation", func() {
+var _ = Describe("Test networking v1alpha1 API validation", func() {
 	var statusErr *k8serrors.StatusError
 	var multiClusterServiceSpec = fleetnetv1alpha1.MultiClusterServiceSpec{
 		ServiceImport: fleetnetv1alpha1.ServiceImportRef{
