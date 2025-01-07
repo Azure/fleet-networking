@@ -96,7 +96,7 @@ func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.
 			wantStatus,
 			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
 		); diff != "" {
-			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
+			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): \n%s, got %+v", diff, gotStatus)
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
@@ -117,7 +117,7 @@ func ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx 
 			want,
 			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
 		); diff != "" {
-			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): %s", diff)
+			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): \n%s, got %+v", diff, backend.Status)
 		}
 		return nil
 	}, duration, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
