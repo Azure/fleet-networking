@@ -150,7 +150,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(100)),
-					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
 					From: &fleetnetv1beta1.FromCluster{
 						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
@@ -173,14 +173,14 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			wantEndpoints = []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(50)),
-					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[0]), clusterLocation)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
 					From: &fleetnetv1beta1.FromCluster{
 						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(50)),
-					Target: ptr.To(fmt.Sprintf(azureDNSFormat, wm.BuildServiceDNSLabelName(memberClusters[1]), clusterLocation)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
 					From: &fleetnetv1beta1.FromCluster{
 						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
