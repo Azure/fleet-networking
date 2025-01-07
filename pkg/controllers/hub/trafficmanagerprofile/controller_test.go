@@ -12,11 +12,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 func TestGenerateAzureTrafficManagerProfileName(t *testing.T) {
-	profile := &fleetnetv1alpha1.TrafficManagerProfile{
+	profile := &fleetnetv1beta1.TrafficManagerProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			UID: "abc",
 		},

@@ -24,6 +24,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
@@ -131,16 +132,16 @@ func (wm *WorkloadManager) MultiClusterService() fleetnetv1alpha1.MultiClusterSe
 }
 
 // TrafficManagerProfile returns the TrafficManagerProfile definition from pre-defined service name and namespace.
-func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1alpha1.TrafficManagerProfile {
-	return fleetnetv1alpha1.TrafficManagerProfile{
+func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1beta1.TrafficManagerProfile {
+	return fleetnetv1beta1.TrafficManagerProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: wm.namespace,
 			Name:      wm.service.Name, // use the service name as the profile name
 		},
-		Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{
-			MonitorConfig: &fleetnetv1alpha1.MonitorConfig{
+		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+			MonitorConfig: &fleetnetv1beta1.MonitorConfig{
 				Port:                      ptr.To(int64(80)),
-				Protocol:                  ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTPS),
+				Protocol:                  ptr.To(fleetnetv1beta1.TrafficManagerMonitorProtocolHTTPS),
 				Path:                      ptr.To("/path"),
 				IntervalInSeconds:         ptr.To(int64(10)),
 				ToleratedNumberOfFailures: ptr.To(int64(3)),
@@ -151,17 +152,17 @@ func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1alpha1.TrafficManag
 }
 
 // TrafficManagerBackend returns the TrafficManagerBackend definition from pre-defined service name and namespace.
-func (wm *WorkloadManager) TrafficManagerBackend() fleetnetv1alpha1.TrafficManagerBackend {
-	return fleetnetv1alpha1.TrafficManagerBackend{
+func (wm *WorkloadManager) TrafficManagerBackend() fleetnetv1beta1.TrafficManagerBackend {
+	return fleetnetv1beta1.TrafficManagerBackend{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: wm.namespace,
 			Name:      wm.service.Name, // use the service name as the endpoint name
 		},
-		Spec: fleetnetv1alpha1.TrafficManagerBackendSpec{
-			Profile: fleetnetv1alpha1.TrafficManagerProfileRef{
+		Spec: fleetnetv1beta1.TrafficManagerBackendSpec{
+			Profile: fleetnetv1beta1.TrafficManagerProfileRef{
 				Name: wm.service.Name,
 			},
-			Backend: fleetnetv1alpha1.TrafficManagerBackendRef{
+			Backend: fleetnetv1beta1.TrafficManagerBackendRef{
 				Name: wm.service.Name,
 			},
 			Weight: ptr.To(int64(100)),

@@ -9,13 +9,13 @@ package defaulter
 import (
 	"k8s.io/utils/ptr"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 // SetDefaultsTrafficManagerProfile sets the default values for TrafficManagerProfile.
-func SetDefaultsTrafficManagerProfile(obj *fleetnetv1alpha1.TrafficManagerProfile) {
+func SetDefaultsTrafficManagerProfile(obj *fleetnetv1beta1.TrafficManagerProfile) {
 	if obj.Spec.MonitorConfig == nil {
-		obj.Spec.MonitorConfig = &fleetnetv1alpha1.MonitorConfig{}
+		obj.Spec.MonitorConfig = &fleetnetv1beta1.MonitorConfig{}
 	}
 
 	if obj.Spec.MonitorConfig.IntervalInSeconds == nil {
@@ -31,7 +31,7 @@ func SetDefaultsTrafficManagerProfile(obj *fleetnetv1alpha1.TrafficManagerProfil
 	}
 
 	if obj.Spec.MonitorConfig.Protocol == nil {
-		obj.Spec.MonitorConfig.Protocol = ptr.To(fleetnetv1alpha1.TrafficManagerMonitorProtocolHTTP)
+		obj.Spec.MonitorConfig.Protocol = ptr.To(fleetnetv1beta1.TrafficManagerMonitorProtocolHTTP)
 	}
 
 	// TimeoutInSeconds value depends on the IntervalInSeconds, so that the defaulter MUST handle the IntervalInSeconds first.

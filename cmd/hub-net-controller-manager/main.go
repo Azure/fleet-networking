@@ -37,6 +37,7 @@ import (
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -71,14 +72,15 @@ var (
 
 var (
 	trafficManagerFeatureRequiredGVKs = []schema.GroupVersionKind{
-		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerProfileKind),
-		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.TrafficManagerBackendKind),
+		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerProfileKind),
+		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerBackendKind),
 	}
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
 	klog.InitFlags(nil)
 	//+kubebuilder:scaffold:scheme
