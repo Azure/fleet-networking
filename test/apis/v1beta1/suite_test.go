@@ -3,8 +3,8 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-// Package v1alpha1 contains tests for the networking.fleet v1alpha1 API group.
-package v1alpha1
+// Package v1beta1 contains tests for the networking.fleet v1beta1 API group.
+package v1beta1
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 var (
@@ -61,7 +61,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hubCfg).NotTo(BeNil())
 
-	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
+	Expect(fleetnetv1beta1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
