@@ -565,6 +565,26 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
 		})
+
+		It("Updating the weight to 0", func() {
+			By("Updating the trafficManagerBackend spec")
+			Eventually(func() error {
+				if err := hubClient.Get(ctx, backendName, &backend); err != nil {
+					return err
+				}
+				backend.Spec.Weight = ptr.To(int64(0))
+				return hubClient.Update(ctx, &backend)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+
+			By("Validating the trafficManagerBackend status")
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmProfile.Properties.Endpoints = append(atmProfile.Properties.Endpoints, extraTrafficManagerEndpoint)
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
 	})
 })
 

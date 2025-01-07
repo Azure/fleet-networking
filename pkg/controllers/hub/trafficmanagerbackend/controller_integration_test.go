@@ -973,6 +973,28 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
+		It("Updating weight to 0", func() {
+			Expect(k8sClient.Get(ctx, backendNamespacedName, backend)).Should(Succeed(), "failed to get trafficManagerBackend")
+			backend.Spec.Weight = ptr.To(int64(0))
+			Expect(k8sClient.Update(ctx, backend)).Should(Succeed(), "failed to update trafficManagerBackend")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(backend.Generation),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
 		It("Deleting trafficManagerBackend", func() {
 			err := k8sClient.Delete(ctx, backend)
 			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")

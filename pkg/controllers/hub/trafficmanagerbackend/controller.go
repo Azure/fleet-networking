@@ -36,6 +36,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
+	"go.goms.io/fleet-networking/pkg/common/defaulter"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
@@ -121,6 +122,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 		}
 	}
+	// TODO: replace the following with defaulter wehbook
+	defaulter.SetDefaultsTrafficManagerBackend(backend)
 	return r.handleUpdate(ctx, backend)
 }
 
@@ -243,6 +246,15 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1beta1.
 	}
 
 	klog.V(2).InfoS("Found the serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", klog.KObj(serviceImport), "clusters", serviceImport.Status.Clusters)
+
+	if *backend.Spec.Weight == 0 {
+		klog.V(2).InfoS("Weight is 0, deleting all the endpoints", "trafficManagerBackend", backendKObj)
+		if err := r.cleanupEndpoints(ctx, backend, atmProfile); err != nil {
+			return ctrl.Result{}, err
+		}
+		setTrueCondition(backend, nil)
+		return ctrl.Result{}, r.updateTrafficManagerBackendStatus(ctx, backend)
+	}
 
 	desiredEndpointsMaps, invalidServicesMaps, err := r.validateExportedServiceForServiceImport(ctx, backend, serviceImport)
 	if err != nil || (desiredEndpointsMaps == nil && invalidServicesMaps == nil) {
