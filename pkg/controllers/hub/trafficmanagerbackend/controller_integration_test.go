@@ -19,6 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/validator"
@@ -34,17 +35,17 @@ var (
 	serviceName   = fakeprovider.ServiceImportName
 )
 
-func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1alpha1.TrafficManagerBackend {
-	return &fleetnetv1alpha1.TrafficManagerBackend{
+func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1beta1.TrafficManagerBackend {
+	return &fleetnetv1beta1.TrafficManagerBackend{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: testNamespace,
 		},
-		Spec: fleetnetv1alpha1.TrafficManagerBackendSpec{
-			Profile: fleetnetv1alpha1.TrafficManagerProfileRef{
+		Spec: fleetnetv1beta1.TrafficManagerBackendSpec{
+			Profile: fleetnetv1beta1.TrafficManagerProfileRef{
 				Name: profileName,
 			},
-			Backend: fleetnetv1alpha1.TrafficManagerBackendRef{
+			Backend: fleetnetv1beta1.TrafficManagerBackendRef{
 				Name: serviceImportName,
 			},
 			Weight: ptr.To(int64(10)),
@@ -52,13 +53,13 @@ func trafficManagerBackendForTest(name, profileName, serviceImportName string) *
 	}
 }
 
-func trafficManagerProfileForTest(name string) *fleetnetv1alpha1.TrafficManagerProfile {
-	return &fleetnetv1alpha1.TrafficManagerProfile{
+func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerProfile {
+	return &fleetnetv1beta1.TrafficManagerProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: testNamespace,
 		},
-		Spec: fleetnetv1alpha1.TrafficManagerProfileSpec{},
+		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{},
 	}
 }
 
@@ -66,8 +67,8 @@ func buildFalseCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
 			Status:             metav1.ConditionFalse,
-			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonInvalid),
+			Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonInvalid),
 			ObservedGeneration: generation,
 		},
 	}
@@ -77,8 +78,8 @@ func buildUnknownCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
 			Status:             metav1.ConditionUnknown,
-			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonPending),
+			Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonPending),
 			ObservedGeneration: generation,
 		},
 	}
@@ -88,19 +89,19 @@ func buildTrueCondition(generation int64) []metav1.Condition {
 	return []metav1.Condition{
 		{
 			Status:             metav1.ConditionTrue,
-			Type:               string(fleetnetv1alpha1.TrafficManagerBackendConditionAccepted),
-			Reason:             string(fleetnetv1alpha1.TrafficManagerBackendReasonAccepted),
+			Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
+			Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonAccepted),
 			ObservedGeneration: generation,
 		},
 	}
 }
 
-func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) {
+func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile) {
 	cond := metav1.Condition{
 		Status:             metav1.ConditionTrue,
-		Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+		Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 		ObservedGeneration: profile.Generation,
-		Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+		Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
 	}
 	meta.SetStatusCondition(&profile.Status.Conditions, cond)
 	Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
@@ -110,7 +111,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with invalid profile", Ordered, func() {
 		name := fakeprovider.ValidBackendName
 		namespacedName := types.NamespacedName{Namespace: testNamespace, Name: name}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating TrafficManagerBackend", func() {
 			backend = trafficManagerBackendForTest(name, "not-exist", "not-exist")
@@ -118,14 +119,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       name,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -145,10 +146,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with not found Azure Traffic Manager profile", Ordered, func() {
 		profileName := "not-found-azure-profile"
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -162,14 +163,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -182,14 +183,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -218,10 +219,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend and failing to get Azure Traffic Manager profile", Ordered, func() {
 		profileName := fakeprovider.RequestTimeoutProfileName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -240,14 +241,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -290,10 +291,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with Azure Traffic Manager profile which has nil properties", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithNilPropertiesName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -337,10 +338,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with not accepted profile", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -352,9 +353,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			By("By updating TrafficManagerProfile status")
 			cond := metav1.Condition{
 				Status:             metav1.ConditionFalse,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+				Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+				Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
 			}
 			meta.SetStatusCondition(&profile.Status.Conditions, cond)
 			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
@@ -366,14 +367,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -384,23 +385,23 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			By("By updating TrafficManagerProfile status")
 			cond := metav1.Condition{
 				Status:             metav1.ConditionUnknown,
-				Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+				Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 				ObservedGeneration: profile.Generation,
-				Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+				Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonPending),
 			}
 			meta.SetStatusCondition(&profile.Status.Conditions, cond)
 			Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -429,10 +430,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with invalid serviceImport (successfully delete stale endpoints)", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -451,14 +452,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -487,10 +488,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with invalid serviceImport (fail to delete stale endpoints)", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithFailToDeleteEndpointName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -509,7 +510,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
@@ -557,10 +558,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with valid serviceImport but internalServiceExport is not found", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var serviceImport *fleetnetv1alpha1.ServiceImport
 
@@ -581,14 +582,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -606,14 +607,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -632,14 +633,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend consistently and should trigger controller to reconcile", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -672,10 +673,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with valid serviceImport and internalServiceExports", Ordered, func() {
 		profileName := fakeprovider.ValidProfileWithEndpointsName
 		profileNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: profileName}
-		var profile *fleetnetv1alpha1.TrafficManagerProfile
+		var profile *fleetnetv1beta1.TrafficManagerProfile
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
-		var backend *fleetnetv1alpha1.TrafficManagerBackend
+		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var serviceImport *fleetnetv1alpha1.ServiceImport
 
@@ -696,14 +697,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -722,14 +723,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -752,20 +753,20 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
-					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							From: &fleetnetv1alpha1.FromCluster{
-								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 							},
@@ -794,20 +795,20 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildTrueCondition(backend.Generation),
-					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							From: &fleetnetv1alpha1.FromCluster{
-								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 							},
@@ -816,8 +817,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 						},
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
-							From: &fleetnetv1alpha1.FromCluster{
-								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[3],
 								},
 							},
@@ -846,20 +847,20 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
-					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							From: &fleetnetv1alpha1.FromCluster{
-								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 							},
@@ -888,14 +889,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
@@ -922,14 +923,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
@@ -945,20 +946,20 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			want := fleetnetv1alpha1.TrafficManagerBackend{
+			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
 					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
 				},
 				Spec: backend.Spec,
-				Status: fleetnetv1alpha1.TrafficManagerBackendStatus{
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
 					Conditions: buildTrueCondition(backend.Generation),
-					Endpoints: []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
 							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
-							From: &fleetnetv1alpha1.FromCluster{
-								ClusterStatus: fleetnetv1alpha1.ClusterStatus{
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 							},

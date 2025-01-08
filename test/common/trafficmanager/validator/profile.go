@@ -20,7 +20,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 const (
@@ -44,14 +44,14 @@ var (
 	cmpTrafficManagerProfileOptions = cmp.Options{
 		commonCmpOptions,
 		cmpConditionOptions,
-		cmpopts.IgnoreFields(fleetnetv1alpha1.TrafficManagerProfile{}, "TypeMeta"),
+		cmpopts.IgnoreFields(fleetnetv1beta1.TrafficManagerProfile{}, "TypeMeta"),
 	}
 )
 
 // ValidateTrafficManagerProfile validates the trafficManagerProfile object.
-func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client, want *fleetnetv1alpha1.TrafficManagerProfile) {
+func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client, want *fleetnetv1beta1.TrafficManagerProfile) {
 	key := types.NamespacedName{Name: want.Name, Namespace: want.Namespace}
-	profile := &fleetnetv1alpha1.TrafficManagerProfile{}
+	profile := &fleetnetv1beta1.TrafficManagerProfile{}
 	gomega.Eventually(func() error {
 		if err := k8sClient.Get(ctx, key, profile); err != nil {
 			return err
@@ -64,20 +64,20 @@ func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client,
 }
 
 // ValidateIfTrafficManagerProfileIsProgrammed validates the trafficManagerProfile is programmed and returns the DNSName.
-func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName) *fleetnetv1alpha1.TrafficManagerProfile {
+func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName) *fleetnetv1beta1.TrafficManagerProfile {
 	wantDNSName := fmt.Sprintf("%s-%s.trafficmanager.net", profileName.Namespace, profileName.Name)
-	var profile fleetnetv1alpha1.TrafficManagerProfile
+	var profile fleetnetv1beta1.TrafficManagerProfile
 	gomega.Eventually(func() error {
 		if err := k8sClient.Get(ctx, profileName, &profile); err != nil {
 			return err
 		}
-		wantStatus := fleetnetv1alpha1.TrafficManagerProfileStatus{
+		wantStatus := fleetnetv1beta1.TrafficManagerProfileStatus{
 			DNSName: ptr.To(wantDNSName),
 			Conditions: []metav1.Condition{
 				{
 					Status:             metav1.ConditionTrue,
-					Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
-					Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+					Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+					Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
 					ObservedGeneration: profile.Generation,
 				},
 			},
@@ -97,7 +97,7 @@ func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient 
 // IsTrafficManagerProfileDeleted validates whether the profile is deleted or not.
 func IsTrafficManagerProfileDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
 	gomega.Eventually(func() error {
-		profile := &fleetnetv1alpha1.TrafficManagerProfile{}
+		profile := &fleetnetv1beta1.TrafficManagerProfile{}
 		if err := k8sClient.Get(ctx, name, profile); !errors.IsNotFound(err) {
 			return fmt.Errorf("trafficManagerProfile %s still exists or an unexpected error occurred: %w", name, err)
 		}

@@ -18,7 +18,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
@@ -32,7 +32,7 @@ var (
 
 var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
 	var wm *framework.WorkloadManager
-	var profile fleetnetv1alpha1.TrafficManagerProfile
+	var profile fleetnetv1beta1.TrafficManagerProfile
 	var profileName types.NamespacedName
 	var hubClient client.Client
 	var atmProfileName string
@@ -107,7 +107,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 
 	Context("Test invalid trafficManagerBackend (invalid serviceImport)", Ordered, func() {
-		var backend fleetnetv1alpha1.TrafficManagerBackend
+		var backend fleetnetv1beta1.TrafficManagerBackend
 		var name types.NamespacedName
 		memberDNSLabels := make([]string, 2)
 
@@ -147,12 +147,12 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(100)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 			}
@@ -170,19 +170,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints = []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints = []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -196,7 +196,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 
 	Context("Test invalid trafficManagerBackend (invalid profile)", Ordered, func() {
-		var backend fleetnetv1alpha1.TrafficManagerBackend
+		var backend fleetnetv1beta1.TrafficManagerBackend
 		var backendName types.NamespacedName
 		memberDNSLabels := make([]string, 2)
 
@@ -225,7 +225,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			By("Creating trafficManagerBackend")
 			backend = wm.TrafficManagerBackend()
 			// update the profile to invalid one
-			backend.Spec.Profile = fleetnetv1alpha1.TrafficManagerProfileRef{
+			backend.Spec.Profile = fleetnetv1beta1.TrafficManagerProfileRef{
 				Name: "invalid-profile",
 			}
 			backendName = types.NamespacedName{Namespace: backend.Namespace, Name: backend.Name}
@@ -242,19 +242,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -289,7 +289,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 
 	Context("Test valid trafficManagerBackend", Ordered, func() {
-		var backend fleetnetv1alpha1.TrafficManagerBackend
+		var backend fleetnetv1beta1.TrafficManagerBackend
 		var backendName types.NamespacedName
 		memberDNSLabels := make([]string, 2)
 
@@ -313,19 +313,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(50)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -397,19 +397,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -431,7 +431,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			headers := []*armtrafficmanager.EndpointPropertiesCustomHeadersItem{
 				{Name: ptr.To("header1"), Value: ptr.To("value1")},
 			}
-			atmProfile.Properties.Endpoints[0].Properties.Weight = ptr.To(int64(10)) // set the weight to 10 explicitly
+			atmProfile.Properties.Endpoints[0].Properties.Weight = ptr.To(int64(10)) // set the weight to 10 explicitly,
 			// the controller should reset All the changes.
 			for i := range atmProfile.Properties.Endpoints {
 				atmProfile.Properties.Endpoints[i].Properties.EndpointStatus = ptr.To(armtrafficmanager.EndpointStatusDisabled)
@@ -450,19 +450,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -491,19 +491,19 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[0].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
 					},
 				},
 				{
 					Weight: ptr.To(int64(5)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -523,12 +523,12 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the service type to clusterIP type")
 
 			By("Validating the trafficManagerBackend status")
-			wantEndpoints := []fleetnetv1alpha1.TrafficManagerEndpointStatus{
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
 				{
 					Weight: ptr.To(int64(100)),
 					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
-					From: &fleetnetv1alpha1.FromCluster{
-						ClusterStatus: fleetnetv1alpha1.ClusterStatus{Cluster: memberClusters[1].Name()},
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
 					},
 				},
 			}
@@ -568,7 +568,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 })
 
-func buildDesiredATMProfile(profile fleetnetv1alpha1.TrafficManagerProfile, endpoints []fleetnetv1alpha1.TrafficManagerEndpointStatus) armtrafficmanager.Profile {
+func buildDesiredATMProfile(profile fleetnetv1beta1.TrafficManagerProfile, endpoints []fleetnetv1beta1.TrafficManagerEndpointStatus) armtrafficmanager.Profile {
 	monitorConfig := profile.Spec.MonitorConfig
 	namespacedName := types.NamespacedName{Name: profile.Name, Namespace: profile.Namespace}
 	res := armtrafficmanager.Profile{

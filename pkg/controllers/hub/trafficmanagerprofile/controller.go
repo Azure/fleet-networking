@@ -26,7 +26,7 @@ import (
 
 	"go.goms.io/fleet/pkg/utils/controller"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
 	"go.goms.io/fleet-networking/pkg/common/defaulter"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -46,13 +46,13 @@ const (
 
 var (
 	// create the func as a variable so that the integration test can use a customized function.
-	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
+	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1beta1.TrafficManagerProfile) string {
 		return GenerateAzureTrafficManagerProfileName(profile)
 	}
 )
 
 // GenerateAzureTrafficManagerProfileName generates the Azure Traffic Manager profile name based on the profile.
-func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1alpha1.TrafficManagerProfile) string {
+func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1beta1.TrafficManagerProfile) string {
 	return fmt.Sprintf(AzureResourceProfileNameFormat, profile.UID)
 }
 
@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(2).InfoS("Reconciliation ends", "trafficManagerProfile", profileKRef, "latency", latency)
 	}()
 
-	profile := &fleetnetv1alpha1.TrafficManagerProfile{}
+	profile := &fleetnetv1beta1.TrafficManagerProfile{}
 	if err := r.Client.Get(ctx, name, profile); err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.V(4).InfoS("Ignoring NotFound trafficManagerProfile", "trafficManagerProfile", profileKRef)
@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.handleUpdate(ctx, profile)
 }
 
-func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) (ctrl.Result, error) {
+func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
 	// The profile is being deleted
 	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
@@ -137,7 +137,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1alpha1
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile) (ctrl.Result, error) {
+func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	desiredATMProfile := generateAzureTrafficManagerProfile(profile)
@@ -216,7 +216,7 @@ func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 	return true
 }
 
-func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1alpha1.TrafficManagerProfile, atmProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {
+func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile, atmProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
 	if updateErr == nil {
 		// atmProfile.Properties.DNSConfig.Fqdn should not be nil
@@ -232,34 +232,34 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 	}
 
 	cond := metav1.Condition{
-		Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+		Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: profile.Generation,
-		Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonProgrammed),
+		Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
 		Message:            "Successfully configured the Azure Traffic Manager profile",
 	}
 	if azureerrors.IsConflict(updateErr) {
 		cond = metav1.Condition{
-			Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: profile.Generation,
-			Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonDNSNameNotAvailable),
+			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonDNSNameNotAvailable),
 			Message:            "Domain name is not available. Please choose a different profile name or namespace",
 		}
 	} else if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
 		cond = metav1.Condition{
-			Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: profile.Generation,
-			Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonInvalid),
+			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
 			Message:            fmt.Sprintf("Invalid profile: %v", updateErr),
 		}
 	} else if updateErr != nil {
 		cond = metav1.Condition{
-			Type:               string(fleetnetv1alpha1.TrafficManagerProfileConditionProgrammed),
+			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: profile.Generation,
-			Reason:             string(fleetnetv1alpha1.TrafficManagerProfileReasonPending),
+			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonPending),
 			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", updateErr),
 		}
 	}
@@ -272,7 +272,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 	return ctrl.Result{}, updateErr
 }
 
-func generateAzureTrafficManagerProfile(profile *fleetnetv1alpha1.TrafficManagerProfile) armtrafficmanager.Profile {
+func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerProfile) armtrafficmanager.Profile {
 	mc := profile.Spec.MonitorConfig
 	namespacedName := types.NamespacedName{Name: profile.Name, Namespace: profile.Namespace}
 	return armtrafficmanager.Profile{
@@ -303,6 +303,6 @@ func generateAzureTrafficManagerProfile(profile *fleetnetv1alpha1.TrafficManager
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleetnetv1alpha1.TrafficManagerProfile{}).
+		For(&fleetnetv1beta1.TrafficManagerProfile{}).
 		Complete(r)
 }

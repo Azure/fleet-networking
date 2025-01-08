@@ -25,6 +25,7 @@ import (
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/azureprovider"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
@@ -57,6 +58,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(fleetv1beta1.AddToScheme(scheme))
 }
 
