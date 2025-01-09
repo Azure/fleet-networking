@@ -581,7 +581,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
-			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmProfile = buildDesiredATMProfile(profile, nil)
 			atmProfile.Properties.Endpoints = append(atmProfile.Properties.Endpoints, extraTrafficManagerEndpoint)
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
 		})

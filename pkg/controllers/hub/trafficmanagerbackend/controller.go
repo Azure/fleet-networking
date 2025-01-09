@@ -122,7 +122,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 		}
 	}
-	// TODO: replace the following with defaulter wehbook
+	// TODO: replace the following with defaulter webhook
 	defaulter.SetDefaultsTrafficManagerBackend(backend)
 	return r.handleUpdate(ctx, backend)
 }
