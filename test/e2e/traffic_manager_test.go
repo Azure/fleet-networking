@@ -83,26 +83,37 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 
 	Context("Test updating trafficManagerProfile", Ordered, func() {
-		BeforeAll(func() {
-			By("Updating Azure traffic manager profile")
-			atmProfile.Properties.DNSConfig.TTL = ptr.To(int64(30))
-			atmProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled)
-			_, err := atmValidator.ProfileClient.CreateOrUpdate(ctx, atmValidator.ResourceGroup, atmProfileName, atmProfile, nil)
-			Expect(err).Should(Succeed(), "Failed to update the Azure traffic manager profile")
+		var wantTrafficViewEnrollmentStatus *armtrafficmanager.TrafficViewEnrollmentStatus
 
+		BeforeEach(func() {
+			wantTrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled)
+		})
+
+		AfterEach(func() {
 			By("Updating the trafficManagerProfile spec")
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
-		})
 
-		It("Validating the trafficManagerProfile status", func() {
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfile = buildDesiredATMProfile(profile, nil)
 			// The Controller does not set the trafficViewEnrollmentStatus.
-			atmProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled)
+			atmProfile.Properties.TrafficViewEnrollmentStatus = wantTrafficViewEnrollmentStatus
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
+
+		It("Updating Azure traffic manager profile", func() {
+			atmProfile.Properties.DNSConfig.TTL = ptr.To(int64(30))
+			atmProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled)
+			wantTrafficViewEnrollmentStatus = atmProfile.Properties.TrafficViewEnrollmentStatus
+			_, err := atmValidator.ProfileClient.CreateOrUpdate(ctx, atmValidator.ResourceGroup, atmProfileName, atmProfile, nil)
+			Expect(err).Should(Succeed(), "Failed to update the Azure traffic manager profile")
+		})
+
+		It("Deleting Azure traffic manager profile directly", func() {
+			_, err := atmValidator.ProfileClient.Delete(ctx, atmValidator.ResourceGroup, atmProfileName, nil)
+			Expect(err).Should(Succeed(), "Failed to delete the Azure traffic manager profile")
 		})
 	})
 
@@ -269,21 +280,6 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerBackend status")
 			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
-			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
-		})
-
-		It("Deleting Azure traffic manager profile before creating trafficManagerBackend", func() {
-			By("Deleting Azure traffic manager profile directly")
-			_, err := atmValidator.ProfileClient.Delete(ctx, atmValidator.ResourceGroup, atmProfileName, nil)
-			Expect(err).Should(Succeed(), "Failed to delete the Azure traffic manager profile")
-
-			By("Creating trafficManagerBackend")
-			backend = wm.TrafficManagerBackend()
-			backendName = types.NamespacedName{Namespace: backend.Namespace, Name: backend.Name}
-			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
-
-			By("Validating the trafficManagerBackend status")
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 		})
 	})
@@ -559,6 +555,25 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerBackend status")
 			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
+
+		It("Updating the weight to 0", func() {
+			By("Updating the trafficManagerBackend spec")
+			Eventually(func() error {
+				if err := hubClient.Get(ctx, backendName, &backend); err != nil {
+					return err
+				}
+				backend.Spec.Weight = ptr.To(int64(0))
+				return hubClient.Update(ctx, &backend)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+
+			By("Validating the trafficManagerBackend status")
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
