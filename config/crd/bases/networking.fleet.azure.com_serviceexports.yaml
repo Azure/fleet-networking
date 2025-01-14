@@ -31,8 +31,15 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ServiceExport declares that the associated service should be
-          exported to other clusters.
+        description: |-
+          ServiceExport declares that the associated service should be exported to other clusters.
+          The annotation "networking.fleet.azure.com/weight" specifies the proportion of requests forwarded to the cluster
+          within a serviceImport.
+          The actual value is the ceiling value of a number computed as weight/(sum of all weights in the serviceImport).
+          If weight is set to 0, no traffic should be forwarded for this entry.
+          If unspecified, weight defaults to 1.
+          The value should be in the range [0, 1000].
+          Any invalid value will default to default value.
         properties:
           apiVersion:
             description: |-
@@ -50,26 +57,6 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
-            type: object
-          spec:
-            description: spec defines the behavior of a ServiceExport.
-            properties:
-              exportedAnnotations:
-                additionalProperties:
-                  type: string
-                description: |-
-                  exportedAnnotations describes the annotations exported.
-                  Possible Annotations: "weight".
-                  "weight" specifies the proportion of requests forwarded to the cluster within a serviceImport.
-                  This is computed as weight/(sum of all weights in the serviceImport).
-                  If weight is set to 0, no traffic should be forwarded for this entry. If unspecified, weight defaults to 1.
-                  The value should be in the range [0, 1000].
-                type: object
-              exportedLabels:
-                additionalProperties:
-                  type: string
-                description: exportedLabels describes the labels exported.
-                type: object
             type: object
           status:
             description: ServiceExportStatus contains the current status of an export.

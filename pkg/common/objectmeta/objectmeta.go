@@ -45,6 +45,9 @@ const (
 	// an exported object.
 	ExportedObjectAnnotationUniqueName = fleetNetworkingPrefix + "fleet-unique-name"
 
+	// ServiceExportAnnotationWeight is an annotation that marks the weight of the ServiceExport.
+	ServiceExportAnnotationWeight = fleetNetworkingPrefix + "weight"
+
 	// ServiceAnnotationAzureLoadBalancerInternal is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
 	ServiceAnnotationAzureLoadBalancerInternal = "service.beta.kubernetes.io/azure-load-balancer-internal"
 
