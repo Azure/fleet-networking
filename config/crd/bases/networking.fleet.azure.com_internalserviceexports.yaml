@@ -166,6 +166,13 @@ spec:
               type:
                 description: Type is the type of the Service in each cluster.
                 type: string
+              weight:
+                description: |-
+                  Weight is the weight of the ServiceExport.
+                  If unspecified, weight defaults to 1.
+                  The value is from serviceExport "networking.fleet.azure.com/weight" annotation and should be in the range [0, 1000].
+                format: int64
+                type: integer
             required:
             - ports
             - serviceReference

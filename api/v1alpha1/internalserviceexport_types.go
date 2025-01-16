@@ -32,6 +32,10 @@ type InternalServiceExportSpec struct {
 	IsInternalLoadBalancer bool `json:"isInternalLoadBalancer,omitempty"`
 	// PublicIPResourceID is the Azure Resource URI of public IP. This is only applicable for Load Balancer type Services.
 	PublicIPResourceID *string `json:"publicIPResourceID,omitempty"`
+	// Weight is the weight of the ServiceExport.
+	// If unspecified, weight defaults to 1.
+	// The value is from serviceExport "networking.fleet.azure.com/weight" annotation and should be in the range [0, 1000].
+	Weight *int64 `json:"weight,omitempty"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.
