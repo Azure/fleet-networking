@@ -61,7 +61,7 @@ var (
 		"The wait time for the internalserviceexport controller to requeue the request and to wait for the"+
 			"ServiceImport controller to resolve the service Spec")
 
-	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 15*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
+	forceDeleteWaitTime = flag.Duration("force-delete-wait-time", 5*time.Minute, "The duration the fleet hub agent waits before trying to force delete a member cluster.")
 
 	enableV1Beta1APIs = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 

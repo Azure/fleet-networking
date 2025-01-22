@@ -23,7 +23,7 @@ import (
 const (
 	testMemberClusterName   = "test-mc"
 	testEndpointSliceImport = "test-esi"
-	forceDeleteWaitTime     = 15 * time.Minute
+	forceDeleteWaitTime     = 5 * time.Minute
 )
 
 var (
