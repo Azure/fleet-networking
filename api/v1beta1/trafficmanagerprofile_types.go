@@ -40,9 +40,21 @@ type TrafficManagerProfile struct {
 // TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile.
 // For now, only the "Weighted" traffic routing method is supported.
 type TrafficManagerProfileSpec struct {
+	// BringYourOwn defines the Azure Traffic Manager in your own resource group.
+	// +required
+	BringYourOwn *BringYourOwn `json:"bringYourOwn"`
+
 	// The endpoint monitoring settings of the Traffic Manager profile.
 	// +optional
 	MonitorConfig *MonitorConfig `json:"monitorConfig,omitempty"`
+}
+
+// BringYourOwn configures the existing Azure resource.
+type BringYourOwn struct {
+	// The Azure Resource Group of the existing resource.
+	// +required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
+	ResourceGroup string `json:"resourceGroup"`
 }
 
 // MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile.

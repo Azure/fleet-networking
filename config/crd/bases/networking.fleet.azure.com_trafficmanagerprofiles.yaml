@@ -55,6 +55,19 @@ spec:
           spec:
             description: The desired state of TrafficManagerProfile.
             properties:
+              bringYourOwn:
+                description: BringYourOwn defines the Azure Traffic Manager in your
+                  own resource group.
+                properties:
+                  resourceGroup:
+                    description: The Azure Resource Group of the existing resource.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: resourceGroup is immutable
+                      rule: self == oldSelf
+                required:
+                - resourceGroup
+                type: object
               monitorConfig:
                 description: The endpoint monitoring settings of the Traffic Manager
                   profile.
@@ -111,6 +124,8 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+            required:
+            - bringYourOwn
             type: object
           status:
             description: The observed status of TrafficManagerProfile.
@@ -235,6 +250,19 @@ spec:
           spec:
             description: The desired state of TrafficManagerProfile.
             properties:
+              bringYourOwn:
+                description: BringYourOwn defines the Azure Traffic Manager in your
+                  own resource group.
+                properties:
+                  resourceGroup:
+                    description: The Azure Resource Group of the existing resource.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: resourceGroup is immutable
+                      rule: self == oldSelf
+                required:
+                - resourceGroup
+                type: object
               monitorConfig:
                 description: The endpoint monitoring settings of the Traffic Manager
                   profile.
@@ -291,6 +319,8 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+            required:
+            - bringYourOwn
             type: object
           status:
             description: The observed status of TrafficManagerProfile.
