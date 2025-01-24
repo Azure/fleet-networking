@@ -111,6 +111,17 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+              resourceGroup:
+                description: |-
+                  The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile.
+                  When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted
+                  in the specified resource group.
+                type: string
+                x-kubernetes-validations:
+                - message: resourceGroup is immutable
+                  rule: self == oldSelf
+            required:
+            - resourceGroup
             type: object
           status:
             description: The observed status of TrafficManagerProfile.
@@ -291,6 +302,17 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+              resourceGroup:
+                description: |-
+                  The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile.
+                  When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted
+                  in the specified resource group.
+                type: string
+                x-kubernetes-validations:
+                - message: resourceGroup is immutable
+                  rule: self == oldSelf
+            required:
+            - resourceGroup
             type: object
           status:
             description: The observed status of TrafficManagerProfile.
