@@ -40,6 +40,13 @@ type TrafficManagerProfile struct {
 // TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile.
 // For now, only the "Weighted" traffic routing method is supported.
 type TrafficManagerProfileSpec struct {
+	// The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile.
+	// When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted
+	// in the specified resource group.
+	// +required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
+	ResourceGroup string `json:"resourceGroup"`
+
 	// The endpoint monitoring settings of the Traffic Manager profile.
 	// +optional
 	MonitorConfig *MonitorConfig `json:"monitorConfig,omitempty"`
