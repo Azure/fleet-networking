@@ -265,7 +265,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1beta1.
 	}
 	klog.V(2).InfoS("Found the exported services behind the serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", klog.KObj(serviceImport), "numberOfDesiredEndpoints", len(desiredEndpointsMaps), "numberOfInvalidServices", len(invalidServicesMaps))
 
-	acceptedEndpoints, badEndpointsErr, err := r.updateTrafficManagerEndpointsAndUpdateStatus(ctx, backend, atmProfile, desiredEndpointsMaps)
+	acceptedEndpoints, badEndpointsErr, err := r.updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx, backend, atmProfile, desiredEndpointsMaps)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -474,9 +474,8 @@ func (r *Reconciler) validateAndProcessServiceImportForBackend(ctx context.Conte
 	}
 
 	desiredEndpoints := make(map[string]desiredEndpoint, len(serviceImport.Status.Clusters)) // key is the endpoint name
-	invalidServices := make(map[string]error, len(serviceImport.Status.Clusters))
+	invalidServices := make(map[string]error, len(serviceImport.Status.Clusters))            // key is cluster name
 	var totalWeight int64
-	// key is cluster name
 	for _, clusterStatus := range serviceImport.Status.Clusters {
 		internalServiceExport, ok := internalServiceExportMap[clusterStatus.Cluster]
 		if !ok {
@@ -507,7 +506,7 @@ func (r *Reconciler) validateAndProcessServiceImportForBackend(ctx context.Conte
 		desiredWeight := math.Ceil(float64(*backend.Spec.Weight**dp.Endpoint.Properties.Weight) / float64(totalWeight))
 		dp.Endpoint.Properties.Weight = ptr.To(int64(desiredWeight))
 	}
-	klog.V(2).InfoS("Finishing validating services and setup endpoints", "trafficManagerBackend", backendKObj, "serviceImport", serviceImportKObj, "numberOfDesiredEndpoints", len(desiredEndpoints), "numberOfInvalidServices", len(invalidServices))
+	klog.V(2).InfoS("Finishing validating services and setup endpoints", "trafficManagerBackend", backendKObj, "serviceImport", serviceImportKObj, "numberOfDesiredEndpoints", len(desiredEndpoints), "numberOfInvalidServices", len(invalidServices), "totalWeight", totalWeight)
 	return desiredEndpoints, invalidServices, nil
 }
 
@@ -550,6 +549,7 @@ func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster f
 		Weight: endpoint.Properties.Weight,
 		From: &fleetnetv1beta1.FromCluster{
 			ClusterStatus: cluster,
+			Weight:        endpoint.Properties.Weight,
 		},
 	}
 }
@@ -569,9 +569,9 @@ func equalAzureTrafficManagerEndpoint(current, desired armtrafficmanager.Endpoin
 		*current.Properties.EndpointStatus == *desired.Properties.EndpointStatus
 }
 
-// updateTrafficManagerEndpointsAndUpdateStatus updates the Azure Traffic Manager endpoints.
+// updateTrafficManagerEndpointsAndUpdateStatusIfUnknown updates the Azure Traffic Manager endpoints and updates the status of the backend if its Unknown.
 // Returns the accepted endpoints and a list of bad endpoints error when it fails to create/update endpoint or not because of bad request.
-func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatus(ctx context.Context, backend *fleetnetv1beta1.TrafficManagerBackend, profile *armtrafficmanager.Profile, desiredEndpoints map[string]desiredEndpoint) ([]fleetnetv1beta1.TrafficManagerEndpointStatus, []error, error) {
+func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx context.Context, backend *fleetnetv1beta1.TrafficManagerBackend, profile *armtrafficmanager.Profile, desiredEndpoints map[string]desiredEndpoint) ([]fleetnetv1beta1.TrafficManagerEndpointStatus, []error, error) {
 	backendKObj := klog.KObj(backend)
 	acceptedEndpoints := make([]fleetnetv1beta1.TrafficManagerEndpointStatus, 0, len(desiredEndpoints))
 	for _, endpoint := range profile.Properties.Endpoints {
@@ -642,7 +642,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatus(ctx context.Co
 	return acceptedEndpoints, badEndpointsError, nil
 }
 
-// SetupWithManager sets up the controller with the Manager to
+// SetupWithManager sets up the controller with the Manager to watch for changes on TrafficManagerProfile, ServiceImport and InternalServiceExport and reconcile TrafficManagerBackend.
 func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, disableInternalServiceExportIndexer bool) error {
 	// set up an index for efficient trafficManagerBackend lookup
 	profileIndexerFunc := func(o client.Object) []string {
