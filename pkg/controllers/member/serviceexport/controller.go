@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -90,7 +92,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// changes in a Service that has not been exported yet, or when a ServiceExport is deleted before the
 			// corresponding Service is exported to the fleet (and a cleanup finalizer is added). Either case requires
 			// no action on this controller's end.
-			klog.V(4).InfoS("Service export is not found", "service", svcRef)
+			klog.V(2).InfoS("Service export is not found", "service", svcRef)
 			return ctrl.Result{}, nil
 		}
 		// An error has occurred when getting the ServiceExport.
@@ -104,7 +106,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// is needed.
 	if svcExport.DeletionTimestamp != nil {
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-			klog.V(4).InfoS("Service export is deleted; unexport the service", "service", svcRef)
+			klog.V(2).InfoS("Service export is deleted; unexport the service", "service", svcRef)
 			res, err := r.unexportService(ctx, &svcExport)
 			if err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
@@ -128,7 +130,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotFound", "Service %s is not found or in the deleting state", svc.Name)
 
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
-		klog.V(4).InfoS("Service is deleted; unexport the service", "service", svcRef)
+		klog.V(2).InfoS("Service is deleted; unexport the service", "service", svcRef)
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
@@ -136,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(4).InfoS("Mark service export as invalid (service not found)", "service", svcRef)
+		klog.V(2).InfoS("Mark service export as invalid (service not found)", "service", svcRef)
 		if err := r.markServiceExportAsInvalidNotFound(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service not found)", "service", svcRef)
 			return ctrl.Result{}, err
@@ -154,14 +156,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-			klog.V(4).InfoS("Service is ineligible; unexport the service", "service", svcRef)
+			klog.V(2).InfoS("Service is ineligible; unexport the service", "service", svcRef)
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
 				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 				return ctrl.Result{}, err
 			}
 		}
 		// Mark the ServiceExport as invalid.
-		klog.V(4).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
+		klog.V(2).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
 		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport, &svc)
 		if err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service ineligible)", "service", svcRef)
@@ -171,7 +173,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Add the cleanup finalizer to the ServiceExport; this must happen before the Service is actually exported.
 	if !controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
-		klog.V(4).InfoS("Add cleanup finalizer to service export", "service", svcRef)
+		klog.V(2).InfoS("Add cleanup finalizer to service export", "service", svcRef)
 		if err := r.addServiceExportCleanupFinalizer(ctx, &svcExport); err != nil {
 			klog.ErrorS(err, "Failed to add cleanup finalizer to svc export", "service", svcRef)
 			return ctrl.Result{}, err
@@ -179,7 +181,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Mark the ServiceExport as valid.
-	klog.V(4).InfoS("Mark service export as valid", "service", svcRef)
+	klog.V(2).InfoS("Mark service export as valid", "service", svcRef)
 	if err := r.markServiceExportAsValid(ctx, &svcExport, &svc); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
@@ -219,7 +221,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Service from the one that is being reconciled. This usually happens when a service is deleted and
 		// re-created immediately.
 		if internalSvcExport.Spec.ServiceReference.UID != svc.UID {
-			klog.V(4).InfoS("Failed to create/update internalServiceExport, UIDs mismatch",
+			klog.V(2).InfoS("Failed to create/update internalServiceExport, UIDs mismatch",
 				"service", svcRef,
 				"internalServiceExport", klog.KObj(&internalSvcExport),
 				"newUID", svc.UID,
@@ -236,9 +238,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
 
 		if r.EnableTrafficManagerFeature {
-			klog.V(2).InfoS("Collecting Traffic Manager related information", "service", svcRef)
-			if err := r.setAzureRelatedInformation(ctx, &svc, &internalSvcExport); err != nil {
-				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature", "service", svcRef)
+			klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
+			if err := r.setAzureRelatedInformation(ctx, &svc, &svcExport, &internalSvcExport); err != nil {
+				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature in the internal service export", "service", svcRef)
 				return err
 			}
 		}
@@ -275,15 +277,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *corev1.Service, export *fleetnetv1alpha1.InternalServiceExport) error {
-	export.Spec.Type = service.Spec.Type
+func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
+	service *corev1.Service,
+	svcExport *fleetnetv1alpha1.ServiceExport,
+	hubSvcExport *fleetnetv1alpha1.InternalServiceExport) error {
+	hubSvcExport.Spec.Type = service.Spec.Type
 	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
 		return nil
 	}
+	// copy the weight from the service export to the internal service export
+	if err := setWeightOnHubServiceExport(svcExport, hubSvcExport); err != nil {
+		return err
+	}
 	// The annotation value is case-sensitive.
 	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
-	export.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
-	if export.Spec.IsInternalLoadBalancer {
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	if hubSvcExport.Spec.IsInternalLoadBalancer {
 		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
 		return nil
 	}
@@ -311,29 +320,59 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context, service *co
 		// to avoid sending Azure requests.
 		return nil
 	}
-	export.Spec.PublicIPResourceID = pip.ID
+	hubSvcExport.Spec.PublicIPResourceID = pip.ID
 
 	// Note the user can set the dns label via the Azure portal or Azure CLI without updating service.
 	// This information may be stale as we don't monitor the public IP address resource.
-	export.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
+	hubSvcExport.Spec.IsDNSLabelConfigured = pip.Properties != nil && pip.Properties.DNSSettings != nil && pip.Properties.DNSSettings.DomainNameLabel != nil
 
 	// No matter if the customer bring your own IP or not, the cloud provider will reconcile the DNS label based on the
 	// DNS annotation.
 	dnsName, found := service.Annotations[objectmeta.ServiceAnnotationAzureDNSLabelName]
-	klog.V(2).InfoS("Finding whether the DNS is assigned", "service", serviceKObj, "dnsName", dnsName, "isSetOnService", found, "isConfiguredOnPIP", export.Spec.IsDNSLabelConfigured)
+	klog.V(2).InfoS("Finding whether the DNS is assigned", "service", serviceKObj, "dnsName", dnsName, "isSetOnService", found, "isConfiguredOnPIP", hubSvcExport.Spec.IsDNSLabelConfigured)
 	// If the annotation is not set, the cloud provider won't reconcile the DNS label and return the current status.
 	if !found {
 		// cloud provider won't delete DNS label on pip if the annotation is not set.
 		return nil
 	}
 	if len(dnsName) == 0 {
-		export.Spec.IsDNSLabelConfigured = false // cloud provider will delete the DNS label on the pip.
+		hubSvcExport.Spec.IsDNSLabelConfigured = false // cloud provider will delete the DNS label on the pip.
 		return nil
 	}
-	if !export.Spec.IsDNSLabelConfigured {
+	if !hubSvcExport.Spec.IsDNSLabelConfigured {
 		err = fmt.Errorf("in the process of adding DNS to the public ip address %s", *pip.ID)
 		klog.ErrorS(err, "Requeue the request to see if the DNS is ready or not", "service", serviceKObj)
 		return err
+	}
+
+	return nil
+}
+
+// setWeightOnHubServiceExport sets the weight on the hub cluster's InternalServiceExport based on the weight annotation
+// set on the member cluster's ServiceExport.
+func setWeightOnHubServiceExport(svcExport *fleetnetv1alpha1.ServiceExport, hubSvcExport *fleetnetv1alpha1.InternalServiceExport) error {
+	serviceKObj := klog.KObj(svcExport)
+	// Setup the weightAnno for the exported service on the hub cluster.
+	weightAnno, found := svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]
+	if !found {
+		// If unspecified, weightAnno defaults to 1.
+		hubSvcExport.Spec.Weight = ptr.To(int64(1))
+	} else {
+		// check if the weightAnno on the serviceExport in the member cluster is valid
+		// The value should be in the range [0, 1000].
+		weight, err := strconv.Atoi(weightAnno)
+		if err != nil {
+			err = fmt.Errorf("the weight annotation is not a valid integer: %s", weightAnno)
+			klog.ErrorS(err, "Failed to parse the weight annotation", "serviceExport", serviceKObj)
+			return controller.NewUserError(err)
+		}
+		if weight < 0 || weight > 1000 {
+			err = fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", weightAnno)
+			klog.ErrorS(err, "The weight annotation is out of range", "serviceExport", serviceKObj)
+			return controller.NewUserError(err)
+		}
+		hubSvcExport.Spec.Weight = ptr.To(int64(weight))
+		klog.V(2).InfoS("Assigned a weight to the hub serviceExport", "serviceExport", serviceKObj, "weight", hubSvcExport.Spec.Weight)
 	}
 	return nil
 }
