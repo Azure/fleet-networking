@@ -7,6 +7,7 @@ package serviceexport
 
 import (
 	"context"
+	"flag"
 	"path/filepath"
 	"testing"
 
@@ -21,8 +22,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -62,9 +61,11 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
-	klog.SetLogger(logger)
-	log.SetLogger(logger)
+	By("Setup klog")
+	var err error
+	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	Expect(fs.Parse([]string{"--v", "5", "-add_dir_header", "true"})).Should(Succeed())
 
 	ctx, cancel = context.WithCancel(context.TODO())
 

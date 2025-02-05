@@ -84,7 +84,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	profile := &fleetnetv1beta1.TrafficManagerProfile{}
 	if err := r.Client.Get(ctx, name, profile); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.V(4).InfoS("Ignoring NotFound trafficManagerProfile", "trafficManagerProfile", profileKRef)
+			klog.V(2).InfoS("Ignoring NotFound trafficManagerProfile", "trafficManagerProfile", profileKRef)
 			return ctrl.Result{}, nil
 		}
 		klog.ErrorS(err, "Failed to get trafficManagerProfile", "trafficManagerProfile", profileKRef)
@@ -114,7 +114,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 	profileKObj := klog.KObj(profile)
 	// The profile is being deleted
 	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
-		klog.V(4).InfoS("TrafficManagerProfile is being deleted", "trafficManagerProfile", profileKObj)
+		klog.V(2).InfoS("TrafficManagerProfile is being deleted", "trafficManagerProfile", profileKObj)
 		return ctrl.Result{}, nil
 	}
 
