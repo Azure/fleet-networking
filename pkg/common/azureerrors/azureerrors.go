@@ -37,3 +37,9 @@ func IsThrottled(err error) bool {
 	var responseError *azcore.ResponseError
 	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusTooManyRequests
 }
+
+// IsForbidden determines if the error is a http 403 error returned by the azure server.
+func IsForbidden(err error) bool {
+	var responseError *azcore.ResponseError
+	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusForbidden
+}

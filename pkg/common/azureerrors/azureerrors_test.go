@@ -154,7 +154,44 @@ func TestIsThrottled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := IsThrottled(tc.err)
 			if got != tc.want {
-				t.Errorf("IsConflict() = %v, want %v", got, tc.want)
+				t.Errorf("IsThrottled() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsForbidden(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "not azure error",
+			err:  errors.New("not azure error"),
+			want: false,
+		},
+		{
+			name: "bad request error",
+			err:  &azcore.ResponseError{StatusCode: 400},
+			want: false,
+		},
+		{
+			name: "forbidden error",
+			err:  &azcore.ResponseError{StatusCode: 403},
+			want: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := IsForbidden(tc.err)
+			if got != tc.want {
+				t.Errorf("IsForbidden() = %v, want %v", got, tc.want)
 			}
 		})
 	}

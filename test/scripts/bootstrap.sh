@@ -162,6 +162,9 @@ fi
 
 # hack: add role assignments to kubelet identity
 if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
+  AKS_HUB_CLUSTER=$(az aks show -g $RESOURCE_GROUP -n $HUB_CLUSTER)
+  AKS_HUB_CLUSTER_NODE_RESOURCE_GROUP=$(echo ${AKS_HUB_CLUSTER} | jq -r '. | .nodeResourceGroup')
+
   echo "Assigning roles to hub kubelet identity on the resourceGroup of the hub cluster"
   az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
 
@@ -173,7 +176,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
     subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
     useManagedIdentityExtension: true
     userAssignedIdentityID: "${HUB_CLUSTER_KUBELET_CLIENT_ID}"
-    resourceGroup: "${RESOURCE_GROUP}"
+    resourceGroup: "${AKS_HUB_CLUSTER_NODE_RESOURCE_GROUP}"
     location: "${LOCATION}"
 EOF
 

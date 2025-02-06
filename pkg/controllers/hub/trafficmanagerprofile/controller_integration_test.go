@@ -35,6 +35,7 @@ func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerPr
 				TimeoutInSeconds:          ptr.To[int64](10),
 				ToleratedNumberOfFailures: ptr.To[int64](5),
 			},
+			ResourceGroup: fakeprovider.DefaultResourceGroupName,
 		},
 	}
 }
@@ -133,6 +134,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 						TimeoutInSeconds:          ptr.To[int64](9),
 						ToleratedNumberOfFailures: ptr.To[int64](4),
 					},
+					ResourceGroup: fakeprovider.DefaultResourceGroupName,
 				},
 			}
 			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
@@ -332,6 +334,51 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+		})
+	})
+
+	Context("When creating trafficManagerProfile and azure request failed because of not found resource group", Ordered, func() {
+		name := fakeprovider.ValidProfileName
+		var profile *fleetnetv1beta1.TrafficManagerProfile
+
+		It("AzureTrafficManager should not be configured", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = trafficManagerProfileForTest(name)
+			// reset the resourceGroup
+			profile.Spec.ResourceGroup = "not-found-resource-group"
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+
+			By("By checking profile")
+			want := fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+				},
+				Spec: profile.Spec,
+				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
+					Conditions: []metav1.Condition{
+						{
+							Status:             metav1.ConditionFalse,
+							Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
+							ObservedGeneration: profile.Generation,
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating if trafficManagerProfile is deleted", func() {
+			name := types.NamespacedName{Namespace: testNamespace, Name: name}
+			validator.ValidateTrafficManagerProfileConsistentlyExist(ctx, k8sClient, name)
+			validator.IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx, k8sClient, name)
 		})
 	})
 })

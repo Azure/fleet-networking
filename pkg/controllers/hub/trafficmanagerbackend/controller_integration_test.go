@@ -60,7 +60,9 @@ func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerPr
 			Name:      name,
 			Namespace: testNamespace,
 		},
-		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{},
+		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+			ResourceGroup: fakeprovider.DefaultResourceGroupName,
+		},
 	}
 }
 
