@@ -812,6 +812,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(fakeprovider.Weight),
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -822,6 +823,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[3],
 								},
+								Weight: ptr.To(fakeprovider.Weight),
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -864,6 +866,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
@@ -963,6 +966,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							},
 							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
