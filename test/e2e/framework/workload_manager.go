@@ -132,7 +132,7 @@ func (wm *WorkloadManager) MultiClusterService() fleetnetv1alpha1.MultiClusterSe
 }
 
 // TrafficManagerProfile returns the TrafficManagerProfile definition from pre-defined service name and namespace.
-func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1beta1.TrafficManagerProfile {
+func (wm *WorkloadManager) TrafficManagerProfile(resourceGroup string) fleetnetv1beta1.TrafficManagerProfile {
 	return fleetnetv1beta1.TrafficManagerProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: wm.namespace,
@@ -147,6 +147,7 @@ func (wm *WorkloadManager) TrafficManagerProfile() fleetnetv1beta1.TrafficManage
 				ToleratedNumberOfFailures: ptr.To(int64(3)),
 				TimeoutInSeconds:          ptr.To(int64(8)),
 			},
+			ResourceGroup: resourceGroup,
 		},
 	}
 }
