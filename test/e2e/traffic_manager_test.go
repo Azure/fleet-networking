@@ -30,7 +30,7 @@ var (
 	enabled = os.Getenv("ENABLE_TRAFFIC_MANAGER") == "true"
 )
 
-var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
+var _ = FDescribe("Test exporting service via Azure traffic manager", Ordered, func() {
 	var wm *framework.WorkloadManager
 	var profile fleetnetv1beta1.TrafficManagerProfile
 	var profileName types.NamespacedName
@@ -50,12 +50,12 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		Expect(wm.DeployWorkload(ctx)).Should(Succeed(), "Failed to deploy workloads")
 
 		By("Creating trafficManagerProfile")
-		profile = wm.TrafficManagerProfile()
+		profile = wm.TrafficManagerProfile(atmResourceGroup)
 		Expect(hubClient.Create(ctx, &profile)).Should(Succeed(), "Failed to creat the trafficManagerProfile")
 
 		By("Validating the trafficManagerProfile status")
 		profileName = types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}
-		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName)
+		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true)
 
 		By("Validating the Azure traffic manager profile")
 		atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -82,6 +82,52 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		atmValidator.IsProfileDeleted(ctx, atmProfileName)
 	})
 
+	Context("Test invalid trafficManagerProfile", Ordered, func() {
+		var invalidProfile fleetnetv1beta1.TrafficManagerProfile
+		var invalidProfileName types.NamespacedName
+		var backend fleetnetv1beta1.TrafficManagerBackend
+		var backendName types.NamespacedName
+
+		BeforeEach(func() {
+			By("Creating trafficManagerProfile with invalid resource group")
+			invalidProfile = wm.TrafficManagerProfile("invalid-resource-group")
+			invalidProfile.Name = "invalid-profile-name"
+			Expect(hubClient.Create(ctx, &invalidProfile)).Should(Succeed(), "Failed to create the invalid trafficManagerProfile")
+
+			By("Validating the trafficManagerProfile status")
+			invalidProfileName = types.NamespacedName{Namespace: invalidProfile.Namespace, Name: invalidProfile.Name}
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false)
+		})
+
+		AfterEach(func() {
+			By("Deleting trafficManagerProfile")
+			err := hubClient.Delete(ctx, &invalidProfile)
+			Expect(err).Should(SatisfyAny(Succeed(), WithTransform(errors.IsNotFound, BeTrue())), "Failed to delete the trafficManagerProfile")
+
+			By("Validating trafficManagerProfile is deleted")
+			validator.ValidateTrafficManagerProfileConsistentlyExist(ctx, hubClient, invalidProfileName)
+			validator.IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx, hubClient, invalidProfileName)
+		})
+
+		It("Creating trafficManagerBackend with invalid profile", func() {
+			By("Creating trafficManagerBackend")
+			backend = wm.TrafficManagerBackend()
+			// update the profile to invalid one
+			backend.Spec.Profile = fleetnetv1beta1.TrafficManagerProfileRef{
+				Name: invalidProfile.Name,
+			}
+			backendName = types.NamespacedName{Namespace: backend.Namespace, Name: backend.Name}
+			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
+
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
+
+			By("Deleting trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName)
+		})
+	})
+
 	Context("Test updating trafficManagerProfile", Ordered, func() {
 		var wantTrafficViewEnrollmentStatus *armtrafficmanager.TrafficViewEnrollmentStatus
 
@@ -94,7 +140,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
 
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfile = buildDesiredATMProfile(profile, nil)

@@ -204,16 +204,15 @@ func main() {
 		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
 		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig) // profilesClient, endpointsClient, err
+		profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig)
 		if err != nil {
 			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
 			exitWithErrorFunc()
 		}
 		klog.V(1).InfoS("Start to setup TrafficManagerProfile controller")
 		if err := (&trafficmanagerprofile.Reconciler{
-			Client:            mgr.GetClient(),
-			ProfilesClient:    profilesClient,
-			ResourceGroupName: cloudConfig.ResourceGroup,
+			Client:         mgr.GetClient(),
+			ProfilesClient: profilesClient,
 		}).SetupWithManager(mgr); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
 			exitWithErrorFunc()
@@ -221,10 +220,9 @@ func main() {
 
 		klog.V(1).InfoS("Start to setup TrafficManagerBackend controller")
 		if err := (&trafficmanagerbackend.Reconciler{
-			Client:            mgr.GetClient(),
-			ProfilesClient:    profilesClient,
-			EndpointsClient:   endpointsClient,
-			ResourceGroupName: cloudConfig.ResourceGroup,
+			Client:          mgr.GetClient(),
+			ProfilesClient:  profilesClient,
+			EndpointsClient: endpointsClient,
 			// serviceImport controller has already enabled the internalServiceExportIndexer.
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {

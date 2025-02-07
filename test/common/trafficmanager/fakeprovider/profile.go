@@ -198,7 +198,7 @@ func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileN
 // ProfileDelete returns the http status code based on the profileName.
 func ProfileDelete(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientDeleteOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientDeleteResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
-		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
+		errResp.SetResponseError(http.StatusForbidden, "AuthorizationFailed")
 		return resp, errResp
 	}
 	switch profileName {

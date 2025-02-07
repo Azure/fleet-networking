@@ -53,6 +53,8 @@ var (
 
 	atmValidator *azureprovider.Validator
 	pipClient    publicipaddressclient.Interface
+
+	atmResourceGroup string
 )
 
 func init() {
@@ -93,7 +95,7 @@ func initAzureClients() {
 	subscriptionID := os.Getenv(azureSubscriptionEnv)
 	Expect(subscriptionID).ShouldNot(BeEmpty(), "Azure subscription ID is not set")
 
-	atmResourceGroup := os.Getenv(azureTrafficManagerResourceGroupEnv)
+	atmResourceGroup = os.Getenv(azureTrafficManagerResourceGroupEnv)
 	Expect(atmResourceGroup).ShouldNot(BeEmpty(), "Azure traffic manager resource group is not set")
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)

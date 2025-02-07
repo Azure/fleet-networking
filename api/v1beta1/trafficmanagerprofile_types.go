@@ -43,7 +43,10 @@ type TrafficManagerProfileSpec struct {
 	// The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile.
 	// When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted
 	// in the specified resource group.
+	// Reference link: https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=90
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
 	ResourceGroup string `json:"resourceGroup"`
 

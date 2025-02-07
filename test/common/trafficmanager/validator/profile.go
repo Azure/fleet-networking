@@ -9,6 +9,8 @@ package validator
 import (
 	"context"
 	"fmt"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -64,23 +66,37 @@ func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client,
 }
 
 // ValidateIfTrafficManagerProfileIsProgrammed validates the trafficManagerProfile is programmed and returns the DNSName.
-func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName) *fleetnetv1beta1.TrafficManagerProfile {
+func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName, isProgrammed bool) *fleetnetv1beta1.TrafficManagerProfile {
 	wantDNSName := fmt.Sprintf("%s-%s.trafficmanager.net", profileName.Namespace, profileName.Name)
 	var profile fleetnetv1beta1.TrafficManagerProfile
 	gomega.Eventually(func() error {
 		if err := k8sClient.Get(ctx, profileName, &profile); err != nil {
 			return err
 		}
-		wantStatus := fleetnetv1beta1.TrafficManagerProfileStatus{
-			DNSName: ptr.To(wantDNSName),
-			Conditions: []metav1.Condition{
-				{
-					Status:             metav1.ConditionTrue,
-					Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
-					Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
-					ObservedGeneration: profile.Generation,
+		var wantStatus fleetnetv1beta1.TrafficManagerProfileStatus
+		if isProgrammed {
+			wantStatus = fleetnetv1beta1.TrafficManagerProfileStatus{
+				DNSName: ptr.To(wantDNSName),
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionTrue,
+						Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+						Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
+						ObservedGeneration: profile.Generation,
+					},
 				},
-			},
+			}
+		} else {
+			wantStatus = fleetnetv1beta1.TrafficManagerProfileStatus{
+				Conditions: []metav1.Condition{
+					{
+						Status:             metav1.ConditionFalse,
+						Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+						Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
+						ObservedGeneration: profile.Generation,
+					},
+				},
+			}
 		}
 		if diff := cmp.Diff(
 			profile.Status,
@@ -103,4 +119,31 @@ func IsTrafficManagerProfileDeleted(ctx context.Context, k8sClient client.Client
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Failed to remove trafficManagerProfile %s ", name)
+}
+
+// ValidateTrafficManagerProfileConsistentlyExist validates whether the profile consistently exists.
+func ValidateTrafficManagerProfileConsistentlyExist(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
+	gomega.Consistently(func() error {
+		profile := &fleetnetv1beta1.TrafficManagerProfile{}
+		if err := k8sClient.Get(ctx, name, profile); errors.IsNotFound(err) {
+			return fmt.Errorf("trafficManagerProfile %s does not exist: %w", name, err)
+		}
+		return nil
+	}, duration, interval).Should(gomega.Succeed(), "Failed to find trafficManagerProfile %s ", name)
+}
+
+// IsTrafficManagerProfileDeletedAfterRemoveFinalizer validates whether the profile is deleted after removing the finalizer.
+func IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
+	gomega.Eventually(func() error {
+		profile := &fleetnetv1beta1.TrafficManagerProfile{}
+		if err := k8sClient.Get(ctx, name, profile); err != nil {
+			return fmt.Errorf("failed to get trafficManagerProfile %s: %w", name, err)
+		}
+		controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
+		if err := k8sClient.Update(ctx, profile); err != nil {
+			return fmt.Errorf("failed to update trafficManagerProfile %s: %w", name, err)
+		}
+		return nil
+	}, timeout, interval).Should(gomega.Succeed(), "Failed to remove trafficManagerProfile %s finalizer", name)
+	IsTrafficManagerProfileDeleted(ctx, k8sClient, name)
 }
