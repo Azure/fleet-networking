@@ -95,15 +95,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.handleDelete(ctx, profile)
 	}
 
-	// register finalizer
-	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
-		controllerutil.AddFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
-		if err := r.Update(ctx, profile); err != nil {
-			klog.ErrorS(err, "Failed to add finalizer to trafficManagerProfile", "trafficManagerProfile", profileKRef)
-			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
-		}
-	}
-
 	// TODO: replace the following with defaulter wehbook
 	defaulter.SetDefaultsTrafficManagerProfile(profile)
 	return r.handleUpdate(ctx, profile)
@@ -158,6 +149,17 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 			// skip creating or updating the profile
 			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return r.updateProfileStatus(ctx, profile, &getRes.Profile, nil)
+		}
+	}
+
+	// register finalizer only before creating atm profile
+	// So that when a user specifies an invalid resource group, the controller will fail to create the profile because of the 403 error.
+	// Otherwise, the deletion will be stuck because of the 403 error and the finalizer cannot be removed.
+	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
+		controllerutil.AddFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
+		if err := r.Update(ctx, profile); err != nil {
+			klog.ErrorS(err, "Failed to add finalizer to trafficManagerProfile", "trafficManagerProfile", profileKObj)
+			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 		}
 	}
 

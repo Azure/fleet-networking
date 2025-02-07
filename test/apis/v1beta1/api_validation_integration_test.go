@@ -8,7 +8,6 @@ package v1beta1
 import (
 	"errors"
 	"fmt"
-	"go.goms.io/fleet-networking/pkg/common/uniquename"
 	"reflect"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -18,6 +17,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
 var (

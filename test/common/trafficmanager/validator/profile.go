@@ -9,8 +9,6 @@ package validator
 import (
 	"context"
 	"fmt"
-	"go.goms.io/fleet-networking/pkg/common/objectmeta"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -119,31 +117,4 @@ func IsTrafficManagerProfileDeleted(ctx context.Context, k8sClient client.Client
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Failed to remove trafficManagerProfile %s ", name)
-}
-
-// ValidateTrafficManagerProfileConsistentlyExist validates whether the profile consistently exists.
-func ValidateTrafficManagerProfileConsistentlyExist(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
-	gomega.Consistently(func() error {
-		profile := &fleetnetv1beta1.TrafficManagerProfile{}
-		if err := k8sClient.Get(ctx, name, profile); errors.IsNotFound(err) {
-			return fmt.Errorf("trafficManagerProfile %s does not exist: %w", name, err)
-		}
-		return nil
-	}, duration, interval).Should(gomega.Succeed(), "Failed to find trafficManagerProfile %s ", name)
-}
-
-// IsTrafficManagerProfileDeletedAfterRemoveFinalizer validates whether the profile is deleted after removing the finalizer.
-func IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
-	gomega.Eventually(func() error {
-		profile := &fleetnetv1beta1.TrafficManagerProfile{}
-		if err := k8sClient.Get(ctx, name, profile); err != nil {
-			return fmt.Errorf("failed to get trafficManagerProfile %s: %w", name, err)
-		}
-		controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
-		if err := k8sClient.Update(ctx, profile); err != nil {
-			return fmt.Errorf("failed to update trafficManagerProfile %s: %w", name, err)
-		}
-		return nil
-	}, timeout, interval).Should(gomega.Succeed(), "Failed to remove trafficManagerProfile %s finalizer", name)
-	IsTrafficManagerProfileDeleted(ctx, k8sClient, name)
 }

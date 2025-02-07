@@ -113,14 +113,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return r.handleDelete(ctx, backend)
 	}
 
-	// register finalizer
-	if !controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
-		controllerutil.AddFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer)
-		if err := r.Update(ctx, backend); err != nil {
-			klog.ErrorS(err, "Failed to add finalizer to trafficManagerBackend", "trafficManagerBackend", backend)
-			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
-		}
-	}
 	// TODO: replace the following with defaulter webhook
 	defaulter.SetDefaultsTrafficManagerBackend(backend)
 	return r.handleUpdate(ctx, backend)
@@ -263,6 +255,17 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1beta1.
 		return ctrl.Result{}, err
 	}
 	klog.V(2).InfoS("Found the exported services behind the serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", klog.KObj(serviceImport), "numberOfDesiredEndpoints", len(desiredEndpointsMaps), "numberOfInvalidServices", len(invalidServicesMaps))
+
+	// register finalizer only before creating atm endpoints
+	// So that when a user specifies an invalid resource group of the profile, the controller will fail to create the endpoint because of the 403 error.
+	// Otherwise, the deletion will be stuck because of the 403 error and the finalizer cannot be removed.
+	if !controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
+		controllerutil.AddFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer)
+		if err := r.Update(ctx, backend); err != nil {
+			klog.ErrorS(err, "Failed to add finalizer to trafficManagerBackend", "trafficManagerBackend", backend)
+			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
+		}
+	}
 
 	acceptedEndpoints, badEndpointsErr, err := r.updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx, profile.Spec.ResourceGroup, backend, atmProfile, desiredEndpointsMaps)
 	if err != nil {

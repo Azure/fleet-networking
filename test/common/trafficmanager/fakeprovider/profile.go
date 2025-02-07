@@ -77,7 +77,7 @@ func NewProfileClient(subscriptionID string) (*armtrafficmanager.ProfilesClient,
 // ProfileGet returns the http status code based on the profileName.
 func ProfileGet(_ context.Context, resourceGroupName string, profileName string, _ *armtrafficmanager.ProfilesClientGetOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientGetResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
-		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
+		errResp.SetResponseError(http.StatusForbidden, "AuthorizationFailed")
 		return resp, errResp
 	}
 	switch profileName {
@@ -154,7 +154,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 // ProfileCreateOrUpdate returns the http status code based on the profileName.
 func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, parameters armtrafficmanager.Profile, _ *armtrafficmanager.ProfilesClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.ProfilesClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
-		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
+		errResp.SetResponseError(http.StatusForbidden, "AuthorizationFailed")
 		return resp, errResp
 	}
 	switch profileName {

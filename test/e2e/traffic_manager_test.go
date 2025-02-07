@@ -30,7 +30,7 @@ var (
 	enabled = os.Getenv("ENABLE_TRAFFIC_MANAGER") == "true"
 )
 
-var _ = FDescribe("Test exporting service via Azure traffic manager", Ordered, func() {
+var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
 	var wm *framework.WorkloadManager
 	var profile fleetnetv1beta1.TrafficManagerProfile
 	var profileName types.NamespacedName
@@ -105,8 +105,7 @@ var _ = FDescribe("Test exporting service via Azure traffic manager", Ordered, f
 			Expect(err).Should(SatisfyAny(Succeed(), WithTransform(errors.IsNotFound, BeTrue())), "Failed to delete the trafficManagerProfile")
 
 			By("Validating trafficManagerProfile is deleted")
-			validator.ValidateTrafficManagerProfileConsistentlyExist(ctx, hubClient, invalidProfileName)
-			validator.IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx, hubClient, invalidProfileName)
+			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, invalidProfileName)
 		})
 
 		It("Creating trafficManagerBackend with invalid profile", func() {

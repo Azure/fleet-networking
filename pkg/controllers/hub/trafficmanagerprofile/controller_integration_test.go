@@ -122,8 +122,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = &fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: testNamespace,
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
 				},
 				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
 					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
@@ -341,7 +342,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.ValidProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 
-		It("AzureTrafficManager should not be configured", func() {
+		It("TrafficManagerProfile should be invalid", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(name)
 			// reset the resourceGroup
@@ -351,9 +352,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By checking profile")
 			want := fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       name,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+					Name:      name,
+					Namespace: testNamespace,
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
@@ -377,8 +377,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 		It("Validating if trafficManagerProfile is deleted", func() {
 			name := types.NamespacedName{Namespace: testNamespace, Name: name}
-			validator.ValidateTrafficManagerProfileConsistentlyExist(ctx, k8sClient, name)
-			validator.IsTrafficManagerProfileDeletedAfterRemoveFinalizer(ctx, k8sClient, name)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, name)
 		})
 	})
 })
