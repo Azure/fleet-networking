@@ -23,6 +23,8 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"go.goms.io/fleet/pkg/utils/controller"
+
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -547,12 +549,23 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
 
 			By("make sure the serviceExport is marked as invalid")
-			Eventually(func() bool {
+			err := controller.NewUserError(fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]))
+			expectedCond := metav1.Condition{
+				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Status:             metav1.ConditionFalse,
+				Reason:             svcExportInvalidWeightAnnotationReason,
+				ObservedGeneration: svcExport.Generation,
+				Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+			}
+			Eventually(func() error {
 				svcExport := &fleetnetv1alpha1.ServiceExport{}
 				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
 				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-				return validCond.Status == metav1.ConditionFalse && validCond.Reason == svcExportInvalidWeightAnnotationReason
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 

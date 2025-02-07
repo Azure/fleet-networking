@@ -433,9 +433,8 @@ func (r *Reconciler) updateTrafficManagerBackendStatus(ctx context.Context, back
 }
 
 type desiredEndpoint struct {
-	Endpoint       armtrafficmanager.Endpoint
-	Cluster        fleetnetv1beta1.ClusterStatus
-	OriginalWeight *int64
+	Endpoint    armtrafficmanager.Endpoint
+	FromCluster fleetnetv1beta1.FromCluster
 }
 
 // validateAndProcessServiceImportForBackend validates the serviceImport and generates the desired endpoints for the backend from the serviceExports.
@@ -496,10 +495,12 @@ func (r *Reconciler) validateAndProcessServiceImportForBackend(ctx context.Conte
 		endpoint := generateAzureTrafficManagerEndpoint(backend, internalServiceExport)
 		desiredEndpoints[*endpoint.Name] = desiredEndpoint{
 			Endpoint: endpoint,
-			Cluster: fleetnetv1beta1.ClusterStatus{
-				Cluster: clusterStatus.Cluster,
+			FromCluster: fleetnetv1beta1.FromCluster{
+				ClusterStatus: fleetnetv1beta1.ClusterStatus{
+					Cluster: clusterStatus.Cluster,
+				},
+				Weight: endpoint.Properties.Weight,
 			},
-			OriginalWeight: endpoint.Properties.Weight, // this is the original weight from the serviceExport
 		}
 		totalWeight += *endpoint.Properties.Weight
 	}
@@ -549,10 +550,7 @@ func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, desiredEn
 		Name:   strings.ToLower(*endpoint.Name), // name is case-insensitive
 		Target: endpoint.Properties.Target,
 		Weight: endpoint.Properties.Weight, // the calculated weight
-		From: &fleetnetv1beta1.FromCluster{
-			ClusterStatus: desiredEndpoint.Cluster,
-			Weight:        desiredEndpoint.OriginalWeight, // the original weight from the serviceExport
-		},
+		From:   &desiredEndpoint.FromCluster,
 	}
 }
 

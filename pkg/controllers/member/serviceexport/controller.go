@@ -165,11 +165,32 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		// Mark the ServiceExport as invalid.
 		klog.V(2).InfoS("Mark service export as invalid (service ineligible)", "service", svcRef)
-		err := r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport, &svc)
+		err = r.markServiceExportAsInvalidSvcIneligible(ctx, &svcExport, &svc)
 		if err != nil {
 			klog.ErrorS(err, "Failed to mark service export as invalid (service ineligible)", "service", svcRef)
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Get the weight from the serviceExport annotation and validate it.
+	exportWeight, err := extractWeightFromServiceExport(&svcExport)
+	if err != nil {
+		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		expectedValidCond := metav1.Condition{
+			Type:               string(fleetnetv1alpha1.ServiceExportValid),
+			Status:             metav1.ConditionFalse,
+			Reason:             svcExportInvalidWeightAnnotationReason,
+			ObservedGeneration: svcExport.Generation,
+			Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+		}
+		if condition.EqualConditionWithMessage(validCond, &expectedValidCond) {
+			// no need to retry if the condition is already set
+			return ctrl.Result{}, nil
+		}
+		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, svcExportInvalidWeightAnnotationReason, "ServiceExport %s has invalid weight value in the annotation", svc.Name)
+		meta.SetStatusCondition(&svcExport.Status.Conditions, expectedValidCond)
+		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
 	}
 
 	// Add the cleanup finalizer to the ServiceExport; this must happen before the Service is actually exported.
@@ -179,21 +200,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			klog.ErrorS(err, "Failed to add cleanup finalizer to svc export", "service", svcRef)
 			return ctrl.Result{}, err
 		}
-	}
-
-	// Get the weight from the serviceExport annotation and validate it.
-	exportWeight, err := extractWeightFromServiceExport(&svcExport)
-	if err != nil {
-		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
-		meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
-			Type:               string(fleetnetv1alpha1.ServiceExportValid),
-			Status:             metav1.ConditionFalse,
-			Reason:             svcExportInvalidWeightAnnotationReason,
-			ObservedGeneration: svcExport.Generation,
-			Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
-		})
-		// no need to retry if the update succeeded as it's an user error
-		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
 	}
 
 	// Mark the ServiceExport as valid.
