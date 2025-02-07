@@ -219,15 +219,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Export the Service or update the exported Service.
+	return r.exportService(ctx, &svcExport, &svc, exportedSince, exportWeight)
+}
 
+func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport, svc *corev1.Service,
+	exportedSince time.Time, exportWeight int64) (ctrl.Result, error) {
+	svcRef := klog.KObj(svc)
 	// Create or update the InternalServiceExport object.
 	internalSvcExport := fleetnetv1alpha1.InternalServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.HubNamespace,
-			Name:      formatInternalServiceExportName(&svcExport),
+			Name:      formatInternalServiceExportName(svcExport),
 		},
 	}
-	svcExportPorts := extractServicePorts(&svc)
+	svcExportPorts := extractServicePorts(svc)
 	klog.V(2).InfoS("Export the service or update the exported service",
 		"service", svcExport,
 		"internalServiceExport", klog.KObj(&internalSvcExport))
@@ -262,7 +267,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if r.EnableTrafficManagerFeature {
 			klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
 			internalSvcExport.Spec.Weight = ptr.To(exportWeight)
-			if err = r.setAzureRelatedInformation(ctx, &svc, &internalSvcExport); err != nil {
+			if err := r.setAzureRelatedInformation(ctx, svc, &internalSvcExport); err != nil {
 				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature in the internal service export", "service", svcRef)
 				return err
 			}
@@ -282,7 +287,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// This can happen, albeit quite rarely, when the system is under heavy load, and the informers cannot sync caches
 		// fast enough; the out-of-date cache will return that an object does not exist when read, even though the object is
 		// already present in the persistent store, and any subsequent create call would fail.
-		if _, err := r.unexportService(ctx, &svcExport); err != nil {
+		if _, err := r.unexportService(ctx, svcExport); err != nil {
 			klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
 			return ctrl.Result{}, err
 		}
