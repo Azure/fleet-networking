@@ -997,7 +997,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 	tests := []struct {
 		name                           string
 		service                        *corev1.Service
-		svcExport                      *fleetnetv1alpha1.ServiceExport
 		publicIPAddressListResponse    []*armnetwork.PublicIPAddress
 		publicIPAddressListResponseErr error
 		want                           *fleetnetv1alpha1.InternalServiceExport
@@ -1048,7 +1047,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					IsDNSLabelConfigured:   true,
 					IsInternalLoadBalancer: false,
 					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:                 ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1087,7 +1085,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:               corev1.ServiceTypeLoadBalancer,
 					PublicIPResourceID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:             ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1177,7 +1174,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					IsDNSLabelConfigured:   true,
 					IsInternalLoadBalancer: false,
 					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:                 ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1227,7 +1223,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					IsDNSLabelConfigured:   false,
 					IsInternalLoadBalancer: false,
 					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:                 ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1274,7 +1269,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					IsDNSLabelConfigured:   false,
 					IsInternalLoadBalancer: false,
 					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:                 ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1295,7 +1289,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:                   corev1.ServiceTypeLoadBalancer,
 					IsInternalLoadBalancer: true,
-					Weight:                 ptr.To(int64(1)),
 				},
 			},
 		},
@@ -1373,8 +1366,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			},
 			want: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Type:   corev1.ServiceTypeLoadBalancer,
-					Weight: ptr.To(int64(1)),
+					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
 		},
@@ -1390,8 +1382,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			},
 			want: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Type:   corev1.ServiceTypeLoadBalancer,
-					Weight: ptr.To(int64(1)),
+					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
 		},
@@ -1416,8 +1407,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			},
 			want: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
-					Type:   corev1.ServiceTypeLoadBalancer,
-					Weight: ptr.To(int64(1)),
+					Type: corev1.ServiceTypeLoadBalancer,
 				},
 			},
 		},
@@ -1467,17 +1457,9 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					},
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "560",
-					},
-				},
-			},
 			want: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:                   corev1.ServiceTypeLoadBalancer,
-					Weight:                 ptr.To(int64(560)),
 					IsInternalLoadBalancer: true,
 				},
 			},
@@ -1501,13 +1483,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					},
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "500",
-					},
-				},
-			},
 			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
 				{
 					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
@@ -1527,7 +1502,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 					IsDNSLabelConfigured:   false,
 					IsInternalLoadBalancer: false,
 					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
-					Weight:                 ptr.To(int64(500)),
 				},
 			},
 		},
@@ -1539,11 +1513,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ResourceGroupName:          validResourceGroup,
 			}
 			got := &fleetnetv1alpha1.InternalServiceExport{}
-			testSvcExport := tt.svcExport
-			if tt.svcExport == nil {
-				testSvcExport = &fleetnetv1alpha1.ServiceExport{}
-			}
-			err := r.setAzureRelatedInformation(context.Background(), tt.service, testSvcExport, got)
+			err := r.setAzureRelatedInformation(context.Background(), tt.service, got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("setAzureRelatedInformation() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1558,7 +1528,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 	}
 }
 
-func TestSetWeightOnHubServiceExport(t *testing.T) {
+func TestExtractWeightFromServiceExport(t *testing.T) {
 	testCases := []struct {
 		name        string
 		svcExport   *fleetnetv1alpha1.ServiceExport
@@ -1642,17 +1612,17 @@ func TestSetWeightOnHubServiceExport(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			hubSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
-			err := setWeightOnHubServiceExport(tc.svcExport, hubSvcExport)
+			gotWeight, err := extractWeightFromServiceExport(tc.svcExport)
 			if (err != nil) != tc.expectError {
-				t.Fatalf("setWeightOnHubServiceExport() error = %v, expectError %v", err, tc.expectError)
+				t.Fatalf("extractWeightFromServiceExport() error = %v, expectError %v", err, tc.expectError)
 			}
 			// make sure the returned error is categorized as user error
-			if tc.expectError && !errors.Is(err, controller.ErrUserError) {
-				t.Fatalf("setWeightOnHubServiceExport() error = %v, expect user error", err)
-			}
-			if err == nil && *hubSvcExport.Spec.Weight != tc.wantWeight {
-				t.Fatalf("setWeightOnHubServiceExport() weight = %d, want %d", *hubSvcExport.Spec.Weight, tc.wantWeight)
+			if tc.expectError {
+				if !errors.Is(err, controller.ErrUserError) {
+					t.Fatalf("extractWeightFromServiceExport() error = %v, expect user error", err)
+				}
+			} else if gotWeight != tc.wantWeight {
+				t.Fatalf("extractWeightFromServiceExport() gotWeight = %d, want %d", gotWeight, tc.wantWeight)
 			}
 		})
 	}

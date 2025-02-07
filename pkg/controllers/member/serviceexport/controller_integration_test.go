@@ -267,6 +267,9 @@ var (
 // the Service referred by svcOrSvcExportKey has been exported to the hub cluster, i.e. a corresponding
 // internalServiceExport has been created.
 func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureLoadBalancer bool, expectedWeight *int64) func() error {
+	if expectedWeight == nil {
+		expectedWeight = ptr.To(int64(1)) //default weight
+	}
 	return func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
@@ -475,7 +478,8 @@ var _ = Describe("serviceexport controller", func() {
 						svc.ObjectMeta,
 						metav1.Now(),
 					),
-					Type: svc.Spec.Type,
+					Type:   svc.Spec.Type,
+					Weight: ptr.To(int64(1)), //default weight
 				}
 				if diff := cmp.Diff(internalSvcExport.Spec, expectedInternalSvcExportSpec, ignoredRefFields); diff != "" {
 					return fmt.Errorf("internalServiceExport spec (-got, +want): %s", diff)
@@ -528,6 +532,27 @@ var _ = Describe("serviceexport controller", func() {
 			By("check the serviceExport weight again")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(newWeight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
+		It("invalid annotation weight should invalidate the exported service", func() {
+			By("confirm that the service has been exported")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("update the serviceExport in the member cluster")
+			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(3837),
+			}
+			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
+
+			By("make sure the serviceExport is marked as invalid")
+			Eventually(func() bool {
+				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				return validCond.Status == metav1.ConditionFalse && validCond.Reason == svcExportInvalidWeightAnnotationReason
+			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
 		})
 	})
 

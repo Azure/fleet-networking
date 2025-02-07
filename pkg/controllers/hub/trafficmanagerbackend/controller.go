@@ -433,8 +433,9 @@ func (r *Reconciler) updateTrafficManagerBackendStatus(ctx context.Context, back
 }
 
 type desiredEndpoint struct {
-	Endpoint armtrafficmanager.Endpoint
-	Cluster  fleetnetv1beta1.ClusterStatus
+	Endpoint       armtrafficmanager.Endpoint
+	Cluster        fleetnetv1beta1.ClusterStatus
+	OriginalWeight *int64
 }
 
 // validateAndProcessServiceImportForBackend validates the serviceImport and generates the desired endpoints for the backend from the serviceExports.
@@ -498,6 +499,7 @@ func (r *Reconciler) validateAndProcessServiceImportForBackend(ctx context.Conte
 			Cluster: fleetnetv1beta1.ClusterStatus{
 				Cluster: clusterStatus.Cluster,
 			},
+			OriginalWeight: endpoint.Properties.Weight, // this is the original weight from the serviceExport
 		}
 		totalWeight += *endpoint.Properties.Weight
 	}
@@ -542,14 +544,14 @@ func generateAzureTrafficManagerEndpoint(backend *fleetnetv1beta1.TrafficManager
 	}
 }
 
-func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, cluster fleetnetv1beta1.ClusterStatus) fleetnetv1beta1.TrafficManagerEndpointStatus {
+func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, desiredEndpoint desiredEndpoint) fleetnetv1beta1.TrafficManagerEndpointStatus {
 	return fleetnetv1beta1.TrafficManagerEndpointStatus{
 		Name:   strings.ToLower(*endpoint.Name), // name is case-insensitive
 		Target: endpoint.Properties.Target,
-		Weight: endpoint.Properties.Weight,
+		Weight: endpoint.Properties.Weight, // the calculated weight
 		From: &fleetnetv1beta1.FromCluster{
-			ClusterStatus: cluster,
-			Weight:        endpoint.Properties.Weight,
+			ClusterStatus: desiredEndpoint.Cluster,
+			Weight:        desiredEndpoint.OriginalWeight, // the original weight from the serviceExport
 		},
 	}
 }
@@ -607,7 +609,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 		if equalAzureTrafficManagerEndpoint(*endpoint, desired.Endpoint) {
 			klog.V(2).InfoS("Skipping updating the existing Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 			delete(desiredEndpoints, endpointName) // no need to update the existing endpoint
-			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, desired.Cluster))
+			acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(endpoint, desired))
 			continue
 		} // no need to update the endpoint if it's the same
 	}
@@ -636,7 +638,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 			return nil, nil, updateErr
 		}
 		klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
-		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, endpoint.Cluster))
+		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, endpoint))
 	}
 	klog.V(2).InfoS("Successfully updated the Traffic Manager endpoints", "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "numberOfAcceptedEndpoints", len(acceptedEndpoints), "numberOfBadEndpoints", len(badEndpointsError))
 	return acceptedEndpoints, badEndpointsError, nil

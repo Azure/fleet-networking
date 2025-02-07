@@ -43,6 +43,7 @@ const (
 	svcExportInvalidNotFoundCondReason       = "ServiceNotFound"
 	svcExportInvalidIneligibleCondReason     = "ServiceIneligible"
 	svcExportPendingConflictResolutionReason = "ServicePendingConflictResolution"
+	svcExportInvalidWeightAnnotationReason   = "ServiceExportInvalidWeightAnnotation"
 
 	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that
 	// a ServiceExport can only be deleted after its corresponding Service has been unexported from the hub cluster.
@@ -180,9 +181,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
+	// Get the weight from the serviceExport annotation and validate it.
+	exportWeight, err := extractWeightFromServiceExport(&svcExport)
+	if err != nil {
+		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
+		meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
+			Type:               string(fleetnetv1alpha1.ServiceExportValid),
+			Status:             metav1.ConditionFalse,
+			Reason:             svcExportInvalidWeightAnnotationReason,
+			ObservedGeneration: svcExport.Generation,
+			Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+		})
+		// no need to retry if the update succeeded as it's an user error
+		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
+	}
+
 	// Mark the ServiceExport as valid.
 	klog.V(2).InfoS("Mark service export as valid", "service", svcRef)
-	if err := r.markServiceExportAsValid(ctx, &svcExport, &svc); err != nil {
+	if err = r.markServiceExportAsValid(ctx, &svcExport, &svc); err != nil {
 		klog.ErrorS(err, "Failed to mark service export as valid", "service", svcRef)
 		return ctrl.Result{}, err
 	}
@@ -239,7 +255,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		if r.EnableTrafficManagerFeature {
 			klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
-			if err := r.setAzureRelatedInformation(ctx, &svc, &svcExport, &internalSvcExport); err != nil {
+			internalSvcExport.Spec.Weight = ptr.To(exportWeight)
+			if err = r.setAzureRelatedInformation(ctx, &svc, &internalSvcExport); err != nil {
 				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature in the internal service export", "service", svcRef)
 				return err
 			}
@@ -279,15 +296,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	service *corev1.Service,
-	svcExport *fleetnetv1alpha1.ServiceExport,
 	hubSvcExport *fleetnetv1alpha1.InternalServiceExport) error {
 	hubSvcExport.Spec.Type = service.Spec.Type
 	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
 		return nil
-	}
-	// copy the weight from the service export to the internal service export
-	if err := setWeightOnHubServiceExport(svcExport, hubSvcExport); err != nil {
-		return err
 	}
 	// The annotation value is case-sensitive.
 	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
@@ -348,33 +360,28 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	return nil
 }
 
-// setWeightOnHubServiceExport sets the weight on the hub cluster's InternalServiceExport based on the weight annotation
-// set on the member cluster's ServiceExport.
-func setWeightOnHubServiceExport(svcExport *fleetnetv1alpha1.ServiceExport, hubSvcExport *fleetnetv1alpha1.InternalServiceExport) error {
+// extractWeightFromServiceExport gets the weight from the serviceExport annotation and validates it.
+func extractWeightFromServiceExport(svcExport *fleetnetv1alpha1.ServiceExport) (int64, error) {
 	serviceKObj := klog.KObj(svcExport)
 	// Setup the weightAnno for the exported service on the hub cluster.
 	weightAnno, found := svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]
 	if !found {
-		// If unspecified, weightAnno defaults to 1.
-		hubSvcExport.Spec.Weight = ptr.To(int64(1))
-	} else {
-		// check if the weightAnno on the serviceExport in the member cluster is valid
-		// The value should be in the range [0, 1000].
-		weight, err := strconv.Atoi(weightAnno)
-		if err != nil {
-			err = fmt.Errorf("the weight annotation is not a valid integer: %s", weightAnno)
-			klog.ErrorS(err, "Failed to parse the weight annotation", "serviceExport", serviceKObj)
-			return controller.NewUserError(err)
-		}
-		if weight < 0 || weight > 1000 {
-			err = fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", weightAnno)
-			klog.ErrorS(err, "The weight annotation is out of range", "serviceExport", serviceKObj)
-			return controller.NewUserError(err)
-		}
-		hubSvcExport.Spec.Weight = ptr.To(int64(weight))
-		klog.V(2).InfoS("Assigned a weight to the hub serviceExport", "serviceExport", serviceKObj, "weight", hubSvcExport.Spec.Weight)
+		return int64(1), nil
 	}
-	return nil
+	// check if the weightAnno on the serviceExport in the member cluster is valid
+	// The value should be in the range [0, 1000].
+	weight, err := strconv.Atoi(weightAnno)
+	if err != nil {
+		err = fmt.Errorf("the weight annotation is not a valid integer: %s", weightAnno)
+		klog.ErrorS(err, "Failed to parse the weight annotation", "serviceExport", serviceKObj)
+		return -1, controller.NewUserError(err)
+	}
+	if weight < 0 || weight > 1000 {
+		err = fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", weightAnno)
+		klog.ErrorS(err, "The weight annotation is out of range", "serviceExport", serviceKObj)
+		return -1, controller.NewUserError(err)
+	}
+	return int64(weight), nil
 }
 
 // TODO: can improve the performance by caching the public IP address resource ID.
