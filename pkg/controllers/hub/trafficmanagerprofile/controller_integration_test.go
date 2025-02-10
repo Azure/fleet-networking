@@ -122,9 +122,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = &fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       name,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+					Name:      name,
+					Namespace: testNamespace,
 				},
 				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
 					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
@@ -143,9 +142,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By checking profile")
 			want := fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       name,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+					Name:      name,
+					Namespace: testNamespace,
+					// Since the controller does not create the Azure resource, so it won't add the finalizer here.
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
