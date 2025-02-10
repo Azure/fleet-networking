@@ -33,6 +33,7 @@ const (
 var (
 	testNamespace = fakeprovider.ProfileNamespace
 	serviceName   = fakeprovider.ServiceImportName
+	backendWeight = int64(10)
 )
 
 func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1beta1.TrafficManagerBackend {
@@ -48,7 +49,7 @@ func trafficManagerBackendForTest(name, profileName, serviceImportName string) *
 			Backend: fleetnetv1beta1.TrafficManagerBackendRef{
 				Name: serviceImportName,
 			},
-			Weight: ptr.To(int64(10)),
+			Weight: ptr.To(backendWeight),
 		},
 	}
 }
@@ -769,8 +770,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(int64(1)), // the original weight is default to 1
 							},
-							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Weight: ptr.To(backendWeight), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},
@@ -811,8 +813,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(int64(1)),
 							},
-							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Weight: ptr.To(backendWeight / 2), // populate the weight using atm endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 						{
@@ -821,8 +824,56 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[3],
 								},
+								Weight: ptr.To(int64(1)),
 							},
-							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Weight: ptr.To(backendWeight / 2), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Updating the internalServiceExport weight", func() {
+			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
+			internalServiceExport.Spec.Weight = ptr.To(int64(2))
+			Expect(k8sClient.Update(ctx, internalServiceExport)).Should(Succeed(), "failed to create internalServiceExport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(backend.Generation),
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
+								Weight: ptr.To(int64(2)),
+							},
+							Weight: ptr.To(int64(7)), // 2/3 of the 10
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
+									Cluster: memberClusterNames[3],
+								},
+								Weight: ptr.To(int64(1)),
+							},
+							Weight: ptr.To(int64(4)), // 1/3 of 10
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},
@@ -863,8 +914,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(int64(2)),
 							},
-							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Weight: ptr.To(int64(7)), // 2/3 of the 10 as the weight is calculated before the endpoints are created
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},
@@ -962,8 +1014,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
+								Weight: ptr.To(int64(2)),
 							},
-							Weight: ptr.To(fakeprovider.Weight), // populate the weight using atm endpoint
+							Weight: ptr.To(int64(10)), // only 1 endpoint
 							Target: ptr.To(fakeprovider.ValidEndpointTarget),
 						},
 					},

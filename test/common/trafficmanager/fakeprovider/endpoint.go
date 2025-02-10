@@ -70,7 +70,7 @@ func EndpointDelete(_ context.Context, resourceGroupName string, profileName str
 	return resp, errResp
 }
 
-func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, endpointType armtrafficmanager.EndpointType, endpointName string, _ armtrafficmanager.Endpoint, _ *armtrafficmanager.EndpointsClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.EndpointsClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
+func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profileName string, endpointType armtrafficmanager.EndpointType, endpointName string, endpoint armtrafficmanager.Endpoint, _ *armtrafficmanager.EndpointsClientCreateOrUpdateOptions) (resp azcorefake.Responder[armtrafficmanager.EndpointsClientCreateOrUpdateResponse], errResp azcorefake.ErrorResponder) {
 	if resourceGroupName != DefaultResourceGroupName {
 		errResp.SetResponseError(http.StatusNotFound, "ResourceGroupNotFound")
 		return resp, errResp
@@ -89,7 +89,7 @@ func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profile
 				Name: ptr.To(endpointName),
 				Properties: &armtrafficmanager.EndpointProperties{
 					TargetResourceID: ptr.To(ValidPublicIPResourceID),
-					Weight:           ptr.To(Weight),
+					Weight:           endpoint.Properties.Weight,
 					Target:           ptr.To(ValidEndpointTarget),
 				},
 				Type: ptr.To(string(azureTrafficManagerEndpointTypePrefix + armtrafficmanager.EndpointTypeAzureEndpoints)),

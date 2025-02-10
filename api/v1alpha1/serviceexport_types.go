@@ -47,7 +47,6 @@ type ServiceExportStatus struct {
 // If weight is set to 0, no traffic should be forwarded for this entry.
 // If unspecified, weight defaults to 1.
 // The value should be in the range [0, 1000].
-// Any invalid value will default to default value.
 // +kubebuilder:validation:XValidation:rule="size(self.metadata.name) < 64",message="metadata.name max length is 63"
 type ServiceExport struct {
 	metav1.TypeMeta `json:",inline"`

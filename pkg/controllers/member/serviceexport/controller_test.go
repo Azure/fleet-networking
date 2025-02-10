@@ -28,6 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"go.goms.io/fleet/pkg/utils/controller"
+
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -1433,6 +1435,76 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "copy the service Export weight annotations to InternalServiceExport even for private loadbalancer",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "",
+							},
+						},
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsInternalLoadBalancer: true,
+				},
+			},
+		},
+		{
+			name: "copy the service Export weight annotations to InternalServiceExport with public ip",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: "uid",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			publicIPAddressListResponse: []*armnetwork.PublicIPAddress{
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.3.4"),
+					},
+					ID: ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+				{
+					Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+						IPAddress: ptr.To("1.2.5.6"),
+					},
+				},
+			},
+			want: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                   corev1.ServiceTypeLoadBalancer,
+					IsDNSLabelConfigured:   false,
+					IsInternalLoadBalancer: false,
+					PublicIPResourceID:     ptr.To("/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip"),
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1451,6 +1523,106 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("setAzureRelatedInformation() internalServiceExport mismatch (-want, +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestExtractWeightFromServiceExport(t *testing.T) {
+	testCases := []struct {
+		name        string
+		svcExport   *fleetnetv1alpha1.ServiceExport
+		wantWeight  int64
+		expectError bool
+	}{
+		{
+			name: "default weight when annotation is missing",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{},
+			},
+			wantWeight: 1,
+		},
+		{
+			name: "valid weight annotation",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "500",
+					},
+				},
+			},
+			wantWeight: 500,
+		},
+		{
+			name: "test 0 is valid weight annotation",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "0",
+					},
+				},
+			},
+			wantWeight: 0,
+		},
+		{
+			name: "test 1000 is valid weight annotation",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "1000",
+					},
+				},
+			},
+			wantWeight: 1000,
+		},
+		{
+			name: "invalid weight annotation (non-integer)",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "invalid",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid weight annotation (out of range)",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "2000",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid weight annotation (out of range)",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceExportAnnotationWeight: "-2",
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotWeight, err := extractWeightFromServiceExport(tc.svcExport)
+			if (err != nil) != tc.expectError {
+				t.Fatalf("extractWeightFromServiceExport() error = %v, expectError %v", err, tc.expectError)
+			}
+			// make sure the returned error is categorized as user error
+			if tc.expectError {
+				if !errors.Is(err, controller.ErrUserError) {
+					t.Fatalf("extractWeightFromServiceExport() error = %v, expect user error", err)
+				}
+			} else if gotWeight != tc.wantWeight {
+				t.Fatalf("extractWeightFromServiceExport() gotWeight = %d, want %d", gotWeight, tc.wantWeight)
 			}
 		})
 	}

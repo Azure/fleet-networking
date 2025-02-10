@@ -50,6 +50,22 @@ func EqualConditionIgnoreReason(current, desired *metav1.Condition) bool {
 		current.ObservedGeneration >= desired.ObservedGeneration
 }
 
+// EqualConditionWithMessage compares one condition with another; it ignores the LastTransitionTime field,
+// and will consider the ObservedGeneration values from the two conditions a match if the current
+// condition is newer.
+func EqualConditionWithMessage(current, desired *metav1.Condition) bool {
+	if current == nil && desired == nil {
+		return true
+	}
+	return current != nil &&
+		desired != nil &&
+		current.Type == desired.Type &&
+		current.Status == desired.Status &&
+		current.Reason == desired.Reason &&
+		current.Message == desired.Message &&
+		current.ObservedGeneration >= desired.ObservedGeneration
+}
+
 // UnconflictedServiceExportConflictCondition returns the desired unconflicted condition.
 func UnconflictedServiceExportConflictCondition(internalServiceExport fleetnetv1alpha1.InternalServiceExport) metav1.Condition {
 	svcName := types.NamespacedName{

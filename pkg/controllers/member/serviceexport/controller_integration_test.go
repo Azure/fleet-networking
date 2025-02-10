@@ -7,6 +7,7 @@ package serviceexport
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -22,8 +23,11 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"go.goms.io/fleet/pkg/utils/controller"
+
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -264,7 +268,10 @@ var (
 // serviceIsExportedToHubActual runs with Eventually and Consistently assertion to make sure that
 // the Service referred by svcOrSvcExportKey has been exported to the hub cluster, i.e. a corresponding
 // internalServiceExport has been created.
-func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureLoadBalancer bool) func() error {
+func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureLoadBalancer bool, expectedWeight *int64) func() error {
+	if expectedWeight == nil {
+		expectedWeight = ptr.To(int64(1)) //default weight
+	}
 	return func() error {
 		internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
 		if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
@@ -301,7 +308,8 @@ func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureL
 				svc.ObjectMeta,
 				metav1.NewTime(lastSeenTimestamp),
 			),
-			Type: serviceType,
+			Type:   serviceType,
+			Weight: expectedWeight,
 		}
 		if isPublicAzureLoadBalancer {
 			expectedInternalSvcExportSpec.IsDNSLabelConfigured = true
@@ -361,7 +369,7 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -390,7 +398,7 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -423,7 +431,7 @@ var _ = Describe("serviceexport controller", func() {
 		It("should update the exported service", func() {
 			By("confirm that the service has been exported")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("update the service")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
@@ -472,10 +480,89 @@ var _ = Describe("serviceexport controller", func() {
 						svc.ObjectMeta,
 						metav1.Now(),
 					),
-					Type: svc.Spec.Type,
+					Type:   svc.Spec.Type,
+					Weight: ptr.To(int64(1)), //default weight
 				}
 				if diff := cmp.Diff(internalSvcExport.Spec, expectedInternalSvcExportSpec, ignoredRefFields); diff != "" {
 					return fmt.Errorf("internalServiceExport spec (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+	})
+
+	Context("annotation change in serviceExport should be propagated to the hub", func() {
+		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svc = &corev1.Service{}
+		weight := 560
+		newWeight := 100
+
+		BeforeEach(func() {
+			svc = publicLoadBalancerService()
+			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+
+			svcExport = notYetFulfilledServiceExport()
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(weight),
+			}
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+
+			// Confirm that the Service has been unexported; this helps make the tests less flaky.
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
+		It("should update the exported service", func() {
+			By("confirm that the service has been exported")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("update the serviceExport in the member cluster")
+			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(newWeight),
+			}
+			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
+
+			By("check the serviceExport weight again")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(newWeight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
+		It("invalid annotation weight should invalidate the exported service", func() {
+			By("confirm that the service has been exported")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("update the serviceExport in the member cluster")
+			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(3837),
+			}
+			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
+
+			By("make sure the serviceExport is marked as invalid")
+			err := controller.NewUserError(fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]))
+			expectedCond := metav1.Condition{
+				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Status:             metav1.ConditionFalse,
+				Reason:             svcExportInvalidWeightAnnotationReason,
+				ObservedGeneration: svcExport.Generation,
+				Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+			}
+			Eventually(func() error {
+				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
@@ -503,7 +590,7 @@ var _ = Describe("serviceexport controller", func() {
 		It("should unexport the service when service export is deleted", func() {
 			By("confirm that the service has been exported")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("delete the service export")
 			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
@@ -534,7 +621,7 @@ var _ = Describe("serviceexport controller", func() {
 		It("should unexport the service when service is deleted", func() {
 			By("confirm that the service has been exported")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("delete the service")
 			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
@@ -624,7 +711,7 @@ var _ = Describe("serviceexport controller", func() {
 		It("should mark the service export as invalid (ineligible) + should unexport the service", func() {
 			By("confirm that the service has been exported")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("update the service; set it to an external name service")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svc)).Should(Succeed())
@@ -682,7 +769,7 @@ var _ = Describe("serviceexport controller", func() {
 
 			By("confirm that the service has been exported")
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -745,7 +832,7 @@ var _ = Describe("serviceexport controller", func() {
 			// Confirm that the Service has been exported.
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 			// Confirm that the InternalServiceExport has been re-created.
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 
@@ -791,7 +878,7 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, true), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, true, ptr.To(int64(1))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 })

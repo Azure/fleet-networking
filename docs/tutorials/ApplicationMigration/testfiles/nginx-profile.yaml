@@ -4,5 +4,6 @@ metadata:
   name: nginx-profile
   namespace: test-app
 spec:
+  resourceGroup: "fleet-atm-rg"
   monitorConfig:
     port: 80

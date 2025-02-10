@@ -39,7 +39,6 @@ spec:
           If weight is set to 0, no traffic should be forwarded for this entry.
           If unspecified, weight defaults to 1.
           The value should be in the range [0, 1000].
-          Any invalid value will default to default value.
         properties:
           apiVersion:
             description: |-
