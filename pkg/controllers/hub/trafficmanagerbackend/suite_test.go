@@ -278,10 +278,9 @@ var _ = BeforeSuite(func() {
 
 	ctx, cancel = context.WithCancel(context.TODO())
 	err = (&Reconciler{
-		Client:            mgr.GetClient(),
-		ProfilesClient:    profileClient,
-		EndpointsClient:   endpointClient,
-		ResourceGroupName: fakeprovider.DefaultResourceGroupName,
+		Client:          mgr.GetClient(),
+		ProfilesClient:  profileClient,
+		EndpointsClient: endpointClient,
 	}).SetupWithManager(ctx, mgr, false)
 	Expect(err).ToNot(HaveOccurred())
 

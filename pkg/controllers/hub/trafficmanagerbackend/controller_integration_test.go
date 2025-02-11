@@ -60,7 +60,9 @@ func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerPr
 			Name:      name,
 			Namespace: testNamespace,
 		},
-		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{},
+		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+			ResourceGroup: fakeprovider.DefaultResourceGroupName,
+		},
 	}
 }
 
@@ -122,9 +124,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       name,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      name,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -166,9 +167,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -186,9 +186,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -244,9 +243,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -259,20 +257,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Deleting trafficManagerBackend", func() {
 			err := k8sClient.Delete(ctx, backend)
 			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
-		})
-
-		It("Validating trafficManagerBackend cannot be deleted", func() {
-			validator.ValidateTrafficManagerConsistentlyExist(ctx, k8sClient, backendNamespacedName)
-		})
-
-		It("Removing the finalizer from trafficManagerBackend", func() {
-			Eventually(func() error {
-				if err := k8sClient.Get(ctx, backendNamespacedName, backend); err != nil {
-					return err
-				}
-				backend.Finalizers = nil
-				return k8sClient.Update(ctx, backend)
-			}, timeout, interval).Should(Succeed(), "failed to remove trafficManagerBackend finalizer")
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
@@ -314,7 +298,17 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
-			validator.IsTrafficManagerBackendFinalizerAdded(ctx, k8sClient, backendNamespacedName)
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      backendName,
+					Namespace: testNamespace,
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(backend.Generation),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -370,9 +364,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -397,9 +390,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -455,9 +447,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -513,9 +504,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				// not able to set the condition
@@ -526,20 +516,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Deleting trafficManagerBackend", func() {
 			err := k8sClient.Delete(ctx, backend)
 			Expect(err).Should(Succeed(), "failed to delete trafficManagerBackend")
-		})
-
-		It("Validating trafficManagerBackend cannot be deleted", func() {
-			validator.ValidateTrafficManagerConsistentlyExist(ctx, k8sClient, backendNamespacedName)
-		})
-
-		It("Removing the finalizer from trafficManagerBackend", func() {
-			Eventually(func() error {
-				if err := k8sClient.Get(ctx, backendNamespacedName, backend); err != nil {
-					return err
-				}
-				backend.Finalizers = nil
-				return k8sClient.Update(ctx, backend)
-			}, timeout, interval).Should(Succeed(), "failed to remove trafficManagerBackend finalizer")
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
@@ -585,9 +561,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -610,9 +585,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -636,9 +610,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend consistently and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -700,9 +673,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -726,9 +698,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Name:      backendName,
+					Namespace: testNamespace,
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{

@@ -17,6 +17,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
 
 var (
@@ -38,6 +39,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			IntervalInSeconds: ptr.To(int64(30)),
 			TimeoutInSeconds:  ptr.To(int64(7)),
 		},
+		ResourceGroup: "test-resource-group",
 	}
 	var trafficManagerBackendSpec = fleetnetv1beta1.TrafficManagerBackendSpec{
 		Profile: fleetnetv1beta1.TrafficManagerProfileRef{
@@ -132,6 +134,51 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("metadata.name max length is 63"))
 		})
+
+		It("should deny creating API with empty resourceGroup", func() {
+			// Create the API.
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: trafficManagerProfileSpec.MonitorConfig,
+				},
+			}
+			By("expecting denial of CREATE API with empty resourceGroup")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.resourceGroup in body should be at least 1 chars long"))
+		})
+
+		It("should deny creating API with invalid resourceGroup (length > 90)", func() {
+			// Create the API.
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: trafficManagerProfileSpec.MonitorConfig,
+					ResourceGroup: uniquename.RandomLowerCaseAlphabeticString(91),
+				},
+			}
+			By("expecting denial of CREATE API with resourceGroup (length > 90)")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.resourceGroup: Too long: may not be longer than 90"))
+		})
+
+		It("should deny update of resourceGroup", func() {
+			// Create the API.
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec:       trafficManagerProfileSpec,
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile")
+			profile.Spec.ResourceGroup = "new-resource-group"
+			By("expecting denial of UPDATE API with resourceGroup")
+			var err = hubClient.Update(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Update API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("resourceGroup is immutable"))
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
 	})
 
 	Context("Test TrafficManagerProfile API validation - valid cases", func() {

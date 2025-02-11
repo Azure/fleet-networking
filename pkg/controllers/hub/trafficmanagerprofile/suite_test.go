@@ -100,9 +100,8 @@ var _ = BeforeSuite(func() {
 	}
 
 	err = (&Reconciler{
-		Client:            mgr.GetClient(),
-		ProfilesClient:    profileClient,
-		ResourceGroupName: fakeprovider.DefaultResourceGroupName,
+		Client:         mgr.GetClient(),
+		ProfilesClient: profileClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

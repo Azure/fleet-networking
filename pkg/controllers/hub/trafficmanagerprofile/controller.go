@@ -60,8 +60,7 @@ func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1beta1.TrafficMana
 type Reconciler struct {
 	client.Client
 
-	ProfilesClient    *armtrafficmanager.ProfilesClient
-	ResourceGroupName string // default resource group name to create azure traffic manager profiles
+	ProfilesClient *armtrafficmanager.ProfilesClient
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles,verbs=get;list;watch;create;update;patch;delete
@@ -96,15 +95,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.handleDelete(ctx, profile)
 	}
 
-	// register finalizer
-	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
-		controllerutil.AddFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
-		if err := r.Update(ctx, profile); err != nil {
-			klog.ErrorS(err, "Failed to add finalizer to trafficManagerProfile", "trafficManagerProfile", profileKRef)
-			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
-		}
-	}
-
 	// TODO: replace the following with defaulter wehbook
 	defaulter.SetDefaultsTrafficManagerProfile(profile)
 	return r.handleUpdate(ctx, profile)
@@ -120,7 +110,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-	if _, err := r.ProfilesClient.Delete(ctx, r.ResourceGroupName, atmProfileName, nil); err != nil {
+	if _, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil); err != nil {
 		if !azureerrors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return ctrl.Result{}, err
@@ -142,10 +132,15 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	desiredATMProfile := generateAzureTrafficManagerProfile(profile)
 	var responseError *azcore.ResponseError
-	getRes, getErr := r.ProfilesClient.Get(ctx, r.ResourceGroupName, atmProfileName, nil)
+	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
 			klog.ErrorS(getErr, "Failed to get the profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+			// If a user specifies an invalid resource group or the agent does not have the permission to access the resource,
+			// Return invalid profile
+			if azureerrors.IsForbidden(getErr) {
+				return r.updateProfileStatus(ctx, profile, nil, getErr)
+			}
 			return ctrl.Result{}, getErr
 		}
 		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -153,11 +148,22 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 		if EqualAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
 			// skip creating or updating the profile
 			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-			return r.updateProfileStatus(ctx, profile, getRes.Profile, nil)
+			return r.updateProfileStatus(ctx, profile, &getRes.Profile, nil)
 		}
 	}
 
-	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, r.ResourceGroupName, atmProfileName, desiredATMProfile, nil)
+	// register finalizer only before creating atm profile
+	// So that when a user specifies an invalid resource group, the controller will fail to create the profile because of the 403 error.
+	// Otherwise, the deletion will be stuck because of the 403 error and the finalizer cannot be removed.
+	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
+		controllerutil.AddFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
+		if err := r.Update(ctx, profile); err != nil {
+			klog.ErrorS(err, "Failed to add finalizer to trafficManagerProfile", "trafficManagerProfile", profileKObj)
+			return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
+		}
+	}
+
+	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {
 			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -168,7 +174,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 			"errorCode", responseError.ErrorCode, "statusCode", responseError.StatusCode)
 	}
 	klog.V(2).InfoS("Created or updated Azure Traffic Manager Profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-	return r.updateProfileStatus(ctx, profile, res.Profile, updateErr)
+	return r.updateProfileStatus(ctx, profile, &res.Profile, updateErr)
 }
 
 // EqualAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
@@ -216,9 +222,9 @@ func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 	return true
 }
 
-func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile, atmProfile armtrafficmanager.Profile, updateErr error) (ctrl.Result, error) {
+func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile, atmProfile *armtrafficmanager.Profile, armErr error) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
-	if updateErr == nil {
+	if armErr == nil {
 		// atmProfile.Properties.DNSConfig.Fqdn should not be nil
 		if atmProfile.Properties != nil && atmProfile.Properties.DNSConfig != nil {
 			profile.Status.DNSName = atmProfile.Properties.DNSConfig.Fqdn
@@ -238,7 +244,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 		Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
 		Message:            "Successfully configured the Azure Traffic Manager profile",
 	}
-	if azureerrors.IsConflict(updateErr) {
+	if azureerrors.IsConflict(armErr) {
 		cond = metav1.Condition{
 			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionFalse,
@@ -246,21 +252,21 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonDNSNameNotAvailable),
 			Message:            "Domain name is not available. Please choose a different profile name or namespace",
 		}
-	} else if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
+	} else if azureerrors.IsClientError(armErr) && !azureerrors.IsThrottled(armErr) {
 		cond = metav1.Condition{
 			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: profile.Generation,
 			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
-			Message:            fmt.Sprintf("Invalid profile: %v", updateErr),
+			Message:            fmt.Sprintf("Invalid profile: %v", armErr),
 		}
-	} else if updateErr != nil {
+	} else if armErr != nil {
 		cond = metav1.Condition{
 			Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: profile.Generation,
 			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonPending),
-			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", updateErr),
+			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", armErr),
 		}
 	}
 	meta.SetStatusCondition(&profile.Status.Conditions, cond)
@@ -269,7 +275,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 		return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 	}
 	klog.V(2).InfoS("Updated the trafficProfile status", "trafficManagerProfile", profileKObj, "status", profile.Status)
-	return ctrl.Result{}, updateErr
+	return ctrl.Result{}, armErr
 }
 
 func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerProfile) armtrafficmanager.Profile {
