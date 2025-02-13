@@ -101,6 +101,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	if !internalSvcExport.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Skip the reconciliation if the InternalServiceExport is being deleted.
+		// There is no need to report the conflicts back.
+		// For example, the serviceExport is no longer valid or valid with 0 weight.
+		// In these cases, there is no need to create internalServiceExport.
+		klog.V(2).InfoS("Ignoring deleted internalServiceExport", "internalServiceExport", internalSvcExportRef)
+		return ctrl.Result{}, nil
+	}
+
 	// Check if the exported Service exists.
 	svcNS := internalSvcExport.Spec.ServiceReference.Namespace
 	svcName := internalSvcExport.Spec.ServiceReference.Name
