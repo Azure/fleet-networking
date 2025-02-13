@@ -49,6 +49,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 	Context("When updating existing valid trafficManagerProfile", Ordered, func() {
 		name := fakeprovider.ValidProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
+		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
+
 		relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
 		fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
 
@@ -66,7 +68,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
-					DNSName: ptr.To(fqdn),
+					DNSName:    ptr.To(fqdn),
+					ResourceID: profileResourceID,
 					Conditions: []metav1.Condition{
 						{
 							Status:             metav1.ConditionTrue,
@@ -122,6 +125,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 	Context("When updating existing valid trafficManagerProfile with no changes", Ordered, func() {
 		name := fakeprovider.ValidProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
+		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
 
 		It("AzureTrafficManager should be configured", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -154,7 +158,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				Spec: profile.Spec,
 				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
 					// The DNS name is returned by the fake Azure GET call.
-					DNSName: ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
+					DNSName:    ptr.To(fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, name)),
+					ResourceID: profileResourceID,
 					Conditions: []metav1.Condition{
 						{
 							Status:             metav1.ConditionTrue,

@@ -49,6 +49,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	var profileName types.NamespacedName
 	var hubClient client.Client
 	var atmProfileName string
+	var profileResourceID string
 	var atmProfile armtrafficmanager.Profile
 
 	BeforeEach(func() {
@@ -68,10 +69,11 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 		By("Validating the trafficManagerProfile status")
 		profileName = types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}
-		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, lightAzureOperationTimeout)
+		atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
+		profileResourceID = fmt.Sprintf(azureTrafficManagerProfileResourceIDFormat, subscriptionID, atmResourceGroup, atmProfileName)
+		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 		By("Validating the Azure traffic manager profile")
-		atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
 		atmProfile = buildDesiredATMProfile(profile, nil)
 		atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
 	})
@@ -109,7 +111,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerProfile status")
 			invalidProfileName = types.NamespacedName{Namespace: invalidProfile.Namespace, Name: invalidProfile.Name}
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false, lightAzureOperationTimeout)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false, "", lightAzureOperationTimeout)
 		})
 
 		AfterEach(func() {
@@ -152,7 +154,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
 
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, lightAzureOperationTimeout)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfile = buildDesiredATMProfile(profile, nil)

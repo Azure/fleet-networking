@@ -32,12 +32,12 @@ var (
 )
 
 // NewEndpointsClient creates a client which talks to a fake endpoint server.
-func NewEndpointsClient(subscriptionID string) (*armtrafficmanager.EndpointsClient, error) {
+func NewEndpointsClient() (*armtrafficmanager.EndpointsClient, error) {
 	fakeServer := fake.EndpointsServer{
 		Delete:         EndpointDelete,
 		CreateOrUpdate: EndpointCreateOrUpdate,
 	}
-	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
+	clientFactory, err := armtrafficmanager.NewClientFactory(DefaultSubscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Transport: fake.NewEndpointsServerTransport(&fakeServer),
