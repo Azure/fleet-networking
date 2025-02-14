@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.22.12 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22.12 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
