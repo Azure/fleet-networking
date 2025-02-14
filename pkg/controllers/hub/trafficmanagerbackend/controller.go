@@ -289,7 +289,14 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1beta1.
 		setFalseCondition(backend, acceptedEndpoints, invalidEndpointErrMessage)
 	}
 	klog.V(2).InfoS("Updated Traffic Manager endpoints for the serviceImport and updating the condition", "trafficManagerBackend", backendKObj, "status", backend.Status)
-	return ctrl.Result{}, r.updateTrafficManagerBackendStatus(ctx, backend)
+	if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// If there are any failed endpoints, we need to requeue the request to retry.
+	// For any invalidService, we don't need to requeue the request as the controller will be re-triggered when the
+	// serviceImport or internalServiceExport is updated.
+	return ctrl.Result{}, errors.Join(badEndpointsErr...)
 }
 
 // validateTrafficManagerProfile returns not nil profile when the profile is valid.
@@ -631,6 +638,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 				badEndpointsError = append(badEndpointsError, updateErr)
 				continue
 			}
+			// For any internal error, we'll retry the request using the backoff.
 			setUnknownCondition(backend, fmt.Sprintf("Failed to create or update %q for %q: %v", *endpoint.Endpoint.Name, *profile.Name, updateErr))
 			if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
 				return nil, nil, err

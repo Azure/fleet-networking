@@ -44,7 +44,8 @@ var (
 	originalGenerateAzureTrafficManagerProfileNameFunc        = generateAzureTrafficManagerProfileNameFunc
 	originalGenerateAzureTrafficManagerEndpointNamePrefixFunc = generateAzureTrafficManagerEndpointNamePrefixFunc
 
-	memberClusterNames     = []string{fakeprovider.ClusterName, "member-2", "member-3", "member-4", fakeprovider.CreateBadRequestErrEndpointClusterName, fakeprovider.CreateInternalServerErrEndpointClusterName}
+	memberClusterNames = []string{fakeprovider.ClusterName, "member-2", "member-3", "member-4",
+		fakeprovider.CreateBadRequestErrEndpointClusterName, fakeprovider.CreateInternalServerErrEndpointClusterName, fakeprovider.CreateForbiddenErrEndpointClusterName}
 	internalServiceExports = []fleetnetv1alpha1.InternalServiceExport{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -199,6 +200,34 @@ var (
 				},
 				ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
 					ClusterID:       memberClusterNames[5],
+					Kind:            "Service",
+					Namespace:       testNamespace,
+					Name:            serviceName,
+					ResourceVersion: "0",
+					Generation:      0,
+					UID:             "0",
+					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
+				},
+				Type:                 corev1.ServiceTypeLoadBalancer,
+				IsDNSLabelConfigured: true,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "endpoint-create-forbidden-err",
+				Namespace: memberClusterNames[6],
+			},
+			Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+				Ports: []fleetnetv1alpha1.ServicePort{
+					{
+						Name:       "portA",
+						Protocol:   "TCP",
+						Port:       8080,
+						TargetPort: intstr.IntOrString{IntVal: 8080},
+					},
+				},
+				ServiceReference: fleetnetv1alpha1.ExportedObjectReference{
+					ClusterID:       memberClusterNames[6],
 					Kind:            "Service",
 					Namespace:       testNamespace,
 					Name:            serviceName,

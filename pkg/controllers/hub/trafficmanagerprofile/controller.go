@@ -275,7 +275,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 		return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 	}
 	klog.V(2).InfoS("Updated the trafficProfile status", "trafficManagerProfile", profileKObj, "status", profile.Status)
-	return ctrl.Result{}, armErr
+	return ctrl.Result{}, armErr // return the error to retry the reconciliation
 }
 
 func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerProfile) armtrafficmanager.Profile {
