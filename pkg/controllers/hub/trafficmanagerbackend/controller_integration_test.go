@@ -754,6 +754,66 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Updating the ServiceImport status", func() {
+			// The test is running in sequence, so it's safe to set this value.
+			fakeprovider.EnableEndpointForbiddenErr()
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[6], // 403 error
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildFalseCondition(backend.Generation),
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+		})
+
+		It("Setting the fake provider server to stop returning 403 error", func() {
+			fakeprovider.DisableEndpointForbiddenErr()
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(backend.Generation),
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
+						{
+							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[6]),
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
+									Cluster: memberClusterNames[6],
+								},
+								Weight: ptr.To(int64(1)), // the original weight is default to 1
+							},
+							Weight: ptr.To(backendWeight), // populate the weight using atm endpoint
+							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+			fakeprovider.EnableEndpointForbiddenErr()
+		})
+
+		It("Updating the ServiceImport status", func() {
 			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
 				Clusters: []fleetnetv1alpha1.ClusterStatus{
 					{
