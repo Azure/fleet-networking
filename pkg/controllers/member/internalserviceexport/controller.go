@@ -106,7 +106,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// There is no need to report the conflicts back.
 		// For example, the serviceExport is no longer valid or valid with 0 weight.
 		// In these cases, there is no need to create internalServiceExport.
-		klog.V(2).InfoS("Ignoring deleted internalServiceExport", "internalServiceExport", internalSvcExportRef)
+		klog.V(2).InfoS("Ignoring deleting internalServiceExport", "internalServiceExport", internalSvcExportRef)
 		return ctrl.Result{}, nil
 	}
 

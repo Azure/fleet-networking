@@ -14,10 +14,12 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
@@ -348,6 +350,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				Eventually(func() error {
 					return wm.AddServiceDNSLabel(ctx, memberClusters[i], memberDNSLabels[i])
 				}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+				By(fmt.Sprintf("Added DNS label to the service on %s", memberClusters[i].Name()))
 			}
 
 			By("Exporting service with DNS label assigned")
@@ -633,6 +636,62 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerBackend status")
 			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
+
+		It("Updating the serviceExport weight to 0", func() {
+			By("Updating the serviceExport weight on member-1")
+			Eventually(func() error {
+				return wm.UpdateServiceExportWeight(ctx, memberClusters[0], 0)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+
+			By("Validating the serviceExport condition")
+			wantValidConditionWithZeroWeight := metav1.Condition{
+				Type:    string(fleetnetv1alpha1.ServiceExportValid),
+				Status:  metav1.ConditionTrue,
+				Reason:  "ServiceIsValid",
+				Message: fmt.Sprintf("Exported service %s/%s with 0 weight", wm.ServiceExport().Namespace, wm.ServiceExport().Name),
+			}
+			By("Validating serviceExport valid condition on member-1")
+			Eventually(func() error {
+				return wm.ValidateServiceExportCondition(ctx, memberClusters[0], wantValidConditionWithZeroWeight)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
+
+			By("Validating the trafficManagerBackend status")
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
+				{
+					Weight: ptr.To(int64(100)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
+						Weight:        ptr.To(int64(1)),
+					},
+				},
+			}
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+
+			By("Updating the serviceExport weight on member-2")
+			Eventually(func() error {
+				return wm.UpdateServiceExportWeight(ctx, memberClusters[1], 0)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+
+			By("Validating serviceExport valid condition on member-2")
+			Eventually(func() error {
+				return wm.ValidateServiceExportCondition(ctx, memberClusters[1], wantValidConditionWithZeroWeight)
+			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
+
+			By("Validating the trafficManagerBackend status")
+			// the serviceImport is invalid in this case
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")

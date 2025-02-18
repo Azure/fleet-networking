@@ -543,9 +543,10 @@ var _ = Describe("serviceexport controller", func() {
 
 			By("update the serviceExport in the member cluster")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
-			svcExport.Annotations = map[string]string{
-				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(3837),
+			if svcExport.Annotations == nil {
+				svcExport.Annotations = make(map[string]string)
 			}
+			svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight] = strconv.Itoa(3837)
 			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
 
 			By("make sure the serviceExport is marked as invalid")
@@ -568,7 +569,8 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
 			By("make sure the service is still exported")
-			Expect(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight)))).Should(Succeed())
+			err = serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight)))()
+			Expect(err).Should(Succeed(), "Service is not exported to hub: %v", err)
 		})
 
 		It("annotation weight is set to zero", func() {
@@ -583,13 +585,13 @@ var _ = Describe("serviceexport controller", func() {
 			}
 			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
 
-			By("make sure the serviceExport is marked as invalid")
+			By("make sure the serviceExport is marked as valid")
 			expectedCond := metav1.Condition{
 				Type:               string(fleetnetv1alpha1.ServiceExportValid),
 				Status:             metav1.ConditionTrue,
-				Reason:             svcExportWeightZeroReason,
+				Reason:             svcExportValidCondReason,
 				ObservedGeneration: svcExport.Generation,
-				Message:            fmt.Sprintf("Unexported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+				Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
 			}
 			Eventually(func() error {
 				svcExport := &fleetnetv1alpha1.ServiceExport{}
@@ -602,7 +604,8 @@ var _ = Describe("serviceexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed(), "Get() serviceExport mismatch")
 
 			By("make sure the service is unexported")
-			Expect(serviceIsNotExportedActual()).Should(Succeed(), "Failed to unexport the service")
+			err := serviceIsNotExportedActual()
+			Expect(err).Should(Succeed(), "Failed to unexport the service: %v", err)
 		})
 	})
 

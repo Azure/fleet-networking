@@ -40,7 +40,6 @@ import (
 
 const (
 	svcExportValidCondReason                 = "ServiceIsValid"
-	svcExportWeightZeroReason                = "ServiceExportWithZeroWeight"
 	svcExportInvalidNotFoundCondReason       = "ServiceNotFound"
 	svcExportInvalidIneligibleCondReason     = "ServiceIneligible"
 	svcExportPendingConflictResolutionReason = "ServicePendingConflictResolution"
@@ -210,9 +209,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		expectedValidCond := metav1.Condition{
 			Type:               string(fleetnetv1alpha1.ServiceExportValid),
 			Status:             metav1.ConditionTrue,
-			Reason:             svcExportWeightZeroReason,
+			Reason:             svcExportValidCondReason,
 			ObservedGeneration: svcExport.Generation,
-			Message:            fmt.Sprintf("Unexported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+			Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
 		}
 		// Since the annotation won't change the generation, we compare the message here.
 		if condition.EqualConditionWithMessage(validCond, &expectedValidCond) {

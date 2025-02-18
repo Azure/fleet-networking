@@ -524,7 +524,7 @@ func isValidTrafficManagerEndpoint(export *fleetnetv1alpha1.InternalServiceExpor
 		return fmt.Errorf("internal load balancer is not supported")
 	}
 	if !export.Spec.IsDNSLabelConfigured {
-		return fmt.Errorf("DNS label is not configured to the public IP")
+		return fmt.Errorf("DNS label is not configured to the public IP or in the processing of configuring public IP")
 	}
 	return nil
 }
