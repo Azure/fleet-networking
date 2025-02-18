@@ -4,6 +4,8 @@ metadata:
   name: ro-nginx-service
   namespace: test-app
 spec:
+  placement:
+    name: crp-availability
   resourceSelectors:
     -  group: ""
        kind: Service
@@ -13,17 +15,9 @@ spec:
     overrideRules:
       - clusterSelector:
           clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
+            - labelSelector: {} # select all the clusters
         jsonPatchOverrides:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-1"}
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-2
-        overrideType: Delete
+              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-${MEMBER-CLUSTER-NAME}"}

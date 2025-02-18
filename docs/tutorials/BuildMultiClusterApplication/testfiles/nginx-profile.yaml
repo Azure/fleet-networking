@@ -4,5 +4,6 @@ metadata:
   name: nginx-profile
   namespace: multi-cluster-app
 spec:
+  resourceGroup: "test-resource-group"
   monitorConfig:
     port: 80

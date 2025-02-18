@@ -50,6 +50,8 @@ metadata:
   name: ro-nginx-service
   namespace: test-app
 spec:
+  placement:
+    name: crp-availability
   resourceSelectors:
     -  group: ""
        kind: Service
@@ -59,15 +61,15 @@ spec:
     overrideRules:
       - clusterSelector:
           clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
+            - labelSelector: {} # select all the clusters
         jsonPatchOverrides:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-1"}
+              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-${MEMBER-CLUSTER-NAME}"}
 ```
+> Note: Please update the dns label name to match your specific requirements, and the "fleet-${MEMBER-CLUSTER-NAME}" may be not available.
+
 Summary:
 - This defines a Kubernetes Service named `nginx-service` in the `test-app` namespace.
 - The service is of type LoadBalancer with a public ip address and a DNS name assigned.
@@ -147,6 +149,9 @@ To expose the service via Traffic Manager, you need to create a trafficManagerPr
 
 > Note: Profile test file located [here](./testfiles/nginx-profile.yaml) and please make sure the profile name (be part of the DNS name) is global unique.
 
+> Note: Please make sure the hub networking controllers have the write permissions to create Traffic Manager Profile in the specified resourceGroup and
+> the read permissions to read the public ip address of the service on the member clusters.
+
 ```yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerProfile
@@ -154,6 +159,7 @@ metadata:
   name: nginx-profile
   namespace: test-app
 spec:
+  resourceGroup: test-resource-group
   monitorConfig:
     port: 80
 ```
@@ -167,9 +173,11 @@ NAME            DNS-NAME                                    IS-PROGRAMMED   AGE
 nginx-profile   test-app-nginx-profile.trafficmanager.net   True            6s
 ```
 
+> Note: Please update the profile or namespace name if the dns name of the profile is not available.
+
 ### Exposing the Service as a Traffic Manager Endpoint
 
-> Note:  nginx-backend file located [here](./testfiles/nginx-backend.yaml)
+> Note: nginx-backend file located [here](./testfiles/nginx-backend.yaml)
 
 ```yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
@@ -192,8 +200,44 @@ Summary:
 
 ![](during-migrate.png)
 
+### Before Joining Member Cluster 2
 
-To migrate the application resources to the new cluster, you need to add the new cluster Member Cluster 2 with label "cluster-name: member-2" 
+Before Joining the Member Cluster 2, to make sure the traffic won't be routed to the new cluster, you need to set weight 0 on the serviceExport using overrides.
+
+> Note: ro-nginx-service-export file located [here](./testfiles/ro-nginx-service-export.yaml)
+
+> Note: The weight annotation on the serviceExport is to control the percentage of traffic behind of the TrafficManagerBackend routed to the cluster.
+> More information could be found in the TrafficManagerBackend weight spec.
+
+```yaml
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service-export
+  namespace: test-app-1
+spec:
+  placement:
+    name: crp-availability-app
+  resourceSelectors:
+    -  group: networking.fleet.azure.com
+       kind: ServiceExport
+       version: v1alpha1
+       name: nginx-service
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-2
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "0" }
+```
+
+You need to add the new cluster Member Cluster 2 with label "cluster-name: member-2" 
 as part of the fleet by installing fleet agents and creating MemberCluster API ([sample MemberCluster](./testfiles/member-cluster-2.yaml)) following [this document](https://github.com/Azure/fleet/blob/main/docs/howtos/clusters.md).
 
 ```bash
@@ -385,78 +429,44 @@ spec:
     name: nginx-profile
   weight: 100
 status:
-  conditions:
-  - lastTransitionTime: "2024-11-21T05:32:28Z"
-    message: '1 service(s) exported from clusters cannot be exposed as the Azure Traffic
-      Manager, for example, service exported from member-2 is invalid: DNS label is
-      not configured to the public IP'
-    observedGeneration: 1
-    reason: Invalid
-    status: "False"
-    type: Accepted
-  endpoints:
-  - cluster:
-      cluster: member-1
-    name: fleet-073a01e7-6f07-49c9-abce-8ce14748984e#nginx-service#member-1
-    target: fleet-test-member-1.westcentralus.cloudapp.azure.com
-    weight: 100
+    conditions:
+    - lastTransitionTime: "2025-02-21T08:59:47Z"
+      message: 1 service(s) exported from clusters have been accepted as Traffic Manager
+        endpoints
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    endpoints:
+    - from:
+        cluster: aks-member-1
+        weight: 100
+      name: fleet-073a01e7-6f07-49c9-abce-8ce14748984e#nginx-service#member-1
+      target: fleet-test-member-1.westcentralus.cloudapp.azure.com
+      weight: 100
 ```
 Summary:
-- Since we have not assigned a DNS label for the nginx-service created in the member-2 cluster, the traffic cannot be routed
-to the member-2.
-- The traffic is currently being routed to the nginx-service in Member Cluster 1 only.
+- Since we set weight 0 for the nginx-service created in the member-2 cluster, the traffic is currently being routed to the nginx-service in Member Cluster 1 only.
 
-### Exposing The deployment In Member Cluster 2 Using A Different Service Name
+### Shifting Traffic from Member Cluster 1 to Member Cluster 2
 
-You will stop serving the traffic via the existing service `nginx-service` in Member Cluster 2  and the nginx deployment in Member Cluster 2 will
-be exposed using a different service name `nginx-service-2` with a different DNS name. All the traffic will be routed via the new Service `nginx-service-2` in Member Cluster 2 instead of `nginx-service`.
+To shift the traffic from Member Cluster 1 to Member Cluster 2, you need to adjust the weight on serviceExport using overrides.
 
-#### Stop Exposing nginx-service In Member Cluster 2
+> Note:  ro-nginx-service-export file located [here](./testfiles/ro-nginx-service-export.yaml)
 
-Before creating the new service in Member Cluster 2, you need to stop exposing the existing service `nginx-service` in Member Cluster 2 by deleting the ServiceExport resource via creating override.
-> Note:  override file located [here,](./testfiles/ro-nginx-service-export.yaml).
 ```yaml
 apiVersion: placement.kubernetes-fleet.io/v1alpha1
 kind: ResourceOverride
 metadata:
-  name: ro-nginx-service
+  name: ro-nginx-service-export
   namespace: test-app
 spec:
+  placement:
+    name: crp-availability
   resourceSelectors:
     -  group: networking.fleet.azure.com
        kind: ServiceExport
        version: v1alpha1
-       name: nginx-service
-  policy:
-    overrideRules:
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-2
-        overrideType: Delete
-
-```
-Summary:
-- The override makes sure serviceExport `nginx-service` won't be applied to the Member Cluster 2.
-
-#### Stop Exposing Deployment via nginx-service Member Cluster 2
-
-To stop exposing the deployment, you need to update ro-nginx-service Override.
-
-> Note:  override file located [here,](./testfiles/ro-nginx-service.yaml).
-
-```yaml
-apiVersion: placement.kubernetes-fleet.io/v1alpha1
-kind: ResourceOverride
-metadata:
-  name: ro-nginx-service
-  namespace: test-app
-spec:
-  resourceSelectors:
-    -  group: ""
-       kind: Service
-       version: v1
        name: nginx-service
   policy:
     overrideRules:
@@ -469,70 +479,7 @@ spec:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-1"}
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-2
-        overrideType: Delete
-```
-
-Summary:
-- The override makes sure the nginx-service won't be applied to the Member Cluster 2 cluster.
-
-#### Create ro-nginx-service-export-2 Override
-
-> Note:  override file located [here,](./testfiles/ro-nginx-service-export-2.yaml) and it should be created before the new service.
-> So that the overrides can be applied to these resources.
-
-To ensure the new service is exposed in Member Cluster 2 only, you need to create an override to only place the serviceExport in Member Cluster 2 when propagating.
-```yaml
-apiVersion: placement.kubernetes-fleet.io/v1alpha1
-kind: ResourceOverride
-metadata:
-  name: ro-nginx-service
-  namespace: test-app
-spec:
-  resourceSelectors:
-    -  group: networking.fleet.azure.com
-       kind: ServiceExport
-       version: v1alpha1
-       name: nginx-service-2
-  policy:
-    overrideRules:
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
-        overrideType: Delete
-```
-
-#### Create ro-nginx-service-2 Override
-> Note:  override file located [here,](./testfiles/ro-nginx-service-2.yaml) and it should be created before the new service.
-> So that the overrides can be applied to these resources.
-
-```yaml
-apiVersion: placement.kubernetes-fleet.io/v1alpha1
-kind: ResourceOverride
-metadata:
-  name: ro-nginx-service
-  namespace: test-app
-spec:
-  resourceSelectors:
-    -  group: ""
-       kind: Service
-       version: v1
-       name: nginx-service-2
-  policy:
-    overrideRules:
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
-        overrideType: Delete
+              { "networking.fleet.azure.com/weight": "50" }
       - clusterSelector:
           clusterSelectorTerms:
             - labelSelector:
@@ -542,45 +489,94 @@ spec:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-test-member-2"}
+              { "networking.fleet.azure.com/weight": "50" }
 ```
-Summary:
-- It deletes the service so that the service won't be applied to the Member Cluster 1.
-- It adds a DNS label for Member Cluster 2 so that the service can be added as Traffic Manager Endpoint.
 
-#### New Service for Member Cluster 2
-> Note:  service file located [here](./testfiles/nginx-service-2.yaml)
+To make sure the overrides are applied to the members, you can validate by checking the placement status and running `kubectl get crp crp-availability -o yaml` command.
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx-service-2
-  namespace: test-app
-spec:
-  selector:
-    app: nginx
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 80
-  type: LoadBalancer
----
-apiVersion: networking.fleet.azure.com/v1alpha1
-kind: ServiceExport
-metadata:
-  name: nginx-service-2
-  namespace: test-app
-```
-Summary:
-- Create another service named `nginx-service-2` in the `test-app` namespace.
-
-#### Exposing the New Service as a Traffic Manager Endpoint using TrafficManagerBackend
-
-When the new resources are available in the member-cluster by checking the CRP status, you can create a TrafficManagerBackend resource to expose the new service as a Traffic Manager endpoint.
+By validating the TrafficManagerBackend resource `nginx-backend` again, you can see that the traffic is now being routed to both Member Cluster 1 and Member Cluster 2 correctly.
 
 ```bash
- kubectl get tmb nginx-backend -n test-app -o yaml
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: TrafficManagerBackend
+metadata:
+  ...
+  name: nginx-backend
+  namespace: test-app
+spec:
+  backend:
+    name: nginx-service
+  profile:
+    name: nginx-profile
+  weight: 100
+status:
+  conditions:
+  - lastTransitionTime: "2025-02-21T08:59:47Z"
+    message: 2 service(s) exported from clusters have been accepted as Traffic Manager
+      endpoints
+    observedGeneration: 1
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  endpoints:
+  - from:
+      cluster: aks-member-1
+      weight: 50
+    name: fleet-2b3ec0ce-53b7-4cf1-b20a-1e24a9a83489#nginx-service#aks-member-1
+    target: fleet-aks-member-1.eastus2euap.cloudapp.azure.com
+    weight: 50
+  - from:
+      cluster: aks-member-2
+      weight: 50
+    name: fleet-2b3ec0ce-53b7-4cf1-b20a-1e24a9a83489#nginx-service#aks-member-3
+    target: fleet--aks-member-2.eastus2euap.cloudapp.azure.com
+    weight: 50
+```
+
+#### Stop Serving Traffic from Member Cluster 1
+
+![](after-migrate.png)
+
+
+You can stop serving traffic from Member Cluster 1 by setting weight 0 on the serviceExport using override.
+
+> Note: Existing client/application may still connect to member cluster 1 caused by a stale DNS query.
+
+```yaml
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service-export
+  namespace: test-app
+spec:
+  placement:
+    name: crp-availability
+  resourceSelectors:
+    -  group: networking.fleet.azure.com
+       kind: ServiceExport
+       version: v1alpha1
+       name: nginx-service
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-1
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "0" }
+```
+
+#### Validate the TrafficManagerBackend nginx-backend
+To make sure the overrides are applied to the members, you can validate by checking the placement status and running `kubectl get crp crp-availability -o yaml` command.
+
+To validate the TrafficManagerBackend resource `nginx-backend` again, you can see that the traffic is now being routed to Member Cluster 2 only.
+
+```bash
+kubectl get tmb nginx-backend -n test-app -o yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
@@ -594,103 +590,34 @@ spec:
     name: nginx-profile
   weight: 100
 status:
-  conditions:
-  - lastTransitionTime: "2024-12-06T09:10:10Z"
-    message: 1 service(s) exported from clusters have been accepted as Traffic Manager
-      endpoints
-    observedGeneration: 1
-    reason: Accepted
-    status: "True"
-    type: Accepted
-  endpoints:
-  - cluster:
-      cluster: member-1
-    name: fleet-9e519e29-a5bc-4458-92b9-6e6e00ec1e67#nginx-service#member-1
-    target: fleet-test-member-1.westcentralus.cloudapp.azure.com
-    weight: 100
+    conditions:
+    - lastTransitionTime: "2025-02-21T08:59:47Z"
+      message: 1 service(s) exported from clusters have been accepted as Traffic Manager
+        endpoints
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    endpoints:
+    - from:
+        cluster: aks-member-2
+        weight: 100
+      name: fleet-073a01e7-6f07-49c9-abce-8ce14748984e#nginx-service#member-1
+      target: fleet-member-2.westcentralus.cloudapp.azure.com
+      weight: 100
 ```
 
-> Note:  nginx-backend-2 file located [here](./testfiles/nginx-backend-2.yaml)
-
-```yaml
-apiVersion: networking.fleet.azure.com/v1alpha1
-kind: TrafficManagerBackend
-metadata:
-  name: nginx-backend-2
-  namespace: test-app
-spec:
-  profile:
-    name: "nginx-profile"
-  backend:
-    name: "nginx-service-2"
-  weight: 100
-```
-
-```bash
-kubectl get tmb nginx-backend-2 -n test-app -o yaml
-apiVersion: networking.fleet.azure.com/v1alpha1
-kind: TrafficManagerBackend
-metadata:
-  name: nginx-backend-2
-  namespace: test-app
-  ...
-spec:
-  backend:
-    name: nginx-service-2
-  profile:
-    name: nginx-profile
-  weight: 100
-status:
-  conditions:
-  - lastTransitionTime: "2024-12-09T05:30:54Z"
-    message: 1 service(s) exported from clusters have been accepted as Traffic Manager
-      endpoints
-    observedGeneration: 1
-    reason: Accepted
-    status: "True"
-    type: Accepted
-  endpoints:
-  - cluster:
-      cluster: member-2
-    name: fleet-6d0c1c31-16dc-4991-97e0-6458d5722e25#nginx-service-2#member-2
-    target: fleet-test-member-2.westcentralus.cloudapp.azure.com
-    weight: 100
-```
-
-Summary:
-- Similar to the previous TrafficManagerBackend resource, this one routes all traffic to the new service `nginx-service-2` in Member Cluster 2.
-- Now nginx-profile has two backends now. Each backend has a weight of 100, which means all traffic will be evenly distributed to these two clusters.
-- Adjusting the weight of the backends will allow you to control the traffic distribution between the two clusters.
-
-#### Stop Serving Traffic from Member Cluster 1
-
-![](after-migrate.png)
-
-
-After the new service is up and running in Member Cluster 2, you can stop serving traffic from Member Cluster 1 by removing the TrafficManagerBackend resource.
-
-> Note:  Existing client/application may still connect to member cluster 1 caused by a stale DNS query.
-
-```bash
-kubectl delete trafficmanagerbackend nginx-backend -n test-app
-```
+#### Delete Member Cluster 2
 
 You can delete Member Cluster 1 and all the placed resources (excluding fleet networking resources, for example, serviceExport) will be left on the Member Cluster 1.
+So the existing client still can connect to the service on Member Cluster 1, but the Member Cluster 1 will stop serving new traffic.
+
 Make sure all the client DNS cache is reset before you destroy the service and deployment on the member cluster.
 
 ```bash
 kubectl delete membercluster member-1
 ```
 
-Lastly, clean up the old service, service export and their overrides which are not used anymore in member-2 by deleting them in the hub cluster.
-
-```bash
-kubectl delete resourceoverrides ro-nginx-service-export -n test-app
-kubectl delete resourceoverrides ro-nginx-service -n test-app
-kubectl delete serviceexport nginx-service -n test-app
-kubectl delete service nginx-service -n test-app
-```
-
 ## Conclusion
-This tutorial demonstrated how to migrate applications and shifting the traffic using fleet from one cluster to another by using
+This tutorial demonstrated how to migrate applications and shift the traffic using fleet from one cluster to another by using
 clusterResourcePlacement, resourceOverrides, trafficManagerProfile and trafficManagerBackend APIs without any downtime.

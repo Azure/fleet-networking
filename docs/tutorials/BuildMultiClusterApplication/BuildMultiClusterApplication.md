@@ -51,9 +51,11 @@ and is visible to the fleet by creating ServiceExport.
 apiVersion: placement.kubernetes-fleet.io/v1alpha1
 kind: ResourceOverride
 metadata:
-  name: ro-nginx-service
+  name: nginx-service
   namespace: multi-cluster-app
 spec:
+  placement:
+    name: crp-multi-cluster-app
   resourceSelectors:
     -  group: ""
        kind: Service
@@ -63,19 +65,21 @@ spec:
     overrideRules:
       - clusterSelector:
           clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
+            - labelSelector: {} # select all the clusters
         jsonPatchOverrides:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-multi-cluster-app-member-1"}
+              {"service.beta.kubernetes.io/azure-dns-label-name":"multi-cluster-app-${MEMBER-CLUSTER-NAME}"}
 ```
 Summary:
 - This defines a Kubernetes Service named `nginx-service` in the `test-app` namespace.
 - The service is of type LoadBalancer with a public ip address and a DNS name assigned.
 - It targets pods with the label app: nginx and forwards traffic to port 80 on the pods.
+- The override rule assigns a DNS name to the service based on the cluster name.
+
+> Note: Please update the dns label name to match your specific requirements, and the "multi-cluster-app-${MEMBER-CLUSTER-NAME}" may be not available.
+
 
 #### Deployment
 
@@ -129,27 +133,30 @@ Summary:
 apiVersion: placement.kubernetes-fleet.io/v1
 kind: ClusterResourcePlacement
 metadata:
-  name: crp-availability
+  name: crp-multi-cluster-app
 spec:
   resourceSelectors:
     - group: ""
       kind: Namespace
-      name: test-app
+      name: multi-cluster-app
       version: v1
   policy:
     placementType: PickAll
 ```
 
 Summary:
-- This defines a ClusterResourcePlacement named `crp-availability`.
+- This defines a ClusterResourcePlacement named `crp-multi-cluster-app`.
 - The placement policy selects all the existing cluster, member-1.
-- It targets resources in the `test-app` namespace.
+- It targets resources in the `multi-cluster-app` namespace.
 
 ### TrafficManagerProfile
 
-To expose the service via Traffic Manager, you need to create a trafficManagerProfile resource in the `test-app` namespace.
+To expose the service via Traffic Manager, you need to create a trafficManagerProfile resource in the `multi-cluster-app` namespace.
 
 > Note: Profile test file located [here](./testfiles/nginx-profile.yaml) and please make sure the profile name (be part of the DNS name) is global unique.
+
+> Note: Please make sure the hub networking controllers have the write permissions to create Traffic Manager Profile in the specified resourceGroup and
+> the read permissions to read the public ip address of the service on the member clusters.
 
 ```yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
@@ -158,11 +165,12 @@ metadata:
   name: nginx-profile
   namespace: multi-cluster-app
 spec:
+  resourceGroup: "test-resource-group"
   monitorConfig:
     port: 80
 ```
 Summary:
-- This defines a Traffic Manager Profile named `nginx-profile` in the `test-app` namespace.
+- This defines a Traffic Manager Profile named `nginx-profile` in the `multi-cluster-app` namespace.
 - It listens on the specified port (80) for health checks.
 
 ```bash
@@ -175,21 +183,13 @@ nginx-profile   multi-cluster-app-nginx-profile.trafficmanager.net   True       
 
 > Note:  nginx-backend file located [here](./testfiles/nginx-backend.yaml)
 
-```yaml
+```bash
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend","namespace":"multi-cluster-app"},"spec":{"backend":{"name":"nginx-service"},"profile":{"name":"nginx-profile"},"weight":100}}
-  creationTimestamp: "2024-11-25T08:49:09Z"
-  finalizers:
-    - networking.fleet.azure.com/traffic-manager-backend-cleanup
-  generation: 1
+  ...
   name: nginx-backend
   namespace: multi-cluster-app
-  resourceVersion: "3715151"
-  uid: 90089f42-222a-4d9a-8a97-8b5ed2f9ca42
 spec:
   backend:
     name: nginx-service
@@ -206,8 +206,9 @@ status:
       status: "True"
       type: Accepted
   endpoints:
-    - cluster:
+    - from:
         cluster: member-1
+        weight: 1
       name: fleet-90089f42-222a-4d9a-8a97-8b5ed2f9ca42#nginx-service#member-1
       target: fleet-multi-cluster-app-member-1.westcentralus.cloudapp.azure.com
       weight: 100
@@ -219,49 +220,6 @@ Summary:
 ## Spreading the Application to Member Cluster 2
 
 ![](after.png)
-
-### Update the ResourceOverride of the Service
-
-To spread the application to Member Cluster 2, you need to expose the service as an Azure Traffic Manager endpoint by assigning a DNS label in the service.
-
-> Note: Service test file located [here](./testfiles/ro-nginx-service.yaml).
-> 
-```yaml
-apiVersion: placement.kubernetes-fleet.io/v1alpha1
-kind: ResourceOverride
-metadata:
-  name: ro-nginx-service
-  namespace: multi-cluster-app
-spec:
-  resourceSelectors:
-    -  group: ""
-       kind: Service
-       version: v1
-       name: nginx-service
-  policy:
-    overrideRules:
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
-        jsonPatchOverrides:
-          - op: add
-            path: /metadata/annotations
-            value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-multi-cluster-app-member-1"}
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-2
-        jsonPatchOverrides:
-          - op: add
-            path: /metadata/annotations
-            value:
-              { "service.beta.kubernetes.io/azure-dns-label-name": "fleet-multi-cluster-app-member-2" }
-
-```
 
 ### Join Member Cluster 2 to the Fleet
 
@@ -283,17 +241,8 @@ kubectl get crp crp-multi-cluster-app -o yaml
 apiVersion: placement.kubernetes-fleet.io/v1
 kind: ClusterResourcePlacement
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"placement.kubernetes-fleet.io/v1","kind":"ClusterResourcePlacement","metadata":{"annotations":{},"name":"crp-multi-cluster-app"},"spec":{"policy":{"placementType":"PickAll"},"resourceSelectors":[{"group":"","kind":"Namespace","name":"multi-cluster-app","version":"v1"}]}}
-  creationTimestamp: "2024-11-25T07:24:24Z"
-  finalizers:
-  - kubernetes-fleet.io/crp-cleanup
-  - kubernetes-fleet.io/scheduler-cleanup
-  generation: 3
+  ...
   name: crp-multi-cluster-app
-  resourceVersion: "3718960"
-  uid: 762c49cd-aa3d-4775-9486-2980a7d9b3bf
 spec:
   policy:
     placementType: PickAll
@@ -449,6 +398,7 @@ status:
     namespace: multi-cluster-app
     version: v1
 ```
+
 ### Validate the trafficManagerEndpoint
 
 To validate whether the service of Member Cluster 2 is exposed via Traffic Manager, you can check the status of the TrafficManagerBackend object.
@@ -458,17 +408,9 @@ kubectl get tmb nginx-backend -n multi-cluster-app -o yaml
 apiVersion: networking.fleet.azure.com/v1alpha1
 kind: TrafficManagerBackend
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"networking.fleet.azure.com/v1alpha1","kind":"TrafficManagerBackend","metadata":{"annotations":{},"name":"nginx-backend","namespace":"multi-cluster-app"},"spec":{"backend":{"name":"nginx-service"},"profile":{"name":"nginx-profile"},"weight":100}}
-  creationTimestamp: "2024-11-25T08:49:09Z"
-  finalizers:
-  - networking.fleet.azure.com/traffic-manager-backend-cleanup
-  generation: 1
+ ...
   name: nginx-backend
   namespace: multi-cluster-app
-  resourceVersion: "3718954"
-  uid: 90089f42-222a-4d9a-8a97-8b5ed2f9ca42
 spec:
   backend:
     name: nginx-service
@@ -485,13 +427,15 @@ status:
     status: "True"
     type: Accepted
   endpoints:
-  - cluster:
+  - from:
       cluster: member-1
+      weight: 1
     name: fleet-90089f42-222a-4d9a-8a97-8b5ed2f9ca42#nginx-service#member-1
     target: fleet-multi-cluster-app-member-1.westcentralus.cloudapp.azure.com
     weight: 50
-  - cluster:
+  - from:
       cluster: member-2
+      weight: 1
     name: fleet-90089f42-222a-4d9a-8a97-8b5ed2f9ca42#nginx-service#member-2
     target: fleet-multi-cluster-app-member-2.westcentralus.cloudapp.azure.com
     weight: 50
@@ -500,6 +444,11 @@ Summary:
 * The traffic is now split between the two clusters, member-1 and member-2, with a weight of 50% each.
 * Similarly, when the cluster is left from the fleet by deleting memberCluster CR, all the placed resources excluding the fleet 
 networking resources, will be left on the cluster, and the exported service will be removed from the Azure Traffic Manager automatically.
+
+> Note: Azure Traffic Manager provides health monitoring for every endpoint. It means the traffic will be routed to the new cluster
+> when the workloads on the cluster are healthy.
+> 
+> If you want to control when the traffic should be routed to the new cluster explicitly, you can refer to [Migrating Application Resources to Clusters without Downtime tutorial](../ApplicationMigration/ApplicationMigration.md).
 
 ## Automatic Fail Over When One cluster Is Unhealthy
 
@@ -514,6 +463,6 @@ Traffic Manager will automatically direct the new connections to the healthy clu
 > should limit the session duration used with each endpoint.
 
 ## Conclusion
-This tutorial demonstrated how to build a multi-cluster applications seamlessly by using
+This tutorial demonstrated how to build a multi-cluster application seamlessly by using
 clusterResourcePlacement, resourceOverrides, serviceExport, trafficManagerProfile and trafficManagerBackend APIs.
 The traffic will be automatically split between the clusters and failover to the healthy cluster when one of the clusters is unhealthy.

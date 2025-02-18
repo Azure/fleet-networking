@@ -1,9 +1,11 @@
 apiVersion: placement.kubernetes-fleet.io/v1alpha1
 kind: ResourceOverride
 metadata:
-  name: ro-nginx-service
+  name: nginx-service
   namespace: multi-cluster-app
 spec:
+  placement:
+    name: crp-multi-cluster-app
   resourceSelectors:
     -  group: ""
        kind: Service
@@ -13,21 +15,9 @@ spec:
     overrideRules:
       - clusterSelector:
           clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-1
+            - labelSelector: {} # select all the clusters
         jsonPatchOverrides:
           - op: add
             path: /metadata/annotations
             value:
-              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-multi-cluster-app-member-1"}
-      - clusterSelector:
-          clusterSelectorTerms:
-            - labelSelector:
-                matchLabels:
-                  cluster-name: member-2
-        jsonPatchOverrides:
-          - op: add
-            path: /metadata/annotations
-            value:
-              { "service.beta.kubernetes.io/azure-dns-label-name": "fleet-multi-cluster-app-member-2" }
+              {"service.beta.kubernetes.io/azure-dns-label-name":"multi-cluster-app-${MEMBER-CLUSTER-NAME}"}
