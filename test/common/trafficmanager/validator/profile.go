@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	timeout  = time.Second * 120 // need more time to create azure resources
+	timeout  = time.Second * 300 // need more time to create azure resources
 	interval = time.Millisecond * 250
 	// duration used by consistently
 	duration = time.Second * 30

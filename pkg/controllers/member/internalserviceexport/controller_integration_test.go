@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
@@ -25,6 +26,9 @@ const (
 
 	eventuallyTimeout  = time.Second * 10
 	eventuallyInterval = time.Millisecond * 250
+
+	consistentlyDuration = time.Second * 15
+	consistentlyInterval = time.Millisecond * 250
 )
 
 var (
@@ -245,6 +249,55 @@ var _ = Describe("internalsvcexport controller", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
 
 			Eventually(internalServiceExportHasLastObservedResourceVersionAnnotatedActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+		})
+	})
+
+	Context("internalserviceexport is deleting", func() {
+		var svcExport *fleetnetv1alpha1.ServiceExport
+		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
+		finalizer := "internal-service-export-finalizer"
+
+		BeforeEach(func() {
+			svcExport = unfulfilledServiceExport()
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+
+			internalSvcExport = unfulfilledInternalServiceExport()
+			controllerutil.AddFinalizer(internalSvcExport, finalizer) // so that the internalserviceexport is not deleted immediately
+			Expect(hubClient.Create(ctx, internalSvcExport)).Should(Succeed())
+
+			By("Deleting internalServiceExport")
+			Expect(hubClient.Delete(ctx, internalSvcExport)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(hubClient.Get(ctx, internalSvcExportKey, internalSvcExport)).Should(Succeed())
+			controllerutil.RemoveFinalizer(internalSvcExport, finalizer)
+			Expect(hubClient.Update(ctx, internalSvcExport)).Should(Succeed())
+
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+
+			// Confirm that both ServiceExport and InternalServiceExport have been deleted;
+			// this helps make the test less flaky.
+			Eventually(internalServiceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+		})
+
+		It("should not report back conflict condition (conflict found)", func() {
+			// Add a conflict condition
+			Expect(hubClient.Get(ctx, internalSvcExportKey, internalSvcExport)).Should(Succeed())
+			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
+				conflictedServiceExportConflictCondition(memberUserNS, svcName))
+			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
+
+			Consistently(func() error {
+				if err := memberClient.Get(ctx, svcExportKey, svcExport); err != nil {
+					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
+				}
+				if len(svcExport.Status.Conditions) != 0 {
+					return fmt.Errorf("serviceExport conditions got %+v, want empty", svcExport.Status.Conditions)
+				}
+				return nil
+			}, consistentlyDuration, consistentlyInterval).Should(BeNil())
 		})
 	})
 })

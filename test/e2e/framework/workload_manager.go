@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -28,6 +30,9 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
 )
+
+// ignoredCondFields are fields that should be ignored when comparing conditions.
+var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")
 
 // WorkloadManager represents a suite of variables of operations required to test exporting an service and more.
 type WorkloadManager struct {
@@ -244,6 +249,37 @@ func (wm *WorkloadManager) UpdateServiceType(ctx context.Context, cluster *Clust
 	}
 	if err := cluster.kubeClient.Update(ctx, &service); err != nil {
 		return fmt.Errorf("failed to update service %s in cluster %s: %w", service.Name, cluster.Name(), err)
+	}
+	return nil
+}
+
+// UpdateServiceExportWeight updates the service export weight in the member cluster.
+func (wm *WorkloadManager) UpdateServiceExportWeight(ctx context.Context, cluster *Cluster, weight int) error {
+	var svcExport fleetnetv1alpha1.ServiceExport
+	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &svcExport); err != nil {
+		return fmt.Errorf("failed to get service export %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
+	}
+	if svcExport.Annotations == nil {
+		svcExport.Annotations = make(map[string]string)
+	}
+	svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight] = fmt.Sprintf("%d", weight)
+	if err := cluster.kubeClient.Update(ctx, &svcExport); err != nil {
+		return fmt.Errorf("failed to update service export %s in cluster %s: %w", svcExport.Name, cluster.Name(), err)
+	}
+	return nil
+}
+
+// ValidateServiceExportCondition validates the service export condition in the member cluster.
+// The function will update the `wantCondition` using the latest generation of the serviceExport.
+func (wm *WorkloadManager) ValidateServiceExportCondition(ctx context.Context, cluster *Cluster, wantCondition metav1.Condition) error {
+	var svcExport fleetnetv1alpha1.ServiceExport
+	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &svcExport); err != nil {
+		return fmt.Errorf("failed to get service export %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
+	}
+	wantCondition.ObservedGeneration = svcExport.Generation
+	gotCondition := meta.FindStatusCondition(svcExport.Status.Conditions, wantCondition.Type)
+	if diff := cmp.Diff(gotCondition, &wantCondition, ignoredCondFields); diff != "" {
+		return fmt.Errorf("serviceExport condition (-got, +want): %s", diff)
 	}
 	return nil
 }

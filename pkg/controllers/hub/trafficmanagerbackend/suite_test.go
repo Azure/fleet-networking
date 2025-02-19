@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -71,6 +72,7 @@ var (
 					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
 				},
 				Type:                 corev1.ServiceTypeLoadBalancer,
+				PublicIPResourceID:   ptr.To("abc"),
 				IsDNSLabelConfigured: true,
 			},
 		},
@@ -152,6 +154,7 @@ var (
 					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
 				},
 				Type:                 corev1.ServiceTypeLoadBalancer,
+				PublicIPResourceID:   ptr.To("abc"),
 				IsDNSLabelConfigured: true,
 			},
 		},
@@ -180,6 +183,7 @@ var (
 					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
 				},
 				Type:                 corev1.ServiceTypeLoadBalancer,
+				PublicIPResourceID:   ptr.To("abc"),
 				IsDNSLabelConfigured: true,
 			},
 		},
@@ -208,6 +212,7 @@ var (
 					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
 				},
 				Type:                 corev1.ServiceTypeLoadBalancer,
+				PublicIPResourceID:   ptr.To("abc"),
 				IsDNSLabelConfigured: true,
 			},
 		},

@@ -26,6 +26,7 @@ func TestIsValidTrafficManagerEndpoint(t *testing.T) {
 			export: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:                   corev1.ServiceTypeLoadBalancer,
+					PublicIPResourceID:     ptr.To("abc"),
 					IsDNSLabelConfigured:   true,
 					IsInternalLoadBalancer: false,
 				},
@@ -56,6 +57,17 @@ func TestIsValidTrafficManagerEndpoint(t *testing.T) {
 		},
 		{
 			name: "load balancer type with public ip but dns label not configured",
+			export: &fleetnetv1alpha1.InternalServiceExport{
+				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
+					Type:                 corev1.ServiceTypeLoadBalancer,
+					PublicIPResourceID:   ptr.To("abc"),
+					IsDNSLabelConfigured: false,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "load balancer type with public ip but public ip is not ready",
 			export: &fleetnetv1alpha1.InternalServiceExport{
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Type:                 corev1.ServiceTypeLoadBalancer,

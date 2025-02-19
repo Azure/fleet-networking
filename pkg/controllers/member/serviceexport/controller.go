@@ -175,6 +175,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Get the weight from the serviceExport annotation and validate it.
 	exportWeight, err := extractWeightFromServiceExport(&svcExport)
 	if err != nil {
+		// Here we don't unexport the service to interrupt the traffic when using invalid annotation.
 		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		expectedValidCond := metav1.Condition{
@@ -189,6 +190,34 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, nil
 		}
 		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, svcExportInvalidWeightAnnotationReason, "ServiceExport %s has invalid weight value in the annotation", svc.Name)
+		meta.SetStatusCondition(&svcExport.Status.Conditions, expectedValidCond)
+		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
+	}
+
+	if exportWeight == 0 {
+		// The weight is 0, unexport the service.
+		klog.V(2).InfoS("Service has weight 0; unexport the service", "service", svcRef)
+		r.Recorder.Eventf(&svcExport, corev1.EventTypeNormal, "Service", "Service %s weight is set to 0", svc.Name)
+
+		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
+			if _, err = r.unexportService(ctx, &svcExport); err != nil {
+				klog.ErrorS(err, "Failed to unexport the service", "service", svcRef)
+				return ctrl.Result{}, err
+			}
+		}
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		expectedValidCond := metav1.Condition{
+			Type:               string(fleetnetv1alpha1.ServiceExportValid),
+			Status:             metav1.ConditionTrue,
+			Reason:             svcExportValidCondReason,
+			ObservedGeneration: svcExport.Generation,
+			Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+		}
+		// Since the annotation won't change the generation, we compare the message here.
+		if condition.EqualConditionWithMessage(validCond, &expectedValidCond) {
+			// no need to retry if the condition is already set
+			return ctrl.Result{}, nil
+		}
 		meta.SetStatusCondition(&svcExport.Status.Conditions, expectedValidCond)
 		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
 	}

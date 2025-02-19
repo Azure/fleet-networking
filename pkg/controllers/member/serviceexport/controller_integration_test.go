@@ -543,9 +543,10 @@ var _ = Describe("serviceexport controller", func() {
 
 			By("update the serviceExport in the member cluster")
 			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
-			svcExport.Annotations = map[string]string{
-				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(3837),
+			if svcExport.Annotations == nil {
+				svcExport.Annotations = make(map[string]string)
 			}
+			svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight] = strconv.Itoa(3837)
 			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
 
 			By("make sure the serviceExport is marked as invalid")
@@ -566,6 +567,45 @@ var _ = Describe("serviceexport controller", func() {
 				}
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("make sure the service is still exported")
+			err = serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight)))()
+			Expect(err).Should(Succeed(), "Service is not exported to hub: %v", err)
+		})
+
+		It("annotation weight is set to zero", func() {
+			By("confirm that the service has been exported")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("update the serviceExport in the member cluster")
+			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(0),
+			}
+			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
+
+			By("make sure the serviceExport is marked as valid")
+			expectedCond := metav1.Condition{
+				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Status:             metav1.ConditionTrue,
+				Reason:             svcExportValidCondReason,
+				ObservedGeneration: svcExport.Generation,
+				Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+			}
+			Eventually(func() error {
+				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed(), "Get() serviceExport mismatch")
+
+			By("make sure the service is unexported")
+			err := serviceIsNotExportedActual()
+			Expect(err).Should(Succeed(), "Failed to unexport the service: %v", err)
 		})
 	})
 
