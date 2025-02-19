@@ -242,6 +242,7 @@ var (
 					NamespacedName:  fmt.Sprintf("%s/%s", testNamespace, serviceName),
 				},
 				Type:                 corev1.ServiceTypeLoadBalancer,
+				PublicIPResourceID:   ptr.To("abc"),
 				IsDNSLabelConfigured: true,
 			},
 		},
