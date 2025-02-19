@@ -753,7 +753,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
-		It("Updating the ServiceImport status", func() {
+		It("Simulating a 403 error response from the provider server and updating the ServiceImport status", func() {
 			// The test is running in sequence, so it's safe to set this value.
 			fakeprovider.EnableEndpointForbiddenErr()
 			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
@@ -766,7 +766,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
 		})
 
-		It("Validating trafficManagerBackend", func() {
+		It("Should set trafficManagerBackend as accepted false", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -782,7 +782,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
-		It("Setting the fake provider server to stop returning 403 error", func() {
+		It("Should reconcile the endpoint back after the provider server stops returning 403", func() {
 			fakeprovider.DisableEndpointForbiddenErr()
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
@@ -810,7 +810,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
-			fakeprovider.EnableEndpointForbiddenErr()
 		})
 
 		It("Updating the ServiceImport status", func() {
