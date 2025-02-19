@@ -25,6 +25,12 @@ const (
 	Weight = int64(50)
 )
 
+var (
+	// returnEndpointForbiddenErr is to control whether to return forbidden error or not.
+	// Note: it's not thread safe.
+	returnEndpointForbiddenErr bool
+)
+
 // NewEndpointsClient creates a client which talks to a fake endpoint server.
 func NewEndpointsClient(subscriptionID string) (*armtrafficmanager.EndpointsClient, error) {
 	fakeServer := fake.EndpointsServer{
@@ -41,6 +47,16 @@ func NewEndpointsClient(subscriptionID string) (*armtrafficmanager.EndpointsClie
 		return nil, err
 	}
 	return clientFactory.NewEndpointsClient(), nil
+}
+
+// DisableEndpointForbiddenErr disables the throttled error for endpoint with CreateForbbidenErrEndpointClusterName.
+func DisableEndpointForbiddenErr() {
+	returnEndpointForbiddenErr = false
+}
+
+// EnableEndpointForbiddenErr enables the throttled error for endpoint with CreateForbbidenErrEndpointClusterName.
+func EnableEndpointForbiddenErr() {
+	returnEndpointForbiddenErr = true
 }
 
 // EndpointDelete returns the http status code based on the profileName and endpointName.
@@ -82,8 +98,12 @@ func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profile
 		} else if endpointName == CreateInternalServerErrEndpointName {
 			errResp.SetResponseError(http.StatusInternalServerError, "InternalServerError")
 			return resp, errResp
+		} else if endpointName == CreateForbiddenErrEndpointName {
+			if returnEndpointForbiddenErr {
+				errResp.SetResponseError(http.StatusForbidden, "Forbidden")
+				return resp, errResp
+			}
 		}
-
 		endpointResp := armtrafficmanager.EndpointsClientCreateOrUpdateResponse{
 			Endpoint: armtrafficmanager.Endpoint{
 				Name: ptr.To(endpointName),

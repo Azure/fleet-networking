@@ -40,6 +40,7 @@ const (
 	ClusterName                                = "member-1"
 	CreateBadRequestErrEndpointClusterName     = "create-bad-request-endpoint-cluster"
 	CreateInternalServerErrEndpointClusterName = "create-internal-err-endpoint-cluster"
+	CreateForbiddenErrEndpointClusterName      = "create-forbidden-endpoint-cluster"
 
 	ProfileDNSNameFormat                  = "%s.trafficmanager.net"
 	azureTrafficManagerEndpointTypePrefix = "Microsoft.Network/trafficManagerProfiles/"
@@ -53,6 +54,7 @@ var (
 	FailToDeleteEndpointName            = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, "fail-to-delete")
 	CreateBadRequestErrEndpointName     = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateBadRequestErrEndpointClusterName)
 	CreateInternalServerErrEndpointName = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateInternalServerErrEndpointClusterName)
+	CreateForbiddenErrEndpointName      = fmt.Sprintf("%s#%s#%s", ValidBackendName, ServiceImportName, CreateForbiddenErrEndpointClusterName)
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
