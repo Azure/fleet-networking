@@ -7,6 +7,7 @@ package e2e
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
@@ -30,6 +31,11 @@ import (
 
 var (
 	enabled = os.Getenv("ENABLE_TRAFFIC_MANAGER") == "true"
+)
+
+const (
+	defaultTimeout = time.Second * 60
+	longTimeout    = time.Second * 360 // need more time to create azure resources
 )
 
 var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
@@ -57,7 +63,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 		By("Validating the trafficManagerProfile status")
 		profileName = types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}
-		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true)
+		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, defaultTimeout)
 
 		By("Validating the Azure traffic manager profile")
 		atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -78,7 +84,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		Expect(err).Should(SatisfyAny(Succeed(), WithTransform(errors.IsNotFound, BeTrue())), "Failed to delete the trafficManagerProfile")
 
 		By("Validating trafficManagerProfile is deleted")
-		validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName)
+		validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, defaultTimeout)
 
 		By("Validating Azure traffic manager profile")
 		atmValidator.IsProfileDeleted(ctx, atmProfileName)
@@ -98,7 +104,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerProfile status")
 			invalidProfileName = types.NamespacedName{Namespace: invalidProfile.Namespace, Name: invalidProfile.Name}
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false, defaultTimeout)
 		})
 
 		AfterEach(func() {
@@ -107,7 +113,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			Expect(err).Should(SatisfyAny(Succeed(), WithTransform(errors.IsNotFound, BeTrue())), "Failed to delete the trafficManagerProfile")
 
 			By("Validating trafficManagerProfile is deleted")
-			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, invalidProfileName)
+			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, invalidProfileName, defaultTimeout)
 		})
 
 		It("Creating trafficManagerBackend with invalid profile", func() {
@@ -120,12 +126,12 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			backendName = types.NamespacedName{Namespace: backend.Namespace, Name: backend.Name}
 			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
 
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, defaultTimeout)
 		})
 	})
 
@@ -141,7 +147,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
 
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, defaultTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfile = buildDesiredATMProfile(profile, nil)
@@ -179,7 +185,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterAll(func() {
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, name)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, name, defaultTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -188,14 +194,14 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		})
 
 		It("Validating the trafficManagerBackend status", func() {
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, nil)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Exporting service with no DNS label assigned")
 			Expect(wm.ExportService(ctx, wm.ServiceExport())).Should(Succeed(), "Failed to export the service")
 
 			By("Validating the trafficManagerBackend status")
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, nil)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Adding DNS label to the service on member-1")
@@ -215,7 +221,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, wantEndpoints)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, wantEndpoints, longTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -247,7 +253,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, true, wantEndpoints)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, true, wantEndpoints, longTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -279,7 +285,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			// make sure each test will create the trafficManagerBackend
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, defaultTimeout)
 		})
 
 		It("Creating trafficManagerBackend with invalid profile", func() {
@@ -292,7 +298,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			backendName = types.NamespacedName{Namespace: backend.Namespace, Name: backend.Name}
 			Expect(hubClient.Create(ctx, &backend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
 
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 		})
 
@@ -321,17 +327,17 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, longTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Deleting trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, &profile)).Should(Succeed(), "Failed to delete the trafficManagerProfile")
 
 			By("Validating trafficManagerProfile is deleted")
-			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName)
+			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, defaultTimeout)
 
 			By("Validating the trafficManagerBackend status")
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 		})
 	})
@@ -380,7 +386,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, longTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -394,7 +400,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterEach(func() {
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, defaultTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -466,7 +472,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -521,7 +527,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -564,7 +570,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -590,7 +596,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, wantEndpoints, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -603,7 +609,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the service type to internal load balancer type")
 
 			By("Validating the trafficManagerBackend status")
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -616,7 +622,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed(), "Failed to unexport the service")
 
 			By("Validating the trafficManagerBackend status")
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -635,7 +641,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -672,7 +678,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -691,7 +697,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerBackend status")
 			// the serviceImport is invalid in this case
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")

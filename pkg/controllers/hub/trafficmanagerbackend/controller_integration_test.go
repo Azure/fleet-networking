@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	timeout  = time.Second * 10
-	interval = time.Millisecond * 250
+	timeout     = time.Second * 10
+	longTimeout = time.Second * 60
+	interval    = time.Millisecond * 250
 )
 
 var (
@@ -132,7 +133,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -141,7 +142,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, namespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, namespacedName, timeout)
 		})
 	})
 
@@ -175,7 +176,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Updating TrafficManagerProfile status to programmed true and it should trigger controller", func() {
@@ -194,7 +195,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -203,7 +204,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -212,7 +213,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -251,7 +252,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -260,7 +261,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -269,7 +270,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -308,7 +309,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -317,7 +318,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -326,7 +327,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -372,7 +373,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Updating TrafficManagerProfile status to accepted unknown and it should trigger controller", func() {
@@ -398,7 +399,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -407,7 +408,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -416,7 +417,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -455,7 +456,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -464,7 +465,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -473,7 +474,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -510,7 +511,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				Spec: backend.Spec,
 				// not able to set the condition
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -519,7 +520,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -528,7 +529,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 	})
 
@@ -569,7 +570,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -593,7 +594,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -627,7 +628,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -636,7 +637,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 
 		It("Deleting serviceImport", func() {
@@ -681,7 +682,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -706,7 +707,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -749,7 +750,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -778,7 +779,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -808,7 +809,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, longTimeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -862,7 +863,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -909,7 +910,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -952,7 +953,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -982,7 +983,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildUnknownCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -1016,7 +1017,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -1052,7 +1053,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -1074,7 +1075,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildTrueCondition(backend.Generation),
 				},
 			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
 
@@ -1084,7 +1085,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend is deleted", func() {
-			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName)
+			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -1093,7 +1094,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
 
 		It("Deleting serviceImport", func() {

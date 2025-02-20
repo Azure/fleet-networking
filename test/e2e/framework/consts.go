@@ -22,7 +22,7 @@ const (
 
 	// MCSLBPollTimeout defines the time to wait a MCS to be assigned with LoadBalancer IP address.
 	// As MCS depending on handling service related to cloud provider, more time is required.
-	MCSLBPollTimeout = 240 * time.Second
+	MCSLBPollTimeout = 360 * time.Second
 
 	// TestNamespacePrefix defines the prefix of test namespaces.
 	TestNamespacePrefix = "my-ns"

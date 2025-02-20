@@ -7,6 +7,7 @@ package trafficmanagerprofile
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,6 +19,10 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/validator"
+)
+
+const (
+	timeout = time.Second * 10
 )
 
 func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerProfile {
@@ -72,7 +77,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Update the trafficManagerProfile spec", func() {
@@ -101,7 +106,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -110,7 +115,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -160,7 +165,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -169,7 +174,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -201,7 +206,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -210,7 +215,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -242,7 +247,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -251,7 +256,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -283,7 +288,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -292,7 +297,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -324,7 +329,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -333,7 +338,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 
 		It("Validating trafficManagerProfile is deleted", func() {
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name})
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 		})
 	})
 
@@ -366,7 +371,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 					},
 				},
 			}
-			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want)
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -376,7 +381,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 		It("Validating if trafficManagerProfile is deleted", func() {
 			name := types.NamespacedName{Namespace: testNamespace, Name: name}
-			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, name)
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, name, timeout)
 		})
 	})
 })
