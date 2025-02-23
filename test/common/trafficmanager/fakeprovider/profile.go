@@ -24,7 +24,10 @@ import (
 )
 
 const (
+	DefaultSubscriptionID    = "default-subscription-id"
 	DefaultResourceGroupName = "default-resource-group-name"
+
+	ProfileResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
 
 	ValidProfileName                         = "valid-profile"
 	ValidProfileWithEndpointsName            = "valid-profile-with-endpoints"
@@ -58,13 +61,13 @@ var (
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
-func NewProfileClient(subscriptionID string) (*armtrafficmanager.ProfilesClient, error) {
+func NewProfileClient() (*armtrafficmanager.ProfilesClient, error) {
 	fakeServer := fake.ProfilesServer{
 		CreateOrUpdate: ProfileCreateOrUpdate,
 		Delete:         ProfileDelete,
 		Get:            ProfileGet,
 	}
-	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
+	clientFactory, err := armtrafficmanager.NewClientFactory(DefaultSubscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Transport: fake.NewProfilesServerTransport(&fakeServer),
@@ -137,6 +140,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				},
 			}
 		}
+		profileResp.Profile.ID = ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName))
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	case ValidProfileWithNilPropertiesName:
 		profileResp := armtrafficmanager.ProfilesClientGetResponse{
@@ -144,6 +148,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				Name:     ptr.To(profileName),
 				Location: ptr.To("global"),
 			}}
+		profileResp.Profile.ID = ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName))
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	case RequestTimeoutProfileName:
 		errResp.SetResponseError(http.StatusRequestTimeout, "RequestTimeoutError")
@@ -189,6 +194,7 @@ func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileN
 					TrafficRoutingMethod:        ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
 					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
 				},
+				ID: ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName)),
 			}}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:

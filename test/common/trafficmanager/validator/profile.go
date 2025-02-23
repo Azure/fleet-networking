@@ -64,7 +64,7 @@ func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client,
 }
 
 // ValidateIfTrafficManagerProfileIsProgrammed validates the trafficManagerProfile is programmed and returns the DNSName.
-func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName, isProgrammed bool) *fleetnetv1beta1.TrafficManagerProfile {
+func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName, isProgrammed bool, wantResourceID string) *fleetnetv1beta1.TrafficManagerProfile {
 	wantDNSName := fmt.Sprintf("%s-%s.trafficmanager.net", profileName.Namespace, profileName.Name)
 	var profile fleetnetv1beta1.TrafficManagerProfile
 	gomega.Eventually(func() error {
@@ -83,6 +83,7 @@ func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient 
 						ObservedGeneration: profile.Generation,
 					},
 				},
+				ResourceID: wantResourceID,
 			}
 		} else {
 			wantStatus = fleetnetv1beta1.TrafficManagerProfileStatus{

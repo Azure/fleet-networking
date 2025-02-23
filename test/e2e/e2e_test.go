@@ -34,7 +34,8 @@ const (
 	azureSubscriptionEnv                = "AZURE_SUBSCRIPTION_ID"
 	azureTrafficManagerResourceGroupEnv = "AZURE_RESOURCE_GROUP"
 
-	azureDNSFormat = "%s.%s.cloudapp.azure.com"
+	azureDNSFormat                             = "%s.%s.cloudapp.azure.com"
+	azureTrafficManagerProfileResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
 )
 
 var (
@@ -54,6 +55,7 @@ var (
 	atmValidator *azureprovider.Validator
 	pipClient    publicipaddressclient.Interface
 
+	subscriptionID   string
 	atmResourceGroup string
 )
 
@@ -92,7 +94,7 @@ var _ = BeforeSuite(func() {
 })
 
 func initAzureClients() {
-	subscriptionID := os.Getenv(azureSubscriptionEnv)
+	subscriptionID = os.Getenv(azureSubscriptionEnv)
 	Expect(subscriptionID).ShouldNot(BeEmpty(), "Azure subscription ID is not set")
 
 	atmResourceGroup = os.Getenv(azureTrafficManagerResourceGroupEnv)
