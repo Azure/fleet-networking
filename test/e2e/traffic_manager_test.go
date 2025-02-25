@@ -34,7 +34,7 @@ var (
 )
 
 const (
-	defaultTimeout = time.Second * 60
+	defaultTimeout = time.Second * 30
 	longTimeout    = time.Second * 360 // need more time to create azure resources
 )
 
