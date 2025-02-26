@@ -528,7 +528,7 @@ status:
   - from:
       cluster: aks-member-2
       weight: 50
-    name: fleet-2b3ec0ce-53b7-4cf1-b20a-1e24a9a83489#nginx-service#aks-member-3
+    name: fleet-2b3ec0ce-53b7-4cf1-b20a-1e24a9a83489#nginx-service#aks-member-2
     target: fleet--aks-member-2.eastus2euap.cloudapp.azure.com
     weight: 50
 ```

@@ -25,7 +25,7 @@ spec:
           clusterSelectorTerms:
             - labelSelector:
                 matchLabels:
-                  cluster-name: member-3
+                  cluster-name: member-2
         jsonPatchOverrides:
           - op: add
             path: /metadata/annotations
