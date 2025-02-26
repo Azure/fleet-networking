@@ -34,8 +34,13 @@ var (
 )
 
 const (
-	defaultTimeout = time.Second * 30
-	longTimeout    = time.Second * 360 // need more time to create azure resources
+	defaultTimeout = time.Second * 10
+	// Expect the controller will call the Azure API and it can be finished within one minute.
+	lightAzureOperationTimeout = 1 * time.Minute
+	// Expect the controller will call multiple Azure APIs and it can be finished within 10 minutes.
+	// For example, TrafficManagerBackend controller needs to wait until the ip address on the service is ready before setting
+	// the condition.
+	heavyAzureOperationTimeout = 10 * time.Minute
 )
 
 var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
@@ -63,7 +68,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 		By("Validating the trafficManagerProfile status")
 		profileName = types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}
-		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, defaultTimeout)
+		profile = *validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, lightAzureOperationTimeout)
 
 		By("Validating the Azure traffic manager profile")
 		atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -84,7 +89,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		Expect(err).Should(SatisfyAny(Succeed(), WithTransform(errors.IsNotFound, BeTrue())), "Failed to delete the trafficManagerProfile")
 
 		By("Validating trafficManagerProfile is deleted")
-		validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, defaultTimeout)
+		validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, lightAzureOperationTimeout)
 
 		By("Validating Azure traffic manager profile")
 		atmValidator.IsProfileDeleted(ctx, atmProfileName)
@@ -104,7 +109,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the trafficManagerProfile status")
 			invalidProfileName = types.NamespacedName{Namespace: invalidProfile.Namespace, Name: invalidProfile.Name}
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false, defaultTimeout)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, invalidProfileName, false, lightAzureOperationTimeout)
 		})
 
 		AfterEach(func() {
@@ -147,7 +152,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
 
-			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, defaultTimeout)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfile = buildDesiredATMProfile(profile, nil)
@@ -185,7 +190,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterAll(func() {
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, name, defaultTimeout)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, name, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -208,7 +213,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			memberDNSLabels[0] = wm.BuildServiceDNSLabelName(memberClusters[0])
 			Eventually(func() error {
 				return wm.AddServiceDNSLabel(ctx, memberClusters[0], memberDNSLabels[0])
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -221,7 +226,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, wantEndpoints, longTimeout)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, false, wantEndpoints, heavyAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -232,7 +237,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			memberDNSLabels[1] = wm.BuildServiceDNSLabelName(memberClusters[1])
 			Eventually(func() error {
 				return wm.AddServiceDNSLabel(ctx, memberClusters[1], memberDNSLabels[1])
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints = []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -253,7 +258,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, true, wantEndpoints, longTimeout)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, name, true, wantEndpoints, heavyAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, name, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -274,7 +279,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				memberDNSLabels[i] = wm.BuildServiceDNSLabelName(memberClusters[i])
 				Eventually(func() error {
 					return wm.AddServiceDNSLabel(ctx, memberClusters[i], memberDNSLabels[i])
-				}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+				}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 			}
 
 			By("Exporting service with DNS label assigned")
@@ -327,17 +332,17 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, longTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, heavyAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Deleting trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, &profile)).Should(Succeed(), "Failed to delete the trafficManagerProfile")
 
 			By("Validating trafficManagerProfile is deleted")
-			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, defaultTimeout)
+			validator.IsTrafficManagerProfileDeleted(ctx, hubClient, profileName, lightAzureOperationTimeout)
 
 			By("Validating the trafficManagerBackend status")
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 		})
 	})
@@ -355,7 +360,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				memberDNSLabels[i] = wm.BuildServiceDNSLabelName(memberClusters[i])
 				Eventually(func() error {
 					return wm.AddServiceDNSLabel(ctx, memberClusters[i], memberDNSLabels[i])
-				}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+				}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 				By(fmt.Sprintf("Added DNS label to the service on %s", memberClusters[i].Name()))
 			}
 
@@ -386,7 +391,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, longTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, heavyAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -400,7 +405,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterEach(func() {
 			By("Deleting trafficManagerBackend")
 			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
-			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, defaultTimeout)
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
 			atmProfileName = fmt.Sprintf(trafficmanagerprofile.AzureResourceProfileNameFormat, profile.UID)
@@ -451,7 +456,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				}
 				backend.Spec.Weight = ptr.To(int64(10))
 				return hubClient.Update(ctx, &backend)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -472,7 +477,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -506,7 +511,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				}
 				backend.Spec.Weight = ptr.To(int64(10))
 				return hubClient.Update(ctx, &backend)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -527,7 +532,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -549,7 +554,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				}
 				backend.Spec.Weight = ptr.To(int64(10))
 				return hubClient.Update(ctx, &backend)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -570,7 +575,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -596,7 +601,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, wantEndpoints, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, wantEndpoints, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -606,10 +611,10 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			By("Updating the service type to internal load balancer type in member-2")
 			Eventually(func() error {
 				return wm.UpdateServiceType(ctx, memberClusters[1], corev1.ServiceTypeLoadBalancer, true)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the service type to internal load balancer type")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the service type to internal load balancer type")
 
 			By("Validating the trafficManagerBackend status")
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -622,7 +627,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			Expect(wm.UnexportService(ctx, wm.ServiceExport())).Should(Succeed(), "Failed to unexport the service")
 
 			By("Validating the trafficManagerBackend status")
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -638,10 +643,10 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				}
 				backend.Spec.Weight = ptr.To(int64(0))
 				return hubClient.Update(ctx, &backend)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerBackend")
 
 			By("Validating the trafficManagerBackend status")
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, nil, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -653,7 +658,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			By("Updating the serviceExport weight on member-1")
 			Eventually(func() error {
 				return wm.UpdateServiceExportWeight(ctx, memberClusters[0], 0)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating the serviceExport condition")
 			wantValidConditionWithZeroWeight := metav1.Condition{
@@ -665,7 +670,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			By("Validating serviceExport valid condition on member-1")
 			Eventually(func() error {
 				return wm.ValidateServiceExportCondition(ctx, memberClusters[0], wantValidConditionWithZeroWeight)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
 
 			By("Validating the trafficManagerBackend status")
 			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
@@ -678,7 +683,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					},
 				},
 			}
-			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, defaultTimeout)
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, true, wantEndpoints, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")
@@ -688,16 +693,16 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			By("Updating the serviceExport weight on member-2")
 			Eventually(func() error {
 				return wm.UpdateServiceExportWeight(ctx, memberClusters[1], 0)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to add DNS label to the service")
 
 			By("Validating serviceExport valid condition on member-2")
 			Eventually(func() error {
 				return wm.ValidateServiceExportCondition(ctx, memberClusters[1], wantValidConditionWithZeroWeight)
-			}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
+			}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to validate the valid condition on serviceExport")
 
 			By("Validating the trafficManagerBackend status")
 			// the serviceImport is invalid in this case
-			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, defaultTimeout)
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, backendName, false, nil, lightAzureOperationTimeout)
 			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, backendName, status)
 
 			By("Validating the Azure traffic manager profile")

@@ -809,6 +809,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					},
 				},
 			}
+			// The controller should reconcile the trafficManagerBackend using backoff algorithm.
+			// It may take longer and depends on the failure times.
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, longTimeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
 		})
