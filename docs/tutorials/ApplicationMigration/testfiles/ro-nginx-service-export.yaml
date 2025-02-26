@@ -15,5 +15,19 @@ spec:
           clusterSelectorTerms:
             - labelSelector:
                 matchLabels:
+                  cluster-name: member-1
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "80" }
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
                   cluster-name: member-2
-        overrideType: Delete
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "20" }

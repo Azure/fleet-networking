@@ -17,4 +17,3 @@ kind: ServiceExport
 metadata:
   name: nginx-service
   namespace: multi-cluster-app
-
