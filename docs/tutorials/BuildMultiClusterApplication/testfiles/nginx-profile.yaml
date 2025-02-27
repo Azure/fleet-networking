@@ -1,4 +1,4 @@
-apiVersion: networking.fleet.azure.com/v1alpha1
+apiVersion: networking.fleet.azure.com/v1beta1
 kind: TrafficManagerProfile
 metadata:
   name: nginx-profile
