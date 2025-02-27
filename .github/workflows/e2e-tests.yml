@@ -101,7 +101,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
           ENABLE_TRAFFIC_MANAGER: ${{ matrix.enable-traffic-manager }}
       - name: Wait for role assignments to be effective
-        run: sleep 3m
+        run: sleep 5m
       - name: Run e2e tests
         run: |
           make e2e-tests

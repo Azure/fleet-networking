@@ -8,6 +8,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -16,10 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
-	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 var (
@@ -41,23 +40,9 @@ var (
 	}
 )
 
-// IsTrafficManagerBackendFinalizerAdded validates whether the backend is created with the finalizer or not.
-func IsTrafficManagerBackendFinalizerAdded(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
-	gomega.Eventually(func() error {
-		backend := &fleetnetv1beta1.TrafficManagerBackend{}
-		if err := k8sClient.Get(ctx, name, backend); err != nil {
-			return fmt.Errorf("failed to get trafficManagerBackend %s: %w", name, err)
-		}
-		if !controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
-			return fmt.Errorf("trafficManagerBackend %s finalizer not added", name)
-		}
-		return nil
-	}, timeout, interval).Should(gomega.Succeed(), "Failed to add finalizer to trafficManagerBackend %s", name)
-}
-
 // ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName validates the trafficManagerBackend object if it is accepted
 // while ignoring the generated endpoint name.
-func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1beta1.TrafficManagerEndpointStatus) fleetnetv1beta1.TrafficManagerBackendStatus {
+func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1beta1.TrafficManagerEndpointStatus, timeout time.Duration) fleetnetv1beta1.TrafficManagerBackendStatus {
 	var gotStatus fleetnetv1beta1.TrafficManagerBackendStatus
 	gomega.Eventually(func() error {
 		backend := &fleetnetv1beta1.TrafficManagerBackend{}
@@ -124,7 +109,7 @@ func ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx 
 }
 
 // ValidateTrafficManagerBackend validates the trafficManagerBackend object.
-func ValidateTrafficManagerBackend(ctx context.Context, k8sClient client.Client, want *fleetnetv1beta1.TrafficManagerBackend) {
+func ValidateTrafficManagerBackend(ctx context.Context, k8sClient client.Client, want *fleetnetv1beta1.TrafficManagerBackend, timeout time.Duration) {
 	key := types.NamespacedName{Name: want.Name, Namespace: want.Namespace}
 	backend := &fleetnetv1beta1.TrafficManagerBackend{}
 	gomega.Eventually(func() error {
@@ -154,7 +139,7 @@ func ValidateTrafficManagerBackendConsistently(ctx context.Context, k8sClient cl
 }
 
 // IsTrafficManagerBackendDeleted validates whether the backend is deleted or not.
-func IsTrafficManagerBackendDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
+func IsTrafficManagerBackendDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName, timeout time.Duration) {
 	gomega.Eventually(func() error {
 		backend := &fleetnetv1beta1.TrafficManagerBackend{}
 		if err := k8sClient.Get(ctx, name, backend); !errors.IsNotFound(err) {
