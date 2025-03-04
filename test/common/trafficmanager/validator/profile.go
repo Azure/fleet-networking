@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	timeout  = time.Second * 300 // need more time to create azure resources
 	interval = time.Millisecond * 250
 	// duration used by consistently
 	duration = time.Second * 30
@@ -49,7 +48,7 @@ var (
 )
 
 // ValidateTrafficManagerProfile validates the trafficManagerProfile object.
-func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client, want *fleetnetv1beta1.TrafficManagerProfile) {
+func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client, want *fleetnetv1beta1.TrafficManagerProfile, timeout time.Duration) {
 	key := types.NamespacedName{Name: want.Name, Namespace: want.Namespace}
 	profile := &fleetnetv1beta1.TrafficManagerProfile{}
 	gomega.Eventually(func() error {
@@ -64,7 +63,7 @@ func ValidateTrafficManagerProfile(ctx context.Context, k8sClient client.Client,
 }
 
 // ValidateIfTrafficManagerProfileIsProgrammed validates the trafficManagerProfile is programmed and returns the DNSName.
-func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName, isProgrammed bool) *fleetnetv1beta1.TrafficManagerProfile {
+func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient client.Client, profileName types.NamespacedName, isProgrammed bool, timeout time.Duration) *fleetnetv1beta1.TrafficManagerProfile {
 	wantDNSName := fmt.Sprintf("%s-%s.trafficmanager.net", profileName.Namespace, profileName.Name)
 	var profile fleetnetv1beta1.TrafficManagerProfile
 	gomega.Eventually(func() error {
@@ -109,7 +108,7 @@ func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient 
 }
 
 // IsTrafficManagerProfileDeleted validates whether the profile is deleted or not.
-func IsTrafficManagerProfileDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName) {
+func IsTrafficManagerProfileDeleted(ctx context.Context, k8sClient client.Client, name types.NamespacedName, timeout time.Duration) {
 	gomega.Eventually(func() error {
 		profile := &fleetnetv1beta1.TrafficManagerProfile{}
 		if err := k8sClient.Get(ctx, name, profile); !errors.IsNotFound(err) {
