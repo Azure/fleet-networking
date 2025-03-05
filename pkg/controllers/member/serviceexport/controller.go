@@ -175,9 +175,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Get the weight from the serviceExport annotation and validate it.
 	exportWeight, err := extractWeightFromServiceExport(&svcExport)
 	if err != nil {
-		// Here we don't unexport the service to interrupt the traffic when using invalid annotation.
+		// Here we don't unexport the service as it will interrupt the current traffic.
 		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
-		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		curValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		expectedValidCond := metav1.Condition{
 			Type:               string(fleetnetv1alpha1.ServiceExportValid),
 			Status:             metav1.ConditionFalse,
@@ -185,7 +185,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			ObservedGeneration: svcExport.Generation,
 			Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
 		}
-		if condition.EqualConditionWithMessage(validCond, &expectedValidCond) {
+		// We have to compare the message since we cannot rely on the object generation as annotation does not change generation.
+		if condition.EqualConditionWithMessage(curValidCond, &expectedValidCond) {
 			// no need to retry if the condition is already set
 			return ctrl.Result{}, nil
 		}

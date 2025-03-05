@@ -317,3 +317,167 @@ func TestConflictedServiceExportConflictCondition(t *testing.T) {
 		t.Errorf("ConflictedServiceExportConflictCondition() mismatch (-want, +got):\n%s", diff)
 	}
 }
+
+// TestEqualConditionWithMessage tests the EqualConditionWithMessage function.
+func TestEqualConditionWithMessage(t *testing.T) {
+	tests := map[string]struct {
+		current *metav1.Condition
+		desired *metav1.Condition
+		want    bool
+	}{
+		"both conditions are nil": {
+			current: nil,
+			desired: nil,
+			want:    true,
+		},
+		"current condition is nil": {
+			current: nil,
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: false,
+		},
+		"desired condition is nil": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: nil,
+			want:    false,
+		},
+		"conditions are equal": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: true,
+		},
+		"conditions have different types": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "DifferentType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: false,
+		},
+		"conditions have different statuses": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionFalse,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: false,
+		},
+		"conditions have different reasons": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "DifferentReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: false,
+		},
+		"conditions have different messages": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "DifferentMessage",
+				ObservedGeneration: 1,
+			},
+			want: false,
+		},
+		"current condition has newer observed generation": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 2,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			want: true,
+		},
+		"desired condition has newer observed generation": {
+			current: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 1,
+			},
+			desired: &metav1.Condition{
+				Type:               "SomeType",
+				Status:             metav1.ConditionTrue,
+				Reason:             "SomeReason",
+				Message:            "SomeMessage",
+				ObservedGeneration: 2,
+			},
+			want: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := EqualConditionWithMessage(tt.current, tt.desired); got != tt.want {
+				t.Errorf("EqualConditionWithMessage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
