@@ -183,6 +183,63 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		})
 	})
 
+	Context("When creating valid trafficManagerProfile with no changes, while Azure traffic manager returns nil DNS and nil ID", Ordered, func() {
+		name := fakeprovider.ValidProfileWithUnexpectedResponse
+		var profile *fleetnetv1beta1.TrafficManagerProfile
+
+		It("AzureTrafficManager should be configured", func() {
+			By("By creating a new TrafficManagerProfile")
+			profile = &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: testNamespace,
+				},
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](10),
+						Path:                      ptr.To("/healthz"),
+						Port:                      ptr.To[int64](8080),
+						Protocol:                  ptr.To(fleetnetv1beta1.TrafficManagerMonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](9),
+						ToleratedNumberOfFailures: ptr.To[int64](4),
+					},
+					ResourceGroup: fakeprovider.DefaultResourceGroupName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+
+			By("By checking profile")
+			want := fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer},
+				},
+				Spec: profile.Spec,
+				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
+					Conditions: []metav1.Condition{
+						{
+							Status:             metav1.ConditionTrue,
+							Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
+							ObservedGeneration: profile.Generation,
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
+		})
+	})
+
 	Context("When creating trafficManagerProfile and DNS name is not available", Ordered, func() {
 		name := fakeprovider.ConflictErrProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile

@@ -236,6 +236,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 		if atmProfile.ID != nil {
 			profile.Status.ResourceID = *atmProfile.ID
 		} else {
+			profile.Status.ResourceID = "" // reset the resource ID
 			err := controller.NewUnexpectedBehaviorError(fmt.Errorf("got nil ID for Azure Traffic Manager profile"))
 			klog.ErrorS(err, "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "resourceGroup", profile.Spec.ResourceGroup, "atmProfileName", atmProfile.Name)
 		}
