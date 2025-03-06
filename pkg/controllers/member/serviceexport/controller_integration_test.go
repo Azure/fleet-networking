@@ -402,6 +402,53 @@ var _ = Describe("serviceexport controller", func() {
 		})
 	})
 
+	Context("export new service", func() {
+		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svc = &corev1.Service{}
+
+		BeforeEach(func() {
+			svc = clusterIPService()
+			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+
+			svcExport = notYetFulfilledServiceExport()
+			svcExport.Annotations = map[string]string{
+				objectmeta.ServiceExportAnnotationWeight: strconv.Itoa(-1),
+			}
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
+		It("should mark the service export as valid + should export the service", func() {
+			By("make sure the serviceExport is marked as invalid")
+			err := controller.NewUserError(fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]))
+			expectedCond := metav1.Condition{
+				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Status:             metav1.ConditionFalse,
+				Reason:             svcExportInvalidWeightAnnotationReason,
+				ObservedGeneration: svcExport.Generation,
+				Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+			}
+			Eventually(func() error {
+				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
+					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			By("make sure that the service has never been exported")
+			Consistently(serviceIsNotExportedActual, 5*consistentlyDuration, consistentlyInterval).Should(Succeed())
+		})
+	})
+
 	Context("spec change in exported service", func() {
 		var svcExport = &fleetnetv1alpha1.ServiceExport{}
 		var svc = &corev1.Service{}
@@ -568,7 +615,7 @@ var _ = Describe("serviceexport controller", func() {
 				return nil
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 
-			By("make sure the service is still exported")
+			By("make sure the service is still exported as we don't want to disrupt the service")
 			err = serviceIsExportedToHubActual(svc.Spec.Type, false, ptr.To(int64(weight)))()
 			Expect(err).Should(Succeed(), "Service is not exported to hub: %v", err)
 		})
