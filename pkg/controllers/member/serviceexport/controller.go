@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -173,10 +172,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Get the weight from the serviceExport annotation and validate it.
-	exportWeight, err := extractWeightFromServiceExport(&svcExport)
+	exportWeight, err := objectmeta.ExtractWeightFromServiceExport(&svcExport)
 	if err != nil {
 		// Here we don't unexport the service as it will interrupt the current traffic.
-		klog.ErrorS(err, "service export has invalid annotation weight", "service", svcRef)
+		// There is no need to requeue the error as the controller should be triggered when the user corrects the annotation.
+		klog.ErrorS(controller.NewUserError(err), "service export has invalid annotation weight", "service", svcRef)
 		curValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		expectedValidCond := metav1.Condition{
 			Type:               string(fleetnetv1alpha1.ServiceExportValid),
@@ -399,30 +399,6 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	}
 
 	return nil
-}
-
-// extractWeightFromServiceExport gets the weight from the serviceExport annotation and validates it.
-func extractWeightFromServiceExport(svcExport *fleetnetv1alpha1.ServiceExport) (int64, error) {
-	serviceKObj := klog.KObj(svcExport)
-	// Setup the weightAnno for the exported service on the hub cluster.
-	weightAnno, found := svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]
-	if !found {
-		return int64(1), nil
-	}
-	// check if the weightAnno on the serviceExport in the member cluster is valid
-	// The value should be in the range [0, 1000].
-	weight, err := strconv.Atoi(weightAnno)
-	if err != nil {
-		err = fmt.Errorf("the weight annotation is not a valid integer: %s", weightAnno)
-		klog.ErrorS(err, "Failed to parse the weight annotation", "serviceExport", serviceKObj)
-		return -1, controller.NewUserError(err)
-	}
-	if weight < 0 || weight > 1000 {
-		err = fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", weightAnno)
-		klog.ErrorS(err, "The weight annotation is out of range", "serviceExport", serviceKObj)
-		return -1, controller.NewUserError(err)
-	}
-	return int64(weight), nil
 }
 
 // TODO: can improve the performance by caching the public IP address resource ID.

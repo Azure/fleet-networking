@@ -23,8 +23,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"go.goms.io/fleet/pkg/utils/controller"
-
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -426,7 +424,7 @@ var _ = Describe("serviceexport controller", func() {
 
 		It("should mark the service export as valid + should export the service", func() {
 			By("make sure the serviceExport is marked as invalid")
-			err := controller.NewUserError(fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]))
+			err := fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight])
 			expectedCond := metav1.Condition{
 				Type:               string(fleetnetv1alpha1.ServiceExportValid),
 				Status:             metav1.ConditionFalse,
@@ -597,7 +595,7 @@ var _ = Describe("serviceexport controller", func() {
 			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
 
 			By("make sure the serviceExport is marked as invalid")
-			err := controller.NewUserError(fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight]))
+			err := fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight])
 			expectedCond := metav1.Condition{
 				Type:               string(fleetnetv1alpha1.ServiceExportValid),
 				Status:             metav1.ConditionFalse,

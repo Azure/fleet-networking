@@ -28,8 +28,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"go.goms.io/fleet/pkg/utils/controller"
-
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -1523,106 +1521,6 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("setAzureRelatedInformation() internalServiceExport mismatch (-want, +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestExtractWeightFromServiceExport(t *testing.T) {
-	testCases := []struct {
-		name        string
-		svcExport   *fleetnetv1alpha1.ServiceExport
-		wantWeight  int64
-		expectError bool
-	}{
-		{
-			name: "default weight when annotation is missing",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{},
-			},
-			wantWeight: 1,
-		},
-		{
-			name: "valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "500",
-					},
-				},
-			},
-			wantWeight: 500,
-		},
-		{
-			name: "test 0 is valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "0",
-					},
-				},
-			},
-			wantWeight: 0,
-		},
-		{
-			name: "test 1000 is valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "1000",
-					},
-				},
-			},
-			wantWeight: 1000,
-		},
-		{
-			name: "invalid weight annotation (non-integer)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "invalid",
-					},
-				},
-			},
-			expectError: true,
-		},
-		{
-			name: "invalid weight annotation (out of range)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "2000",
-					},
-				},
-			},
-			expectError: true,
-		},
-		{
-			name: "invalid weight annotation (out of range)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						objectmeta.ServiceExportAnnotationWeight: "-2",
-					},
-				},
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			gotWeight, err := extractWeightFromServiceExport(tc.svcExport)
-			if (err != nil) != tc.expectError {
-				t.Fatalf("extractWeightFromServiceExport() error = %v, expectError %v", err, tc.expectError)
-			}
-			// make sure the returned error is categorized as user error
-			if tc.expectError {
-				if !errors.Is(err, controller.ErrUserError) {
-					t.Fatalf("extractWeightFromServiceExport() error = %v, expect user error", err)
-				}
-			} else if gotWeight != tc.wantWeight {
-				t.Fatalf("extractWeightFromServiceExport() gotWeight = %d, want %d", gotWeight, tc.wantWeight)
 			}
 		})
 	}

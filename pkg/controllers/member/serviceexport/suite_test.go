@@ -57,7 +57,7 @@ func setUpResources() {
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "InternalServiceExport Controller Suite")
+	RunSpecs(t, "ServiceExport Controller Suite")
 }
 
 var _ = BeforeSuite(func() {

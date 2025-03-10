@@ -6,7 +6,15 @@ Licensed under the MIT license.
 // Package objectmeta defines shared meta const used by the networking objects.
 package objectmeta
 
-import "strings"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"k8s.io/klog/v2"
+
+	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+)
 
 const (
 	fleetNetworkingPrefix = "networking.fleet.azure.com/"
@@ -68,3 +76,27 @@ var (
 	// Note: The tag name cannot have reserved characters '<,>,%,&,\\,?,/' or control characters.
 	AzureTrafficManagerProfileTagKey = strings.ReplaceAll(fleetNetworkingPrefix, "/", ".") + "trafficManagerProfile"
 )
+
+// ExtractWeightFromServiceExport gets the weight from the serviceExport annotation and validates it.
+func ExtractWeightFromServiceExport(svcExport *fleetnetv1alpha1.ServiceExport) (int64, error) {
+	serviceKObj := klog.KObj(svcExport)
+	// Setup the weightAnno for the exported service on the hub cluster.
+	weightAnno, found := svcExport.Annotations[ServiceExportAnnotationWeight]
+	if !found {
+		return int64(1), nil
+	}
+	// check if the weightAnno on the serviceExport in the member cluster is valid
+	// The value should be in the range [0, 1000].
+	weight, err := strconv.Atoi(weightAnno)
+	if err != nil {
+		err = fmt.Errorf("the weight annotation is not a valid integer: %s", weightAnno)
+		klog.ErrorS(err, "Failed to parse the weight annotation", "serviceExport", serviceKObj)
+		return -1, err
+	}
+	if weight < 0 || weight > 1000 {
+		err = fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", weightAnno)
+		klog.ErrorS(err, "The weight annotation is out of range", "serviceExport", serviceKObj)
+		return -1, err
+	}
+	return int64(weight), nil
+}
