@@ -92,7 +92,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	profileClient, err := fakeprovider.NewProfileClient("default-sub")
+	profileClient, err := fakeprovider.NewProfileClient()
 	Expect(err).Should(Succeed(), "failed to create the fake profile client")
 
 	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1beta1.TrafficManagerProfile) string {

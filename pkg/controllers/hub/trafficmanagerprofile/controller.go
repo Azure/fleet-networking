@@ -230,13 +230,20 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 			profile.Status.DNSName = atmProfile.Properties.DNSConfig.Fqdn
 		} else {
 			err := fmt.Errorf("got nil DNSConfig for Azure Traffic Manager profile")
-			klog.ErrorS(controller.NewUnexpectedBehaviorError(err), "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfile.Name)
+			klog.ErrorS(controller.NewUnexpectedBehaviorError(err), "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "resourceGroup", profile.Spec.ResourceGroup, "atmProfileName", atmProfile.Name)
 			profile.Status.DNSName = nil // reset the DNS name
 		}
+		if atmProfile.ID != nil {
+			profile.Status.ResourceID = *atmProfile.ID
+		} else {
+			profile.Status.ResourceID = "" // reset the resource ID
+			err := controller.NewUnexpectedBehaviorError(fmt.Errorf("got nil ID for Azure Traffic Manager profile"))
+			klog.ErrorS(err, "Unexpected value returned by the Azure Traffic Manager", "trafficManagerProfile", profileKObj, "resourceGroup", profile.Spec.ResourceGroup, "atmProfileName", atmProfile.Name)
+		}
 	} else {
-		profile.Status.DNSName = nil // reset the DNS name
+		profile.Status.DNSName = nil   // reset the DNS name
+		profile.Status.ResourceID = "" // reset the resource ID
 	}
-
 	cond := metav1.Condition{
 		Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
 		Status:             metav1.ConditionTrue,

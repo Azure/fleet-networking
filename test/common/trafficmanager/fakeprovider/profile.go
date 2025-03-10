@@ -24,16 +24,22 @@ import (
 )
 
 const (
+	DefaultSubscriptionID    = "default-subscription-id"
 	DefaultResourceGroupName = "default-resource-group-name"
+
+	ProfileResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
 
 	ValidProfileName                         = "valid-profile"
 	ValidProfileWithEndpointsName            = "valid-profile-with-endpoints"
 	ValidProfileWithNilPropertiesName        = "valid-profile-with-empty-properties"
 	ValidProfileWithFailToDeleteEndpointName = "valid-profile-with-fail-to-delete-endpoint"
-	ConflictErrProfileName                   = "conflict-err-profile"
-	InternalServerErrProfileName             = "internal-server-err-profile"
-	ThrottledErrProfileName                  = "throttled-err-profile"
-	RequestTimeoutProfileName                = "request-timeout-profile"
+	// ValidProfileWithUnexpectedResponse is to test a special case which should never happen in the production, for example,
+	// missing required fields in the response.
+	ValidProfileWithUnexpectedResponse = "valid-profile-with-unexpected-response"
+	ConflictErrProfileName             = "conflict-err-profile"
+	InternalServerErrProfileName       = "internal-server-err-profile"
+	ThrottledErrProfileName            = "throttled-err-profile"
+	RequestTimeoutProfileName          = "request-timeout-profile"
 
 	ValidBackendName                           = "valid-backend"
 	ServiceImportName                          = "test-import"
@@ -58,13 +64,13 @@ var (
 )
 
 // NewProfileClient creates a client which talks to a fake profile server.
-func NewProfileClient(subscriptionID string) (*armtrafficmanager.ProfilesClient, error) {
+func NewProfileClient() (*armtrafficmanager.ProfilesClient, error) {
 	fakeServer := fake.ProfilesServer{
 		CreateOrUpdate: ProfileCreateOrUpdate,
 		Delete:         ProfileDelete,
 		Get:            ProfileGet,
 	}
-	clientFactory, err := armtrafficmanager.NewClientFactory(subscriptionID, &azcorefake.TokenCredential{},
+	clientFactory, err := armtrafficmanager.NewClientFactory(DefaultSubscriptionID, &azcorefake.TokenCredential{},
 		&arm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Transport: fake.NewProfilesServerTransport(&fakeServer),
@@ -111,6 +117,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				Tags: map[string]*string{
 					objectmeta.AzureTrafficManagerProfileTagKey: ptr.To(namespacedName.String()),
 				},
+				ID: ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName)),
 			}}
 		if profileName == ValidProfileWithEndpointsName {
 			profileResp.Profile.Properties.Endpoints = []*armtrafficmanager.Endpoint{
@@ -144,6 +151,7 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 				Name:     ptr.To(profileName),
 				Location: ptr.To("global"),
 			}}
+		profileResp.Profile.ID = ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName))
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	case RequestTimeoutProfileName:
 		errResp.SetResponseError(http.StatusRequestTimeout, "RequestTimeoutError")
@@ -166,7 +174,7 @@ func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileN
 		errResp.SetResponseError(http.StatusInternalServerError, "InternalServerError")
 	case ThrottledErrProfileName:
 		errResp.SetResponseError(http.StatusTooManyRequests, "ThrottledError")
-	case ValidProfileName:
+	case ValidProfileName, ValidProfileWithUnexpectedResponse:
 		if parameters.Properties.MonitorConfig.IntervalInSeconds != nil && *parameters.Properties.MonitorConfig.IntervalInSeconds == 10 {
 			if parameters.Properties.MonitorConfig.TimeoutInSeconds != nil && *parameters.Properties.MonitorConfig.TimeoutInSeconds > 9 {
 				errResp.SetResponseError(http.StatusBadRequest, "BadRequestError")
@@ -189,7 +197,13 @@ func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileN
 					TrafficRoutingMethod:        ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
 					TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
 				},
+				ID: ptr.To(fmt.Sprintf(ProfileResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName)),
 			}}
+		if profileName == ValidProfileWithUnexpectedResponse {
+			// reset the dns name to nil to test the unexpected response
+			profileResp.Profile.Properties.DNSConfig = nil
+			profileResp.ID = nil
+		}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:
 		errResp.SetResponseError(http.StatusBadRequest, "BadRequestError")
@@ -204,7 +218,7 @@ func ProfileDelete(_ context.Context, resourceGroupName string, profileName stri
 		return resp, errResp
 	}
 	switch profileName {
-	case ValidProfileName:
+	case ValidProfileName, ValidProfileWithUnexpectedResponse:
 		profileResp := armtrafficmanager.ProfilesClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:
