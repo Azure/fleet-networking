@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
@@ -272,8 +273,162 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			desired := buildDesiredProfile()
-			if got := EqualAzureTrafficManagerProfile(tt.buildCurrentFunc(), desired); got != tt.want {
-				t.Errorf("EqualAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
+			if got := equalAzureTrafficManagerProfile(tt.buildCurrentFunc(), desired); got != tt.want {
+				t.Errorf("equalAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
+	desired := buildDesiredProfile()
+	tests := []struct {
+		name    string
+		current armtrafficmanager.Profile
+		want    armtrafficmanager.Profile
+	}{
+		{
+			name: "different location, nil properties and nil tags",
+			current: armtrafficmanager.Profile{
+				Location: ptr.To("region"),
+			},
+			want: desired,
+		},
+		{
+			name: "nil location, nil properties and no managed tag",
+			current: armtrafficmanager.Profile{
+				Tags: map[string]*string{
+					"other-key": ptr.To("other-value"),
+				},
+			},
+			want: armtrafficmanager.Profile{
+				Location: ptr.To("global"),
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+				},
+				Tags: map[string]*string{
+					"other-key": ptr.To("other-value"),
+					"tagKey":    ptr.To("tagValue"),
+				},
+			},
+		},
+		{
+			name: "nil location, nil properties and different managed tag",
+			current: armtrafficmanager.Profile{
+				Tags: map[string]*string{
+					"tagKey": ptr.To("tagValue1"),
+				},
+			},
+			want: desired,
+		},
+		{
+			name: "not nil properties",
+			current: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("other-namespace-name"),
+						TTL:          ptr.To(int64(30)),
+						Fqdn:         ptr.To("other-value"),
+					},
+					Endpoints: []*armtrafficmanager.Endpoint{
+						{
+							Name: ptr.To("endpoint-name"),
+						},
+					},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("HeaderName"),
+								Value: ptr.To("HeaderValue"),
+							},
+						},
+						ExpectedStatusCodeRanges: []*armtrafficmanager.MonitorConfigExpectedStatusCodeRangesItem{
+							{
+								Min: ptr.To[int32](200),
+								Max: ptr.To[int32](299),
+							},
+							{
+								Min: ptr.To[int32](300),
+								Max: ptr.To[int32](399),
+							},
+						},
+						IntervalInSeconds:         ptr.To[int64](80),
+						Path:                      ptr.To("/other"),
+						Port:                      ptr.To[int64](8080),
+						ProfileMonitorStatus:      ptr.To(armtrafficmanager.ProfileMonitorStatusDegraded),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTPS),
+						TimeoutInSeconds:          ptr.To[int64](100),
+						ToleratedNumberOfFailures: ptr.To[int64](30),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusDisabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodGeographic),
+				},
+			},
+			want: armtrafficmanager.Profile{
+				Location: ptr.To("global"),
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+					Endpoints: []*armtrafficmanager.Endpoint{
+						{
+							Name: ptr.To("endpoint-name"),
+						},
+					},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("HeaderName"),
+								Value: ptr.To("HeaderValue"),
+							},
+						},
+						ExpectedStatusCodeRanges: []*armtrafficmanager.MonitorConfigExpectedStatusCodeRangesItem{
+							{
+								Min: ptr.To[int32](200),
+								Max: ptr.To[int32](299),
+							},
+							{
+								Min: ptr.To[int32](300),
+								Max: ptr.To[int32](399),
+							},
+						},
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						ProfileMonitorStatus:      ptr.To(armtrafficmanager.ProfileMonitorStatusDegraded),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+				},
+				Tags: map[string]*string{
+					"tagKey": ptr.To("tagValue"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildAzureTrafficManagerProfileRequest(tt.current, desired)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("buildAzureTrafficManagerProfileRequest()  mismatch (-want, +got):\n%s", diff)
 			}
 		})
 	}
