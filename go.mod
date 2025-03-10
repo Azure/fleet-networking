@@ -23,7 +23,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.19.0
 )
 
-require go.goms.io/fleet v0.11.4
+require go.goms.io/fleet v0.14.0
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect

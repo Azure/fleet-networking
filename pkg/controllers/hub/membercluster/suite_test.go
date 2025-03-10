@@ -55,7 +55,7 @@ var _ = BeforeSuite(func() {
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "..", "config", "crd", "bases"),
 			// The package name must match with the version of the fleet package in use.
-			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.11.4", "config", "crd", "bases", "cluster.kubernetes-fleet.io_memberclusters.yaml"),
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "go.goms.io", "fleet@v0.14.0", "config", "crd", "bases", "cluster.kubernetes-fleet.io_memberclusters.yaml"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
