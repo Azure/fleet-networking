@@ -636,7 +636,7 @@ var _ = Describe("serviceexport controller", func() {
 				Status:             metav1.ConditionTrue,
 				Reason:             svcExportValidCondReason,
 				ObservedGeneration: svcExport.Generation,
-				Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+				Message:            fmt.Sprintf("exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
 			}
 			Eventually(func() error {
 				svcExport := &fleetnetv1alpha1.ServiceExport{}
@@ -651,7 +651,17 @@ var _ = Describe("serviceexport controller", func() {
 			By("make sure the service is unexported")
 			err := serviceIsNotExportedActual()
 			Expect(err).Should(Succeed(), "Failed to unexport the service: %v", err)
+
+			By("remove the annotation")
+			Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
+			svcExport.Annotations = nil
+			Expect(memberClient.Update(ctx, svcExport)).Should(Succeed())
+
+			By("check the serviceExport weight again")
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, false, nil), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
+
 	})
 
 	Context("unexport service", func() {

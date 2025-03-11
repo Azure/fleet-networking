@@ -667,7 +667,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				Type:    string(fleetnetv1alpha1.ServiceExportValid),
 				Status:  metav1.ConditionTrue,
 				Reason:  "ServiceIsValid",
-				Message: fmt.Sprintf("Exported service %s/%s with 0 weight", wm.ServiceExport().Namespace, wm.ServiceExport().Name),
+				Message: fmt.Sprintf("exported service %s/%s with 0 weight", wm.ServiceExport().Namespace, wm.ServiceExport().Name),
 			}
 			By("Validating serviceExport valid condition on member-1")
 			Eventually(func() error {

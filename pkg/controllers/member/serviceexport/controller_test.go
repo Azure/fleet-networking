@@ -531,6 +531,37 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				serviceExportNoConflictCondition(memberUserNS, svcName),
 			},
 		},
+		{
+			name: "should mark a svc export that is valid but with different message and a conflict condition (no conflict)",
+			svcExport: &fleetnetv1alpha1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+				Status: fleetnetv1alpha1.ServiceExportStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:               string(fleetnetv1alpha1.ServiceExportValid),
+							Status:             metav1.ConditionTrue,
+							LastTransitionTime: metav1.Now(),
+							Reason:             svcExportValidCondReason,
+							Message:            fmt.Sprintf("exported service %s/%s with 0 weight", memberUserNS, svcName),
+						},
+						serviceExportNoConflictCondition(memberUserNS, svcName),
+					},
+				},
+			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: memberUserNS,
+					Name:      svcName,
+				},
+			},
+			wantConds: []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportNoConflictCondition(memberUserNS, svcName),
+			},
+		},
 	}
 
 	ctx := context.Background()
