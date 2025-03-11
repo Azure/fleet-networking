@@ -212,7 +212,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Status:             metav1.ConditionTrue,
 			Reason:             svcExportValidCondReason,
 			ObservedGeneration: svcExport.Generation,
-			Message:            fmt.Sprintf("Exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
+			Message:            fmt.Sprintf("exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
 		}
 		// Since the annotation won't change the generation, we compare the message here.
 		if condition.EqualConditionWithMessage(validCond, &expectedValidCond) {
@@ -532,6 +532,15 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 	if condition.EqualCondition(validCond, expectedValidCond) &&
 		conflictCond != nil {
+		// When weight annotation is changed, the serviceExport generation won't change.
+		// There are two kinds of messages for the valid condition:
+		// * valid with weight 0
+		// * valid with weight > 0
+		if validCond.Message != expectedValidCond.Message {
+			// The message is different, but the condition is the same; update the message.
+			meta.SetStatusCondition(&svcExport.Status.Conditions, *expectedValidCond)
+			return r.MemberClient.Status().Update(ctx, svcExport)
+		}
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
