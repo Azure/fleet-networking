@@ -143,11 +143,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 	})
 
 	Context("Test updating trafficManagerProfile", Ordered, func() {
-		var wantTrafficViewEnrollmentStatus *armtrafficmanager.TrafficViewEnrollmentStatus
-
-		BeforeEach(func() {
-			wantTrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled)
-		})
+		var wantProfile armtrafficmanager.Profile
 
 		AfterEach(func() {
 			By("Updating the trafficManagerProfile spec")
@@ -157,21 +153,37 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
-			atmProfile = buildDesiredATMProfile(profile, nil)
-			// The Controller does not set the trafficViewEnrollmentStatus.
-			atmProfile.Properties.TrafficViewEnrollmentStatus = wantTrafficViewEnrollmentStatus
-			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+			wantProfile.Properties.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
+			atmValidator.ValidateProfile(ctx, atmProfileName, wantProfile)
 		})
 
-		It("Updating Azure traffic manager profile", func() {
-			atmProfile.Properties.DNSConfig.TTL = ptr.To(int64(30))
-			atmProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled)
-			wantTrafficViewEnrollmentStatus = atmProfile.Properties.TrafficViewEnrollmentStatus
+		It("Updating Azure traffic manager profile directly", func() {
+			atmProfile.Properties.DNSConfig.TTL = ptr.To(int64(30))                                                          // should be reset
+			atmProfile.Properties.TrafficRoutingMethod = ptr.To(armtrafficmanager.TrafficRoutingMethodGeographic)            // should be reset
+			atmProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled) // should keep
+			statusRange := []*armtrafficmanager.MonitorConfigExpectedStatusCodeRangesItem{
+				{
+					Min: ptr.To[int32](200),
+					Max: ptr.To[int32](299),
+				},
+				{
+					Min: ptr.To[int32](300),
+					Max: ptr.To[int32](399),
+				},
+			}
+			atmProfile.Properties.MonitorConfig.ExpectedStatusCodeRanges = statusRange // should keep
+
 			_, err := atmValidator.ProfileClient.CreateOrUpdate(ctx, atmValidator.ResourceGroup, atmProfileName, atmProfile, nil)
 			Expect(err).Should(Succeed(), "Failed to update the Azure traffic manager profile")
+
+			wantProfile = buildDesiredATMProfile(profile, nil)
+			// The following fields will be kept.
+			wantProfile.Properties.TrafficViewEnrollmentStatus = ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusEnabled)
+			wantProfile.Properties.MonitorConfig.ExpectedStatusCodeRanges = statusRange
 		})
 
 		It("Deleting Azure traffic manager profile directly", func() {
+			wantProfile = buildDesiredATMProfile(profile, nil)
 			_, err := atmValidator.ProfileClient.Delete(ctx, atmValidator.ResourceGroup, atmProfileName, nil)
 			Expect(err).Should(Succeed(), "Failed to delete the Azure traffic manager profile")
 		})
@@ -415,6 +427,18 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			if extraTrafficManagerEndpoint != nil {
 				atmProfile.Properties.Endpoints = append(atmProfile.Properties.Endpoints, extraTrafficManagerEndpoint)
 			}
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
+
+		It("Updating the trafficManagerProfile spec", func() {
+			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
+			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
+
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile")
+			// All the fields excluding ToleratedNumberOfFailures should be unchanged.
+			atmProfile.Properties.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
 		})
 

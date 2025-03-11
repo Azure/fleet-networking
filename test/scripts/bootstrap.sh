@@ -183,6 +183,9 @@ EOF
   AKS_MEMBER_1=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_1)
   AKS_MEMBER_1_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_1} | jq -r '. | .nodeResourceGroup')
 
+  echo "Assigning roles to hub kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
+
   echo "Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
 
@@ -201,6 +204,9 @@ EOF
 
   AKS_MEMBER_2=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_2)
   AKS_MEMBER_2_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_2} | jq -r '. | .nodeResourceGroup')
+
+  echo "Assigning roles to hub kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
 
   echo "Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null

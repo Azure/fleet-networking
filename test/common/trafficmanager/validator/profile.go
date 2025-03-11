@@ -101,7 +101,7 @@ func ValidateIfTrafficManagerProfileIsProgrammed(ctx context.Context, k8sClient 
 			wantStatus,
 			cmpConditionOptions,
 		); diff != "" {
-			return fmt.Errorf("trafficManagerProfile status diff (-got, +want): %s", diff)
+			return fmt.Errorf("trafficManagerProfile status diff (-got, +want): \n%s, got %+v", diff, profile.Status)
 		}
 		return nil
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerProfile status mismatch")
