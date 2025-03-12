@@ -1,0 +1,34 @@
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service-eastus2euap
+  namespace: team-a-nginx
+spec:
+  placement:
+    name: crp-team-a
+  resourceSelectors:
+    -  group: ""
+       kind: Service
+       version: v1
+       name: nginx-service-eastus2euap
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  fleet.azure.com/location: eastus2euap
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-${MEMBER-CLUSTER-NAME}-eastus2euap"}
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchExpressions:
+                - key: fleet.azure.com/location
+                  operator: NotIn
+                  values:
+                    - eastus2euap
+        overrideType: Delete

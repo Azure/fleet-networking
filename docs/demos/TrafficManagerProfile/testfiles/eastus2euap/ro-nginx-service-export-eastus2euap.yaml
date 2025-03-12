@@ -1,0 +1,24 @@
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: ro-nginx-service-export-eastus2euap
+  namespace: team-a-nginx
+spec:
+  placement:
+    name: crp-team-a
+  resourceSelectors:
+    -  group: networking.fleet.azure.com
+       kind: ServiceExport
+       version: v1alpha1
+       name: nginx-service-eastus2euap
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchExpressions:
+                - key: fleet.azure.com/location
+                  operator: NotIn
+                  values:
+                    - eastus2euap
+        overrideType: Delete
