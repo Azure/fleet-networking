@@ -1,0 +1,11 @@
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: TrafficManagerBackend
+metadata:
+  name: nginx-backend-uksouth
+  namespace: team-a-nginx
+spec:
+  profile:
+    name: "nginx-profile"
+  backend:
+    name: "nginx-service-uksouth"
+  weight: 100
