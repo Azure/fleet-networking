@@ -19,7 +19,7 @@ func Namespace(name string) *corev1.Namespace {
 }
 
 // ClusterIPServiceWithNoSelector returns a Cluster IP type Service object with no selector specified.
-func ClusterIPServiceWithNoSelector(namespace, name, portName string, port, targetPort int) *corev1.Service {
+func ClusterIPServiceWithNoSelector(namespace, name, portName string, port, targetPort int32) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -30,8 +30,8 @@ func ClusterIPServiceWithNoSelector(namespace, name, portName string, port, targ
 			Ports: []corev1.ServicePort{
 				{
 					Name:       portName,
-					Port:       int32(port),
-					TargetPort: intstr.FromInt(targetPort),
+					Port:       port,
+					TargetPort: intstr.FromInt32(targetPort),
 				},
 			},
 		},

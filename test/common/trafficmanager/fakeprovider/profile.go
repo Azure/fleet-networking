@@ -178,7 +178,7 @@ func ProfileCreateOrUpdate(_ context.Context, resourceGroupName string, profileN
 		if parameters.Properties.MonitorConfig.IntervalInSeconds != nil && *parameters.Properties.MonitorConfig.IntervalInSeconds == 10 {
 			if parameters.Properties.MonitorConfig.TimeoutInSeconds != nil && *parameters.Properties.MonitorConfig.TimeoutInSeconds > 9 {
 				errResp.SetResponseError(http.StatusBadRequest, "BadRequestError")
-				return
+				return resp, errResp
 			}
 		}
 		profileResp := armtrafficmanager.ProfilesClientCreateOrUpdateResponse{
