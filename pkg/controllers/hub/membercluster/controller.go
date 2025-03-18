@@ -111,11 +111,11 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, mc clusterv1beta1.Memb
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	customPredicate := predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
+		CreateFunc: func(_ event.CreateEvent) bool {
 			// Ignore creation events.
 			return false
 		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
+		DeleteFunc: func(_ event.DeleteEvent) bool {
 			// trigger reconcile on delete event just in case update event is missed.
 			return true
 		},

@@ -53,7 +53,7 @@ func PrepareHubConfig(tlsClientInsecure bool) (*rest.Config, error) {
 	}
 
 	// Retry on obtaining token file as it is created asynchronously by token-refesh container
-	if err := retry.OnError(retry.DefaultRetry, func(e error) bool {
+	if err := retry.OnError(retry.DefaultRetry, func(_ error) bool {
 		return true
 	}, func() error {
 		// Stat returns file info. It will return an error if there is no file.

@@ -33,7 +33,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			name:                 "environment variable `HUB_SERVER_URL` is not present - error",
 			environmentVariables: map[string]string{tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			validate: func(t *testing.T, config *rest.Config, err error) {
+			validate: func(t *testing.T, _ *rest.Config, err error) {
 				if err == nil {
 					t.Errorf("expect return error if HUB_SERVER_URL not present")
 				}
@@ -43,7 +43,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			name:                 "environment variable `CONFIG_PATH` is not present - error",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubCAEnvKey: fakeCerhubCAEnvVal},
 			tlsClientInsecure:    false,
-			validate: func(t *testing.T, config *rest.Config, err error) {
+			validate: func(t *testing.T, _ *rest.Config, err error) {
 				if err == nil {
 					t.Errorf("expect return error if CONFIG_PATH not present")
 				}
@@ -128,7 +128,7 @@ func TestPrepareHubConfig(t *testing.T) {
 			name:                 "environment variable `HUB_KUBE_HEADER` has wrong format - error",
 			environmentVariables: map[string]string{hubServerURLEnvKey: fakeHubhubServerURLEnvVal, hubKubeHeaderEnvKey: "wrong header format", tokenConfigPathEnvKey: fakeConfigtokenConfigPathEnvVal},
 			tlsClientInsecure:    true,
-			validate: func(t *testing.T, config *rest.Config, err error) {
+			validate: func(t *testing.T, _ *rest.Config, err error) {
 				if err == nil {
 					t.Errorf("expect error about wrong header format but not")
 				}

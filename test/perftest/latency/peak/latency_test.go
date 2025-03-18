@@ -47,8 +47,8 @@ var (
 	fleetSystemNS     = "fleet-system"
 	svcName           = "app"
 	svcPortName       = "http"
-	svcPort           = 80
-	svcTargetPort     = 8080
+	svcPort           = int32(80)
+	svcTargetPort     = int32(8080)
 	endpointSliceName = "app-endpointslice"
 	endpointAddr      = "1.2.3.4"
 
@@ -116,7 +116,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 		})
 
 		It("propagate an endpointSlice", func() {
-			endpointSlice := framework.ManuallyManagedIPv4EndpointSlice(workNS, endpointSliceName, svcName, svcPortName, int32(svcTargetPort), []string{endpointAddr})
+			endpointSlice := framework.ManuallyManagedIPv4EndpointSlice(workNS, endpointSliceName, svcName, svcPortName, svcTargetPort, []string{endpointAddr})
 			Expect(memberCluster1Client.Create(ctx, endpointSlice)).Should(Succeed(), "Failed to create endpointSlice %s in cluster %s", endpointSliceName, memberCluster1.Name())
 
 			// Wait until the endpointSlice is imported.
@@ -252,7 +252,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 		})
 
 		It("propagate an endpointSlice", func() {
-			endpointSlice := framework.ManuallyManagedIPv4EndpointSlice(workNS, endpointSliceName, svcName, svcPortName, int32(svcTargetPort), []string{endpointAddr})
+			endpointSlice := framework.ManuallyManagedIPv4EndpointSlice(workNS, endpointSliceName, svcName, svcPortName, svcTargetPort, []string{endpointAddr})
 			Expect(memberCluster2Client.Create(ctx, endpointSlice)).Should(Succeed(), "Failed to create endpointSlice %s in cluster %s", endpointSliceName, memberCluster2.Name())
 
 			// Wait until the endpointSlice is imported.
@@ -385,7 +385,7 @@ var _ = Describe("evaluate service export and endpointslice export/import latenc
 				multiClusterSvc:                framework.MultiClusterService(workNS, svcName, svcName),
 				multiClusterSvcOwnerClusterIdx: i % 4,
 				endpointSlice: framework.ManuallyManagedIPv4EndpointSlice(
-					workNS, endpointSliceName, svcName, svcPortName, int32(svcTargetPort), []string{fmt.Sprintf(endpointSliceAddrTpl, 255)}),
+					workNS, endpointSliceName, svcName, svcPortName, svcTargetPort, []string{fmt.Sprintf(endpointSliceAddrTpl, 255)}),
 			}
 			workRecords = append(workRecords, w)
 		}
