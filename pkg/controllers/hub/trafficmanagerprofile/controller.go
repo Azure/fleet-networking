@@ -145,11 +145,13 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 		}
 		klog.V(2).InfoS("Azure Traffic Manager profile does not exist", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	} else {
-		if EqualAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
+		if equalAzureTrafficManagerProfile(getRes.Profile, desiredATMProfile) {
 			// skip creating or updating the profile
 			klog.V(2).InfoS("No profile update needed", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return r.updateProfileStatus(ctx, profile, &getRes.Profile, nil)
 		}
+		// build the desired profile based on the current profile and reset any managed fields' value
+		desiredATMProfile = buildAzureTrafficManagerProfileRequest(getRes.Profile, desiredATMProfile)
 	}
 
 	// register finalizer only before creating atm profile
@@ -177,10 +179,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	return r.updateProfileStatus(ctx, profile, &res.Profile, updateErr)
 }
 
-// EqualAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
+// equalAzureTrafficManagerProfile compares only few fields of the current and desired Azure Traffic Manager profiles
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
-func EqualAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
+func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
 	// location and dnsConfig (excluding TTL) is immutable
 	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil || current.Properties.DNSConfig == nil {
 		return false
@@ -273,7 +275,7 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: profile.Generation,
 			Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonPending),
-			Message:            fmt.Sprintf("Failed to configure profile and retyring: %v", armErr),
+			Message:            fmt.Sprintf("Failed to configure profile and retrying: %v", armErr),
 		}
 	}
 	meta.SetStatusCondition(&profile.Status.Conditions, cond)
@@ -311,6 +313,37 @@ func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerP
 			objectmeta.AzureTrafficManagerProfileTagKey: ptr.To(namespacedName.String()),
 		},
 	}
+}
+
+// buildAzureTrafficManagerProfileRequest assumes desired is always valid.
+func buildAzureTrafficManagerProfileRequest(current, desired armtrafficmanager.Profile) armtrafficmanager.Profile {
+	current.Location = desired.Location // reset the location fields
+	if current.Properties == nil {
+		current.Properties = desired.Properties
+	} else {
+		current.Properties.DNSConfig = desired.Properties.DNSConfig // reset the dns config
+		if current.Properties.MonitorConfig == nil {
+			current.Properties.MonitorConfig = desired.Properties.MonitorConfig
+		} else {
+			// reset the monitor config fields
+			current.Properties.MonitorConfig.IntervalInSeconds = desired.Properties.MonitorConfig.IntervalInSeconds
+			current.Properties.MonitorConfig.Path = desired.Properties.MonitorConfig.Path
+			current.Properties.MonitorConfig.Port = desired.Properties.MonitorConfig.Port
+			current.Properties.MonitorConfig.Protocol = desired.Properties.MonitorConfig.Protocol
+			current.Properties.MonitorConfig.TimeoutInSeconds = desired.Properties.MonitorConfig.TimeoutInSeconds
+			current.Properties.MonitorConfig.ToleratedNumberOfFailures = desired.Properties.MonitorConfig.ToleratedNumberOfFailures
+		}
+		current.Properties.ProfileStatus = desired.Properties.ProfileStatus
+		current.Properties.TrafficRoutingMethod = desired.Properties.TrafficRoutingMethod
+	}
+	if current.Tags == nil {
+		current.Tags = desired.Tags
+	} else {
+		for key, value := range desired.Tags {
+			current.Tags[key] = value
+		}
+	}
+	return current
 }
 
 // SetupWithManager sets up the controller with the Manager.
