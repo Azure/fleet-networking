@@ -671,7 +671,7 @@ az group delete --name $RESOURCE_GROUP --yes
 
 It may take a long while before all resources used are deleted.
 
-[AKS]: https://azure.microsoft.com/en-us/services/kubernetes-service/
+[AKS]: https://azure.microsoft.com/en-us/products/kubernetes-service
 [AKS doc]: https://docs.microsoft.com/en-us/azure/aks/
 [git]: https://git-scm.com/
 [Azure CLI]: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
