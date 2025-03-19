@@ -30,7 +30,8 @@ being created on the fleet cluster, and all other member clusters to build the a
 ## User stories
 **Single Service Deployed to Multiple Clusters**
 
-I have deployed my stateless service to multiple clusters for redundancy or scale. Requests to my replicated service should 
+I have deployed my service to multiple clusters for redundancy or scale. Requests to my replicated service should 
+
 seamlessly transition (within SLO for dropped requests) between instances of my service in case of failure or removal without action 
 by or impact on the caller. Routing to my replicated service should optimize for cost metric (e.g. prioritize traffic local to zone, region).
 

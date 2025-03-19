@@ -4,10 +4,12 @@
 
 Fleet-networking provides an automated way to expose the multi-cluster application via [Azure Traffic Manager](https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview).
 
-`TrafficManagerProfile` is a custom resource definition (CRD) that allows you to create a Traffic Manager Profile by using weighted routing method
+`TrafficManagerProfile` is a custom resource definition (CRD) that allows you to manage a Traffic Manager Profile by using weighted routing method
+
 and `TrafficManagerBackend` allows you to manage the traffic manager endpoints using cloud native way.
 
-To expose the multi-cluster service (exposing by creating `serviceExport`), a user will create a `trafficManagerProfile` and a `trafficManagerBackend` CR
+To expose a multi-cluster service, a user needs to create a `trafficManagerProfile` and a `trafficManagerBackend` CR, similar to the example below, 
+
 in the hub cluster:
 
 ```yaml
