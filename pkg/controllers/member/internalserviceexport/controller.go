@@ -179,7 +179,7 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 		klog.V(4).InfoS("No conflict condition to report back", "internalServiceExport", internalSvcExportRef)
 		return false, nil
 	}
-
+	internalSvcExportConflictCond.ObservedGeneration = svcExport.Generation // use the generation of the original object
 	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 	if reflect.DeepEqual(internalSvcExportConflictCond, svcExportConflictCond) {
 		// The conflict condition has not changed and there is no need to report back; this is also an expected

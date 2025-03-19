@@ -73,9 +73,13 @@ func UnconflictedServiceExportConflictCondition(internalServiceExport fleetnetv1
 		Name:      internalServiceExport.Spec.ServiceReference.Name,
 	}
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
-		Status:             metav1.ConditionFalse,
-		Reason:             conditionReasonNoConflictFound,
+		Type:   string(fleetnetv1alpha1.ServiceExportConflict),
+		Status: metav1.ConditionFalse,
+		Reason: conditionReasonNoConflictFound,
+		// Right now, it becomes very tricky because we need to consider both serviceExport generation & service generation.
+		// The service can be updated without updating the serviceExport.
+		// However, service controller does not populate the generation on the spec.
+		// use the internalServiceExport generation? any service & weight annotation changes will update the internalServiceExport generation.
 		ObservedGeneration: internalServiceExport.Spec.ServiceReference.Generation, // use the generation of the original object
 		Message:            fmt.Sprintf("service %s is exported without conflict", svcName),
 	}
