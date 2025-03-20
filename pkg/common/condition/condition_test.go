@@ -236,6 +236,9 @@ func TestEqualConditionIgnoreReason(t *testing.T) {
 
 func TestUnconflictedServiceExportConflictCondition(t *testing.T) {
 	input := fleetnetv1alpha1.InternalServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Generation: 456,
+		},
 		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 			Ports: []fleetnetv1alpha1.ServicePort{
 				{
@@ -267,7 +270,7 @@ func TestUnconflictedServiceExportConflictCondition(t *testing.T) {
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		Reason:             conditionReasonNoConflictFound,
-		ObservedGeneration: 123, // use the generation of the original object
+		ObservedGeneration: 456,
 		Message:            "service test-ns/test-svc is exported without conflict",
 	}
 	got := UnconflictedServiceExportConflictCondition(input)
@@ -278,6 +281,9 @@ func TestUnconflictedServiceExportConflictCondition(t *testing.T) {
 
 func TestConflictedServiceExportConflictCondition(t *testing.T) {
 	input := fleetnetv1alpha1.InternalServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Generation: 456,
+		},
 		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 			Ports: []fleetnetv1alpha1.ServicePort{
 				{
@@ -309,7 +315,7 @@ func TestConflictedServiceExportConflictCondition(t *testing.T) {
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		Reason:             conditionReasonConflictFound,
-		ObservedGeneration: 123,
+		ObservedGeneration: 456,
 		Message:            "service test-ns/test-svc is in conflict with other exported services",
 	}
 	got := ConflictedServiceExportConflictCondition(input)

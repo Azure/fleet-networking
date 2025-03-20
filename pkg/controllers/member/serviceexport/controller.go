@@ -521,6 +521,7 @@ func (r *Reconciler) addServiceExportCleanupFinalizer(ctx context.Context, svcEx
 // markServiceExportAsValid marks a ServiceExport as valid; if no conflict condition has been added, the
 // ServiceExport will be marked as pending conflict resolution as well.
 func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+	needUpdateStatus := false
 	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportValid),
@@ -529,30 +530,29 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		ObservedGeneration: svcExport.Generation,
 		Message:            fmt.Sprintf("service %s/%s is valid for export", svcExport.Namespace, svcExport.Name),
 	}
-	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if condition.EqualCondition(validCond, expectedValidCond) &&
-		conflictCond != nil {
-		// When weight annotation is changed, the serviceExport generation won't change.
-		// There are two kinds of messages for the valid condition:
-		// * valid with weight 0
-		// * valid with weight > 0
-		if validCond.Message != expectedValidCond.Message {
-			// The message is different, but the condition is the same; update the message.
-			meta.SetStatusCondition(&svcExport.Status.Conditions, *expectedValidCond)
-			return r.MemberClient.Status().Update(ctx, svcExport)
-		}
+	// When weight annotation is changed, the serviceExport generation won't change.
+	// There are two kinds of messages for the valid condition:
+	// * valid with weight 0
+	// * valid with weight > 0
+	if !condition.EqualConditionWithMessage(validCond, expectedValidCond) {
+		meta.SetStatusCondition(&svcExport.Status.Conditions, *expectedValidCond)
+		needUpdateStatus = true
+	}
+
+	if conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict)); conflictCond == nil {
+		meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
+			Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+			Status:             metav1.ConditionUnknown,
+			ObservedGeneration: svcExport.Generation,
+			Reason:             svcExportPendingConflictResolutionReason,
+			Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
+		})
+		needUpdateStatus = true
+	}
+	if !needUpdateStatus {
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
-
-	meta.SetStatusCondition(&svcExport.Status.Conditions, *expectedValidCond)
-	meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
-		Status:             metav1.ConditionUnknown,
-		ObservedGeneration: svcExport.Generation,
-		Reason:             svcExportPendingConflictResolutionReason,
-		Message:            fmt.Sprintf("service %s/%s is pending export conflict resolution", svcExport.Namespace, svcExport.Name),
-	})
 	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "ValidServiceExport", "Service %s is valid for export", svcExport.Name)
 	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "PendingExportConflictResolution", "Service %s is pending export conflict resolution", svcExport.Name)
 	return r.MemberClient.Status().Update(ctx, svcExport)

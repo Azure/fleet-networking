@@ -394,14 +394,16 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIsValid",
-						Status: metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Reason:             "ServiceIsValid",
+						Status:             metav1.ConditionTrue,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
-						Reason: "ConflictFound",
-						Status: metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason:             "ConflictFound",
+						Status:             metav1.ConditionTrue,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 				}
 				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
@@ -456,14 +458,16 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIsValid",
-						Status: metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Reason:             "ServiceIsValid",
+						Status:             metav1.ConditionTrue,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
-						Reason: "NoConflictFound",
-						Status: metav1.ConditionFalse,
+						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason:             "NoConflictFound",
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 				}
 				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
@@ -487,14 +491,16 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIsValid",
-						Status: metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Reason:             "ServiceIsValid",
+						Status:             metav1.ConditionTrue,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportConflict),
-						Reason: "ConflictFound",
-						Status: metav1.ConditionTrue,
+						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Reason:             "ConflictFound",
+						Status:             metav1.ConditionTrue,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 				}
 				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
@@ -532,9 +538,10 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIneligible",
-						Status: metav1.ConditionFalse,
+						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Reason:             "ServiceIneligible",
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 				}
 				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)
@@ -570,9 +577,10 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:   string(fleetnetv1alpha1.ServiceExportValid),
-						Reason: "ServiceIneligible",
-						Status: metav1.ConditionFalse,
+						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Reason:             "ServiceIneligible",
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: svcExportObj.Generation,
 					},
 				}
 				return cmp.Diff(wantedSvcExportConditions, svcExportObj.Status.Conditions, framework.SvcExportConditionCmpOptions...)

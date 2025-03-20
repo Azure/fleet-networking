@@ -9,8 +9,9 @@ package internalserviceexport
 
 import (
 	"context"
-	"reflect"
 	"time"
+
+	"go.goms.io/fleet-networking/pkg/common/condition"
 
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
@@ -179,9 +180,12 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 		klog.V(4).InfoS("No conflict condition to report back", "internalServiceExport", internalSvcExportRef)
 		return false, nil
 	}
-	internalSvcExportConflictCond.ObservedGeneration = svcExport.Generation // use the generation of the original object
+	// Ideally, internalServiceExport needs to track both service and serviceExport generation.
+	// But the service generation won't be populated by the controller.
+	desiredSvcExportConflictCond := internalSvcExportConflictCond.DeepCopy()
+	desiredSvcExportConflictCond.ObservedGeneration = svcExport.Generation
 	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if reflect.DeepEqual(internalSvcExportConflictCond, svcExportConflictCond) {
+	if condition.EqualCondition(svcExportConflictCond, desiredSvcExportConflictCond) {
 		// The conflict condition has not changed and there is no need to report back; this is also an expected
 		// behavior.
 		klog.V(4).InfoS("No update on the conflict condition", "internalServiceExport", internalSvcExportRef)
@@ -196,7 +200,7 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	if internalSvcExportConflictCond.Status == metav1.ConditionFalse {
 		r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "NoServiceExportConflictFound", "Service %s is exported without conflict", svcExport.Name)
 	}
-	meta.SetStatusCondition(&svcExport.Status.Conditions, *internalSvcExportConflictCond)
+	meta.SetStatusCondition(&svcExport.Status.Conditions, *desiredSvcExportConflictCond)
 	return true, r.MemberClient.Status().Update(ctx, svcExport)
 }
 
