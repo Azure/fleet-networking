@@ -11,8 +11,6 @@ import (
 	"context"
 	"time"
 
-	"go.goms.io/fleet-networking/pkg/common/condition"
-
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +24,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
