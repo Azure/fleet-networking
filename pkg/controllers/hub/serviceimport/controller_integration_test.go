@@ -24,22 +24,22 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
-func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
+func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: 0,
+		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "NoConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is exported without conflict", svcNamespace, svcName),
 	}
 }
 
-func conflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
+func conflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: 0,
+		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ConflictFound",
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported services", svcNamespace, svcName),
@@ -312,12 +312,12 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					ObjectMeta: internalServiceExportA.ObjectMeta,
 					Status: fleetnetv1alpha1.InternalServiceExportStatus{
 						Conditions: []metav1.Condition{
-							unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+							unconflictedServiceExportConflictCondition(testNamespace, testServiceName, got.Generation),
 						},
 					},
 				}
 				if resolvedClusterID != testClusterID {
-					want.Status.Conditions[0] = conflictedServiceExportConflictCondition(testNamespace, testServiceName)
+					want.Status.Conditions[0] = conflictedServiceExportConflictCondition(testNamespace, testServiceName, got.Generation)
 				}
 				return cmp.Diff(want, got, options...)
 			}, timeout, interval).Should(BeEmpty())
@@ -358,12 +358,12 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					ObjectMeta: internalServiceExportB.ObjectMeta,
 					Status: fleetnetv1alpha1.InternalServiceExportStatus{
 						Conditions: []metav1.Condition{
-							conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+							conflictedServiceExportConflictCondition(testNamespace, testServiceName, got.Generation),
 						},
 					},
 				}
 				if resolvedClusterID != testClusterID {
-					want.Status.Conditions[0] = unconflictedServiceExportConflictCondition(testNamespace, testServiceName)
+					want.Status.Conditions[0] = unconflictedServiceExportConflictCondition(testNamespace, testServiceName, got.Generation)
 				}
 				return cmp.Diff(want, got, options...)
 			}, timeout, interval).Should(BeEmpty())
@@ -405,7 +405,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 
 			internalServiceExportA.Status = fleetnetv1alpha1.InternalServiceExportStatus{
 				Conditions: []metav1.Condition{
-					conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+					conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportA.Generation),
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, internalServiceExportA))
@@ -451,7 +451,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 					ObjectMeta: internalServiceExportA.ObjectMeta,
 					Status: fleetnetv1alpha1.InternalServiceExportStatus{
 						Conditions: []metav1.Condition{
-							unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+							unconflictedServiceExportConflictCondition(testNamespace, testServiceName, got.Generation),
 						},
 					},
 				}
@@ -465,7 +465,7 @@ var _ = Describe("Test ServiceImport Controller", func() {
 
 			internalServiceExportA.Status = fleetnetv1alpha1.InternalServiceExportStatus{
 				Conditions: []metav1.Condition{
-					conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+					conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportA.Generation),
 				},
 			}
 			Expect(k8sClient.Delete(ctx, internalServiceExportA))

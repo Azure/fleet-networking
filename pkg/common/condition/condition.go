@@ -76,7 +76,7 @@ func UnconflictedServiceExportConflictCondition(internalServiceExport fleetnetv1
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		Reason:             conditionReasonNoConflictFound,
-		ObservedGeneration: internalServiceExport.Spec.ServiceReference.Generation, // use the generation of the original object
+		ObservedGeneration: internalServiceExport.Generation,
 		Message:            fmt.Sprintf("service %s is exported without conflict", svcName),
 	}
 }
@@ -91,7 +91,7 @@ func ConflictedServiceExportConflictCondition(internalServiceExport fleetnetv1al
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		Reason:             conditionReasonConflictFound,
-		ObservedGeneration: internalServiceExport.Spec.ServiceReference.Generation, // use the generation of the original object
+		ObservedGeneration: internalServiceExport.Generation,
 		Message:            fmt.Sprintf("service %s is in conflict with other exported services", svcName),
 	}
 }

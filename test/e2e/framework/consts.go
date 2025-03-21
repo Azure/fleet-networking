@@ -31,7 +31,7 @@ const (
 var (
 	// SvcExportConditionCmpOptions configures comparison behaviors foo service export conditions.
 	SvcExportConditionCmpOptions = []cmp.Option{
-		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "ObservedGeneration", "Message"),
+		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime", "Message"),
 		cmpopts.SortSlices(func(condition1, condition2 metav1.Condition) bool { return condition1.Type < condition2.Type }),
 	}
 

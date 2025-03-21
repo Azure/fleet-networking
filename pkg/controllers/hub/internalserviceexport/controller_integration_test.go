@@ -153,14 +153,14 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 
 			By("Checking internalServiceExportA status")
 			Eventually(func() string {
-				want := fleetnetv1alpha1.InternalServiceExportStatus{
-					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
-					},
-				}
 				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
 				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
 					return err.Error()
+				}
+				want := fleetnetv1alpha1.InternalServiceExportStatus{
+					Conditions: []metav1.Condition{
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportA.Generation),
+					},
 				}
 				return cmp.Diff(want, internalServiceExportA.Status, options...)
 			}, timeout, interval).Should(BeEmpty())
@@ -170,14 +170,14 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 
 			By("Checking internalServiceExportB status")
 			Eventually(func() string {
-				want := fleetnetv1alpha1.InternalServiceExportStatus{
-					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
-					},
-				}
 				key := types.NamespacedName{Namespace: testMemberClusterB, Name: testName}
 				if err := k8sClient.Get(ctx, key, internalServiceExportB); err != nil {
 					return err.Error()
+				}
+				want := fleetnetv1alpha1.InternalServiceExportStatus{
+					Conditions: []metav1.Condition{
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportB.Generation),
+					},
 				}
 				return cmp.Diff(want, internalServiceExportB.Status, options...)
 			}, timeout, interval).Should(BeEmpty())
@@ -313,14 +313,14 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 
 			By("Checking internalServiceExportA status")
 			Eventually(func() string {
-				want := fleetnetv1alpha1.InternalServiceExportStatus{
-					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
-					},
-				}
 				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
 				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
 					return err.Error()
+				}
+				want := fleetnetv1alpha1.InternalServiceExportStatus{
+					Conditions: []metav1.Condition{
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportA.Generation),
+					},
 				}
 				return cmp.Diff(want, internalServiceExportA.Status, options...)
 			}, timeout, interval).Should(BeEmpty())
@@ -386,14 +386,14 @@ var _ = Describe("Test InternalServiceExport Controller", func() {
 
 			By("Checking internalServiceExportA status")
 			Eventually(func() string {
-				want := fleetnetv1alpha1.InternalServiceExportStatus{
-					Conditions: []metav1.Condition{
-						conflictedServiceExportConflictCondition(testNamespace, testServiceName),
-					},
-				}
 				key := types.NamespacedName{Namespace: testMemberClusterA, Name: testName}
 				if err := k8sClient.Get(ctx, key, internalServiceExportA); err != nil {
 					return err.Error()
+				}
+				want := fleetnetv1alpha1.InternalServiceExportStatus{
+					Conditions: []metav1.Condition{
+						conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportA.Generation),
+					},
 				}
 				return cmp.Diff(want, internalServiceExportA.Status, options...)
 			}, timeout, interval).Should(BeEmpty())
