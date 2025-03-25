@@ -4,6 +4,8 @@ metadata:
   name: ro-nginx-service-export
   namespace: test-app
 spec:
+  placement:
+    name: crp-availability
   resourceSelectors:
     -  group: networking.fleet.azure.com
        kind: ServiceExport
