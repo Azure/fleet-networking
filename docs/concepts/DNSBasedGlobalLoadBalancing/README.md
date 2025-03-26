@@ -41,6 +41,9 @@ To export a multi-cluster service, `TrafficManagerProfile` and `TrafficManagerBa
 The following diagram illustrates the relationship between the Azure Traffic Manager resources and Kubernetes resources:
 ![](overview.png)
 
+> Note: When you delete the `TrafficManagerProfile`, the corresponding Azure Traffic Manager resources (including any endpoints)
+> will be deleted as well and the accepted condition of `TrafficManagerBackend` which are referring to the `TrafficManagerProfile` will become false. 
+
 ## User stories
 **Single Service Deployed to Multiple Clusters**
 
