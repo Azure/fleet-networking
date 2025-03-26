@@ -9,6 +9,7 @@ package internalserviceexport
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,7 +25,6 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
@@ -184,7 +184,7 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	desiredSvcExportConflictCond := internalSvcExportConflictCond.DeepCopy()
 	desiredSvcExportConflictCond.ObservedGeneration = svcExport.Generation
 	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
-	if condition.EqualCondition(svcExportConflictCond, desiredSvcExportConflictCond) {
+	if reflect.DeepEqual(internalSvcExportConflictCond, svcExportConflictCond) {
 		// The conflict condition has not changed and there is no need to report back; this is also an expected
 		// behavior.
 		klog.V(4).InfoS("No update on the conflict condition", "internalServiceExport", internalSvcExportRef)
