@@ -180,7 +180,7 @@ var (
 			return fmt.Errorf("serviceExport finalizers, got %v, want empty list", svcExport.Finalizers)
 		}
 
-		expectedCond := serviceExportInvalidNotFoundCondition(memberUserNS, svcName)
+		expectedCond := serviceExportInvalidNotFoundCondition(memberUserNS, svcName, svcExport.Generation)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
@@ -204,7 +204,7 @@ var (
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
-		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName)
+		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcExport.Generation)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
@@ -231,13 +231,13 @@ var (
 			return fmt.Errorf("serviceExport finalizers, got %v, want %v", svcExport.Finalizers, []string{svcExportCleanupFinalizer})
 		}
 
-		expectedValidCond := serviceExportValidCondition(memberUserNS, svcName)
+		expectedValidCond := serviceExportValidCondition(memberUserNS, svcName, svcExport.Generation)
 		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedValidCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 		}
 
-		expectedConflictCond := serviceExportPendingConflictResolutionCondition(memberUserNS, svcName)
+		expectedConflictCond := serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcExport.Generation)
 		conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
 		if diff := cmp.Diff(conflictCond, &expectedConflictCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportConflict condition (-got, +want): %s", diff)

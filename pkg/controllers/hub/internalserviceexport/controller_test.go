@@ -92,22 +92,22 @@ func internalServiceExportReconciler(client client.Client) *Reconciler {
 	}
 }
 
-func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
+func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
-		ObservedGeneration: 0,
+		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             conditionReasonNoConflictFound,
 		Message:            fmt.Sprintf("service %s/%s is exported without conflict", svcNamespace, svcName),
 	}
 }
 
-func conflictedServiceExportConflictCondition(svcNamespace string, svcName string) metav1.Condition {
+func conflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: 0,
+		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),
 		Reason:             conditionReasonConflictFound,
 		Message:            fmt.Sprintf("service %s/%s is in conflict with other exported services", svcNamespace, svcName),
@@ -370,6 +370,7 @@ func TestHandleDelete_EmptyServiceImportSpec(t *testing.T) {
 }
 
 func TestHandleUpdate(t *testing.T) {
+	internalServiceExportGeneration := int64(456)
 	importServicePorts := []fleetnetv1alpha1.ServicePort{
 		{
 			Name:        "portA",
@@ -397,8 +398,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "no serviceImport exists",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -430,8 +432,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -471,8 +474,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "serviceExport just created and has the same spec as serviceImport",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
@@ -505,8 +509,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
@@ -522,7 +527,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -549,8 +554,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "serviceExport just created and has the different spec as serviceImport",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -591,8 +597,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -616,7 +623,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -640,8 +647,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "update serviceExport and old serviceExport has the same spec as serviceImport",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -665,7 +673,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -690,8 +698,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -715,7 +724,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -739,8 +748,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "update serviceExport and old serviceExport has the different spec as serviceImport",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
@@ -756,7 +766,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						conflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						conflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -778,8 +788,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: importServicePorts,
@@ -795,7 +806,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -822,8 +833,9 @@ func TestHandleUpdate(t *testing.T) {
 			name: "there is only one serviceExport and port spec has been changed",
 			internalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -847,7 +859,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -869,8 +881,9 @@ func TestHandleUpdate(t *testing.T) {
 			want: ctrl.Result{RequeueAfter: internalserviceexportRetryInterval},
 			wantInternalSvcExport: &fleetnetv1alpha1.InternalServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testName,
-					Namespace: testMemberNamespace,
+					Name:       testName,
+					Namespace:  testMemberNamespace,
+					Generation: internalServiceExportGeneration,
 				},
 				Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 					Ports: []fleetnetv1alpha1.ServicePort{
@@ -894,7 +907,7 @@ func TestHandleUpdate(t *testing.T) {
 				},
 				Status: fleetnetv1alpha1.InternalServiceExportStatus{
 					Conditions: []metav1.Condition{
-						unconflictedServiceExportConflictCondition(testNamespace, testServiceName),
+						unconflictedServiceExportConflictCondition(testNamespace, testServiceName, internalServiceExportGeneration),
 					},
 				},
 			},
@@ -928,7 +941,7 @@ func TestHandleUpdate(t *testing.T) {
 			}
 			want := tc.want
 			if !cmp.Equal(got, want) {
-				t.Errorf("handleDelete() = %+v, want %+v", got, want)
+				t.Errorf("handleUpdate() = %+v, want %+v", got, want)
 			}
 			options := []cmp.Option{
 				cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),

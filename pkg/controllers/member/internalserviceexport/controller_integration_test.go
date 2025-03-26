@@ -189,7 +189,7 @@ var _ = Describe("internalsvcexport controller", func() {
 		It("should report back conflict condition (no conflict found)", func() {
 			// Add a no conflict condition.
 			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
-				unconflictedServiceExportConflictCondition(memberUserNS, svcName))
+				unconflictedServiceExportConflictCondition(memberUserNS, svcName, internalSvcExport.Generation))
 			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
 
 			Eventually(func() error {
@@ -197,7 +197,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
 				}
 
-				expectedConds := []metav1.Condition{unconflictedServiceExportConflictCondition(memberUserNS, svcName)}
+				expectedConds := []metav1.Condition{unconflictedServiceExportConflictCondition(memberUserNS, svcName, svcExport.Generation)}
 				if diff := cmp.Diff(svcExport.Status.Conditions, expectedConds, ignoredCondFields); diff != "" {
 					return fmt.Errorf("serviceExport conditions (-got, +want): %s", diff)
 				}
@@ -233,7 +233,7 @@ var _ = Describe("internalsvcexport controller", func() {
 		It("should report back conflict condition (conflict found)", func() {
 			// Add a no conflict condition
 			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
-				conflictedServiceExportConflictCondition(memberUserNS, svcName))
+				conflictedServiceExportConflictCondition(memberUserNS, svcName, internalSvcExport.Generation))
 			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
 
 			Eventually(func() error {
@@ -241,7 +241,7 @@ var _ = Describe("internalsvcexport controller", func() {
 					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcExportKey, err)
 				}
 
-				expectedConds := []metav1.Condition{conflictedServiceExportConflictCondition(memberUserNS, svcName)}
+				expectedConds := []metav1.Condition{conflictedServiceExportConflictCondition(memberUserNS, svcName, svcExport.Generation)}
 				if diff := cmp.Diff(svcExport.Status.Conditions, expectedConds, ignoredCondFields); diff != "" {
 					return fmt.Errorf("serviceExport conditions (-got, +want): %s", diff)
 				}
@@ -286,7 +286,7 @@ var _ = Describe("internalsvcexport controller", func() {
 			// Add a conflict condition
 			Expect(hubClient.Get(ctx, internalSvcExportKey, internalSvcExport)).Should(Succeed())
 			meta.SetStatusCondition(&internalSvcExport.Status.Conditions,
-				conflictedServiceExportConflictCondition(memberUserNS, svcName))
+				conflictedServiceExportConflictCondition(memberUserNS, svcName, internalSvcExport.Generation))
 			Expect(hubClient.Status().Update(ctx, internalSvcExport)).Should(Succeed())
 
 			Consistently(func() error {
