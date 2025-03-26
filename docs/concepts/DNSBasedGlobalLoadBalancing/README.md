@@ -38,6 +38,12 @@ spec:
 
 To export a multi-cluster service, `TrafficManagerProfile` and `TrafficManagerBackend` should be created within namespace that the service resides in - that is, they reference the `Service` with the same namespace name as the traffic manager resources.
 
+The following diagram illustrates the relationship between the Azure Traffic Manager resources and Kubernetes resources:
+![](overview.png)
+
+> Note: When you delete the `TrafficManagerProfile`, the corresponding Azure Traffic Manager resources (including any endpoints)
+> will be deleted as well and the accepted condition of `TrafficManagerBackend` which are referring to the `TrafficManagerProfile` will become false. 
+
 ## User stories
 **Single Service Deployed to Multiple Clusters**
 
@@ -105,14 +111,15 @@ status:
 For networking member agents operating within the member cluster, the necessary permissions should be in place to access the public IP address.
 
 To support the traffic manager feature, networking hub agent needs to have the following permissions:
+* `Microsoft.Network/publicIPAddresses/read` on the public IP address resource created in the member clusters.
+* Azure Traffic Manager permissions on the resource group where the traffic manager profile is created.
 
-```
-"Microsoft.Network/publicIPAddresses/read",
-"Microsoft.Network/trafficManagerProfiles/read",
-"Microsoft.Network/trafficManagerProfiles/write",
-"Microsoft.Network/trafficManagerProfiles/delete",
-"Microsoft.Network/trafficManagerProfiles/azureEndpoints/read",
-"Microsoft.Network/trafficManagerProfiles/azureEndpoints/write",
-"Microsoft.Network/trafficManagerProfiles/azureEndpoints/delete"
-```
+    ```
+    "Microsoft.Network/trafficManagerProfiles/read",
+    "Microsoft.Network/trafficManagerProfiles/write",
+    "Microsoft.Network/trafficManagerProfiles/delete",
+    "Microsoft.Network/trafficManagerProfiles/azureEndpoints/read",
+    "Microsoft.Network/trafficManagerProfiles/azureEndpoints/write",
+    "Microsoft.Network/trafficManagerProfiles/azureEndpoints/delete"
+    ```
 

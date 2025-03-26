@@ -21,6 +21,11 @@ The following resources are currently deployed in the hub cluster and use cluste
 
 ```yaml
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-app
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: nginx-service
@@ -68,6 +73,8 @@ spec:
             value:
               {"service.beta.kubernetes.io/azure-dns-label-name":"fleet-${MEMBER-CLUSTER-NAME}"}
 ```
+> Note: "${MEMBER-CLUSTER-NAME}" is a [reserved variable](https://github.com/Azure/fleet/blob/main/docs/concepts/Override/README.md#reserved-variables-in-the-json-patch-override-value) in the override, and it will be replaced with the name of the member cluster.
+
 > Note: Please update the dns label name to match your specific requirements, and the "fleet-${MEMBER-CLUSTER-NAME}" may be not available.
 
 Summary:
