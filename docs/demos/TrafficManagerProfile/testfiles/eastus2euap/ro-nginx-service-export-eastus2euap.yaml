@@ -17,8 +17,38 @@ spec:
           clusterSelectorTerms:
             - labelSelector:
                 matchExpressions:
-                - key: fleet.azure.com/location
-                  operator: NotIn
-                  values:
-                    - eastus2euap
+                  - key: fleet.azure.com/location
+                    operator: NotIn
+                    values:
+                      - eastus2euap
         overrideType: Delete
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-1
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "0" }
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-3
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "50" }
+      - clusterSelector:
+          clusterSelectorTerms:
+            - labelSelector:
+                matchLabels:
+                  cluster-name: member-5
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              { "networking.fleet.azure.com/weight": "50" }
