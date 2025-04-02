@@ -4,6 +4,6 @@ metadata:
   name: nginx-profile
   namespace: team-a-nginx
 spec:
-  resourceGroup: "zhiyinglin-fleet-test"
+  resourceGroup: "your-fleet-atm-rg"
   monitorConfig:
     port: 80
