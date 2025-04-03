@@ -1,0 +1,6 @@
+apiVersion: placement.kubernetes-fleet.io/v1beta1
+kind: ClusterResourcePlacementDisruptionBudget
+metadata:
+  name: crp-team-a
+spec:
+  minAvailable: 2
