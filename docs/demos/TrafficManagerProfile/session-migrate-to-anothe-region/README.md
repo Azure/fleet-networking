@@ -10,8 +10,8 @@ We will migrate both the application and its traffic to a new region: `uksouth`.
 
 ## Prerequisites
 Before we begin, Before we begin, ensure you have the following:
-- Finished the session on deploying a multi-cluster application using fleet APIs.
-- Created two clusters `member-2` & `member-4` in the `uksouth` region and joined as part of fleet.
+- Finished the session on [deploying a multi-cluster application](../session-build-multi-cluster-app/README.md) using fleet APIs.
+- Created two clusters `aks-member-2` & `aks-member-4` in the `uksouth` region and joined as part of fleet.
 
 ---
 
@@ -19,7 +19,7 @@ Before we begin, Before we begin, ensure you have the following:
 
 1. **Set Up:** We set up a service and deployment in the `team-a-nginx` namespace.
 2. **Propagation:** We used `clusterResourcePlacement` to propagate them across clusters labeled with `env=prod`.
-3. **Traffic Exposure:** We assigned a unique DNS name using the `override` API and leveraged **Azure Traffic Manager** for traffic exposure. Currently, traffic is served by `member-1` and `member-3`.
+3. **Traffic Exposure:** We assigned a unique DNS name using the `override` API and leveraged **Azure Traffic Manager** for traffic exposure. Currently, traffic is served by `aks-member-1` and `aks-member-3`.
 ---
 
 ## Step 1: Update Resource Overrides for the existing region
@@ -114,7 +114,7 @@ kubectl apply -f uksouth/nginx-service-uksouth.yaml
 
 ## Step 3: Add label "env=prod" to uksouth clusters
 
-To ensure that `member-2` & `member-4` is recognized as a production environment, we need to add the label `env=prod` to it. This will allow the `clusterResourcePlacement` to propagate the resources correctly.
+To ensure that `aks-member-2` & `aks-member-4` is recognized as a production environment, we need to add the label `env=prod` to it. This will allow the `clusterResourcePlacement` to propagate the resources correctly.
 
 ```sh
 kubectl label cluster aks-member-2 env=prod
@@ -156,12 +156,14 @@ kubectl apply -f nginx-backend-uksouth.yaml
 ## Step 5: Shift Traffic Dynamically
 - Adjust backend weights in `trafficManagerBackend` to gradually shift traffic between regions.
 - Monitor traffic distribution by using `kubectl get tmb -n team-a-nginx -o yaml` to ensure a smooth transition.
-- Delete the existing `trafficManagerBackend` nginx-backend-eastus2euap for `member-1` and `member-3` so that the new connections won't be routed to the eastus2euap region.
+- Delete the existing `trafficManagerBackend` nginx-backend-eastus2euap for `aks-member-1` and `aks-member-3` so that the new connections won't be routed to the eastus2euap region.
 
 > Note: There are multiple ways to adjust the weight on the trafficManagerBackends. For example, you can fix one of weight and adjust the other one. Or you can update both.
+> For example, you can keep the weight of `nginx-backend-eastus2euap` to 100 and gradually increase the weight of `nginx-backend-uksouth` from 10 to 1000.
+> So that most of the traffic can be shifted to the new regions before deleting endpoints from eastus2euap region.
 
 ## Step 6: Cleanup & Finalization
-- Remove the env label from the `member-1` & `member-3` so that the cluster won't be picked by the `clusterResourcePlacement` again.
+- Remove the env label from the `aks-member-1` & `aks-member-3` or add [a taint on these two members](https://github.com/Azure/fleet/blob/main/docs/howtos/taint-toleration.md) so that the cluster won't be picked by the `clusterResourcePlacement` again.
 - To ensure the application won't be disrupted, we can create the `ClusterResourcePlacementDisruptionBudget` for the protection.
 
 > Note: test file located [here](../testfiles/placement-disruption-budget.yaml).
@@ -177,7 +179,7 @@ Apply the configuration:
 ```sh
 kubectl apply -f placement-disruption-budget.yaml
 ```
-- Safely remove application workloads and services from `member-1` and `member-3` once all traffic has shifted and all the client DNS caches are refreshed.
+- Safely remove application workloads and services from `aks-member-1` and `aks-member-3` once all traffic has shifted and all the client DNS caches are refreshed.
 
 > Note: test file located [here](../testfiles/placement-eviction-member-1.yaml).
 

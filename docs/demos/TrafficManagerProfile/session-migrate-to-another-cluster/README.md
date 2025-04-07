@@ -9,8 +9,8 @@ Today we’ll guide you through migrating your application to another cluster us
 
 ## Prerequisites
 Before we begin, Before we begin, ensure you have the following:
-- Finished the session on deploying a multi-cluster application using fleet APIs.
-- Created another cluster `member-5` as a Replacement for `member-1` and joined as part of the fleet.
+- Finished the session on [deploying a multi-cluster application](../session-build-multi-cluster-app/README.md) using fleet APIs.
+- Created another cluster `aks-member-5` as a Replacement for `aks-member-1` and joined as part of the fleet.
 - Each member cluster has a label `cluster-name: <member-name>`.
 
 ---
@@ -19,13 +19,13 @@ Before we begin, Before we begin, ensure you have the following:
 
 1. **Set Up:** We set up a service and deployment in the `team-a-nginx` namespace.
 2. **Propagation:** We used `clusterResourcePlacement` to propagate them across clusters labeled with `env=prod`.
-3. **Traffic Exposure:** We assigned a unique DNS name using the `override` API and leveraged **Azure Traffic Manager** for traffic exposure. Currently, traffic is served by `member-1` and `member-3`.
+3. **Traffic Exposure:** We assigned a unique DNS name using the `override` API and leveraged **Azure Traffic Manager** for traffic exposure. Currently, traffic is served by `aks-member-1` and `aks-member-3`.
 
 ---
 
 ## Step 1: Disable the traffic on the new cluster Using `resourceOverride`
 
-First, we need to disable the traffic on the new cluster `member-5` using the `resourceOverride` API. This will ensure that the new cluster is not receiving any traffic until we are ready to switch over.
+First, we need to disable the traffic on the new cluster `aks-member-5` using the `resourceOverride` API. This will ensure that the new cluster is not receiving any traffic until we are ready to switch over.
 
 > Note: test file located [here](../testfiles/eastus2euap/ro-nginx-service-export-eastus2euap.yaml).
 
@@ -83,9 +83,9 @@ kubectl apply -f eastus2euap/ro-nginx-service-export-eastus2euap.yaml
 ```
 ---
 
-## Step 2: Add label "env=prod" to `member-5`
+## Step 2: Add label "env=prod" to `aks-member-5`
 
-To ensure that `member-5` is recognized as a production environment, we need to add the label `env=prod` to it. This will allow the `clusterResourcePlacement` to propagate the resources correctly.
+To ensure that `aks-member-5` is recognized as a production environment, we need to add the label `env=prod` to it. This will allow the `clusterResourcePlacement` to propagate the resources correctly.
 
 ```sh
 kubectl label cluster aks-member-5 env=prod
@@ -99,7 +99,7 @@ kubectl get crp crp-team-a -o yaml
 ---
 
 ## Step 3: Adjust Traffic Weight Using `resourceOverride`
-- Gradually shift requests from `member-1` to `member-5` by modifying the traffic weights in `serviceExport`.
+- Gradually shift requests from `aks-member-1` to `aks-member-5` by modifying the traffic weights in `serviceExport`.
 - Monitor traffic distribution by using `kubectl get tmb nginx-backend-eastus2euap -n team-a-nginx -o yaml` to ensure a smooth transition.
 
 ```yaml
@@ -152,8 +152,8 @@ spec:
 ---
 
 ## Step 4: Clean Up Resources Using the `eviction` API
-- Remove the env label from the `member-1` so that the cluster won't be picked by the `clusterResourcePlacement` again.
-- Safely remove application workloads and services from `member-1` once all traffic has shifted and all the client DNS caches are refreshed.
+- Remove the env label from the `aks-member-1` or add [a taint on the member](https://github.com/Azure/fleet/blob/main/docs/howtos/taint-toleration.md) so that the cluster won't be picked by the `clusterResourcePlacement` again.
+- Safely remove application workloads and services from `aks-member-1` once all traffic has shifted and all the client DNS caches are refreshed.
 
 > Note: test file located [here](../testfiles/placement-eviction-member-1.yaml).
 

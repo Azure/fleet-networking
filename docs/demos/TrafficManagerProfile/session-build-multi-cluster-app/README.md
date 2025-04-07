@@ -1,13 +1,13 @@
 # Deploying a Multi-Cluster Application using fleet APIs
 
 ## Introduction 🚀
-In this session, we will walk through how to deploy a Nginx server seamlessly across multiple production clusters in **eastus2euap** while routing traffic intelligently using **Azure Traffic Manager**.
+In this session, we will walk through how to deploy a Nginx server seamlessly across multiple production clusters in **eastus2euap** while routing traffic intelligently using **[Azure Traffic Manager](https://azure.microsoft.com/en-us/products/kubernetes-fleet-manager)**.
 
 ![](build-multi-cluster-app.png)
 
 ## Prerequisites
 Before we begin, ensure you have the following:
-- An **Azure Kubernetes Fleet Manager** set up with two members.
+- An **Azure Kubernetes Fleet Manager** set up with two members: `aks-member-1` & `aks-member-3` in the `eastus2eaup` region and joined as part of fleet with `env: prod` label.
 - The **kubectl** CLI installed and configured.
 - A resource group created for the Traffic Manager Profile.
 - Azure Traffic Manager permission set up for **Azure Kubernetes Fleet Manager**.
@@ -207,6 +207,10 @@ kubectl apply -f testfiles/nginx-backend-eastus2euap.yaml
 ```
 
 ---
+
+## Step 6: Verify Traffic Manager settings
+
+Please follow [this documentation](https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-testing-settings) to verify your traffic manager settings.
 
 ## **Conclusion 🎯**
 By completing these steps, you now have:
