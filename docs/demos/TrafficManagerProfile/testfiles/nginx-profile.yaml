@@ -1,0 +1,9 @@
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: TrafficManagerProfile
+metadata:
+  name: nginx-profile
+  namespace: team-a-nginx
+spec:
+  resourceGroup: "your-fleet-atm-rg"
+  monitorConfig:
+    port: 80
