@@ -20,8 +20,8 @@ import (
 var (
 	cmpProfileOptions = cmp.Options{
 		cmpopts.IgnoreFields(armtrafficmanager.Profile{}, "ID", "Name", "Type"),
-		cmpopts.IgnoreFields(armtrafficmanager.MonitorConfig{}, "ProfileMonitorStatus"),                                                           // cannot predict the monitor status
-		cmpopts.IgnoreFields(armtrafficmanager.Endpoint{}, "ID"),                                                                                  // ignore the resource ID for now
+		cmpopts.IgnoreFields(armtrafficmanager.MonitorConfig{}, "ProfileMonitorStatus"), // cannot predict the monitor status
+		// cmpopts.IgnoreFields(armtrafficmanager.Endpoint{}, "ID") // now controller populates the ResourceID and we can validate this field
 		cmpopts.IgnoreFields(armtrafficmanager.EndpointProperties{}, "TargetResourceID", "EndpointLocation", "EndpointMonitorStatus", "Priority"), // cannot predict the status
 		cmpopts.SortSlices(func(e1, e2 *armtrafficmanager.Endpoint) bool {
 			return *e1.Name < *e2.Name

@@ -33,7 +33,7 @@ var (
 
 	cmpTrafficManagerBackendStatusByIgnoringEndpointName = cmp.Options{
 		cmpConditionOptions,
-		cmpopts.IgnoreFields(fleetnetv1beta1.TrafficManagerEndpointStatus{}, "Name"), // ignore the generated endpoint name
+		cmpopts.IgnoreFields(fleetnetv1beta1.TrafficManagerEndpointStatus{}, "Name", "ResourceID"), // ignore the generated endpoint name
 		cmpopts.SortSlices(func(s1, s2 fleetnetv1beta1.TrafficManagerEndpointStatus) bool {
 			return s1.From.Cluster < s2.From.Cluster
 		}),

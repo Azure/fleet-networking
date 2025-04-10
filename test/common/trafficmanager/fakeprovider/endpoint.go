@@ -7,6 +7,7 @@ package fakeprovider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -113,6 +114,7 @@ func EndpointCreateOrUpdate(_ context.Context, resourceGroupName string, profile
 					Target:           ptr.To(ValidEndpointTarget),
 				},
 				Type: ptr.To(string(azureTrafficManagerEndpointTypePrefix + armtrafficmanager.EndpointTypeAzureEndpoints)),
+				ID:   ptr.To(fmt.Sprintf(EndpointResourceIDFormat, DefaultSubscriptionID, resourceGroupName, profileName, endpointName)),
 			},
 		}
 		resp.SetResponse(http.StatusOK, endpointResp, nil)
