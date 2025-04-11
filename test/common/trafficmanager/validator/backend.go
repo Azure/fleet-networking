@@ -33,6 +33,8 @@ var (
 
 	cmpTrafficManagerBackendStatusByIgnoringEndpointName = cmp.Options{
 		cmpConditionOptions,
+		// Here we don't validate the endpoint name and resource id to be decoupled from the implementation.
+		// It will be validated separately by comparing the values with the ones in the Azure traffic manager profile.
 		cmpopts.IgnoreFields(fleetnetv1beta1.TrafficManagerEndpointStatus{}, "Name", "ResourceID"), // ignore the generated endpoint name
 		cmpopts.SortSlices(func(s1, s2 fleetnetv1beta1.TrafficManagerEndpointStatus) bool {
 			return s1.From.Cluster < s2.From.Cluster
