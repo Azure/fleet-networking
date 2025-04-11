@@ -726,6 +726,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0])
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -737,15 +738,16 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Name: atmEndpointName,
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 								Weight: ptr.To(int64(1)), // the original weight is default to 1
 							},
-							Weight: ptr.To(backendWeight), // populate the weight using atm endpoint
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(backendWeight), // populate the weight using atm endpoint
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
 						},
 					},
 				},
@@ -785,6 +787,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Should reconcile the endpoint back after the provider server stops returning 403", func() {
 			fakeprovider.DisableEndpointForbiddenErr()
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[6])
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -796,15 +799,16 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[6]),
+							Name: atmEndpointName,
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[6],
 								},
 								Weight: ptr.To(int64(1)), // the original weight is default to 1
 							},
-							Weight: ptr.To(backendWeight), // populate the weight using atm endpoint
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(backendWeight), // populate the weight using atm endpoint
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
 						},
 					},
 				},
@@ -830,6 +834,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
+			atmEndpointNames := []string{
+				fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+				fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+			}
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -841,26 +849,28 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Name: atmEndpointNames[0],
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 								Weight: ptr.To(int64(1)),
 							},
-							Weight: ptr.To(backendWeight / 2), // populate the weight using atm endpoint
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(backendWeight / 2), // populate the weight using atm endpoint
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointNames[0]),
 						},
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+							Name: atmEndpointNames[1],
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[3],
 								},
 								Weight: ptr.To(int64(1)),
 							},
-							Weight: ptr.To(backendWeight / 2), // populate the weight using atm endpoint
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(backendWeight / 2), // populate the weight using atm endpoint
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointNames[1]),
 						},
 					},
 				},
@@ -877,6 +887,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
+			atmEndpointNames := []string{
+				fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+				fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+			}
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -888,26 +902,28 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Name: atmEndpointNames[0],
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 								Weight: ptr.To(int64(2)),
 							},
-							Weight: ptr.To(int64(7)), // 2/3 of the 10
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(int64(7)), // 2/3 of the 10
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointNames[0]),
 						},
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[3]),
+							Name: atmEndpointNames[1],
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[3],
 								},
 								Weight: ptr.To(int64(1)),
 							},
-							Weight: ptr.To(int64(4)), // 1/3 of 10
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(int64(4)), // 1/3 of 10
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointNames[1]),
 						},
 					},
 				},
@@ -931,6 +947,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0])
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -942,15 +959,16 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildFalseCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Name: atmEndpointName,
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 								Weight: ptr.To(int64(2)),
 							},
-							Weight: ptr.To(int64(7)), // 2/3 of the 10 as the weight is calculated before the endpoints are created
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(int64(7)), // 2/3 of the 10 as the weight is calculated before the endpoints are created
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
 						},
 					},
 				},
@@ -1031,6 +1049,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		})
 
 		It("Validating trafficManagerBackend", func() {
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0])
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
@@ -1042,15 +1061,16 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 					Conditions: buildTrueCondition(backend.Generation),
 					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
 						{
-							Name: fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0]),
+							Name: atmEndpointName,
 							From: &fleetnetv1beta1.FromCluster{
 								ClusterStatus: fleetnetv1beta1.ClusterStatus{
 									Cluster: memberClusterNames[0],
 								},
 								Weight: ptr.To(int64(2)),
 							},
-							Weight: ptr.To(int64(10)), // only 1 endpoint
-							Target: ptr.To(fakeprovider.ValidEndpointTarget),
+							Weight:     ptr.To(int64(10)), // only 1 endpoint
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
 						},
 					},
 				},

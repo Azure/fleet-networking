@@ -27,7 +27,8 @@ const (
 	DefaultSubscriptionID    = "default-subscription-id"
 	DefaultResourceGroupName = "default-resource-group-name"
 
-	ProfileResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
+	ProfileResourceIDFormat  = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
+	EndpointResourceIDFormat = ProfileResourceIDFormat + "/azureEndpoints/%s"
 
 	ValidProfileName                         = "valid-profile"
 	ValidProfileWithEndpointsName            = "valid-profile-with-endpoints"

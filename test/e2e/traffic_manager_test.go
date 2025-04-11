@@ -768,6 +768,7 @@ func buildDesiredATMProfile(profile fleetnetv1beta1.TrafficManagerProfile, endpo
 	}
 	for _, e := range endpoints {
 		res.Properties.Endpoints = append(res.Properties.Endpoints, &armtrafficmanager.Endpoint{
+			ID:   &e.ResourceID,
 			Name: ptr.To(e.Name),
 			Type: ptr.To("Microsoft.Network/trafficManagerProfiles/azureEndpoints"),
 			Properties: &armtrafficmanager.EndpointProperties{
