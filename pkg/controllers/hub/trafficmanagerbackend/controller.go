@@ -558,11 +558,20 @@ func generateAzureTrafficManagerEndpoint(backend *fleetnetv1beta1.TrafficManager
 }
 
 func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, desiredEndpoint desiredEndpoint) fleetnetv1beta1.TrafficManagerEndpointStatus {
+	resourceID := ""
+	if endpoint.ID == nil {
+		err := controller.NewUnexpectedBehaviorError(fmt.Errorf("got nil ID for Azure Traffic Manager endpoint"))
+		klog.ErrorS(err, "Unexpected value returned by the Azure Traffic Manager", "atmEndpointName", *endpoint.Name)
+	} else {
+		resourceID = *endpoint.ID
+	}
+
 	return fleetnetv1beta1.TrafficManagerEndpointStatus{
-		Name:   strings.ToLower(*endpoint.Name), // name is case-insensitive
-		Target: endpoint.Properties.Target,
-		Weight: endpoint.Properties.Weight, // the calculated weight
-		From:   &desiredEndpoint.FromCluster,
+		Name:       strings.ToLower(*endpoint.Name), // name is case-insensitive
+		Target:     endpoint.Properties.Target,
+		Weight:     endpoint.Properties.Weight, // the calculated weight
+		From:       &desiredEndpoint.FromCluster,
+		ResourceID: resourceID,
 	}
 }
 
