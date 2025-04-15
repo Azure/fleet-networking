@@ -36,6 +36,9 @@ var (
 		cmpopts.SortSlices(func(c1, c2 metav1.Condition) bool {
 			return c1.Type < c2.Type
 		}),
+		cmpopts.SortSlices(func(str1, str2 string) bool {
+			return str1 < str2
+		}),
 	}
 	cmpConditionOptions = cmp.Options{
 		cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
