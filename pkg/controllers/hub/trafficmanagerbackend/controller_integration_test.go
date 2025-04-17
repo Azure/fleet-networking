@@ -1321,6 +1321,46 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
 		})
 
+		It("Validating trafficManagerBackend", func() {
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0])
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(backend.Generation),
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
+						{
+							Name: atmEndpointName,
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
+								Weight: ptr.To(int64(2)),
+							},
+							Weight:     ptr.To(int64(10)),
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * false
+			// * unknown
+			// * true
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+		})
+
 		It("Updating the internalServiceExport to invalid endpoint", func() {
 			internalServiceExport := &fleetnetv1alpha1.InternalServiceExport{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: internalServiceExports[0].Namespace, Name: internalServiceExports[0].Name}, internalServiceExport)).Should(Succeed())
@@ -1345,10 +1385,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// Metrics are sorted by timestamp
-			// * true
 			// * unknown
+			// * true
 			// * false
-			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
@@ -1395,7 +1435,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * unknown
 			// * false
 			// * true
-			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
+			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
@@ -1426,7 +1466,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * unknown
 			// * false
 			// * true
-			// It overwrites the previous one as they have the same condition.
+			// * true with new generation
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
