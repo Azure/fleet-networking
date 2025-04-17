@@ -305,6 +305,18 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: timeoutInSeconds must be between 5 and 10 when intervalInSeconds
+                    is 30
+                  rule: '!has(self.intervalInSeconds) || (has(self.intervalInSeconds)
+                    && self.intervalInSeconds == 30) ? (!has(self.timeoutInSeconds)
+                    || (self.timeoutInSeconds >= 5 && self.timeoutInSeconds <= 10))
+                    : true'
+                - message: timeoutInSeconds must be between 5 and 9 when intervalInSeconds
+                    is 10
+                  rule: 'has(self.intervalInSeconds) && self.intervalInSeconds ==
+                    10 ? (!has(self.timeoutInSeconds) || (self.timeoutInSeconds >=
+                    5 && self.timeoutInSeconds <= 9)) : true'
               resourceGroup:
                 description: |-
                   The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile.

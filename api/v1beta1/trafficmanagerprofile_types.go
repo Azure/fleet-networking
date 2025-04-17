@@ -57,6 +57,8 @@ type TrafficManagerProfileSpec struct {
 
 // MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-monitoring
+// +kubebuilder:validation:XValidation:rule="!has(self.intervalInSeconds) || (has(self.intervalInSeconds) && self.intervalInSeconds == 30) ? (!has(self.timeoutInSeconds) || (self.timeoutInSeconds >= 5 && self.timeoutInSeconds <= 10)) : true",message="timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"
+// +kubebuilder:validation:XValidation:rule="has(self.intervalInSeconds) && self.intervalInSeconds == 10 ? (!has(self.timeoutInSeconds) || (self.timeoutInSeconds >= 5 && self.timeoutInSeconds <= 9)) : true",message="timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"
 type MonitorConfig struct {
 	// The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health
 	// of each endpoint in this profile.

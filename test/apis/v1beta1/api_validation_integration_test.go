@@ -179,6 +179,105 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
+		It("should deny creating API with timeoutInSeconds < 5 when intervalInSeconds is 30", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(4)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
+		})
+
+		It("should deny creating API with timeoutInSeconds > 10 when intervalInSeconds is 30", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(15)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
+		})
+
+		It("should deny creating API with timeoutInSeconds < 5 when intervalInSeconds is 10", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(10)),
+						TimeoutInSeconds:  ptr.To(int64(4)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
+		})
+
+		It("should deny creating API with timeoutInSeconds > 9 when intervalInSeconds is 10", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(10)),
+						TimeoutInSeconds:  ptr.To(int64(10)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
+		})
+
+		It("should deny creating API with timeoutInSeconds < 5 when timeoutInSeconds is not defined", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						TimeoutInSeconds: ptr.To(int64(3)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
+		})
+
+		It("should deny creating API with timeoutInSeconds > 10 when timeoutInSeconds is not defined", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						TimeoutInSeconds: ptr.To(int64(11)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			By("expecting denial of CREATE API with invalid timeoutInSeconds")
+			var err = hubClient.Create(ctx, profile)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
+		})
 	})
 
 	Context("Test TrafficManagerProfile API validation - valid cases", func() {
@@ -230,6 +329,138 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
 			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("should allow creating API with valid timeoutInSeconds when intervalInSeconds is 30", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(7)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("should allow creating API with timeoutInSeconds at lower bound (5) when intervalInSeconds is 30", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(5)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at lower bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at lower bound")
+		})
+
+		It("should allow creating API with timeoutInSeconds at upper bound (10) when intervalInSeconds is 30", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(10)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at upper bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at upper bound")
+		})
+
+		It("should allow creating API with valid timeoutInSeconds when intervalInSeconds is 10", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(10)),
+						TimeoutInSeconds:  ptr.To(int64(8)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("should allow creating API with timeoutInSeconds at lower bound (5) when intervalInSeconds is 310", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(10)),
+						TimeoutInSeconds:  ptr.To(int64(5)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at lower bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at lower bound")
+		})
+
+		It("should allow creating API with timeoutInSeconds at upper bound (9) when intervalInSeconds is 10", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						IntervalInSeconds: ptr.To(int64(30)),
+						TimeoutInSeconds:  ptr.To(int64(9)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at upper bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at upper bound")
+		})
+
+		It("should allow creating API with valid timeoutInSeconds when intervalInSeconds is not defined", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						TimeoutInSeconds: ptr.To(int64(10)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("should allow creating API with timeoutInSeconds at lower bound (5) when intervalInSeconds is not defined", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						TimeoutInSeconds: ptr.To(int64(5)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at lower bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at lower bound")
+		})
+
+		It("should allow creating API with timeoutInSeconds at upper bound (10) when intervalInSeconds is not defined", func() {
+			profile := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						TimeoutInSeconds: ptr.To(int64(10)),
+					},
+					ResourceGroup: "test-resource-group",
+				},
+			}
+			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at upper bound")
+			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at upper bound")
 		})
 	})
 
