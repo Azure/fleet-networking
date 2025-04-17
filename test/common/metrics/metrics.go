@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	// CmpOptions MetricsCmpOptions are options for comparing Prometheus metrics.
+	// CmpOptions are options for comparing Prometheus metrics.
 	CmpOptions = []cmp.Option{
 		cmpopts.SortSlices(func(a, b *prometheusclientmodel.Metric) bool {
 			return a.GetGauge().GetValue() < b.GetGauge().GetValue() // sort by time

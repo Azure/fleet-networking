@@ -82,11 +82,11 @@ func validateTrafficManagerProfileMetricsEmitted(registry *prometheus.Registry, 
 		}
 
 		if diff := cmp.Diff(gotMetrics, wantMetrics, metrics.CmpOptions...); diff != "" {
-			return fmt.Errorf("update run status metrics mismatch (-got, +want):\n%s", diff)
+			return fmt.Errorf("trafficManagerProfile status metrics mismatch (-got, +want):\n%s", diff)
 		}
 
 		return nil
-	}, timeout, interval).Should(Succeed(), "failed to validate the update run status metrics")
+	}, timeout, interval).Should(Succeed(), "failed to validate the trafficManagerProfile status metrics")
 }
 
 func generateMetrics(
