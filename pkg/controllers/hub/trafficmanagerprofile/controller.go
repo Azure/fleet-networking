@@ -10,10 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/prometheus/client_golang/prometheus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,8 +31,14 @@ import (
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
 	"go.goms.io/fleet-networking/pkg/common/defaulter"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
+
+func init() {
+	// Register the custom metrics
+	prometheus.MustRegister(trafficManagerProfileStatusLastTimestampSeconds)
+}
 
 const (
 	// DNSRelativeNameFormat consists of "Profile-Namespace" and "Profile-Name".
@@ -49,6 +57,15 @@ var (
 	generateAzureTrafficManagerProfileNameFunc = func(profile *fleetnetv1beta1.TrafficManagerProfile) string {
 		return GenerateAzureTrafficManagerProfileName(profile)
 	}
+
+	// trafficManagerProfileStatusLastTimestampSeconds is a prometheus metric that holds the last update timestamp of
+	// traffic manager profile status in seconds.
+	trafficManagerProfileStatusLastTimestampSeconds = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metrics.MetricsNamespace,
+		Subsystem: metrics.MetricsSubsystem,
+		Name:      "traffic_manager_profile_status_last_timestamp_seconds",
+		Help:      "Last update timestamp of traffic manager profile status in seconds",
+	}, []string{"name", "generation", "condition", "status", "reason"})
 )
 
 // GenerateAzureTrafficManagerProfileName generates the Azure Traffic Manager profile name based on the profile.
@@ -95,6 +112,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.handleDelete(ctx, profile)
 	}
 
+	// register metrics finalizer
+	if !controllerutil.ContainsFinalizer(profile, objectmeta.MetricsFinalizer) {
+		controllerutil.AddFinalizer(profile, objectmeta.MetricsFinalizer)
+		if err := r.Update(ctx, profile); err != nil {
+			klog.ErrorS(err, "Failed to add trafficManagerProfile metrics finalizer", "trafficManagerProfile", profileKRef)
+			return ctrl.Result{}, err
+		}
+	}
+
+	defer emitTrafficManagerProfileStatusMetric(profile)
+
 	// TODO: replace the following with defaulter wehbook
 	defaulter.SetDefaultsTrafficManagerProfile(profile)
 	return r.handleUpdate(ctx, profile)
@@ -102,28 +130,41 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.TrafficManagerProfile) (ctrl.Result, error) {
 	profileKObj := klog.KObj(profile)
+	needUpdate := false
 	// The profile is being deleted
-	if !controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
-		klog.V(2).InfoS("TrafficManagerProfile is being deleted", "trafficManagerProfile", profileKObj)
+	if controllerutil.ContainsFinalizer(profile, objectmeta.MetricsFinalizer) {
+		klog.V(2).InfoS("TrafficManagerProfile is being deleted and cleaning up its metrics", "trafficManagerProfile", profileKObj)
+		// The controller registers profile finalizer only before creating atm profile to avoid the deletion stuck for the 403 error.
+		// We use a separate finalizer to clean up the metrics for the profile.
+		trafficManagerProfileStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"name": profile.GetName()})
+		controllerutil.RemoveFinalizer(profile, objectmeta.MetricsFinalizer)
+		needUpdate = true
+	}
+
+	if controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
+		atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
+		klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+		if _, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil); err != nil {
+			if !azureerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+				return ctrl.Result{}, err
+			}
+		}
+		klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+		controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
+		needUpdate = true
+	}
+
+	if !needUpdate {
+		klog.V(2).InfoS("No need to remove finalizer", "trafficManagerProfile", profileKObj)
 		return ctrl.Result{}, nil
 	}
 
-	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
-	klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-	if _, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil); err != nil {
-		if !azureerrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-			return ctrl.Result{}, err
-		}
-	}
-	klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-
-	controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
 	if err := r.Client.Update(ctx, profile); err != nil {
-		klog.ErrorS(err, "Failed to remove trafficManagerProfile finalizer", "trafficManagerProfile", profileKObj)
+		klog.ErrorS(err, "Failed to remove trafficManagerProfile finalizers", "trafficManagerProfile", profileKObj)
 		return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 	}
-	klog.V(2).InfoS("Removed trafficManagerProfile finalizer", "trafficManagerProfile", profileKObj)
+	klog.V(2).InfoS("Removed trafficManagerProfile finalizers", "trafficManagerProfile", profileKObj)
 	return ctrl.Result{}, nil
 }
 
@@ -344,6 +385,21 @@ func buildAzureTrafficManagerProfileRequest(current, desired armtrafficmanager.P
 		}
 	}
 	return current
+}
+
+// emitTrafficManagerProfileStatusMetric emits the traffic manager profile status metric based on status conditions.
+func emitTrafficManagerProfileStatusMetric(profile *fleetnetv1beta1.TrafficManagerProfile) {
+	generation := profile.Generation
+	genStr := strconv.FormatInt(generation, 10)
+
+	cond := meta.FindStatusCondition(profile.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
+	if cond != nil && cond.ObservedGeneration == generation {
+		trafficManagerProfileStatusLastTimestampSeconds.WithLabelValues(profile.GetName(), genStr,
+			string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed), string(cond.Status), cond.Reason).SetToCurrentTime()
+		return
+	}
+	// We should rarely reach here, it can only happen when updating status fails.
+	klog.V(2).InfoS("There's no programmed status condition on trafficManagerProfile, status updating failed possibly", "trafficManagerProfile", klog.KObj(profile))
 }
 
 // SetupWithManager sets up the controller with the Manager.

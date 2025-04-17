@@ -34,6 +34,9 @@ const (
 	// TrafficManagerBackendFinalizer a finalizer added by the TrafficManagerBackend controller to all trafficManagerBackends,
 	// to make sure that the controller can react to backend deletions if necessary.
 	TrafficManagerBackendFinalizer = fleetNetworkingPrefix + "traffic-manager-backend-cleanup"
+
+	// MetricsFinalizer is the finalizer added by the controller to clean up all metrics.
+	MetricsFinalizer = fleetNetworkingPrefix + "metrics-cleanup"
 )
 
 // Labels
