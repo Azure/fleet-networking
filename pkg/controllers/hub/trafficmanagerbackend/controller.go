@@ -11,11 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,6 +43,11 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
+
+func init() {
+	// Register the custom metrics
+	prometheus.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
+}
 
 const (
 	trafficManagerBackendProfileFieldKey = ".spec.profile.name"
@@ -70,6 +78,15 @@ var (
 	generateAzureTrafficManagerEndpointNamePrefixFunc = func(backend *fleetnetv1beta1.TrafficManagerBackend) string {
 		return fmt.Sprintf(AzureResourceEndpointNamePrefix, backend.UID)
 	}
+
+	// trafficManagerBackendStatusLastTimestampSeconds is a prometheus metric that holds the last update timestamp of
+	// traffic manager backend status in seconds.
+	trafficManagerBackendStatusLastTimestampSeconds = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metrics.MetricsNamespace,
+		Subsystem: metrics.MetricsSubsystem,
+		Name:      "traffic_manager_backend_status_last_timestamp_seconds",
+		Help:      "Last update timestamp of traffic manager backend status in seconds",
+	}, []string{"name", "generation", "condition", "status", "reason"})
 )
 
 // Reconciler reconciles a trafficManagerBackend object.
@@ -113,6 +130,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return r.handleDelete(ctx, backend)
 	}
 
+	// register metrics finalizer
+	if !controllerutil.ContainsFinalizer(backend, objectmeta.MetricsFinalizer) {
+		controllerutil.AddFinalizer(backend, objectmeta.MetricsFinalizer)
+		if err := r.Update(ctx, backend); err != nil {
+			klog.ErrorS(err, "Failed to add trafficManagerProfile metrics finalizer", "trafficManagerBackend", backendKRef)
+			return ctrl.Result{}, err
+		}
+	}
+
+	defer emitTrafficManagerBackendStatusMetric(backend)
+
 	// TODO: replace the following with defaulter webhook
 	defaulter.SetDefaultsTrafficManagerBackend(backend)
 	return r.handleUpdate(ctx, backend)
@@ -120,23 +148,36 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 func (r *Reconciler) handleDelete(ctx context.Context, backend *fleetnetv1beta1.TrafficManagerBackend) (ctrl.Result, error) {
 	backendKObj := klog.KObj(backend)
+	needUpdate := false
 	// The backend is being deleted
-	if !controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
-		klog.V(2).InfoS("TrafficManagerBackend is being deleted", "trafficManagerBackend", backendKObj)
+	if controllerutil.ContainsFinalizer(backend, objectmeta.MetricsFinalizer) {
+		klog.V(2).InfoS("TrafficManagerBackend is being deleted and cleaning up its metrics", "trafficManagerBackend", backendKObj)
+		// The controller registers backend finalizer only before creating atm backend to avoid the deletion stuck for the 403 error.
+		// We use a separate finalizer to clean up the metrics for the backend.
+		trafficManagerBackendStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"name": backend.GetName()})
+		controllerutil.RemoveFinalizer(backend, objectmeta.MetricsFinalizer)
+		needUpdate = true
+	}
+
+	if controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
+		if err := r.deleteAzureTrafficManagerEndpoints(ctx, backend); err != nil {
+			klog.ErrorS(err, "Failed to delete Azure Traffic Manager endpoints", "trafficManagerBackend", backendKObj)
+			return ctrl.Result{}, err
+		}
+		controllerutil.RemoveFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer)
+		needUpdate = true
+	}
+
+	if !needUpdate {
+		klog.V(2).InfoS("No need to remove finalizer", "trafficManagerBackend", backendKObj)
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.deleteAzureTrafficManagerEndpoints(ctx, backend); err != nil {
-		klog.ErrorS(err, "Failed to delete Azure Traffic Manager endpoints", "trafficManagerBackend", backendKObj)
-		return ctrl.Result{}, err
-	}
-
-	controllerutil.RemoveFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer)
 	if err := r.Client.Update(ctx, backend); err != nil {
-		klog.ErrorS(err, "Failed to remove trafficManagerBackend finalizer", "trafficManagerBackend", backendKObj)
+		klog.ErrorS(err, "Failed to remove trafficManagerBackend finalizers", "trafficManagerBackend", backendKObj)
 		return ctrl.Result{}, controller.NewUpdateIgnoreConflictError(err)
 	}
-	klog.V(2).InfoS("Removed trafficManagerBackend finalizer", "trafficManagerBackend", backendKObj)
+	klog.V(2).InfoS("Removed trafficManagerBackend finalizers", "trafficManagerBackend", backendKObj)
 	return ctrl.Result{}, nil
 }
 
@@ -810,4 +851,19 @@ func (r *Reconciler) internalServiceExportEventHandler() handler.MapFunc {
 		}
 		return []reconcile.Request{}
 	}
+}
+
+// emitTrafficManagerBackendStatusMetric emits the traffic manager backend status metric based on status conditions.
+func emitTrafficManagerBackendStatusMetric(backend *fleetnetv1beta1.TrafficManagerBackend) {
+	generation := backend.Generation
+	genStr := strconv.FormatInt(generation, 10)
+
+	cond := meta.FindStatusCondition(backend.Status.Conditions, string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted))
+	if cond != nil && cond.ObservedGeneration == generation {
+		trafficManagerBackendStatusLastTimestampSeconds.WithLabelValues(backend.GetName(), genStr,
+			string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted), string(cond.Status), cond.Reason).SetToCurrentTime()
+		return
+	}
+	// We should rarely reach here, it can only happen when updating status fails.
+	klog.V(2).InfoS("There's no accepted status condition on trafficManagerProfile, status updating failed possibly", "trafficManagerBackend", klog.KObj(backend))
 }
