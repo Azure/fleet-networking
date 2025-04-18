@@ -193,6 +193,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be greater than or equal to 5"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
 		})
 
@@ -210,6 +211,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be less than or equal to 10"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
 		})
 
@@ -227,6 +229,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be greater than or equal to 5"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
 		})
 
@@ -244,10 +247,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig: Invalid value: \"object\": timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
 		})
 
-		It("should deny creating API with timeoutInSeconds < 5 when timeoutInSeconds is not defined", func() {
+		It("should deny creating API with timeoutInSeconds < 5 when intervalInSeconds is not defined", func() {
 			profile := &fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: objectMetaWithNameValid,
 				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
@@ -260,10 +264,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be greater than or equal to 5"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
 		})
 
-		It("should deny creating API with timeoutInSeconds > 10 when timeoutInSeconds is not defined", func() {
+		It("should deny creating API with timeoutInSeconds > 10 when intervalInSeconds is not defined", func() {
 			profile := &fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: objectMetaWithNameValid,
 				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
@@ -276,6 +281,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be less than or equal to 10"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
 		})
 	})
@@ -391,7 +397,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 
-		It("should allow creating API with timeoutInSeconds at lower bound (5) when intervalInSeconds is 310", func() {
+		It("should allow creating API with timeoutInSeconds at lower bound (5) when intervalInSeconds is 10", func() {
 			profile := &fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: objectMetaWithNameValid,
 				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{

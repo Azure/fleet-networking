@@ -308,10 +308,9 @@ spec:
                 x-kubernetes-validations:
                 - message: timeoutInSeconds must be between 5 and 10 when intervalInSeconds
                     is 30
-                  rule: '!has(self.intervalInSeconds) || (has(self.intervalInSeconds)
-                    && self.intervalInSeconds == 30) ? (!has(self.timeoutInSeconds)
-                    || (self.timeoutInSeconds >= 5 && self.timeoutInSeconds <= 10))
-                    : true'
+                  rule: 'has(self.intervalInSeconds) && self.intervalInSeconds ==
+                    30 ? (!has(self.timeoutInSeconds) || (self.timeoutInSeconds >=
+                    5 && self.timeoutInSeconds <= 10)) : true'
                 - message: timeoutInSeconds must be between 5 and 9 when intervalInSeconds
                     is 10
                   rule: 'has(self.intervalInSeconds) && self.intervalInSeconds ==

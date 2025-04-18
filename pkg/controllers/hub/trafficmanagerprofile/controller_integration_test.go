@@ -161,9 +161,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			Expect(k8sClient.Update(ctx, profile)).ShouldNot(Succeed(), "failed to update the trafficManagerProfile")
 		})
 
-		It("Validating trafficManagerProfile status and stay the same", func() {
+		It("Updating trafficManagerProfile spec to valid and validating trafficManagerProfile status", func() {
 			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](30)
 			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
+			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
+
 			want := fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       name,
@@ -187,7 +189,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 
 			By("By validating the status metrics")
-			// No new metric is emitted since thw profile failed to update
+			// It overwrites the previous one as they have the same condition.
 			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
