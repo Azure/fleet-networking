@@ -86,7 +86,7 @@ var (
 		Subsystem: metrics.MetricsSubsystem,
 		Name:      "traffic_manager_backend_status_last_timestamp_seconds",
 		Help:      "Last update timestamp of traffic manager backend status in seconds",
-	}, []string{"name", "generation", "condition", "status", "reason"})
+	}, []string{"namespace", "name", "generation", "condition", "status", "reason"})
 )
 
 // Reconciler reconciles a trafficManagerBackend object.
@@ -154,7 +154,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, backend *fleetnetv1beta1.
 		klog.V(2).InfoS("TrafficManagerBackend is being deleted and cleaning up its metrics", "trafficManagerBackend", backendKObj)
 		// The controller registers backend finalizer only before creating atm backend to avoid the deletion stuck for the 403 error.
 		// We use a separate finalizer to clean up the metrics for the backend.
-		trafficManagerBackendStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"name": backend.GetName()})
+		trafficManagerBackendStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"namespace": backend.GetNamespace(), "name": backend.GetName()})
 		controllerutil.RemoveFinalizer(backend, objectmeta.MetricsFinalizer)
 		needUpdate = true
 	}
@@ -860,7 +860,7 @@ func emitTrafficManagerBackendStatusMetric(backend *fleetnetv1beta1.TrafficManag
 
 	cond := meta.FindStatusCondition(backend.Status.Conditions, string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted))
 	if cond != nil && cond.ObservedGeneration == generation {
-		trafficManagerBackendStatusLastTimestampSeconds.WithLabelValues(backend.GetName(), genStr,
+		trafficManagerBackendStatusLastTimestampSeconds.WithLabelValues(backend.GetNamespace(), backend.GetName(), genStr,
 			string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted), string(cond.Status), cond.Reason).SetToCurrentTime()
 		return
 	}

@@ -157,6 +157,7 @@ func generateMetrics(
 ) *prometheusclientmodel.Metric {
 	return &prometheusclientmodel.Metric{
 		Label: []*prometheusclientmodel.LabelPair{
+			{Name: ptr.To("namespace"), Value: &backend.Namespace},
 			{Name: ptr.To("name"), Value: &backend.Name},
 			{Name: ptr.To("generation"), Value: ptr.To(strconv.FormatInt(backend.Generation, 10))},
 			{Name: ptr.To("condition"), Value: ptr.To(condition.Type)},
