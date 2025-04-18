@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,6 +39,7 @@ import (
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
 	"go.goms.io/fleet-networking/pkg/common/defaulter"
+	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
@@ -134,7 +134,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if !controllerutil.ContainsFinalizer(backend, objectmeta.MetricsFinalizer) {
 		controllerutil.AddFinalizer(backend, objectmeta.MetricsFinalizer)
 		if err := r.Update(ctx, backend); err != nil {
-			klog.ErrorS(err, "Failed to add trafficManagerProfile metrics finalizer", "trafficManagerBackend", backendKRef)
+			klog.ErrorS(err, "Failed to add trafficManagerBackend metrics finalizer", "trafficManagerBackend", backendKRef)
 			return ctrl.Result{}, err
 		}
 	}
@@ -865,5 +865,5 @@ func emitTrafficManagerBackendStatusMetric(backend *fleetnetv1beta1.TrafficManag
 		return
 	}
 	// We should rarely reach here, it can only happen when updating status fails.
-	klog.V(2).InfoS("There's no accepted status condition on trafficManagerProfile, status updating failed possibly", "trafficManagerBackend", klog.KObj(backend))
+	klog.V(2).InfoS("There's no accepted status condition on trafficManagerBackend, status updating failed possibly", "trafficManagerBackend", klog.KObj(backend))
 }
