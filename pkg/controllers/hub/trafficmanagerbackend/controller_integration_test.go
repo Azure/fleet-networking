@@ -8,10 +8,14 @@ package trafficmanagerbackend
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
+	prometheusclientmodel "github.com/prometheus/client_model/go"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +25,7 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
+	"go.goms.io/fleet-networking/test/common/metrics"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/validator"
 )
@@ -32,10 +37,23 @@ const (
 )
 
 var (
-	testNamespace = fakeprovider.ProfileNamespace
-	serviceName   = fakeprovider.ServiceImportName
-	backendWeight = int64(10)
+	testNamespace  = fakeprovider.ProfileNamespace
+	serviceName    = fakeprovider.ServiceImportName
+	backendWeight  = int64(10)
+	customRegistry *prometheus.Registry
 )
+
+func initializeTrafficManagerBackendMetricsRegistry() {
+	// Create a test registry
+	customRegistry = prometheus.NewRegistry()
+	Expect(customRegistry.Register(trafficManagerBackendStatusLastTimestampSeconds)).Should(Succeed())
+	// Reset metrics before each test
+	trafficManagerBackendStatusLastTimestampSeconds.Reset()
+}
+
+func unregisterTrafficManagerBackendMetrics(registry *prometheus.Registry) {
+	Expect(registry.Unregister(trafficManagerBackendStatusLastTimestampSeconds)).Should(BeTrue())
+}
 
 func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1beta1.TrafficManagerBackend {
 	return &fleetnetv1beta1.TrafficManagerBackend{
@@ -111,11 +129,58 @@ func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleet
 	Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
 }
 
+// validateTrafficManagerBackendMetricsEmitted validates the trafficManagerBackend status metrics are emitted and are emitted in the correct order.
+func validateTrafficManagerBackendMetricsEmitted(registry *prometheus.Registry, wantMetrics ...*prometheusclientmodel.Metric) {
+	Eventually(func() error {
+		metricFamilies, err := registry.Gather()
+		if err != nil {
+			return fmt.Errorf("failed to gather metrics: %w", err)
+		}
+		var gotMetrics []*prometheusclientmodel.Metric
+		for _, mf := range metricFamilies {
+			if mf.GetName() == "fleet_networking_traffic_manager_backend_status_last_timestamp_seconds" {
+				gotMetrics = mf.GetMetric()
+			}
+		}
+
+		if diff := cmp.Diff(gotMetrics, wantMetrics, metrics.CmpOptions...); diff != "" {
+			return fmt.Errorf("trafficManagerBackend status metrics mismatch (-got, +want):\n%s", diff)
+		}
+
+		return nil
+	}, timeout, interval).Should(Succeed(), "failed to validate trafficManagerBackend status metrics")
+}
+
+func generateMetrics(
+	backend *fleetnetv1beta1.TrafficManagerBackend,
+	condition metav1.Condition,
+) *prometheusclientmodel.Metric {
+	return &prometheusclientmodel.Metric{
+		Label: []*prometheusclientmodel.LabelPair{
+			{Name: ptr.To("namespace"), Value: &backend.Namespace},
+			{Name: ptr.To("name"), Value: &backend.Name},
+			{Name: ptr.To("generation"), Value: ptr.To(strconv.FormatInt(backend.Generation, 10))},
+			{Name: ptr.To("condition"), Value: ptr.To(condition.Type)},
+			{Name: ptr.To("status"), Value: ptr.To(string(condition.Status))},
+			{Name: ptr.To("reason"), Value: ptr.To(condition.Reason)},
+		},
+		Gauge: &prometheusclientmodel.Gauge{
+			Value: ptr.To(float64(time.Now().UnixNano()) / 1e9),
+		},
+	}
+}
+
 var _ = Describe("Test TrafficManagerBackend Controller", func() {
 	Context("When creating trafficManagerBackend with invalid profile", Ordered, func() {
 		name := fakeprovider.ValidBackendName
 		namespacedName := types.NamespacedName{Namespace: testNamespace, Name: name}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
+
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating TrafficManagerBackend", func() {
 			backend = trafficManagerBackendForTest(name, "not-exist", "not-exist")
@@ -125,8 +190,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: testNamespace,
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -134,6 +200,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -143,6 +213,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, namespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -154,6 +232,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
+
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -168,8 +252,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -177,6 +262,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating TrafficManagerProfile status to programmed true and it should trigger controller", func() {
@@ -187,8 +276,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -196,6 +286,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -205,6 +299,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -214,6 +311,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
+		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -225,6 +327,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
+
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -244,8 +352,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -253,6 +362,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -262,6 +375,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -271,6 +387,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
+		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -282,6 +403,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
+
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -301,8 +428,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -310,6 +438,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -319,6 +451,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -329,6 +464,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
+		})
 	})
 
 	Context("When creating trafficManagerBackend with not accepted profile", Ordered, func() {
@@ -338,6 +478,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -365,8 +510,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -374,6 +520,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating TrafficManagerProfile status to accepted unknown and it should trigger controller", func() {
@@ -391,8 +541,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -400,6 +551,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -409,6 +564,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -419,6 +577,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
+		})
 	})
 
 	Context("When creating trafficManagerBackend with invalid serviceImport (successfully delete stale endpoints)", Ordered, func() {
@@ -428,6 +591,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -448,8 +616,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -457,6 +626,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -466,6 +639,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -476,6 +652,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
 		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
+		})
 	})
 
 	Context("When creating trafficManagerBackend with invalid serviceImport (fail to delete stale endpoints)", Ordered, func() {
@@ -485,6 +666,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendName := fakeprovider.ValidBackendName
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -505,13 +690,17 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				// not able to set the condition
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -521,6 +710,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -530,6 +722,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
+		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -542,6 +739,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var serviceImport *fleetnetv1alpha1.ServiceImport
+
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -562,8 +765,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -571,6 +775,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -586,8 +794,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -595,6 +804,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -611,8 +824,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend consistently and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -620,6 +834,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// It overwrites the previous one as they have the same condition.
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -629,6 +847,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -643,6 +864,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Deleting serviceImport", func() {
 			deleteServiceImport(types.NamespacedName{Namespace: testNamespace, Name: serviceName})
 		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
+		})
 	})
 
 	Context("When creating trafficManagerBackend with valid serviceImport and internalServiceExports", Ordered, func() {
@@ -654,6 +880,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var serviceImport *fleetnetv1alpha1.ServiceImport
+
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Initializing the custom registry", func() {
+			initializeTrafficManagerBackendMetricsRegistry()
+		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -674,8 +906,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -684,6 +917,12 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * false
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -699,8 +938,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      backendName,
-					Namespace: testNamespace,
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -709,6 +949,13 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * false
+			// * unknown
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -731,7 +978,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -754,6 +1001,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first metrics.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Simulating a 403 error response from the provider server and updating the ServiceImport status", func() {
@@ -774,7 +1029,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -783,6 +1038,13 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// It overwrites the previous one as they have the same condition.
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Should reconcile the endpoint back after the provider server stops returning 403", func() {
@@ -792,7 +1054,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -817,6 +1079,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// It may take longer and depends on the failure times.
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, longTimeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// * true
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -842,7 +1112,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -877,6 +1147,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// * true
+			// It overwrites the previous one as they have the same condition.
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport weight", func() {
@@ -895,7 +1173,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -930,6 +1208,14 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// * true
+			// It overwrites the previous one as they have the same condition.
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -952,7 +1238,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -975,6 +1261,15 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * true
+			// * false
+			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -996,7 +1291,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -1005,6 +1300,15 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * true
+			// * false
+			// * unknown
+			wantMetrics = wantMetrics[1:]
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1016,6 +1320,46 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
+		It("Validating trafficManagerBackend", func() {
+			atmEndpointName := fmt.Sprintf(AzureResourceEndpointNameFormat, backendName+"#", serviceName, memberClusterNames[0])
+			want := fleetnetv1beta1.TrafficManagerBackend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       backendName,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
+				},
+				Spec: backend.Spec,
+				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
+					Conditions: buildTrueCondition(backend.Generation),
+					Endpoints: []fleetnetv1beta1.TrafficManagerEndpointStatus{
+						{
+							Name: atmEndpointName,
+							From: &fleetnetv1beta1.FromCluster{
+								ClusterStatus: fleetnetv1beta1.ClusterStatus{
+									Cluster: memberClusterNames[0],
+								},
+								Weight: ptr.To(int64(2)),
+							},
+							Weight:     ptr.To(int64(10)),
+							Target:     ptr.To(fakeprovider.ValidEndpointTarget),
+							ResourceID: fmt.Sprintf(fakeprovider.EndpointResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, profileName, atmEndpointName),
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
+			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * false
+			// * unknown
+			// * true
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport to invalid endpoint", func() {
@@ -1030,7 +1374,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -1039,6 +1383,15 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * true
+			// * false
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport to valid endpoint", func() {
@@ -1054,7 +1407,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -1077,6 +1430,15 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// * true
+			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Updating weight to 0", func() {
@@ -1090,7 +1452,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       backendName,
 					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer},
+					Finalizers: []string{objectmeta.TrafficManagerBackendFinalizer, objectmeta.MetricsFinalizer},
 				},
 				Spec: backend.Spec,
 				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
@@ -1099,6 +1461,15 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			}
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
+
+			By("By validating the status metrics")
+			// Metrics are sorted by timestamp
+			// * unknown
+			// * false
+			// * true
+			// * true with new generation
+			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
+			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -1108,6 +1479,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerBackend is deleted", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerBackendMetricsEmitted(customRegistry)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -1121,6 +1495,11 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Deleting serviceImport", func() {
 			deleteServiceImport(types.NamespacedName{Namespace: testNamespace, Name: serviceName})
+		})
+
+		It("Unregister the metrics", func() {
+			// Unregister the custom registry
+			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 })

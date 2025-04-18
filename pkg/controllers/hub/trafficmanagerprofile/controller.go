@@ -65,7 +65,7 @@ var (
 		Subsystem: metrics.MetricsSubsystem,
 		Name:      "traffic_manager_profile_status_last_timestamp_seconds",
 		Help:      "Last update timestamp of traffic manager profile status in seconds",
-	}, []string{"name", "generation", "condition", "status", "reason"})
+	}, []string{"namespace", "name", "generation", "condition", "status", "reason"})
 )
 
 // GenerateAzureTrafficManagerProfileName generates the Azure Traffic Manager profile name based on the profile.
@@ -136,7 +136,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 		klog.V(2).InfoS("TrafficManagerProfile is being deleted and cleaning up its metrics", "trafficManagerProfile", profileKObj)
 		// The controller registers profile finalizer only before creating atm profile to avoid the deletion stuck for the 403 error.
 		// We use a separate finalizer to clean up the metrics for the profile.
-		trafficManagerProfileStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"name": profile.GetName()})
+		trafficManagerProfileStatusLastTimestampSeconds.DeletePartialMatch(prometheus.Labels{"namespace": profile.GetNamespace(), "name": profile.GetName()})
 		controllerutil.RemoveFinalizer(profile, objectmeta.MetricsFinalizer)
 		needUpdate = true
 	}
@@ -394,7 +394,7 @@ func emitTrafficManagerProfileStatusMetric(profile *fleetnetv1beta1.TrafficManag
 
 	cond := meta.FindStatusCondition(profile.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
 	if cond != nil && cond.ObservedGeneration == generation {
-		trafficManagerProfileStatusLastTimestampSeconds.WithLabelValues(profile.GetName(), genStr,
+		trafficManagerProfileStatusLastTimestampSeconds.WithLabelValues(profile.GetNamespace(), profile.GetName(), genStr,
 			string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed), string(cond.Status), cond.Reason).SetToCurrentTime()
 		return
 	}
