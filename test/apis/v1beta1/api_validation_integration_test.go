@@ -248,7 +248,6 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig: Invalid value: \"object\": timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
-			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
 		})
 
 		It("should deny creating API with timeoutInSeconds < 5 when intervalInSeconds is not defined", func() {
