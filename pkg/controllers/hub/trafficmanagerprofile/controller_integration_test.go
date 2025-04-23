@@ -155,14 +155,18 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
-		It("Update the trafficManagerProfile spec", func() {
+		It("Update the trafficManagerProfile spec and should fail", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the trafficManagerProfile")
 			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](10)
 			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
-			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
+			Expect(k8sClient.Update(ctx, profile)).ShouldNot(Succeed(), "failed to update the trafficManagerProfile")
 		})
 
-		It("Validating trafficManagerProfile status and update should fail", func() {
+		It("Updating trafficManagerProfile spec to valid and validating trafficManagerProfile status", func() {
+			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](30)
+			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
+			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
+
 			want := fleetnetv1beta1.TrafficManagerProfile{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       name,
@@ -171,11 +175,13 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 				},
 				Spec: profile.Spec,
 				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
+					DNSName:    ptr.To(fqdn),
+					ResourceID: profileResourceID,
 					Conditions: []metav1.Condition{
 						{
-							Status:             metav1.ConditionFalse,
+							Status:             metav1.ConditionTrue,
 							Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
-							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonInvalid),
+							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
 							ObservedGeneration: profile.Generation,
 						},
 					},
@@ -184,7 +190,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 
 			By("By validating the status metrics")
-			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
+			// It overwrites the previous one as they have the same condition.
 			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
 		})
 
