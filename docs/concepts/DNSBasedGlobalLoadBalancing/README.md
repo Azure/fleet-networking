@@ -60,6 +60,18 @@ There are two ways to control the weight of the multi-cluster service for Azure 
 1. To control the weight per exported service, use the `weight` on the `trafficManagerBackend` CR.
 2. To control the weight per cluster, add the annotation `networking.fleet.azure.com/weight` on the `serviceExport` CR.
 
+The weight of actual Azure Traffic Manager endpoint created for a single cluster is the ceiling value of a number computed as `trafficManagerBackend` weight/(sum of all `serviceExport` weights behind the `trafficManagerBackend`)
+* weight of `serviceExport` of a single cluster. 
+
+For example, if the trafficManagerBackend weight is 500 and there are two serviceExports from cluster-1 (weight: 100) and cluster-2 (weight: 200)
+defined for the service.
+As a result, two endpoints will be created.
+The weight of endpoint from cluster-1 is 100/(100+200)*500 = 167, and the weight of cluster-2 is 200/(100+200)*500 = 334.
+There may be slight deviations from the exact proportions defined in the serviceExports due to ceiling calculations.
+
+You can set the weight as 0 to disable the traffic for a single cluster using `serviceExport` weight or the whole service using
+`trafficManagerBackend` weight. By default, it sets to 1.
+
 ## Constraints
 
 The exported `Service` must be exposed via an Azure public ip address, which has a DNS name assigned to be used in a 
