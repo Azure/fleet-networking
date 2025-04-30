@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -91,6 +93,9 @@ func main() {
 	flag.VisitAll(func(f *flag.Flag) {
 		klog.InfoS("flag:", "name", f.Name, "value", f.Value)
 	})
+
+	// Set up controller-runtime logger
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	memberConfig, memberOptions := prepareMemberParameters()
 
