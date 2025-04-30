@@ -18,7 +18,7 @@ env:
   MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME: member-net-controller-manager
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
 
-  GO_VERSION: '1.23.6'
+  GO_VERSION: '1.23.8'
 
 jobs:
   export-registry:
