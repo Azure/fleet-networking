@@ -1,9 +1,0 @@
-apiVersion: networking.fleet.azure.com/v1beta1
-kind: TrafficManagerProfile
-metadata:
-  name: nginx-profile
-  namespace: test-app
-spec:
-  resourceGroup: "test-resource-group"
-  monitorConfig:
-    port: 80
