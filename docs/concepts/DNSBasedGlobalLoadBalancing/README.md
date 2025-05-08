@@ -60,8 +60,8 @@ There are two ways to control the weight of the multi-cluster service for Azure 
 1. To control the weight per exported service, use the `weight` on the `trafficManagerBackend` CR.
 2. To control the weight per cluster, add the annotation `networking.fleet.azure.com/weight` on the `serviceExport` CR.
 
-The weight of actual Azure Traffic Manager endpoint created for a single cluster is the ceiling value of a number computed as `trafficManagerBackend` weight/(sum of all `serviceExport` weights behind the `trafficManagerBackend`)
-* weight of `serviceExport` of a single cluster. 
+The weight of actual Azure Traffic Manager endpoint created for a single cluster is the ceiling value of a number computed 
+as `trafficManagerBackend` weight/(sum of all `serviceExport` weights behind the `trafficManagerBackend`) * weight of `serviceExport` of a single cluster. 
 
 For example, if the trafficManagerBackend weight is 500 and there are two serviceExports from cluster-1 (weight: 100) and cluster-2 (weight: 200)
 defined for the service.
@@ -71,6 +71,36 @@ There may be slight deviations from the exact proportions defined in the service
 
 You can set the weight as 0 to disable the traffic for a single cluster using `serviceExport` weight or the whole service using
 `trafficManagerBackend` weight. By default, it sets to 1.
+
+Sample trafficManagerBackend status:
+
+```yaml
+  status:
+    conditions:
+    - lastTransitionTime: "2025-04-17T02:19:04Z"
+      message: 2 service(s) exported from clusters have been accepted as Traffic Manager
+        endpoints
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    endpoints:
+    - from:
+        cluster: aks-member-1
+        weight: 100 # original weight of the serviceExport
+      name: fleet-d0c68379-d358-4c5b-bd1b-2121f6bfee50#nginx-service#aks-member-1
+      resourceID: /subscriptions/your-sub/resourceGroups/your-rg/providers/Microsoft.Network/trafficManagerProfiles/fleet-a8fa8ef2-9f3a-444e-8f9c-56d7a82e25dd/azureEndpoints/fleet-d0c68379-d358-4c5b-bd1b-2121f6bfee50#nginx-service#aks-member-1
+      target: fleet-aks-member-1.eastus2euap.cloudapp.azure.com
+      weight: 100 # actual weight of the endpoint
+    - from:
+        cluster: aks-member-5
+        weight: 1 # original weight of the serviceExport
+      name: fleet-d0c68379-d358-4c5b-bd1b-2121f6bfee50#nginx-service#aks-member-5
+      resourceID: /subscriptions/your-sub/resourceGroups/your-rg/providers/Microsoft.Network/trafficManagerProfiles/fleet-a8fa8ef2-9f3a-444e-8f9c-56d7a82e25dd/azureEndpoints/fleet-d0c68379-d358-4c5b-bd1b-2121f6bfee50#nginx-service#aks-member-5
+      target: fleet-aks-member-5.eastus2euap.cloudapp.azure.com
+      weight: 1 # actual weight of the endpoint
+```
+Note: In the trafficManagerBackend, there are two weights in the endpoint. The endpoints[*].from.weight is the original weight of the serviceExport configured by the annotation while endpoints[*].weight is the actual weight of the endpoint.
 
 ## Constraints
 
@@ -88,7 +118,7 @@ A programmed trafficManagerProfile sample:
       status: "True"
       type: Programmed
     dnsName: team-a-nginx-nginx-profile.trafficmanager.net
-    resourceID: /subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-test/providers/Microsoft.Network/trafficManagerProfiles/fleet-e1198839-b211-4df2-8e01-31a666c6d08f
+    resourceID: /subscriptions/your-sub/resourceGroups/your-rg/providers/Microsoft.Network/trafficManagerProfiles/fleet-e1198839-b211-4df2-8e01-31a666c6d08f
 k
 ```
 An accepted trafficManagerBackend sample:
@@ -134,4 +164,4 @@ To support the traffic manager feature, networking hub agent needs to have the f
     "Microsoft.Network/trafficManagerProfiles/azureEndpoints/write",
     "Microsoft.Network/trafficManagerProfiles/azureEndpoints/delete"
     ```
-
+Please refer to the [traffic-manager-permission-setup how-to](../../howtos/traffic-manager-permissions-setup.md) for more information about the permission setup.
