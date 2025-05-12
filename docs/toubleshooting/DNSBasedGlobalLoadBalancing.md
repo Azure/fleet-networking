@@ -9,8 +9,8 @@ Common reasons and solutions for `TrafficManagerProfile` not being programmed:
 
 1. Invalid resource group or not enough permissions to create/update Azure traffic manager profile in the resource group.
    - Ensure that the resource group exists and fleet networking controller has been configured correctly to access the resource group.
-sample status:
 ```yaml
+# sample status
 status:
   conditions:
   - lastTransitionTime: "2025-04-29T02:57:33Z"
@@ -34,8 +34,8 @@ status:
 ```
 2. DNS name is not available.
    - The DNS may be occupied by other resources. Try to use a different profile name or namespace name.
-sample status:
 ```yaml
+# sample status
  status:
     conditions:
     - lastTransitionTime: "2025-04-29T06:39:10Z"
@@ -57,8 +57,8 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
 
 1. Invalid `profile`
    - Ensure that the `TrafficManagerProfile` is created in the same namespace of the `TrafficManagerBackend`.
-     sample status:
      ```yaml
+     # sample status
      status:
       conditions:
       - lastTransitionTime: "2025-04-29T06:43:57Z"
@@ -70,6 +70,7 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
      ```
    - Ensure that the programmed condition of `TrafficManagerProfile` is accepted. 
      ```yaml
+     # sample status
      status:
        conditions:
        - lastTransitionTime: "2025-04-29T07:00:04Z"
@@ -84,6 +85,7 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
 2. Invalid `backend`
    - Ensure that the `Service` exists in the same namespace of the `TrafficManagerBackend`.
    ```yaml
+   # sample status
    status:
     conditions:
     - lastTransitionTime: "2025-04-29T07:50:49Z"
@@ -96,6 +98,7 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
    - Ensure that the at least `Service` of a member cluster is exported in the same namespace of the `TrafficManagerBackend` by creating `ServiceExport`.
    - Ensure that the exported `Service` is load balancer type and exposed via an Azure public IP address, which must have a DNS name assigned to be used in a Traffic Manager profile.
    ```yaml
+   # sample status
    status:
     conditions:
     - lastTransitionTime: "2025-04-29T07:56:05Z"
@@ -109,6 +112,17 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
    ```
 3. Invalid resource group or not enough permissions to create/update Azure traffic manager endpoints in the resource group.
     - Ensure that the resource group exists and fleet hub networking controller has been configured correctly to access the resource group.
+   ```yaml
+   # sample status
+   status:
+    conditions:
+    - lastTransitionTime: "2025-05-08T09:38:36Z"
+      message: Azure Traffic Manager profile "fleet-6dd24764-0e46-4b52-b9c6-cc2a3f2535f9" under "your-fleet-atm-rg" is not found
+      observedGeneration: 2
+      reason: Invalid
+      status: "False"
+      type: Accepted
+   ```
 4. Not enough permissions to read the public IP address of the exported `Service` on the members.
    - Ensure fleet hub networking controller has been configured correctly to access public IP address of services on the members.
 5. [Reach the Azure Traffic Manager limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-traffic-manager-limits).
