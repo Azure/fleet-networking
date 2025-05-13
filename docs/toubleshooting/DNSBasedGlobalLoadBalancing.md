@@ -81,7 +81,7 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
        status: "False"
        type: Accepted
      ```
-   - Ensure that the Azure traffic manager profile exists, which could be manually deleted by other users. To recover this profile, you need to delete the `TrafficManagerBackend` and re-create it.
+   - Ensure that the Azure traffic manager profile exists, which could be manually deleted by other users. To recover this profile, you need to delete the `TrafficManagerProfile` and re-create it.
 2. Invalid `backend`
    - Ensure that the `Service` exists in the same namespace of the `TrafficManagerBackend`.
    ```yaml
