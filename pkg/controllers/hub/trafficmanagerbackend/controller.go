@@ -48,7 +48,7 @@ import (
 func init() {
 	/// Register trafficManagerBackendStatusLastTimestampSeconds (fleet_networking_traffic_manager_backend_status_last_timestamp_seconds)
 	// metric with the controller runtime global metrics registry.
-	ctrlmetrics.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
+	ctrlmetrics.Registry.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
 }
 
 const (
