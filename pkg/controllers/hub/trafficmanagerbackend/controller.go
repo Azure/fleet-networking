@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"go.goms.io/fleet/pkg/utils/condition"
@@ -45,8 +46,9 @@ import (
 )
 
 func init() {
-	// Register the custom metrics
-	prometheus.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
+	/// Register trafficManagerBackendStatusLastTimestampSeconds (fleet_networking_traffic_manager_backend_status_last_timestamp_seconds)
+	// metric with the controller runtime global metrics registry.
+	ctrlmetrics.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
 }
 
 const (
