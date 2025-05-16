@@ -14,13 +14,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus"
 	prometheusclientmodel "github.com/prometheus/client_model/go"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -37,22 +37,13 @@ const (
 )
 
 var (
-	testNamespace  = fakeprovider.ProfileNamespace
-	serviceName    = fakeprovider.ServiceImportName
-	backendWeight  = int64(10)
-	customRegistry *prometheus.Registry
+	testNamespace = fakeprovider.ProfileNamespace
+	serviceName   = fakeprovider.ServiceImportName
+	backendWeight = int64(10)
 )
 
-func initializeTrafficManagerBackendMetricsRegistry() {
-	// Create a test registry
-	customRegistry = prometheus.NewRegistry()
-	Expect(customRegistry.Register(trafficManagerBackendStatusLastTimestampSeconds)).Should(Succeed())
-	// Reset metrics before each test
+func resetTrafficManagerBackendMetricsRegistry() {
 	trafficManagerBackendStatusLastTimestampSeconds.Reset()
-}
-
-func unregisterTrafficManagerBackendMetrics(registry *prometheus.Registry) {
-	Expect(registry.Unregister(trafficManagerBackendStatusLastTimestampSeconds)).Should(BeTrue())
 }
 
 func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1beta1.TrafficManagerBackend {
@@ -130,9 +121,9 @@ func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleet
 }
 
 // validateTrafficManagerBackendMetricsEmitted validates the trafficManagerBackend status metrics are emitted and are emitted in the correct order.
-func validateTrafficManagerBackendMetricsEmitted(registry *prometheus.Registry, wantMetrics ...*prometheusclientmodel.Metric) {
+func validateTrafficManagerBackendMetricsEmitted(wantMetrics ...*prometheusclientmodel.Metric) {
 	Eventually(func() error {
-		metricFamilies, err := registry.Gather()
+		metricFamilies, err := ctrlmetrics.Registry.Gather()
 		if err != nil {
 			return fmt.Errorf("failed to gather metrics: %w", err)
 		}
@@ -178,8 +169,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating TrafficManagerBackend", func() {
@@ -203,7 +194,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -215,12 +206,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, namespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 	})
 
@@ -234,8 +220,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -265,7 +251,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating TrafficManagerProfile status to programmed true and it should trigger controller", func() {
@@ -289,7 +275,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -301,7 +287,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -311,11 +297,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -329,8 +310,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -365,7 +346,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -377,7 +358,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -387,11 +368,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -405,8 +381,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -441,7 +417,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -453,7 +429,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -463,11 +439,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -480,8 +451,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -523,7 +494,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating TrafficManagerProfile status to accepted unknown and it should trigger controller", func() {
@@ -554,7 +525,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -566,7 +537,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -576,11 +547,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -593,8 +559,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -629,7 +595,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -641,7 +607,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -651,11 +617,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -667,8 +628,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -700,7 +661,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -712,7 +673,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -722,11 +683,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, profileNamespacedName, timeout)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -742,8 +698,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -778,7 +734,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -807,7 +763,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -837,7 +793,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// It overwrites the previous one as they have the same condition.
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -849,7 +805,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -863,11 +819,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Deleting serviceImport", func() {
 			deleteServiceImport(types.NamespacedName{Namespace: testNamespace, Name: serviceName})
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 
@@ -883,8 +834,8 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerBackendMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerBackendMetricsRegistry()
 		})
 
 		It("Creating a new TrafficManagerProfile", func() {
@@ -922,7 +873,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// Metrics are sorted by timestamp
 			// * false
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Creating a new ServiceImport", func() {
@@ -955,7 +906,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			// * unknown
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1008,7 +959,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			wantMetrics = wantMetrics[1:] // The new one will overwrite the first metrics.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Simulating a 403 error response from the provider server and updating the ServiceImport status", func() {
@@ -1044,7 +995,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * unknown
 			// * false
 			// It overwrites the previous one as they have the same condition.
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Should reconcile the endpoint back after the provider server stops returning 403", func() {
@@ -1086,7 +1037,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			// * true
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1154,7 +1105,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			// * true
 			// It overwrites the previous one as they have the same condition.
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport weight", func() {
@@ -1215,7 +1166,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			// * true
 			// It overwrites the previous one as they have the same condition.
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1269,7 +1220,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1308,7 +1259,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * unknown
 			wantMetrics = wantMetrics[1:]
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1359,7 +1310,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * true
 			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport to invalid endpoint", func() {
@@ -1391,7 +1342,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * false
 			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the internalServiceExport to valid endpoint", func() {
@@ -1438,7 +1389,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * true
 			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating weight to 0", func() {
@@ -1469,7 +1420,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * true
 			// * true with new generation
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerBackend", func() {
@@ -1481,7 +1432,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			validator.IsTrafficManagerBackendDeleted(ctx, k8sClient, backendNamespacedName, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerBackendMetricsEmitted(customRegistry)
+			validateTrafficManagerBackendMetricsEmitted()
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -1495,11 +1446,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		It("Deleting serviceImport", func() {
 			deleteServiceImport(types.NamespacedName{Namespace: testNamespace, Name: serviceName})
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerBackendMetrics(customRegistry)
 		})
 	})
 })

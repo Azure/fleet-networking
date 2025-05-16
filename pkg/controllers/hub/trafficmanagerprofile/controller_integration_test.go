@@ -13,11 +13,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus"
 	prometheusclientmodel "github.com/prometheus/client_model/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -31,20 +31,9 @@ const (
 	interval = time.Millisecond * 250
 )
 
-var (
-	customRegistry *prometheus.Registry
-)
-
-func initializeTrafficManagerProfileMetricsRegistry() {
-	// Create a test registry
-	customRegistry = prometheus.NewRegistry()
-	Expect(customRegistry.Register(trafficManagerProfileStatusLastTimestampSeconds)).Should(Succeed())
+func resetTrafficManagerProfileMetricsRegistry() {
 	// Reset metrics before each test
 	trafficManagerProfileStatusLastTimestampSeconds.Reset()
-}
-
-func unregisterTrafficManagerProfileMetrics(registry *prometheus.Registry) {
-	Expect(registry.Unregister(trafficManagerProfileStatusLastTimestampSeconds)).Should(BeTrue())
 }
 
 func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerProfile {
@@ -68,9 +57,9 @@ func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerPr
 }
 
 // validateTrafficManagerProfileMetricsEmitted validates the trafficManagerProfile status metrics are emitted and are emitted in the correct order.
-func validateTrafficManagerProfileMetricsEmitted(registry *prometheus.Registry, wantMetrics ...*prometheusclientmodel.Metric) {
+func validateTrafficManagerProfileMetricsEmitted(wantMetrics ...*prometheusclientmodel.Metric) {
 	Eventually(func() error {
-		metricFamilies, err := registry.Gather()
+		metricFamilies, err := ctrlmetrics.Registry.Gather()
 		if err != nil {
 			return fmt.Errorf("failed to gather metrics: %w", err)
 		}
@@ -118,8 +107,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -152,7 +141,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Update the trafficManagerProfile spec and should fail", func() {
@@ -191,7 +180,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			// It overwrites the previous one as they have the same condition.
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -203,12 +192,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -218,8 +202,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -270,7 +254,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -282,12 +266,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -296,8 +275,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -344,7 +323,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -355,12 +334,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		It("Validating trafficManagerProfile is deleted", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -369,8 +343,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -401,7 +375,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -413,12 +387,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -427,8 +396,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -459,7 +428,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -471,12 +440,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -485,8 +449,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -517,7 +481,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -529,12 +493,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -543,8 +502,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -575,7 +534,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -587,12 +546,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 
@@ -601,8 +555,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Initializing the custom registry", func() {
-			initializeTrafficManagerProfileMetricsRegistry()
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
 		})
 
 		It("TrafficManagerProfile should be invalid", func() {
@@ -636,7 +590,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
-			validateTrafficManagerProfileMetricsEmitted(customRegistry, wantMetrics...)
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -649,12 +603,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, name, timeout)
 
 			By("By validating the status metrics")
-			validateTrafficManagerProfileMetricsEmitted(customRegistry)
-		})
-
-		It("Unregister the metrics", func() {
-			// Unregister the custom registry
-			unregisterTrafficManagerProfileMetrics(customRegistry)
+			validateTrafficManagerProfileMetricsEmitted()
 		})
 	})
 })
