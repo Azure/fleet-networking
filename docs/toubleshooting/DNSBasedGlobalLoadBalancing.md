@@ -125,7 +125,26 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
    ```
 4. Not enough permissions to read the public IP address of the exported `Service` on the members.
    - Ensure fleet hub networking controller has been configured correctly to access public IP address of services on the members.
-5. [Reach the Azure Traffic Manager limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-traffic-manager-limits).
+5. The public IP address already exists in the Azure Traffic Manager profile.
+   - Please use the existing trafficManagerBackend to manage your endpoints exported by the service.
+   ```yaml
+   # sample status
+    status:
+    conditions:
+    - lastTransitionTime: "2025-05-16T08:43:33Z"
+      message: "2 endpoint(s) failed to be created/updated in the Azure Traffic Manager,
+        for example, PUT https://management.azure.com/subscriptions/c4528d9e-c99a-48bb-b12d-fde2176a43b8/resourceGroups/zhiyinglin-fleet-dev/providers/Microsoft.Network/trafficmanagerprofiles/fleet-5abc2041-c627-4937-ab04-ffd493975adb/AzureEndpoints/fleet-390eca1c-fdb2-49c8-bf28-3e4fc2660b08#hello-world-service#dev-member-2\n--------------------------------------------------------------------------------\nRESPONSE
+        400: 400 Bad Request\nERROR CODE: BadRequest\n--------------------------------------------------------------------------------\n{\n
+        \ \"error\": {\n    \"code\": \"BadRequest\",\n    \"message\": \"Endpoint
+        target must be unique in the profile. The following endpoint target already
+        exists: \\/subscriptions\\/c4528d9e-c99a-48bb-b12d-fde2176a43b8\\/resourceGroups\\/mc_zhiyinglin-fleet-dev_dev-member-2_eastus2\\/providers\\/Microsoft.Network\\/publicIPAddresses\\/kubernetes-ab5eea9ca3a6d44238cf82ef2e45b41a.\"\n
+        \ }\n}\n--------------------------------------------------------------------------------\n; "
+      observedGeneration: 1
+      reason: Invalid
+      status: "False"
+      type: Accepted
+   ```
+6. [Reach the Azure Traffic Manager limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-traffic-manager-limits).
     - 200 endpoints are allowed per profile. If the limit is reached, consider deleting unused endpoints or requesting an increase in the limit.
    
 Please check the `status` field of the `TrafficManagerBackend` or the `trafficmanagerbackend/controller.go` hub-net-controller-manager logs for more information.
