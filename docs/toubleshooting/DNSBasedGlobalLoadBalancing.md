@@ -126,7 +126,8 @@ Common reasons and solutions for `TrafficManagerBackend` not being accepted:
 4. Not enough permissions to read the public IP address of the exported `Service` on the members.
    - Ensure fleet hub networking controller has been configured correctly to access public IP address of services on the members.
 5. The public IP address already exists in the Azure Traffic Manager profile.
-   - Please use the existing trafficManagerBackend to manage your endpoints exported by the service.
+   - Please use the existing trafficManagerBackend to manage your endpoints exported by the service. It happens that you've already added
+   endpoints to the profile by creating the trafficManagerBackend using the same service name and profile name.
    ```yaml
    # sample status
     status:
