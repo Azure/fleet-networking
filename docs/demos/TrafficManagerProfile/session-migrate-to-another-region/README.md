@@ -163,7 +163,7 @@ kubectl apply -f nginx-backend-uksouth.yaml
 > So that most of the traffic can be shifted to the new regions before deleting endpoints from eastus2euap region.
 
 ## Step 6: Cleanup & Finalization
-- Remove the env label from the `aks-member-1` & `aks-member-3` or add [a taint on these two members](https://github.com/Azure/fleet/blob/main/docs/howtos/taint-toleration.md) so that the cluster won't be picked by the `clusterResourcePlacement` again.
+- Remove the env label from the `aks-member-1` & `aks-member-3` or add [a taint on these two members](https://kubefleet-dev.github.io/website/docs/how-tos/taints-tolerations/) so that the cluster won't be picked by the `clusterResourcePlacement` again.
 - To ensure the application won't be disrupted, we can create the `ClusterResourcePlacementDisruptionBudget` for the protection.
 
 > Note: test file located [here](../testfiles/placement-disruption-budget.yaml).
