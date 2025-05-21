@@ -10,6 +10,18 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "v0.1.0"
 
+# Init container settings for CRD installation
+crdInit:
+  # Enable CRD initialization
+  enabled: true
+  # Force update existing CRDs
+  forceUpdate: false
+  # Image for init container - uses kubectl to apply CRDs
+  image:
+    repository: bitnami/kubectl
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
 logVerbosity: 2
 
 leaderElectionNamespace: fleet-system
