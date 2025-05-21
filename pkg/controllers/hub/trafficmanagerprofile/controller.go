@@ -31,6 +31,7 @@ import (
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
+	"go.goms.io/fleet-networking/pkg/common/clients/trafficmanager"
 	"go.goms.io/fleet-networking/pkg/common/defaulter"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -79,7 +80,7 @@ func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1beta1.TrafficMana
 type Reconciler struct {
 	client.Client
 
-	ProfilesClient *armtrafficmanager.ProfilesClient
+	ProfilesClient *trafficmanager.ProfilesClient
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles,verbs=get;list;watch;create;update;patch;delete
@@ -147,10 +148,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 		atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 		klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 		
-		deleteErr := metrics.MeasureARMCall(ctx, "Delete", "Profile", func() error {
-			_, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
-			return err
-		})
+		_, deleteErr := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 		
 		if deleteErr != nil {
 			if !azureerrors.IsNotFound(deleteErr) {
@@ -184,12 +182,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	var res armtrafficmanager.ProfilesClientCreateOrUpdateResponse
 	var updateErr error
 	
-	var getRes armtrafficmanager.ProfilesClientGetResponse
-	getErr := metrics.MeasureARMCall(ctx, "Get", "Profile", func() error {
-		var err error
-		getRes, err = r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
-		return err
-	})
+	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 	
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
@@ -223,11 +216,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 		}
 	}
 
-	updateErr = metrics.MeasureARMCall(ctx, "CreateOrUpdate", "Profile", func() error {
-		var err error
-		res, err = r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
-		return err
-	})
+	res, updateErr = r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
 	
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {

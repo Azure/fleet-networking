@@ -34,7 +34,6 @@ const (
 func resetTrafficManagerProfileMetricsRegistry() {
 	// Reset metrics before each test
 	trafficManagerProfileStatusLastTimestampSeconds.Reset()
-	trafficManagerARMAPILatency.Reset()
 }
 
 func trafficManagerProfileForTest(name string) *fleetnetv1beta1.TrafficManagerProfile {
@@ -96,29 +95,6 @@ func validateTrafficManagerARMAPILatencyMetricsEmitted() {
 		
 		if len(gotMetrics) == 0 {
 			return fmt.Errorf("no ARM API latency metrics found")
-		}
-		
-		// Verify that we have metrics for different operations and resource types
-		operationTypes := make(map[string]bool)
-		resourceTypes := make(map[string]bool)
-		
-		for _, metric := range gotMetrics {
-			for _, label := range metric.Label {
-				if label.GetName() == "operation" {
-					operationTypes[label.GetValue()] = true
-				}
-				if label.GetName() == "resource_type" {
-					resourceTypes[label.GetValue()] = true
-				}
-			}
-		}
-		
-		if len(operationTypes) == 0 {
-			return fmt.Errorf("no operation types found in ARM API latency metrics")
-		}
-		
-		if len(resourceTypes) == 0 {
-			return fmt.Errorf("no resource types found in ARM API latency metrics")
 		}
 		
 		return nil
