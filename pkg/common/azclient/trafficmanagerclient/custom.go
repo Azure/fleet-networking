@@ -14,13 +14,6 @@ import (
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/metrics"
 )
 
-const (
-	// ProfileGetOperationName is the operation name for getting a Traffic Manager profile.
-	ProfileGetOperationName            = "TrafficManagerProfilesClient.Get"
-	ProfileCreateOrUpdateOperationName = "TrafficManagerProfilesClient.CreateOrUpdate"
-	ProfileDeleteOperationName         = "TrafficManagerProfilesClient.Delete"
-)
-
 // ProfilesClient is a wrapper around the Azure Traffic Manager Profiles client.
 // It provides methods to interact with Traffic Manager profiles in Azure.
 type ProfilesClient struct {
