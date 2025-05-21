@@ -156,6 +156,8 @@ func ProfileGet(_ context.Context, resourceGroupName string, profileName string,
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	case RequestTimeoutProfileName:
 		errResp.SetResponseError(http.StatusRequestTimeout, "RequestTimeoutError")
+	case ThrottledErrProfileName:
+		errResp.SetResponseError(http.StatusTooManyRequests, "ThrottledError")
 	default:
 		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
 	}
@@ -222,8 +224,10 @@ func ProfileDelete(_ context.Context, resourceGroupName string, profileName stri
 	case ValidProfileName, ValidProfileWithUnexpectedResponse:
 		profileResp := armtrafficmanager.ProfilesClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
+	case ThrottledErrProfileName:
+		errResp.SetResponseError(http.StatusTooManyRequests, "ThrottledError")
 	default:
-		errResp.SetResponseError(http.StatusNotFound, "NotFound")
+		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
 	}
 	return resp, errResp
 }

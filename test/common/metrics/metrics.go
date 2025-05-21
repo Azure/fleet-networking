@@ -24,6 +24,10 @@ var (
 		cmp.Comparer(func(a, b *prometheusclientmodel.Gauge) bool {
 			return (a.GetValue() > 0) == (b.GetValue() > 0)
 		}),
-		cmpopts.IgnoreUnexported(prometheusclientmodel.Metric{}, prometheusclientmodel.LabelPair{}, prometheusclientmodel.Gauge{}),
+		cmpopts.IgnoreUnexported(prometheusclientmodel.Metric{}, prometheusclientmodel.LabelPair{},
+			prometheusclientmodel.Gauge{}, prometheusclientmodel.Histogram{},
+			prometheusclientmodel.Bucket{}, prometheusclientmodel.Counter{},
+		),
+		cmpopts.IgnoreFields(prometheusclientmodel.Histogram{}, "SampleSum"), // unpredictable
 	}
 )
