@@ -44,6 +44,7 @@ var (
 
 func resetTrafficManagerBackendMetricsRegistry() {
 	trafficManagerBackendStatusLastTimestampSeconds.Reset()
+	trafficManagerARMAPILatency.Reset()
 }
 
 func trafficManagerBackendForTest(name, profileName, serviceImportName string) *fleetnetv1beta1.TrafficManagerBackend {
@@ -118,6 +119,52 @@ func updateTrafficManagerProfileStatusToTrue(ctx context.Context, profile *fleet
 	}
 	meta.SetStatusCondition(&profile.Status.Conditions, cond)
 	Expect(k8sClient.Status().Update(ctx, profile)).Should(Succeed())
+}
+
+// validateTrafficManagerARMAPILatencyMetricsEmitted validates the ARM API latency metrics are emitted.
+func validateTrafficManagerARMAPILatencyMetricsEmitted() {
+	Eventually(func() error {
+		metricFamilies, err := ctrlmetrics.Registry.Gather()
+		if err != nil {
+			return fmt.Errorf("failed to gather metrics: %w", err)
+		}
+		var gotMetrics []*prometheusclientmodel.Metric
+		for _, mf := range metricFamilies {
+			if mf.GetName() == "fleet_networking_traffic_manager_arm_api_latency_milliseconds" {
+				gotMetrics = mf.GetMetric()
+				break
+			}
+		}
+		
+		if len(gotMetrics) == 0 {
+			return fmt.Errorf("no ARM API latency metrics found")
+		}
+		
+		// Verify that we have metrics for different operations and resource types
+		operationTypes := make(map[string]bool)
+		resourceTypes := make(map[string]bool)
+		
+		for _, metric := range gotMetrics {
+			for _, label := range metric.Label {
+				if label.GetName() == "operation" {
+					operationTypes[label.GetValue()] = true
+				}
+				if label.GetName() == "resource_type" {
+					resourceTypes[label.GetValue()] = true
+				}
+			}
+		}
+		
+		if len(operationTypes) == 0 {
+			return fmt.Errorf("no operation types found in ARM API latency metrics")
+		}
+		
+		if len(resourceTypes) == 0 {
+			return fmt.Errorf("no resource types found in ARM API latency metrics")
+		}
+		
+		return nil
+	}, timeout, interval).Should(Succeed(), "failed to validate ARM API latency metrics")
 }
 
 // validateTrafficManagerBackendMetricsEmitted validates the trafficManagerBackend status metrics are emitted and are emitted in the correct order.
@@ -960,6 +1007,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			wantMetrics = wantMetrics[1:] // The new one will overwrite the first metrics.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
+			
+			By("By validating the ARM API latency metrics")
+			validateTrafficManagerARMAPILatencyMetricsEmitted()
 		})
 
 		It("Simulating a 403 error response from the provider server and updating the ServiceImport status", func() {
