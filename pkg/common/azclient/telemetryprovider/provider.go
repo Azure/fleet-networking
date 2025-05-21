@@ -29,7 +29,7 @@ func New(name string) (*Provider, error) {
 	// Register the default registry with the controller-runtime metrics registry
 	exporter, err := prometheusexporter.New(prometheusexporter.WithRegisterer(ctrlmetrics.Registry))
 	if err != nil {
-		return nil, fmt.Errorf("initialize prometheus exporter: %w", err)
+		return nil, fmt.Errorf("failed to initialize prometheus exporter: %w", err)
 	}
 
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
@@ -39,11 +39,6 @@ func New(name string) (*Provider, error) {
 		meterProvider: meterProvider,
 		defaultMeter:  defaultMeter,
 	}, nil
-}
-
-// MeterProvider returns the meter provider.
-func (p *Provider) MeterProvider() *sdkmetric.MeterProvider {
-	return p.meterProvider
 }
 
 // DefaultMeter returns the default meter.
