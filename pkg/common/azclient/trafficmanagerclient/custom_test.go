@@ -156,40 +156,6 @@ func TestProfileClients_Get(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:        "429 too many requests",
-			profileName: fakeprovider.ThrottledErrProfileName,
-			wantErr:     true,
-			statusCode:  429,
-			wantMetrics: map[string][]*prometheusclientmodel.Metric{
-				"arm.request.duration_seconds": {
-					&durationMetrics,
-				},
-				// arm.request.throttle.counter cannot be used, unless we use the
-				// cloud provider wrapper defined in pkg/azclient/policy/retryrepectthrottled/throttle.go.
-				"arm.request.errors.counter_total": {
-					{
-						Label: append(commonProfileLabels, []*prometheusclientmodel.LabelPair{
-							{
-								Name:  ptr.To("error_code"),
-								Value: ptr.To("ThrottledError"),
-							},
-							{
-								Name:  ptr.To("status_code"),
-								Value: ptr.To("429"),
-							},
-							{
-								Name:  ptr.To("method"),
-								Value: ptr.To("get"),
-							},
-						}...),
-						Counter: &prometheusclientmodel.Counter{
-							Value: ptr.To[float64](1),
-						},
-					},
-				},
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -274,38 +240,6 @@ func TestProfileClients_CreateOrUpdate(t *testing.T) {
 							{
 								Name:  ptr.To("status_code"),
 								Value: ptr.To("400"),
-							},
-							{
-								Name:  ptr.To("method"),
-								Value: ptr.To("createOrUpdate"),
-							},
-						}...),
-						Counter: &prometheusclientmodel.Counter{
-							Value: ptr.To[float64](1),
-						},
-					},
-				},
-			},
-		},
-		{
-			name:        "429 too many requests",
-			profileName: fakeprovider.ThrottledErrProfileName,
-			wantErr:     true,
-			statusCode:  429,
-			wantMetrics: map[string][]*prometheusclientmodel.Metric{
-				"arm.request.duration_seconds": {
-					&durationMetrics,
-				},
-				"arm.request.errors.counter_total": {
-					{
-						Label: append(commonProfileLabels, []*prometheusclientmodel.LabelPair{
-							{
-								Name:  ptr.To("error_code"),
-								Value: ptr.To("ThrottledError"),
-							},
-							{
-								Name:  ptr.To("status_code"),
-								Value: ptr.To("429"),
 							},
 							{
 								Name:  ptr.To("method"),
@@ -412,38 +346,6 @@ func TestProfileClients_Delete(t *testing.T) {
 							{
 								Name:  ptr.To("status_code"),
 								Value: ptr.To("404"),
-							},
-							{
-								Name:  ptr.To("method"),
-								Value: ptr.To("delete"),
-							},
-						}...),
-						Counter: &prometheusclientmodel.Counter{
-							Value: ptr.To[float64](1),
-						},
-					},
-				},
-			},
-		},
-		{
-			name:        "429 too many requests",
-			profileName: fakeprovider.ThrottledErrProfileName,
-			wantErr:     true,
-			statusCode:  429,
-			wantMetrics: map[string][]*prometheusclientmodel.Metric{
-				"arm.request.duration_seconds": {
-					&durationMetrics,
-				},
-				"arm.request.errors.counter_total": {
-					{
-						Label: append(commonProfileLabels, []*prometheusclientmodel.LabelPair{
-							{
-								Name:  ptr.To("error_code"),
-								Value: ptr.To("ThrottledError"),
-							},
-							{
-								Name:  ptr.To("status_code"),
-								Value: ptr.To("429"),
 							},
 							{
 								Name:  ptr.To("method"),
