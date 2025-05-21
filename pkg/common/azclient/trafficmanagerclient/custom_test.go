@@ -200,7 +200,9 @@ func TestProfileClients_Get(t *testing.T) {
 				t.Fatalf("Failed to create telemetry provider: %v", err)
 			}
 			defer func() {
-				telemetryProvider.Stop(ctx)
+				if err := telemetryProvider.Stop(ctx); err != nil {
+					t.Fatalf("Failed to stop telemetry provider: %v", err)
+				}
 			}()
 
 			if err := armmetrics.Setup(telemetryProvider.DefaultMeter()); err != nil {
@@ -327,7 +329,9 @@ func TestProfileClients_CreateOrUpdate(t *testing.T) {
 				t.Fatalf("Failed to create telemetry provider: %v", err)
 			}
 			defer func() {
-				telemetryProvider.Stop(ctx)
+				if err := telemetryProvider.Stop(ctx); err != nil {
+					t.Fatalf("Failed to stop telemetry provider: %v", err)
+				}
 			}()
 
 			if err := armmetrics.Setup(telemetryProvider.DefaultMeter()); err != nil {
@@ -463,7 +467,9 @@ func TestProfileClients_Delete(t *testing.T) {
 				t.Fatalf("Failed to create telemetry provider: %v", err)
 			}
 			defer func() {
-				telemetryProvider.Stop(ctx)
+				if err := telemetryProvider.Stop(ctx); err != nil {
+					t.Fatalf("Failed to stop telemetry provider: %v", err)
+				}
 			}()
 
 			if err := armmetrics.Setup(telemetryProvider.DefaultMeter()); err != nil {
