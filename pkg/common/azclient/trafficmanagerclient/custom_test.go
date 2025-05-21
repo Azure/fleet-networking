@@ -199,7 +199,7 @@ func TestProfileClients_CreateOrUpdate(t *testing.T) {
 		Label: append(commonProfileLabels, []*prometheusclientmodel.LabelPair{
 			{
 				Name:  ptr.To("method"),
-				Value: ptr.To("createOrUpdate"),
+				Value: ptr.To("put"),
 			},
 		}...),
 		Histogram: durationHistogram,
@@ -243,7 +243,7 @@ func TestProfileClients_CreateOrUpdate(t *testing.T) {
 							},
 							{
 								Name:  ptr.To("method"),
-								Value: ptr.To("createOrUpdate"),
+								Value: ptr.To("put"),
 							},
 						}...),
 						Counter: &prometheusclientmodel.Counter{

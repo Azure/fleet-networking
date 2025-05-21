@@ -14,6 +14,10 @@ import (
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/metrics"
 )
 
+const (
+	profileResourceType = "TrafficManagerProfile"
+)
+
 // ProfilesClient is a wrapper around the Azure Traffic Manager Profiles client.
 // It provides methods to interact with Traffic Manager profiles in Azure.
 type ProfilesClient struct {
@@ -31,27 +35,30 @@ func NewProfilesClient(client *armtrafficmanager.ProfilesClient, subscriptionID 
 
 // Get gets a Traffic Manager profile by its name and resource group.
 func (client *ProfilesClient) Get(ctx context.Context, resourceGroupName, profileName string, options *armtrafficmanager.ProfilesClientGetOptions) (resp armtrafficmanager.ProfilesClientGetResponse, err error) {
-	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, "TrafficManagerProfile", "get")
+	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, profileResourceType, "get")
 	defer func() { metricsCtx.Observe(ctx, err) }()
 
+	// set the error so that it can be used in the defer function
 	resp, err = client.ProfilesClient.Get(ctx, resourceGroupName, profileName, options)
 	return resp, err
 }
 
 // CreateOrUpdate creates or updates a Traffic Manager profile with the specified parameters.
 func (client *ProfilesClient) CreateOrUpdate(ctx context.Context, resourceGroupName, profileName string, parameters armtrafficmanager.Profile, options *armtrafficmanager.ProfilesClientCreateOrUpdateOptions) (resp armtrafficmanager.ProfilesClientCreateOrUpdateResponse, err error) {
-	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, "TrafficManagerProfile", "createOrUpdate")
+	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, profileResourceType, "put")
 	defer func() { metricsCtx.Observe(ctx, err) }()
 
+	// set the error so that it can be used in the defer function
 	resp, err = client.ProfilesClient.CreateOrUpdate(ctx, resourceGroupName, profileName, parameters, options)
 	return resp, err
 }
 
 // Delete deletes a Traffic Manager profile by its name and resource group.
 func (client *ProfilesClient) Delete(ctx context.Context, resourceGroupName, profileName string, options *armtrafficmanager.ProfilesClientDeleteOptions) (resp armtrafficmanager.ProfilesClientDeleteResponse, err error) {
-	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, "TrafficManagerProfile", "delete")
+	metricsCtx := metrics.BeginARMRequest(client.subscriptionID, resourceGroupName, profileResourceType, "delete")
 	defer func() { metricsCtx.Observe(ctx, err) }()
 
+	// set the error so that it can be used in the defer function
 	resp, err = client.ProfilesClient.Delete(ctx, resourceGroupName, profileName, options)
 	return resp, err
 }
