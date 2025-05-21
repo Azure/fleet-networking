@@ -49,9 +49,6 @@ func init() {
 	/// Register trafficManagerBackendStatusLastTimestampSeconds (fleet_networking_traffic_manager_backend_status_last_timestamp_seconds)
 	// metric with the controller runtime global metrics registry.
 	ctrlmetrics.Registry.MustRegister(trafficManagerBackendStatusLastTimestampSeconds)
-	// Register trafficManagerARMAPILatency (fleet_networking_traffic_manager_arm_api_latency_milliseconds)
-	// metric with the controller runtime global metrics registry.
-	ctrlmetrics.Registry.MustRegister(trafficManagerARMAPILatency)
 }
 
 const (
@@ -92,22 +89,6 @@ var (
 		Name:      "traffic_manager_backend_status_last_timestamp_seconds",
 		Help:      "Last update timestamp of traffic manager backend status in seconds",
 	}, []string{"namespace", "name", "generation", "condition", "status", "reason"})
-
-	// trafficManagerARMAPILatency is a prometheus metric that measures the latency of ARM API calls in milliseconds.
-	trafficManagerARMAPILatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: metrics.MetricsNamespace,
-		Subsystem: metrics.MetricsSubsystem,
-		Name:      "traffic_manager_arm_api_latency_milliseconds",
-		Help:      "Latency of Azure Resource Manager (ARM) API calls for Traffic Manager in milliseconds",
-		Buckets:   metrics.ExportDurationMillisecondsBuckets,
-	}, []string{
-		// The type of operation: Get, CreateOrUpdate, Delete
-		"operation",
-		// Whether the API call was successful or not
-		"success",
-		// Type of resource: Profile, Endpoint
-		"resource_type",
-	})
 )
 
 // Reconciler reconciles a trafficManagerBackend object.
@@ -250,28 +231,19 @@ func (r *Reconciler) cleanupEndpoints(ctx context.Context, resourceGroup string,
 			continue // skipping deleting the endpoints which are not created by this backend
 		}
 		errs.Go(func() error {
-			// Start measuring ARM API call latency
-			apiCallStartTime := time.Now()
-			_, deleteErr := r.EndpointsClient.Delete(cctx, resourceGroup, atmProfileName, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, nil)
-			apiCallLatency := time.Since(apiCallStartTime).Milliseconds()
-			
-			// Record metrics for the ARM API call
-			success := "true"
-			if deleteErr != nil {
-				success = "false"
-			}
-			trafficManagerARMAPILatency.WithLabelValues("Delete", success, "Endpoint").Observe(float64(apiCallLatency))
-			
-			if deleteErr != nil {
-				if azureerrors.IsNotFound(deleteErr) {
-					klog.V(2).InfoS("Ignoring NotFound Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
-					return nil
+			return metrics.MeasureARMCall(cctx, "Delete", "Endpoint", func() error {
+				_, err := r.EndpointsClient.Delete(cctx, resourceGroup, atmProfileName, armtrafficmanager.EndpointTypeAzureEndpoints, *endpoint.Name, nil)
+				if err != nil {
+					if azureerrors.IsNotFound(err) {
+						klog.V(2).InfoS("Ignoring NotFound Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
+						return nil
+					}
+					klog.ErrorS(err, "Failed to delete the endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
+				} else {
+					klog.V(2).InfoS("Deleted Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
 				}
-				klog.ErrorS(deleteErr, "Failed to delete the endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
-				return deleteErr
-			}
-			klog.V(2).InfoS("Deleted Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
-			return nil
+				return err
+			})
 		})
 	}
 	return errs.Wait()
@@ -409,17 +381,20 @@ func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, bac
 	backendKObj := klog.KObj(backend)
 	profileKObj := klog.KObj(profile)
 	
-	// Start measuring ARM API call latency
-	apiCallStartTime := time.Now()
-	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
-	apiCallLatency := time.Since(apiCallStartTime).Milliseconds()
+	var getRes armtrafficmanager.ProfilesClientGetResponse
+	var getErr error
 	
-	// Record metrics for the ARM API call
-	success := "true"
-	if getErr != nil {
-		success = "false"
-	}
-	trafficManagerARMAPILatency.WithLabelValues("Get", success, "Profile").Observe(float64(apiCallLatency))
+	// Use the ARMContext to measure the API call latency
+	err := metrics.MeasureARMCall(ctx, "Get", "Profile", func() error {
+		res, err := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
+		if err != nil {
+			return err
+		}
+		getRes = res
+		return nil
+	})
+	
+	getErr = err
 	
 	if getErr != nil {
 		if azureerrors.IsNotFound(getErr) {
@@ -725,17 +700,12 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 		var responseError *azcore.ResponseError
 		endpointName := *endpoint.Endpoint.Name
 		
-		// Start measuring ARM API call latency
-		apiCallStartTime := time.Now()
-		res, updateErr := r.EndpointsClient.CreateOrUpdate(ctx, resourceGroup, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, endpointName, endpoint.Endpoint, nil)
-		apiCallLatency := time.Since(apiCallStartTime).Milliseconds()
-		
-		// Record metrics for the ARM API call
-		success := "true"
-		if updateErr != nil {
-			success = "false"
-		}
-		trafficManagerARMAPILatency.WithLabelValues("CreateOrUpdate", success, "Endpoint").Observe(float64(apiCallLatency))
+		var res armtrafficmanager.EndpointsClientCreateOrUpdateResponse
+		updateErr := metrics.MeasureARMCall(ctx, "CreateOrUpdate", "Endpoint", func() error {
+			var err error
+			res, err = r.EndpointsClient.CreateOrUpdate(ctx, resourceGroup, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, endpointName, endpoint.Endpoint, nil)
+			return err
+		})
 		
 		if updateErr != nil {
 			if !errors.As(updateErr, &responseError) {

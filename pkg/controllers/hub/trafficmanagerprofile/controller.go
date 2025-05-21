@@ -40,9 +40,6 @@ func init() {
 	/// Register trafficManagerProfileStatusLastTimestampSeconds (fleet_networking_traffic_manager_profile_status_last_timestamp_seconds)
 	// metric with the controller runtime global metrics registry.
 	ctrlmetrics.Registry.MustRegister(trafficManagerProfileStatusLastTimestampSeconds)
-	// Register trafficManagerARMAPILatency (fleet_networking_traffic_manager_arm_api_latency_milliseconds)
-	// metric with the controller runtime global metrics registry.
-	ctrlmetrics.Registry.MustRegister(trafficManagerARMAPILatency)
 }
 
 const (
@@ -71,22 +68,6 @@ var (
 		Name:      "traffic_manager_profile_status_last_timestamp_seconds",
 		Help:      "Last update timestamp of traffic manager profile status in seconds",
 	}, []string{"namespace", "name", "generation", "condition", "status", "reason"})
-	
-	// trafficManagerARMAPILatency is a prometheus metric that measures the latency of ARM API calls in milliseconds.
-	trafficManagerARMAPILatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: metrics.MetricsNamespace,
-		Subsystem: metrics.MetricsSubsystem,
-		Name:      "traffic_manager_arm_api_latency_milliseconds",
-		Help:      "Latency of Azure Resource Manager (ARM) API calls for Traffic Manager in milliseconds",
-		Buckets:   metrics.ExportDurationMillisecondsBuckets,
-	}, []string{
-		// The type of operation: Get, CreateOrUpdate, Delete
-		"operation",
-		// Whether the API call was successful or not
-		"success",
-		// Type of resource: Profile, Endpoint
-		"resource_type",
-	})
 )
 
 // GenerateAzureTrafficManagerProfileName generates the Azure Traffic Manager profile name based on the profile.
@@ -166,17 +147,10 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 		atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 		klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 		
-		// Start measuring ARM API call latency
-		apiCallStartTime := time.Now()
-		_, deleteErr := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
-		apiCallLatency := time.Since(apiCallStartTime).Milliseconds()
-		
-		// Record metrics for the ARM API call
-		success := "true"
-		if deleteErr != nil && !azureerrors.IsNotFound(deleteErr) {
-			success = "false"
-		}
-		trafficManagerARMAPILatency.WithLabelValues("Delete", success, "Profile").Observe(float64(apiCallLatency))
+		deleteErr := metrics.MeasureARMCall(ctx, "Delete", "Profile", func() error {
+			_, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
+			return err
+		})
 		
 		if deleteErr != nil {
 			if !azureerrors.IsNotFound(deleteErr) {
@@ -210,17 +184,12 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	var res armtrafficmanager.ProfilesClientCreateOrUpdateResponse
 	var updateErr error
 	
-	// Start measuring ARM API call latency
-	apiCallStartTime := time.Now()
-	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
-	apiCallLatency := time.Since(apiCallStartTime).Milliseconds()
-	
-	// Record metrics for the ARM API call
-	success := "true"
-	if getErr != nil {
-		success = "false"
-	}
-	trafficManagerARMAPILatency.WithLabelValues("Get", success, "Profile").Observe(float64(apiCallLatency))
+	var getRes armtrafficmanager.ProfilesClientGetResponse
+	getErr := metrics.MeasureARMCall(ctx, "Get", "Profile", func() error {
+		var err error
+		getRes, err = r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
+		return err
+	})
 	
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
@@ -254,17 +223,11 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 		}
 	}
 
-	// Start measuring ARM API call latency
-	apiCallStartTime = time.Now()
-	res, updateErr = r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
-	var apiCallLatency2 = time.Since(apiCallStartTime).Milliseconds()
-	
-	// Record metrics for the ARM API call
-	var success2 = "true"
-	if updateErr != nil {
-		success2 = "false"
-	}
-	trafficManagerARMAPILatency.WithLabelValues("CreateOrUpdate", success2, "Profile").Observe(float64(apiCallLatency2))
+	updateErr = metrics.MeasureARMCall(ctx, "CreateOrUpdate", "Profile", func() error {
+		var err error
+		res, err = r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
+		return err
+	})
 	
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {
