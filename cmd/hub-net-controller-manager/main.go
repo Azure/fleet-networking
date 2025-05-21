@@ -217,6 +217,7 @@ func main() {
 		if err := (&trafficmanagerprofile.Reconciler{
 			Client:         mgr.GetClient(),
 			ProfilesClient: profilesClient,
+			Recorder:       mgr.GetEventRecorderFor("trafficmanagerprofile-controller"),
 		}).SetupWithManager(mgr); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
 			exitWithErrorFunc()
@@ -227,6 +228,7 @@ func main() {
 			Client:          mgr.GetClient(),
 			ProfilesClient:  profilesClient,
 			EndpointsClient: endpointsClient,
+			Recorder:        mgr.GetEventRecorderFor("trafficmanagerbackend-controller"),
 			// serviceImport controller has already enabled the internalServiceExportIndexer.
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {
