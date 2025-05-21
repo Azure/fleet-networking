@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "member-net-controller-manager.fullname" . }}-crd-init-script
+  namespace: {{ .Values.fleetSystemNamespace }}
+  labels:
+    {{- include "member-net-controller-manager.labels" . | nindent 4 }}
+data:
+  apply-crds.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "Checking and applying Fleet Networking CRDs..."
+
+    # Array of CRD resources to check and apply
+    CRD_RESOURCES=(
+      "networking.fleet.azure.com_endpointsliceexports.yaml"
+      "networking.fleet.azure.com_endpointsliceimports.yaml"
+      "networking.fleet.azure.com_internalserviceexports.yaml"
+      "networking.fleet.azure.com_internalserviceimports.yaml"
+      "networking.fleet.azure.com_multiclusterservices.yaml"
+      "networking.fleet.azure.com_serviceexports.yaml"
+      "networking.fleet.azure.com_serviceimports.yaml"
+      "networking.fleet.azure.com_trafficmanagerbackends.yaml"
+      "networking.fleet.azure.com_trafficmanagerprofiles.yaml"
+    )
+
+    # Check if CRDs already exist
+    for CRD_FILE in "${CRD_RESOURCES[@]}"; do
+      CRD_NAME=$(echo "$CRD_FILE" | sed 's/networking.fleet.azure.com_\(.*\).yaml/\1/')
+      
+      echo "Checking if CRD $CRD_NAME exists..."
+      if ! kubectl get crd "networking.fleet.azure.com.$CRD_NAME" &>/dev/null; then
+        echo "CRD $CRD_NAME does not exist. Applying it..."
+        kubectl apply -f "/crds/$CRD_FILE"
+        echo "CRD $CRD_NAME applied successfully."
+      elif [ "{{ .Values.crdInit.forceUpdate }}" == "true" ]; then
+        echo "Force updating CRD $CRD_NAME..."
+        kubectl apply -f "/crds/$CRD_FILE"
+        echo "CRD $CRD_NAME updated successfully."
+      else
+        echo "CRD $CRD_NAME already exists. Skipping."
+      fi
+    done
+
+    echo "CRD initialization completed."

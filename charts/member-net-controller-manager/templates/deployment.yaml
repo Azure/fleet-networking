@@ -20,6 +20,32 @@ spec:
         {{- include "member-net-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "member-net-controller-manager.fullname" . }}-sa
+      {{- if .Values.crdInit.enabled }}
+      initContainers:
+        - name: copy-crds
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - /scripts/copy-crds.sh
+          volumeMounts:
+            - name: copy-crds-script
+              mountPath: /scripts
+            - name: crd-files
+              mountPath: /shared-crds
+          workingDir: /
+        - name: apply-crds
+          image: "{{ .Values.crdInit.image.repository }}:{{ .Values.crdInit.image.tag }}"
+          imagePullPolicy: {{ .Values.crdInit.image.pullPolicy }}
+          command:
+            - sh
+            - /scripts/apply-crds.sh
+          volumeMounts:
+            - name: crd-init-script
+              mountPath: /scripts
+            - name: crd-files
+              mountPath: /crds
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -101,6 +127,18 @@ spec:
       volumes:
       - name: provider-token
         emptyDir: {}
+      {{- if .Values.crdInit.enabled }}
+      - name: copy-crds-script
+        configMap:
+          name: {{ include "member-net-controller-manager.fullname" . }}-crd-files
+          defaultMode: 0755
+      - name: crd-init-script
+        configMap:
+          name: {{ include "member-net-controller-manager.fullname" . }}-crd-init-script
+          defaultMode: 0755
+      - name: crd-files
+        emptyDir: {}
+      {{- end }}
       {{- if .Values.enableTrafficManagerFeature }}
       - name: cloud-provider-config
         secret:
