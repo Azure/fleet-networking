@@ -71,6 +71,14 @@ const (
 	// The cluster name length should be restricted to <= 63 characters.
 	// The endpoint name must contain no more than 260 characters, excluding the following characters "< > * % $ : \ ? + /".
 	AzureResourceEndpointNameFormat = "%s%s#%s"
+	
+	// Event constants
+	eventReasonEndpointsCreated      = "EndpointsCreated"
+	eventReasonEndpointsUpdated      = "EndpointsUpdated"
+	eventReasonEndpointsDeleted      = "EndpointsDeleted"
+	eventReasonEndpointsCreateFailed = "EndpointsCreateFailed"
+	eventReasonEndpointsUpdateFailed = "EndpointsUpdateFailed"
+	eventReasonEndpointsDeleteFailed = "EndpointsDeleteFailed"
 )
 
 var (
@@ -239,13 +247,19 @@ func (r *Reconciler) cleanupEndpoints(ctx context.Context, resourceGroup string,
 					return nil
 				}
 				klog.ErrorS(err, "Failed to delete the endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
+				r.Recorder.Eventf(backend, corev1.EventTypeWarning, eventReasonEndpointsDeleteFailed, "Failed to delete Azure Traffic Manager endpoint %s: %s", *endpoint.Name, err)
 				return err
 			}
 			klog.V(2).InfoS("Deleted Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfileName", atmProfileName, "atmEndpoint", *endpoint.Name)
 			return nil
 		})
 	}
-	return errs.Wait()
+
+	err := errs.Wait()
+	if err == nil {
+		r.Recorder.Eventf(backend, corev1.EventTypeNormal, eventReasonEndpointsDeleted, "Successfully deleted all Azure Traffic Manager endpoints")
+	}
+	return err
 }
 
 func isEndpointOwnedByBackend(backend *fleetnetv1beta1.TrafficManagerBackend, endpoint string) bool {
@@ -661,6 +675,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 					continue
 				}
 				klog.ErrorS(deleteErr, "Failed to delete the Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
+				r.Recorder.Eventf(backend, corev1.EventTypeWarning, eventReasonEndpointsDeleteFailed, "Failed to delete Azure Traffic Manager endpoint %s: %s", endpointName, deleteErr)
 				setUnknownCondition(backend, fmt.Sprintf("Failed to cleanup the existing %q for %q: %v", endpointName, *profile.Name, deleteErr))
 				if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
 					return nil, nil, err
@@ -668,6 +683,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 				return nil, nil, deleteErr
 			}
 			klog.V(2).InfoS("Deleted the Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
+			r.Recorder.Eventf(backend, corev1.EventTypeNormal, eventReasonEndpointsDeleted, "Successfully deleted Azure Traffic Manager endpoint %s", endpointName)
 			continue
 		}
 		if equalAzureTrafficManagerEndpoint(*endpoint, desired.Endpoint) {
@@ -687,9 +703,11 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 		if updateErr != nil {
 			if !errors.As(updateErr, &responseError) {
 				klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", endpointName)
+				r.Recorder.Eventf(backend, corev1.EventTypeWarning, eventReasonEndpointsCreateFailed, "Failed to send the create/update request for Azure Traffic Manager endpoint %s: %s", endpointName, updateErr)
 				return nil, nil, updateErr
 			}
 			klog.ErrorS(updateErr, "Failed to create or update the Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", endpointName)
+			r.Recorder.Eventf(backend, corev1.EventTypeWarning, eventReasonEndpointsUpdateFailed, "Failed to create/update Azure Traffic Manager endpoint %s: %s", endpointName, updateErr)
 			if azureerrors.IsClientError(updateErr) && !azureerrors.IsThrottled(updateErr) {
 				// When the failure is caused by the client error, will continue to process others.
 				badEndpointsError = append(badEndpointsError, updateErr)
@@ -703,9 +721,17 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 			return nil, nil, updateErr
 		}
 		klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
+		r.Recorder.Eventf(backend, corev1.EventTypeNormal, eventReasonEndpointsCreated, "Successfully created/updated Azure Traffic Manager endpoint %s", endpointName)
 		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, endpoint))
 	}
 	klog.V(2).InfoS("Successfully updated the Traffic Manager endpoints", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "numberOfAcceptedEndpoints", len(acceptedEndpoints), "numberOfBadEndpoints", len(badEndpointsError))
+	
+	if len(badEndpointsError) == 0 && len(acceptedEndpoints) > 0 {
+		r.Recorder.Eventf(backend, corev1.EventTypeNormal, eventReasonEndpointsUpdated, "Successfully updated all Azure Traffic Manager endpoints, accepted endpoints: %d", len(acceptedEndpoints))
+	} else if len(badEndpointsError) > 0 {
+		r.Recorder.Eventf(backend, corev1.EventTypeWarning, eventReasonEndpointsUpdateFailed, "Some Azure Traffic Manager endpoints failed to update, accepted: %d, failed: %d", len(acceptedEndpoints), len(badEndpointsError))
+	}
+	
 	return acceptedEndpoints, badEndpointsError, nil
 }
 
