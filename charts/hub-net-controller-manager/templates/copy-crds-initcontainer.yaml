@@ -1,0 +1,37 @@
+{{- if .Values.crdInit.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hub-net-controller-manager.fullname" . }}-crd-files
+  namespace: {{ .Values.fleetSystemNamespace }}
+  labels:
+    {{- include "hub-net-controller-manager.labels" . | nindent 4 }}
+data:
+  copy-crds.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "Copying CRD files to shared volume..."
+    
+    # List of CRD files
+    CRD_FILES=(
+      "networking.fleet.azure.com_endpointsliceexports.yaml"
+      "networking.fleet.azure.com_endpointsliceimports.yaml"
+      "networking.fleet.azure.com_internalserviceexports.yaml"
+      "networking.fleet.azure.com_internalserviceimports.yaml"
+      "networking.fleet.azure.com_multiclusterservices.yaml"
+      "networking.fleet.azure.com_serviceexports.yaml"
+      "networking.fleet.azure.com_serviceimports.yaml"
+      "networking.fleet.azure.com_trafficmanagerbackends.yaml"
+      "networking.fleet.azure.com_trafficmanagerprofiles.yaml"
+    )
+    
+    # Copy each CRD file to the shared volume
+    for CRD_FILE in "${CRD_FILES[@]}"; do
+      echo "Copying $CRD_FILE to shared volume..."
+      cp "/crds/bases/$CRD_FILE" "/shared-crds/$CRD_FILE"
+      echo "Successfully copied $CRD_FILE"
+    done
+    
+    echo "All CRD files have been copied to shared volume."
+{{- end }}

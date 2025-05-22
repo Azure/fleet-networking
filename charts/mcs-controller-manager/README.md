@@ -2,11 +2,20 @@
 
 ## Install CRD in member cluster
 
+The CRDs can be installed in two ways:
+
+1. Manually before installing the Helm chart:
+
 ```bash
 # Go to root folder of fleet-networking repo
 cd <REPO_DIRECTORY>/fleet-networking
 kubectl apply -f config/crd/*
 ```
+
+2. Automatically during Helm chart installation using the init container (enabled by default):
+
+The chart includes an init container that can automatically install or update the CRDs required by the controller.
+This feature is enabled by default and can be configured in the values.yaml file.
 
 ## Install Chart in member cluster
 
@@ -32,6 +41,11 @@ helm upgrade mcs-controller-manager ./charts/mcs-controller-manager/
 | image.repository | Image repository | `ghcr.io/azure/fleet-networking/mcs-controller-manager` |
 | image.pullPolicy | Image pullPolicy | `IfNotPresent` |
 | image.tag | The image tag to use | `v0.1.0` |
+| crdInit.enabled | Enable automatic CRD installation via init container | `true` |
+| crdInit.forceUpdate | Force update existing CRDs | `false` |
+| crdInit.image.repository | Repository for the kubectl image used to apply CRDs | `bitnami/kubectl` |
+| crdInit.image.tag | Tag for the kubectl image | `latest` |
+| crdInit.image.pullPolicy | Pull policy for the kubectl image | `IfNotPresent` |
 | logVerbosity | Log level. Uses V logs (klog) | `2` |
 | fleetSystemNamespace | Namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
 | leaderElectionNamespace | The namespace in which the leader election resource will be created. | `fleet-system` |
