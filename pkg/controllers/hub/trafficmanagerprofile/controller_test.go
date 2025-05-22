@@ -44,6 +44,12 @@ func buildDesiredProfile() armtrafficmanager.Profile {
 				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
 				TimeoutInSeconds:          ptr.To[int64](10),
 				ToleratedNumberOfFailures: ptr.To[int64](3),
+				CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				},
 			},
 			ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 			TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -73,6 +79,67 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 				return res
 			},
 			want: true,
+		},
+		{
+			name: "CustomHeaders are equal",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			want: true,
+		},
+		{
+			name: "CustomHeaders are different (different value)",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("DifferentValue"),
+					},
+				}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders are different (missing header)",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders with nil name",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  nil,
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders with nil value",
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: nil,
+					},
+				}
+				return res
+			},
 		},
 		{
 			name: "properties is nil",
@@ -315,6 +382,12 @@ func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
 						TimeoutInSeconds:          ptr.To[int64](10),
 						ToleratedNumberOfFailures: ptr.To[int64](3),
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("HeaderName"),
+								Value: ptr.To("HeaderValue"),
+							},
+						},
 					},
 					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -421,6 +494,34 @@ func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 					"tagKey": ptr.To("tagValue"),
 				},
 			},
+		},
+		{
+			name: "different custom headers",
+			current: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("OtherHeader"),
+								Value: ptr.To("OtherValue"),
+							},
+						},
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+				},
+			},
+			want: desired,
 		},
 	}
 
