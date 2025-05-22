@@ -152,7 +152,7 @@ spec:
 ---
 
 ## Step 4: Clean Up Resources Using the `eviction` API
-- Remove the env label from the `aks-member-1` or add [a taint on the member](https://github.com/Azure/fleet/blob/main/docs/howtos/taint-toleration.md) so that the cluster won't be picked by the `clusterResourcePlacement` again.
+- Remove the env label from the `aks-member-1` or add [a taint on the member](https://kubefleet-dev.github.io/website/docs/how-tos/taints-tolerations/) so that the cluster won't be picked by the `clusterResourcePlacement` again.
 - Safely remove application workloads and services from `aks-member-1` once all traffic has shifted and all the client DNS caches are refreshed.
 
 > Note: test file located [here](../testfiles/placement-eviction-member-1.yaml).

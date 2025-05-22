@@ -418,7 +418,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 		AfterEach(func() {
 			By("Deleting trafficManagerBackend")
-			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
+			Expect(client.IgnoreNotFound(hubClient.Delete(ctx, &backend))).Should(Succeed(), "Failed to delete the trafficManagerBackend")
 			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
@@ -440,6 +440,56 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			// All the fields excluding ToleratedNumberOfFailures should be unchanged.
 			atmProfile.Properties.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+		})
+
+		It("Creating another trafficManagerBackend to export the same service", func() {
+			By("Creating an invalid trafficManagerBackend")
+			invalidBackend := wm.TrafficManagerBackend()
+			invalidBackend.Name = fmt.Sprintf("%s-%s", backend.Name, "invalid")
+			invalidBackendName := types.NamespacedName{Namespace: invalidBackend.Namespace, Name: invalidBackend.Name}
+			Expect(hubClient.Create(ctx, &invalidBackend)).Should(Succeed(), "Failed to create the trafficManagerBackend")
+
+			By("Validating the invalidBackend trafficManagerBackend status")
+			status := validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, invalidBackendName, false, nil, lightAzureOperationTimeout)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, invalidBackendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			// No changes should be made to the profile.
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+
+			By("Deleting existing trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, &backend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, backendName, lightAzureOperationTimeout)
+
+			By("Validating the invalid trafficManagerBackend status and should be accepted now")
+			wantEndpoints := []fleetnetv1beta1.TrafficManagerEndpointStatus{
+				{
+					Weight: ptr.To(int64(50)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[0], clusterLocation)),
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[0].Name()},
+						Weight:        ptr.To(int64(1)),
+					},
+				},
+				{
+					Weight: ptr.To(int64(50)),
+					Target: ptr.To(fmt.Sprintf(azureDNSFormat, memberDNSLabels[1], clusterLocation)),
+					From: &fleetnetv1beta1.FromCluster{
+						ClusterStatus: fleetnetv1beta1.ClusterStatus{Cluster: memberClusters[1].Name()},
+						Weight:        ptr.To(int64(1)),
+					},
+				},
+			}
+			status = validator.ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, hubClient, invalidBackendName, true, wantEndpoints, heavyAzureOperationTimeout)
+			validator.ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently(ctx, hubClient, invalidBackendName, status)
+
+			By("Validating the Azure traffic manager profile")
+			atmProfile = buildDesiredATMProfile(profile, status.Endpoints)
+			atmProfile = *atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+
+			By("Deleting invalid trafficManagerBackend")
+			Expect(hubClient.Delete(ctx, &invalidBackend)).Should(Succeed(), "Failed to delete the trafficManagerBackend")
+			validator.IsTrafficManagerBackendDeleted(ctx, hubClient, invalidBackendName, lightAzureOperationTimeout)
 		})
 
 		It("Creating extra Azure traffic manager endpoint directly and then updating trafficManagerBackend", func() {
