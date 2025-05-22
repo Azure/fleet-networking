@@ -48,7 +48,7 @@ This repo contains networking components and controllers for the Fleet project. 
     - `test/common/` - Common test utilities and helpers.
     - `test/e2e/` - End-to-end tests for networking components.
     - `test/perftest/` - Performance tests for networking components.
-    - `test/scripts/` - Scripts to setup and clean the e2e test enviroments.
+    - `test/scripts/` - Scripts to setup and clean the e2e test environments.
 - `tools/` - Client-side tools for managing networking resources.
 - `Makefile` - Build and test automation.
 - `go.mod` / `go.sum` - Dependency management.
