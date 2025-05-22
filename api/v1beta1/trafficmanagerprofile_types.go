@@ -55,6 +55,17 @@ type TrafficManagerProfileSpec struct {
 	MonitorConfig *MonitorConfig `json:"monitorConfig,omitempty"`
 }
 
+// MonitorConfigCustomHeader defines a custom header for endpoint monitoring.
+type MonitorConfigCustomHeader struct {
+	// Name of the header
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Value of the header
+	// +kubebuilder:validation:MinLength=1
+	Value string `json:"value"`
+}
+
 // MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile.
 // https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-monitoring
 // +kubebuilder:validation:XValidation:rule="has(self.intervalInSeconds) && self.intervalInSeconds == 30 ? (!has(self.timeoutInSeconds) || (self.timeoutInSeconds >= 5 && self.timeoutInSeconds <= 10)) : true",message="timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"
@@ -83,6 +94,11 @@ type MonitorConfig struct {
 	// +optional
 	// +kubebuilder:default="HTTP"
 	Protocol *TrafficManagerMonitorProtocol `json:"protocol,omitempty"`
+
+	// Custom headers used for probing endpoints, such as Host headers.
+	// +optional
+	// +listType=atomic
+	CustomHeaders []MonitorConfigCustomHeader `json:"customHeaders,omitempty"`
 
 	// The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
 	// to response to the health check.

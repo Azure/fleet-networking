@@ -262,6 +262,36 @@ func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 		return false
 	}
 
+	// Compare custom headers
+	currHeaders := current.Properties.MonitorConfig.CustomHeaders
+	desiredHeaders := desired.Properties.MonitorConfig.CustomHeaders
+
+	// If lengths are different, headers are not equal
+	if len(currHeaders) != len(desiredHeaders) {
+		return false
+	}
+
+	// Create a map of current headers for easier comparison
+	currHeadersMap := make(map[string]string)
+	for _, header := range currHeaders {
+		if header.Name == nil || header.Value == nil {
+			return false
+		}
+		currHeadersMap[*header.Name] = *header.Value
+	}
+
+	// Check if all desired headers are in current headers with same values
+	for _, header := range desiredHeaders {
+		if header.Name == nil || header.Value == nil {
+			continue // Skip nil values in desired (shouldn't happen but just in case)
+		}
+
+		val, exists := currHeadersMap[*header.Name]
+		if !exists || val != *header.Value {
+			return false
+		}
+	}
+
 	if *current.Properties.ProfileStatus != *desired.Properties.ProfileStatus || *current.Properties.TrafficRoutingMethod != *desired.Properties.TrafficRoutingMethod {
 		return false
 	}
@@ -349,7 +379,9 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerProfile) armtrafficmanager.Profile {
 	mc := profile.Spec.MonitorConfig
 	namespacedName := types.NamespacedName{Name: profile.Name, Namespace: profile.Namespace}
-	return armtrafficmanager.Profile{
+
+	// Build the Azure Traffic Manager profile
+	tmProfile := armtrafficmanager.Profile{
 		Location: ptr.To("global"),
 		Properties: &armtrafficmanager.ProfileProperties{
 			DNSConfig: &armtrafficmanager.DNSConfig{
@@ -372,6 +404,20 @@ func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerP
 			objectmeta.AzureTrafficManagerProfileTagKey: ptr.To(namespacedName.String()),
 		},
 	}
+
+	// Add custom headers if specified
+	if len(mc.CustomHeaders) > 0 {
+		customHeaders := make([]*armtrafficmanager.MonitorConfigCustomHeadersItem, 0, len(mc.CustomHeaders))
+		for _, header := range mc.CustomHeaders {
+			customHeaders = append(customHeaders, &armtrafficmanager.MonitorConfigCustomHeadersItem{
+				Name:  ptr.To(header.Name),
+				Value: ptr.To(header.Value),
+			})
+		}
+		tmProfile.Properties.MonitorConfig.CustomHeaders = customHeaders
+	}
+
+	return tmProfile
 }
 
 // buildAzureTrafficManagerProfileRequest assumes desired is always valid.
@@ -391,6 +437,7 @@ func buildAzureTrafficManagerProfileRequest(current, desired armtrafficmanager.P
 			current.Properties.MonitorConfig.Protocol = desired.Properties.MonitorConfig.Protocol
 			current.Properties.MonitorConfig.TimeoutInSeconds = desired.Properties.MonitorConfig.TimeoutInSeconds
 			current.Properties.MonitorConfig.ToleratedNumberOfFailures = desired.Properties.MonitorConfig.ToleratedNumberOfFailures
+			current.Properties.MonitorConfig.CustomHeaders = desired.Properties.MonitorConfig.CustomHeaders
 		}
 		current.Properties.ProfileStatus = desired.Properties.ProfileStatus
 		current.Properties.TrafficRoutingMethod = desired.Properties.TrafficRoutingMethod
