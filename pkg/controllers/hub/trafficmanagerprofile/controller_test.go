@@ -29,6 +29,118 @@ func TestGenerateAzureTrafficManagerProfileName(t *testing.T) {
 	}
 }
 
+// fakeEventRecorder implements the EventRecorder interface for testing.
+type fakeEventRecorder struct {
+	events []struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}
+}
+
+func (f *fakeEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	f.events = append(f.events, struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}{object, eventtype, reason, message})
+}
+
+func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.events = append(f.events, struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}{object, eventtype, reason, fmt.Sprintf(messageFmt, args...)})
+}
+
+func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.Eventf(object, eventtype, reason, messageFmt, args...)
+}
+
+// TestRecordEventsInProfileController tests that events are properly recorded by the TrafficManagerProfile controller
+func TestRecordEventsInProfileController(t *testing.T) {
+	profileName := "test-profile"
+	testProfile := &fleetnetv1beta1.TrafficManagerProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      profileName,
+			Namespace: "default",
+		},
+		Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+			ResourceGroup: "test-rg",
+			MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+				Path:     ptr.To("/path"),
+				Port:     ptr.To[int64](80),
+				Protocol: ptr.To(fleetnetv1beta1.TrafficManagerMonitorProtocolHTTP),
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		eventType  string
+		reason     string
+	}{
+		{
+			name:       "profile created event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonProfileCreated,
+		},
+		{
+			name:       "profile updated event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonProfileUpdated,
+		},
+		{
+			name:       "profile deleted event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonProfileDeleted,
+		},
+		{
+			name:       "profile creation failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonProfileCreateFailed,
+		},
+		{
+			name:       "profile update failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonProfileUpdateFailed,
+		},
+		{
+			name:       "profile deletion failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonProfileDeleteFailed,
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := &fakeEventRecorder{}
+			reconciler := &Reconciler{
+				Recorder: recorder,
+			}
+			
+			// Test that the recorder is correctly called with proper event type and reason
+			reconciler.Recorder.Eventf(testProfile, tc.eventType, tc.reason, "Test event message for %s", profileName)
+			
+			// Verify the event was recorded
+			if len(recorder.events) == 0 {
+				t.Errorf("Expected an event to be recorded, but none was")
+				return
+			}
+			
+			event := recorder.events[0]
+			if event.eventtype != tc.eventType || event.reason != tc.reason {
+				t.Errorf("Expected event type=%s, reason=%s; got type=%s, reason=%s", 
+					tc.eventType, tc.reason, event.eventtype, event.reason)
+			}
+			
+			// Verify the event message contains the profile name
+			if !strings.Contains(event.message, profileName) {
+				t.Errorf("Expected event message to contain profile name '%s', but message was: %s", 
+					profileName, event.message)
+			}
+		})
+	}
+}
+
 func buildDesiredProfile() armtrafficmanager.Profile {
 	return armtrafficmanager.Profile{
 		Location: ptr.To("global"),

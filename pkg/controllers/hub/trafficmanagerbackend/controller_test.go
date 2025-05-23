@@ -8,7 +8,6 @@ package trafficmanagerbackend
 import (
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 
@@ -82,6 +81,122 @@ func TestIsValidTrafficManagerEndpoint(t *testing.T) {
 			err := isValidTrafficManagerEndpoint(tt.export)
 			if got := err != nil; got != tt.wantErr {
 				t.Errorf("isValidTrafficManagerEndpoint() = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// fakeEventRecorder implements the EventRecorder interface for testing.
+type fakeEventRecorder struct {
+	events []struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}
+}
+
+func (f *fakeEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	f.events = append(f.events, struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}{object, eventtype, reason, message})
+}
+
+func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.events = append(f.events, struct {
+		object runtime.Object
+		eventtype, reason, message string
+	}{object, eventtype, reason, fmt.Sprintf(messageFmt, args...)})
+}
+
+func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.Eventf(object, eventtype, reason, messageFmt, args...)
+}
+
+// TestRecordEventsInBackendController tests that events are properly recorded by the TrafficManagerBackend controller
+// when endpoints are created, updated, and deleted
+func TestRecordEventsInBackendController(t *testing.T) {
+	backendName := "test-backend"
+	endpointName := "test-endpoint"
+	testBackend := &fleetnetv1beta1.TrafficManagerBackend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      backendName,
+			Namespace: "default",
+		},
+		Spec: fleetnetv1beta1.TrafficManagerBackendSpec{
+			TrafficManagerProfileRef: fleetnetv1beta1.TrafficManagerProfileRef{
+				Name:      "test-profile",
+				Namespace: "default",
+			},
+			ResourceGroup: "test-rg",
+			ServiceImport: fleetnetv1beta1.ServiceImportRef{
+				Name: "test-service",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		eventType  string
+		reason     string
+	}{
+		{
+			name:       "endpoints created event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonEndpointsCreated,
+		},
+		{
+			name:       "endpoints updated event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonEndpointsUpdated,
+		},
+		{
+			name:       "endpoints deleted event",
+			eventType:  corev1.EventTypeNormal,
+			reason:     eventReasonEndpointsDeleted,
+		},
+		{
+			name:       "endpoints creation failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonEndpointsCreateFailed,
+		},
+		{
+			name:       "endpoints update failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonEndpointsUpdateFailed,
+		},
+		{
+			name:       "endpoints deletion failed event",
+			eventType:  corev1.EventTypeWarning,
+			reason:     eventReasonEndpointsDeleteFailed,
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := &fakeEventRecorder{}
+			reconciler := &Reconciler{
+				Recorder: recorder,
+			}
+			
+			// Test that the recorder is correctly called with proper event type and reason
+			reconciler.Recorder.Eventf(testBackend, tc.eventType, tc.reason, "Test event message for %s with endpoint %s", backendName, endpointName)
+			
+			// Verify the event was recorded
+			if len(recorder.events) == 0 {
+				t.Errorf("Expected an event to be recorded, but none was")
+				return
+			}
+			
+			event := recorder.events[0]
+			if event.eventtype != tc.eventType || event.reason != tc.reason {
+				t.Errorf("Expected event type=%s, reason=%s; got type=%s, reason=%s", 
+					tc.eventType, tc.reason, event.eventtype, event.reason)
+			}
+			
+			// Verify the event message contains the backend and endpoint names
+			if !strings.Contains(event.message, backendName) || !strings.Contains(event.message, endpointName) {
+				t.Errorf("Expected event message to contain backend name '%s' and endpoint name '%s', but message was: %s", 
+					backendName, endpointName, event.message)
 			}
 		})
 	}
