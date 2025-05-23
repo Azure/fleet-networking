@@ -840,7 +840,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			}
 			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 
-			// It overwrites the previous one as they have the same condition.
+			// Clear the previous metrics and create a new one with the updated generation
+			wantMetrics = []*prometheusclientmodel.Metric{generateMetrics(profile, want.Status.Conditions[0])}
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
 
