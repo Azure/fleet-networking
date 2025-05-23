@@ -217,6 +217,7 @@ func main() {
 		if err := (&trafficmanagerprofile.Reconciler{
 			Client:         mgr.GetClient(),
 			ProfilesClient: profilesClient,
+			Recorder:       mgr.GetEventRecorderFor(trafficmanagerprofile.ControllerName),
 		}).SetupWithManager(mgr); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
 			exitWithErrorFunc()
