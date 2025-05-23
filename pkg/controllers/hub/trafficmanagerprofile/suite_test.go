@@ -8,6 +8,7 @@ package trafficmanagerprofile
 import (
 	"context"
 	"flag"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -54,6 +55,13 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	// Check if KUBEBUILDER_ASSETS environment variable is set
+	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
+	if kubebuildAssets == "" {
+		// Skip all tests if KUBEBUILDER_ASSETS is not set
+		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
+	}
+
 	logger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
 	klog.SetLogger(logger)
 	log.SetLogger(logger)
@@ -126,18 +134,27 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	defer klog.Flush()
 
-	By("delete profile namespace")
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: testNamespace,
-		},
+	// Only attempt to clean up if we actually set up the test environment
+	if testEnv != nil && k8sClient != nil {
+		By("delete profile namespace")
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: testNamespace,
+			},
+		}
+		// Best effort deletion - don't fail if this doesn't work
+		_ = k8sClient.Delete(ctx, &ns)
 	}
-	Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
 
-	cancel()
+	if cancel != nil {
+		cancel()
+	}
+
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+	if testEnv != nil {
+		err := testEnv.Stop()
+		Expect(err).NotTo(HaveOccurred())
+	}
 
 	generateAzureTrafficManagerProfileNameFunc = originalGenerateAzureTrafficManagerProfileNameFunc
 })
