@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -252,30 +253,20 @@ func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 		return false
 	}
 
-	// Compare custom headers
-	if !equalCustomHeaders(current.Properties.MonitorConfig.CustomHeaders, desired.Properties.MonitorConfig.CustomHeaders) {
-		return false
-	}
-
-	// Compare profile status and traffic routing method
-	if !equalProfileProperties(current.Properties, desired.Properties) {
-		return false
-	}
-
-	// Compare DNS config
-	if !equalDNSConfig(current.Properties.DNSConfig, desired.Properties.DNSConfig) {
+	// Compare profile properties and DNS
+	if !equalProfilePropertiesAndDNS(current.Properties, desired.Properties) {
 		return false
 	}
 
 	// Compare tags
-	if !equalTags(current.Tags, desired.Tags) {
+	if !desiredTagsExistInCurrentTags(current.Tags, desired.Tags) {
 		return false
 	}
 
 	return true
 }
 
-// hasRequiredProperties checks if the profile has all required properties
+// hasRequiredProperties checks if the profile has all required properties.
 func hasRequiredProperties(profile armtrafficmanager.Profile) bool {
 	return profile.Properties != nil &&
 		profile.Properties.MonitorConfig != nil &&
@@ -292,58 +283,33 @@ func equalMonitorConfig(current, desired *armtrafficmanager.MonitorConfig) bool 
 		return false
 	}
 
-	return *current.IntervalInSeconds == *desired.IntervalInSeconds &&
-		*current.Path == *desired.Path &&
-		*current.Port == *desired.Port &&
-		*current.Protocol == *desired.Protocol &&
-		*current.TimeoutInSeconds == *desired.TimeoutInSeconds &&
-		*current.ToleratedNumberOfFailures == *desired.ToleratedNumberOfFailures
-}
-
-// equalCustomHeaders compares custom headers between profiles
-func equalCustomHeaders(currHeaders, desiredHeaders []*armtrafficmanager.MonitorConfigCustomHeadersItem) bool {
-	// If lengths are different, headers are not equal
-	if len(currHeaders) != len(desiredHeaders) {
+	// Check basic monitor config fields
+	if *current.IntervalInSeconds != *desired.IntervalInSeconds ||
+		*current.Path != *desired.Path ||
+		*current.Port != *desired.Port ||
+		*current.Protocol != *desired.Protocol ||
+		*current.TimeoutInSeconds != *desired.TimeoutInSeconds ||
+		*current.ToleratedNumberOfFailures != *desired.ToleratedNumberOfFailures {
 		return false
 	}
 
-	// Create a map of current headers for easier comparison
-	currHeadersMap := make(map[string]string)
-	for _, header := range currHeaders {
-		if header.Name == nil || header.Value == nil {
-			return false
-		}
-		currHeadersMap[*header.Name] = *header.Value
+	// Also check custom headers
+	return equality.Semantic.DeepEqual(current.CustomHeaders, desired.CustomHeaders)
+}
+
+// equalProfilePropertiesAndDNS compares profile status, traffic routing method, and DNS configuration
+func equalProfilePropertiesAndDNS(current, desired *armtrafficmanager.ProfileProperties) bool {
+	// Check profile status and routing method
+	if *current.ProfileStatus != *desired.ProfileStatus || *current.TrafficRoutingMethod != *desired.TrafficRoutingMethod {
+		return false
 	}
 
-	// Check if all desired headers are in current headers with same values
-	for _, header := range desiredHeaders {
-		if header.Name == nil || header.Value == nil {
-			continue // Skip nil values in desired (shouldn't happen but just in case)
-		}
-
-		val, exists := currHeadersMap[*header.Name]
-		if !exists || val != *header.Value {
-			return false
-		}
-	}
-
-	return true
+	// Check DNS configuration
+	return current.DNSConfig != nil && current.DNSConfig.TTL != nil && *current.DNSConfig.TTL == *desired.DNSConfig.TTL
 }
 
-// equalProfileProperties compares profile status and traffic routing method
-func equalProfileProperties(current, desired *armtrafficmanager.ProfileProperties) bool {
-	return *current.ProfileStatus == *desired.ProfileStatus &&
-		*current.TrafficRoutingMethod == *desired.TrafficRoutingMethod
-}
-
-// equalDNSConfig compares DNS configuration
-func equalDNSConfig(current, desired *armtrafficmanager.DNSConfig) bool {
-	return current.TTL != nil && *current.TTL == *desired.TTL
-}
-
-// equalTags compares tags between profiles
-func equalTags(currentTags, desiredTags map[string]*string) bool {
+// desiredTagsExistInCurrentTags checks if all desired tags exist in current tags with the same value
+func desiredTagsExistInCurrentTags(currentTags, desiredTags map[string]*string) bool {
 	if currentTags == nil {
 		return false
 	}
