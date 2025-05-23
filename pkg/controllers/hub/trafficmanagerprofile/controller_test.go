@@ -810,97 +810,9 @@ func TestEqualMonitorConfig(t *testing.T) {
 	}
 }
 
-func TestEqualCustomHeaders(t *testing.T) {
-	desiredHeaders := buildDesiredProfile().Properties.MonitorConfig.CustomHeaders
-
-	tests := []struct {
-		name           string
-		currentHeaders []*armtrafficmanager.MonitorConfigCustomHeadersItem
-		want           bool
-	}{
-		{
-			name: "Headers are equal",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  ptr.To("HeaderName"),
-					Value: ptr.To("HeaderValue"),
-				},
-			},
-			want: true,
-		},
-		{
-			name: "Different number of headers",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  ptr.To("HeaderName"),
-					Value: ptr.To("HeaderValue"),
-				},
-				{
-					Name:  ptr.To("AnotherHeader"),
-					Value: ptr.To("AnotherValue"),
-				},
-			},
-			want: false,
-		},
-		{
-			name:           "Empty headers array",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{},
-			want:           false,
-		},
-		{
-			name:           "Nil headers array",
-			currentHeaders: nil,
-			want:           false,
-		},
-		{
-			name: "Different header value",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  ptr.To("HeaderName"),
-					Value: ptr.To("DifferentValue"),
-				},
-			},
-			want: false,
-		},
-		{
-			name: "Different header name",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  ptr.To("DifferentName"),
-					Value: ptr.To("HeaderValue"),
-				},
-			},
-			want: false,
-		},
-		{
-			name: "Nil name in header",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  nil,
-					Value: ptr.To("HeaderValue"),
-				},
-			},
-			want: false,
-		},
-		{
-			name: "Nil value in header",
-			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-				{
-					Name:  ptr.To("HeaderName"),
-					Value: nil,
-				},
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := equalCustomHeaders(tt.currentHeaders, desiredHeaders); got != tt.want {
-				t.Errorf("equalCustomHeaders() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+func TestEqualCustomHeadersObsolete(t *testing.T) {
+	// This test is no longer needed as custom headers comparison is now handled by equalMonitorConfig
+	t.Skip("Custom headers comparison is now part of TestEqualMonitorConfig")
 }
 
 func TestEqualProfileProperties(t *testing.T) {
@@ -1054,8 +966,56 @@ func TestEqualTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := equalTags(tt.currentTags, desiredTags); got != tt.want {
-				t.Errorf("equalTags() = %v, want %v", got, tt.want)
+			if got := desiredTagsExistInCurrentTags(tt.currentTags, desiredTags); got != tt.want {
+				t.Errorf("desiredTagsExistInCurrentTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEqualProfilePropertiesAndDNS(t *testing.T) {
+	desiredProps := buildDesiredProfile().Properties
+
+	tests := []struct {
+		name         string
+		currentProps *armtrafficmanager.ProfileProperties
+		want         bool
+	}{
+		{
+			name:         "Properties are equal",
+			currentProps: desiredProps,
+			want:         true,
+		},
+		{
+			name: "Different profile status",
+			currentProps: &armtrafficmanager.ProfileProperties{
+				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusDisabled),
+				TrafficRoutingMethod: desiredProps.TrafficRoutingMethod,
+				DNSConfig:            desiredProps.DNSConfig,
+				MonitorConfig:        desiredProps.MonitorConfig,
+			},
+			want: false,
+		},
+		{
+			name: "Different DNS TTL",
+			currentProps: &armtrafficmanager.ProfileProperties{
+				ProfileStatus:        desiredProps.ProfileStatus,
+				TrafficRoutingMethod: desiredProps.TrafficRoutingMethod,
+				DNSConfig: &armtrafficmanager.DNSConfig{
+					TTL:          ptr.To(int64(60)), // Different TTL
+					RelativeName: desiredProps.DNSConfig.RelativeName,
+					Fqdn:         desiredProps.DNSConfig.Fqdn,
+				},
+				MonitorConfig: desiredProps.MonitorConfig,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := equalProfilePropertiesAndDNS(tt.currentProps, desiredProps); got != tt.want {
+				t.Errorf("equalProfilePropertiesAndDNS() = %v, want %v", got, tt.want)
 			}
 		})
 	}

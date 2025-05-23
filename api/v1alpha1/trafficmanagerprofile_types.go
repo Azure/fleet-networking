@@ -90,6 +90,7 @@ type MonitorConfig struct {
 	// Custom headers used for probing endpoints, such as Host headers.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=8
 	CustomHeaders []MonitorConfigCustomHeader `json:"customHeaders,omitempty"`
 
 	// The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile
