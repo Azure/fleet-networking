@@ -31,6 +31,7 @@ import (
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
+	"go.goms.io/fleet-networking/pkg/common/clients/trafficmanager"
 	"go.goms.io/fleet-networking/pkg/common/defaulter"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -79,7 +80,7 @@ func GenerateAzureTrafficManagerProfileName(profile *fleetnetv1beta1.TrafficMana
 type Reconciler struct {
 	client.Client
 
-	ProfilesClient *armtrafficmanager.ProfilesClient
+	ProfilesClient *trafficmanager.ProfilesClient
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles,verbs=get;list;watch;create;update;patch;delete
@@ -146,10 +147,13 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 	if controllerutil.ContainsFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer) {
 		atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 		klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-		if _, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil); err != nil {
-			if !azureerrors.IsNotFound(err) {
-				klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-				return ctrl.Result{}, err
+		
+		_, deleteErr := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
+		
+		if deleteErr != nil {
+			if !azureerrors.IsNotFound(deleteErr) {
+				klog.ErrorS(deleteErr, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
+				return ctrl.Result{}, deleteErr
 			}
 		}
 		klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -175,7 +179,11 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	desiredATMProfile := generateAzureTrafficManagerProfile(profile)
 	var responseError *azcore.ResponseError
+	var res armtrafficmanager.ProfilesClientCreateOrUpdateResponse
+	var updateErr error
+	
 	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
+	
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
 			klog.ErrorS(getErr, "Failed to get the profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -208,7 +216,8 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 		}
 	}
 
-	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
+	res, updateErr = r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
+	
 	if updateErr != nil {
 		if !errors.As(updateErr, &responseError) {
 			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)

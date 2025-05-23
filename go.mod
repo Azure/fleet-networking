@@ -4,6 +4,8 @@ go 1.23.8
 
 require go.goms.io/fleet v0.14.0
 
+require github.com/stretchr/objx v0.5.2 // indirect
+
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0

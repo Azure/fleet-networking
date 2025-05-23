@@ -39,6 +39,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/clients/trafficmanager"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -243,7 +244,7 @@ func main() {
 }
 
 // initAzureTrafficManagerClients initializes the Azure Traffic Manager profiles and endpoints clients.
-func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtrafficmanager.ProfilesClient, *armtrafficmanager.EndpointsClient, error) {
+func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*trafficmanager.ProfilesClient, *trafficmanager.EndpointsClient, error) {
 	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
@@ -271,5 +272,10 @@ func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtraffic
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create Azure trafficManager endpoints client: %w", err)
 	}
-	return profilesClient, endpointsClient, nil
+	
+	// Wrap the SDK clients with our custom clients that emit metrics
+	customProfilesClient := trafficmanager.NewProfilesClient(profilesClient)
+	customEndpointsClient := trafficmanager.NewEndpointsClient(endpointsClient)
+	
+	return customProfilesClient, customEndpointsClient, nil
 }

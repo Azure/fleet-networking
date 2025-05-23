@@ -78,6 +78,29 @@ func validateTrafficManagerProfileMetricsEmitted(wantMetrics ...*prometheusclien
 	}, timeout, interval).Should(Succeed(), "failed to validate the trafficManagerProfile status metrics")
 }
 
+// validateTrafficManagerARMAPILatencyMetricsEmitted validates the ARM API latency metrics are emitted.
+func validateTrafficManagerARMAPILatencyMetricsEmitted() {
+	Eventually(func() error {
+		metricFamilies, err := ctrlmetrics.Registry.Gather()
+		if err != nil {
+			return fmt.Errorf("failed to gather metrics: %w", err)
+		}
+		var gotMetrics []*prometheusclientmodel.Metric
+		for _, mf := range metricFamilies {
+			if mf.GetName() == "fleet_networking_traffic_manager_arm_api_latency_milliseconds" {
+				gotMetrics = mf.GetMetric()
+				break
+			}
+		}
+		
+		if len(gotMetrics) == 0 {
+			return fmt.Errorf("no ARM API latency metrics found")
+		}
+		
+		return nil
+	}, timeout, interval).Should(Succeed(), "failed to validate ARM API latency metrics")
+}
+
 func generateMetrics(
 	profile *fleetnetv1beta1.TrafficManagerProfile,
 	condition metav1.Condition,
