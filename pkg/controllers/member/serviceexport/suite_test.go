@@ -25,7 +25,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"os"
 )
 
 var (
@@ -62,12 +61,6 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Check if KUBEBUILDER_ASSETS environment variable is set
-	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
-	if kubebuildAssets == "" {
-		// Skip all tests if KUBEBUILDER_ASSETS is not set
-		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
-	}
 	By("Setup klog")
 	var err error
 	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
@@ -85,7 +78,6 @@ var _ = BeforeSuite(func() {
 	}
 	memberCfg, err := memberTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(memberCfg).NotTo(BeNil())
 
 	hubTestEnv = &envtest.Environment{
@@ -94,7 +86,6 @@ var _ = BeforeSuite(func() {
 	}
 	hubCfg, err := hubTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(hubCfg).NotTo(BeNil())
 
 	// Add custom APIs to the runtime scheme.
@@ -103,11 +94,9 @@ var _ = BeforeSuite(func() {
 	// Set up clients for member and hub clusters.
 	memberClient, err = client.New(memberCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(memberClient).NotTo(BeNil())
 	hubClient, err = client.New(hubCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(hubClient).NotTo(BeNil())
 
 	// Set up resources.
@@ -121,7 +110,6 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	publicIPAddressListResponse := []*armnetwork.PublicIPAddress{
 		{
@@ -151,7 +139,6 @@ var _ = BeforeSuite(func() {
 		EnableTrafficManagerFeature: true,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	go func() {
 		defer GinkgoRecover()
@@ -162,20 +149,9 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+	cancel()
 
-	// Only attempt to clean up if we actually set up the test environment
-	if testEnv != nil && k8sClient != nil {
-		// Delete any namespaces created during the test
-		// This is best-effort and safe to skip
-	}
-
-	if cancel != nil {
-		cancel()
-	}
-	
 	By("tearing down the test environment")
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
-	}
+	Expect(memberTestEnv.Stop()).Should(Succeed())
+	Expect(hubTestEnv.Stop()).Should(Succeed())
 })

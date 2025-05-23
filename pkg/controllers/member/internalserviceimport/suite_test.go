@@ -28,7 +28,6 @@ import (
 	// +kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"os"
 )
 
 var (
@@ -56,12 +55,6 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Check if KUBEBUILDER_ASSETS environment variable is set
-	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
-	if kubebuildAssets == "" {
-		// Skip all tests if KUBEBUILDER_ASSETS is not set
-		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
-	}
 	klog.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	ctx, cancel = context.WithCancel(context.TODO())
@@ -75,7 +68,6 @@ var _ = BeforeSuite(func() {
 	var err error
 	memberConfig, err = memberTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(memberConfig).NotTo(BeNil())
 
 	hubTestEnv = &envtest.Environment{
@@ -84,24 +76,20 @@ var _ = BeforeSuite(func() {
 	}
 	hubConfig, err = hubTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(hubConfig).NotTo(BeNil())
 
 	err = fleetnetv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	//+kubebuilder:scaffold:scheme
 	By("construct the member k8s client")
 	memberClient, err = client.New(memberConfig, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(memberClient).NotTo(BeNil())
 
 	By("construct the hub k8s client")
 	hubClient, err = client.New(hubConfig, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(hubClient).NotTo(BeNil())
 
 	By("Create member namespace")
@@ -131,7 +119,6 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	err = (&Reconciler{
 		MemberClient: memberClient,
@@ -150,19 +137,8 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	defer klog.Flush()
 
-	// Only attempt to clean up if we actually set up the test environment
-	if testEnv != nil && k8sClient != nil {
-		// Delete any namespaces created during the test
-		// This is best-effort and safe to skip
-	}
-
-	if cancel != nil {
-		cancel()
-	}
-	
+	cancel()
 	By("tearing down the test environment")
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
-	}
+	Expect(memberTestEnv.Stop()).Should(Succeed())
+	Expect(hubTestEnv.Stop()).Should(Succeed())
 })

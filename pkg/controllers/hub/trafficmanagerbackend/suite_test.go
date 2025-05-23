@@ -30,7 +30,6 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
-	"os"
 )
 
 var (
@@ -265,13 +264,6 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
-		// Check if KUBEBUILDER_ASSETS environment variable is set
-	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
-	if kubebuildAssets == "" {
-		// Skip all tests if KUBEBUILDER_ASSETS is not set
-		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
-	}
-
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("../../../../", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
@@ -280,22 +272,18 @@ var _ = BeforeSuite(func() {
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(cfg).NotTo(BeNil())
 
 	err = fleetnetv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	err = fleetnetv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	//+kubebuilder:scaffold:scheme
 	By("construct the k8s client")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(k8sClient).NotTo(BeNil())
 
 	By("starting the controller manager")
@@ -309,7 +297,6 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	profileClient, err := fakeprovider.NewProfileClient()
 	Expect(err).Should(Succeed(), "failed to create the fake profile client")
@@ -363,19 +350,32 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	defer klog.Flush()
 
-	// Only attempt to clean up if we actually set up the test environment
-	if testEnv != nil && k8sClient != nil {
-		// Delete any namespaces created during the test
-		// This is best-effort and safe to skip
+	for i, name := range memberClusterNames {
+		By(fmt.Sprintf("Delete internalServiceExport %v", internalServiceExports[i].Name))
+		Expect(k8sClient.Delete(ctx, &internalServiceExports[i])).Should(Succeed(), "failed to delete internalServiceExport")
+
+		By(fmt.Sprintf("Delete member cluster system namespace %v", name))
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}
+		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
 	}
 
-	if cancel != nil {
-		cancel()
+	By("delete profile namespace")
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespace,
+		},
 	}
-	
+	Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
+
+	cancel()
 	By("tearing down the test environment")
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
-	}
+	err := testEnv.Stop()
+	Expect(err).NotTo(HaveOccurred())
+
+	generateAzureTrafficManagerProfileNameFunc = originalGenerateAzureTrafficManagerProfileNameFunc
+	generateAzureTrafficManagerEndpointNamePrefixFunc = originalGenerateAzureTrafficManagerEndpointNamePrefixFunc
 })
