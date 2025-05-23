@@ -28,7 +28,6 @@ import (
 	// +kubebuilder:scaffold:imports
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"os"
 )
 
 var (
@@ -61,13 +60,6 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
-		// Check if KUBEBUILDER_ASSETS environment variable is set
-	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
-	if kubebuildAssets == "" {
-		// Skip all tests if KUBEBUILDER_ASSETS is not set
-		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
-	}
-
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("../../../../", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
@@ -76,18 +68,15 @@ var _ = BeforeSuite(func() {
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(cfg).NotTo(BeNil())
 
 	err = fleetnetv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	//+kubebuilder:scaffold:scheme
 	By("construct the k8s client")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(k8sClient).NotTo(BeNil())
 
 	By("create namespace")
@@ -131,7 +120,6 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	err = (&Reconciler{
 		Client:   mgr.GetClient(),
@@ -150,19 +138,8 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	defer klog.Flush()
 
-	// Only attempt to clean up if we actually set up the test environment
-	if testEnv != nil && k8sClient != nil {
-		// Delete any namespaces created during the test
-		// This is best-effort and safe to skip
-	}
-
-	if cancel != nil {
-		cancel()
-	}
-	
+	cancel()
 	By("tearing down the test environment")
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
-	}
+	err := testEnv.Stop()
+	Expect(err).NotTo(HaveOccurred())
 })

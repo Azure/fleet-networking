@@ -26,7 +26,6 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
-	"os"
 )
 
 var (
@@ -43,12 +42,6 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Check if KUBEBUILDER_ASSETS environment variable is set
-	kubebuildAssets := os.Getenv("KUBEBUILDER_ASSETS")
-	if kubebuildAssets == "" {
-		// Skip all tests if KUBEBUILDER_ASSETS is not set
-		Skip("Skipping integration tests because KUBEBUILDER_ASSETS environment variable is not set")
-	}
 	By("Setup klog")
 	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
 	klog.InitFlags(fs)
@@ -68,7 +61,6 @@ var _ = BeforeSuite(func() {
 	}
 	hubCfg, err := hubTestEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	}
 	Expect(hubCfg).NotTo(BeNil())
 
 	// Add custom APIs to the runtime scheme.
@@ -86,7 +78,6 @@ var _ = BeforeSuite(func() {
 		Logger: textlogger.NewLogger(textlogger.NewConfig(textlogger.Verbosity(4))),
 	})
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	// Set up the client.
 	// The client must be one with cache (i.e. configured by the controller manager) to make
@@ -99,7 +90,6 @@ var _ = BeforeSuite(func() {
 		ForceDeleteWaitTime: 1 * time.Minute,
 	}).SetupWithManager(hubCtrlMgr)
 	Expect(err).NotTo(HaveOccurred())
-	}
 
 	go func() {
 		defer GinkgoRecover()
@@ -110,20 +100,8 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	defer klog.Flush()
+	cancel()
 
-	// Only attempt to clean up if we actually set up the test environment
-	if testEnv != nil && k8sClient != nil {
-		// Delete any namespaces created during the test
-		// This is best-effort and safe to skip
-	}
-
-	if cancel != nil {
-		cancel()
-	}
-	
 	By("tearing down the test environment")
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
-	}
+	Expect(hubTestEnv.Stop()).Should(Succeed())
 })
