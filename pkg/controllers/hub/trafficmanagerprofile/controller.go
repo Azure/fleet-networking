@@ -261,10 +261,10 @@ func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 
 // hasRequiredProperties checks if the profile has all required properties
 func hasRequiredProperties(profile armtrafficmanager.Profile) bool {
-	return profile.Properties != nil && 
-		profile.Properties.MonitorConfig != nil && 
-		profile.Properties.ProfileStatus != nil && 
-		profile.Properties.TrafficRoutingMethod != nil && 
+	return profile.Properties != nil &&
+		profile.Properties.MonitorConfig != nil &&
+		profile.Properties.ProfileStatus != nil &&
+		profile.Properties.TrafficRoutingMethod != nil &&
 		profile.Properties.DNSConfig != nil
 }
 
@@ -317,7 +317,7 @@ func equalCustomHeaders(currHeaders, desiredHeaders []*armtrafficmanager.Monitor
 
 // equalProfileProperties compares profile status and traffic routing method
 func equalProfileProperties(current, desired *armtrafficmanager.ProfileProperties) bool {
-	return *current.ProfileStatus == *desired.ProfileStatus && 
+	return *current.ProfileStatus == *desired.ProfileStatus &&
 		*current.TrafficRoutingMethod == *desired.TrafficRoutingMethod
 }
 
@@ -334,9 +334,9 @@ func equalTags(currentTags, desiredTags map[string]*string) bool {
 
 	for key, value := range desiredTags {
 		currentValue := currentTags[key]
-		if (value == nil && currentValue != nil) || 
-		   (value != nil && currentValue == nil) || 
-		   (currentValue == nil || *currentValue != *value) {
+		if (value == nil && currentValue != nil) ||
+			(value != nil && currentValue == nil) ||
+			(currentValue == nil || *currentValue != *value) {
 			return false
 		}
 	}
