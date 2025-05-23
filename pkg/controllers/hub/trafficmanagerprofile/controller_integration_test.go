@@ -743,4 +743,117 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validateEmittedEvents(profile, wantEvents) // azure api error
 		})
 	})
+
+	Context("When creating trafficManagerProfile with custom headers", Ordered, func() {
+		name := fakeprovider.ValidProfileName
+		var profile *fleetnetv1beta1.TrafficManagerProfile
+		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
+		hostHeaderName := "Host"
+		hostHeaderValue := "myapp.example.com"
+		var wantMetrics []*prometheusclientmodel.Metric
+
+		It("Reset the metrics in registry", func() {
+			resetTrafficManagerProfileMetricsRegistry()
+		})
+
+		It("AzureTrafficManager should be configured with custom headers", func() {
+			By("By creating a new TrafficManagerProfile with custom headers")
+			profile = trafficManagerProfileForTest(name)
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  hostHeaderName,
+					Value: hostHeaderValue,
+				},
+			}
+			Expect(k8sClient.Create(ctx, profile)).Should(Succeed())
+
+			relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
+			fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
+
+			By("By checking profile with custom headers")
+			want := fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer, objectmeta.MetricsFinalizer},
+				},
+				Spec: profile.Spec,
+				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
+					DNSName:    ptr.To(fqdn),
+					ResourceID: profileResourceID,
+					Conditions: []metav1.Condition{
+						{
+							Status:             metav1.ConditionTrue,
+							Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
+							ObservedGeneration: profile.Generation,
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
+
+			By("By validating the status metrics")
+			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+		})
+
+		It("Updating trafficManagerProfile with different custom headers", func() {
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the trafficManagerProfile")
+
+			// Update custom headers
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  hostHeaderName,
+					Value: "updated.example.com", // Changed value
+				},
+				{
+					Name:  "X-Custom-Header",
+					Value: "custom-value", // Added new header
+				},
+			}
+
+			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
+
+			relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
+			fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
+
+			want := fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       name,
+					Namespace:  testNamespace,
+					Finalizers: []string{objectmeta.TrafficManagerProfileFinalizer, objectmeta.MetricsFinalizer},
+				},
+				Spec: profile.Spec,
+				Status: fleetnetv1beta1.TrafficManagerProfileStatus{
+					DNSName:    ptr.To(fqdn),
+					ResourceID: profileResourceID,
+					Conditions: []metav1.Condition{
+						{
+							Status:             metav1.ConditionTrue,
+							Type:               string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed),
+							Reason:             string(fleetnetv1beta1.TrafficManagerProfileReasonProgrammed),
+							ObservedGeneration: profile.Generation,
+						},
+					},
+				},
+			}
+			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
+
+			// It overwrites the previous one as they have the same condition.
+			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+		})
+
+		It("Deleting trafficManagerProfile", func() {
+			err := k8sClient.Delete(ctx, profile)
+			Expect(err).Should(Succeed(), "failed to delete trafficManagerProfile")
+		})
+
+		It("Validating trafficManagerProfile is deleted", func() {
+			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
+
+			By("By validating the status metrics")
+			validateTrafficManagerProfileMetricsEmitted()
+		})
+	})
 })

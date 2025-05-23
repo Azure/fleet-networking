@@ -644,7 +644,7 @@ func TestHasRequiredProperties(t *testing.T) {
 
 func TestEqualMonitorConfig(t *testing.T) {
 	desiredConfig := buildDesiredProfile().Properties.MonitorConfig
-	
+
 	tests := []struct {
 		name    string
 		current *armtrafficmanager.MonitorConfig
@@ -812,14 +812,14 @@ func TestEqualMonitorConfig(t *testing.T) {
 
 func TestEqualCustomHeaders(t *testing.T) {
 	desiredHeaders := buildDesiredProfile().Properties.MonitorConfig.CustomHeaders
-	
+
 	tests := []struct {
-		name          string
+		name           string
 		currentHeaders []*armtrafficmanager.MonitorConfigCustomHeadersItem
-		want          bool
+		want           bool
 	}{
 		{
-			name:          "Headers are equal",
+			name: "Headers are equal",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  ptr.To("HeaderName"),
@@ -829,7 +829,7 @@ func TestEqualCustomHeaders(t *testing.T) {
 			want: true,
 		},
 		{
-			name:          "Different number of headers",
+			name: "Different number of headers",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  ptr.To("HeaderName"),
@@ -843,17 +843,17 @@ func TestEqualCustomHeaders(t *testing.T) {
 			want: false,
 		},
 		{
-			name:          "Empty headers array",
+			name:           "Empty headers array",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{},
-			want:          false,
+			want:           false,
 		},
 		{
-			name:          "Nil headers array",
+			name:           "Nil headers array",
 			currentHeaders: nil,
-			want:          false,
+			want:           false,
 		},
 		{
-			name:          "Different header value",
+			name: "Different header value",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  ptr.To("HeaderName"),
@@ -863,7 +863,7 @@ func TestEqualCustomHeaders(t *testing.T) {
 			want: false,
 		},
 		{
-			name:          "Different header name",
+			name: "Different header name",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  ptr.To("DifferentName"),
@@ -873,7 +873,7 @@ func TestEqualCustomHeaders(t *testing.T) {
 			want: false,
 		},
 		{
-			name:          "Nil name in header",
+			name: "Nil name in header",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  nil,
@@ -883,7 +883,7 @@ func TestEqualCustomHeaders(t *testing.T) {
 			want: false,
 		},
 		{
-			name:          "Nil value in header",
+			name: "Nil value in header",
 			currentHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 				{
 					Name:  ptr.To("HeaderName"),
@@ -905,14 +905,14 @@ func TestEqualCustomHeaders(t *testing.T) {
 
 func TestEqualProfileProperties(t *testing.T) {
 	desiredProps := buildDesiredProfile().Properties
-	
+
 	tests := []struct {
-		name        string
+		name         string
 		currentProps *armtrafficmanager.ProfileProperties
-		want        bool
+		want         bool
 	}{
 		{
-			name:        "Properties are equal",
+			name: "Properties are equal",
 			currentProps: &armtrafficmanager.ProfileProperties{
 				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -920,7 +920,7 @@ func TestEqualProfileProperties(t *testing.T) {
 			want: true,
 		},
 		{
-			name:        "Different profile status",
+			name: "Different profile status",
 			currentProps: &armtrafficmanager.ProfileProperties{
 				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusDisabled),
 				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -928,7 +928,7 @@ func TestEqualProfileProperties(t *testing.T) {
 			want: false,
 		},
 		{
-			name:        "Different traffic routing method",
+			name: "Different traffic routing method",
 			currentProps: &armtrafficmanager.ProfileProperties{
 				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodPriority),
@@ -948,14 +948,14 @@ func TestEqualProfileProperties(t *testing.T) {
 
 func TestEqualDNSConfig(t *testing.T) {
 	desiredConfig := buildDesiredProfile().Properties.DNSConfig
-	
+
 	tests := []struct {
-		name         string
+		name          string
 		currentConfig *armtrafficmanager.DNSConfig
-		want         bool
+		want          bool
 	}{
 		{
-			name:         "DNS configs are equal",
+			name: "DNS configs are equal",
 			currentConfig: &armtrafficmanager.DNSConfig{
 				TTL:          ptr.To(int64(60)),
 				RelativeName: ptr.To("namespace-name"),
@@ -963,7 +963,7 @@ func TestEqualDNSConfig(t *testing.T) {
 			want: true,
 		},
 		{
-			name:         "TTL is nil",
+			name: "TTL is nil",
 			currentConfig: &armtrafficmanager.DNSConfig{
 				TTL:          nil,
 				RelativeName: ptr.To("namespace-name"),
@@ -971,7 +971,7 @@ func TestEqualDNSConfig(t *testing.T) {
 			want: false,
 		},
 		{
-			name:         "Different TTL",
+			name: "Different TTL",
 			currentConfig: &armtrafficmanager.DNSConfig{
 				TTL:          ptr.To(int64(30)),
 				RelativeName: ptr.To("namespace-name"),
@@ -991,14 +991,14 @@ func TestEqualDNSConfig(t *testing.T) {
 
 func TestEqualTags(t *testing.T) {
 	desiredTags := buildDesiredProfile().Tags
-	
+
 	tests := []struct {
 		name        string
 		currentTags map[string]*string
 		want        bool
 	}{
 		{
-			name:        "Tags are equal",
+			name: "Tags are equal",
 			currentTags: map[string]*string{
 				"tagKey": ptr.To("tagValue"),
 			},
@@ -1015,40 +1015,40 @@ func TestEqualTags(t *testing.T) {
 			want:        false,
 		},
 		{
-			name:        "Extra tag in current",
+			name: "Extra tag in current",
 			currentTags: map[string]*string{
-				"tagKey":    ptr.To("tagValue"),
+				"tagKey":   ptr.To("tagValue"),
 				"extraKey": ptr.To("extraValue"),
 			},
 			want: true,
 		},
 		{
-			name:        "Missing tag in current",
+			name: "Missing tag in current",
 			currentTags: map[string]*string{
 				"otherKey": ptr.To("otherValue"),
 			},
 			want: false,
 		},
 		{
-			name:        "Different tag value",
+			name: "Different tag value",
 			currentTags: map[string]*string{
 				"tagKey": ptr.To("differentValue"),
 			},
 			want: false,
 		},
 		{
-			name:        "Nil tag value in current",
+			name: "Nil tag value in current",
 			currentTags: map[string]*string{
 				"tagKey": nil,
 			},
 			want: false,
 		},
 		{
-			name:        "Nil tag value in desired but non-nil in current",
+			name: "Nil tag value in desired but non-nil in current",
 			currentTags: map[string]*string{
 				"tagKey": ptr.To("tagValue"),
 			},
-			want: true,  // The original function allows extra tags
+			want: true, // The original function allows extra tags
 		},
 	}
 
