@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -226,41 +227,82 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 // by ignoring others.
 // The desired profile is built by the controllers and all the required fields should not be nil.
 func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile) bool {
-	// location and dnsConfig (excluding TTL) is immutable
-	if current.Properties == nil || current.Properties.MonitorConfig == nil || current.Properties.ProfileStatus == nil || current.Properties.TrafficRoutingMethod == nil || current.Properties.DNSConfig == nil {
+	// Check required properties
+	if !hasRequiredProperties(current) {
 		return false
 	}
 
-	if current.Properties.MonitorConfig.IntervalInSeconds == nil || current.Properties.MonitorConfig.Path == nil ||
-		current.Properties.MonitorConfig.Port == nil || current.Properties.MonitorConfig.Protocol == nil ||
-		current.Properties.MonitorConfig.TimeoutInSeconds == nil || current.Properties.MonitorConfig.ToleratedNumberOfFailures == nil {
+	// Compare monitor config
+	if !equalMonitorConfig(current.Properties.MonitorConfig, desired.Properties.MonitorConfig) {
 		return false
 	}
 
-	if *current.Properties.MonitorConfig.IntervalInSeconds != *desired.Properties.MonitorConfig.IntervalInSeconds ||
-		*current.Properties.MonitorConfig.Path != *desired.Properties.MonitorConfig.Path ||
-		*current.Properties.MonitorConfig.Port != *desired.Properties.MonitorConfig.Port ||
-		*current.Properties.MonitorConfig.Protocol != *desired.Properties.MonitorConfig.Protocol ||
-		*current.Properties.MonitorConfig.TimeoutInSeconds != *desired.Properties.MonitorConfig.TimeoutInSeconds ||
-		*current.Properties.MonitorConfig.ToleratedNumberOfFailures != *desired.Properties.MonitorConfig.ToleratedNumberOfFailures {
+	// Compare profile properties and DNS
+	if !equalProfilePropertiesAndDNS(current.Properties, desired.Properties) {
 		return false
 	}
 
-	if *current.Properties.ProfileStatus != *desired.Properties.ProfileStatus || *current.Properties.TrafficRoutingMethod != *desired.Properties.TrafficRoutingMethod {
+	// Compare tags
+	if !desiredTagsExistInCurrentTags(current.Tags, desired.Tags) {
 		return false
 	}
 
-	if current.Properties.DNSConfig.TTL == nil || *current.Properties.DNSConfig.TTL != *desired.Properties.DNSConfig.TTL {
+	return true
+}
+
+// hasRequiredProperties checks if the profile has all required properties.
+func hasRequiredProperties(profile armtrafficmanager.Profile) bool {
+	return profile.Properties != nil &&
+		profile.Properties.MonitorConfig != nil &&
+		profile.Properties.ProfileStatus != nil &&
+		profile.Properties.TrafficRoutingMethod != nil &&
+		profile.Properties.DNSConfig != nil
+}
+
+// equalMonitorConfig compares the monitoring configuration
+func equalMonitorConfig(current, desired *armtrafficmanager.MonitorConfig) bool {
+	if current.IntervalInSeconds == nil || current.Path == nil ||
+		current.Port == nil || current.Protocol == nil ||
+		current.TimeoutInSeconds == nil || current.ToleratedNumberOfFailures == nil {
 		return false
 	}
 
-	if current.Tags == nil {
+	// Check basic monitor config fields
+	if *current.IntervalInSeconds != *desired.IntervalInSeconds ||
+		*current.Path != *desired.Path ||
+		*current.Port != *desired.Port ||
+		*current.Protocol != *desired.Protocol ||
+		*current.TimeoutInSeconds != *desired.TimeoutInSeconds ||
+		*current.ToleratedNumberOfFailures != *desired.ToleratedNumberOfFailures {
 		return false
 	}
 
-	for key, value := range desired.Tags {
-		currentValue := current.Tags[key]
-		if (value == nil && currentValue != nil) || (value != nil && currentValue == nil) || (currentValue == nil || *currentValue != *value) {
+	// Also check custom headers
+	return equality.Semantic.DeepEqual(current.CustomHeaders, desired.CustomHeaders)
+}
+
+// equalProfilePropertiesAndDNS compares profile status, traffic routing method, and DNS configuration
+func equalProfilePropertiesAndDNS(current, desired *armtrafficmanager.ProfileProperties) bool {
+	// Check profile status and routing method
+	if *current.ProfileStatus != *desired.ProfileStatus || *current.TrafficRoutingMethod != *desired.TrafficRoutingMethod {
+		return false
+	}
+
+	// Check DNS configuration
+	return current.DNSConfig != nil && current.DNSConfig.TTL != nil && *current.DNSConfig.TTL == *desired.DNSConfig.TTL
+}
+
+// desiredTagsExistInCurrentTags checks if all desired tags exist in current tags with the same value
+func desiredTagsExistInCurrentTags(currentTags, desiredTags map[string]*string) bool {
+	if currentTags == nil {
+		return false
+	}
+
+	for key, value := range desiredTags {
+		currentValue := currentTags[key]
+		if (value == nil && currentValue != nil) ||
+			(value != nil && currentValue == nil) ||
+			(currentValue == nil || *currentValue != *value) {
 			return false
 		}
 	}
@@ -333,7 +375,9 @@ func (r *Reconciler) updateProfileStatus(ctx context.Context, profile *fleetnetv
 func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerProfile) armtrafficmanager.Profile {
 	mc := profile.Spec.MonitorConfig
 	namespacedName := types.NamespacedName{Name: profile.Name, Namespace: profile.Namespace}
-	return armtrafficmanager.Profile{
+
+	// Build the Azure Traffic Manager profile
+	tmProfile := armtrafficmanager.Profile{
 		Location: ptr.To("global"),
 		Properties: &armtrafficmanager.ProfileProperties{
 			DNSConfig: &armtrafficmanager.DNSConfig{
@@ -356,6 +400,20 @@ func generateAzureTrafficManagerProfile(profile *fleetnetv1beta1.TrafficManagerP
 			objectmeta.AzureTrafficManagerProfileTagKey: ptr.To(namespacedName.String()),
 		},
 	}
+
+	// Add custom headers if specified
+	if len(mc.CustomHeaders) > 0 {
+		customHeaders := make([]*armtrafficmanager.MonitorConfigCustomHeadersItem, 0, len(mc.CustomHeaders))
+		for _, header := range mc.CustomHeaders {
+			customHeaders = append(customHeaders, &armtrafficmanager.MonitorConfigCustomHeadersItem{
+				Name:  ptr.To(header.Name),
+				Value: ptr.To(header.Value),
+			})
+		}
+		tmProfile.Properties.MonitorConfig.CustomHeaders = customHeaders
+	}
+
+	return tmProfile
 }
 
 // buildAzureTrafficManagerProfileRequest assumes desired is always valid.
@@ -375,6 +433,7 @@ func buildAzureTrafficManagerProfileRequest(current, desired armtrafficmanager.P
 			current.Properties.MonitorConfig.Protocol = desired.Properties.MonitorConfig.Protocol
 			current.Properties.MonitorConfig.TimeoutInSeconds = desired.Properties.MonitorConfig.TimeoutInSeconds
 			current.Properties.MonitorConfig.ToleratedNumberOfFailures = desired.Properties.MonitorConfig.ToleratedNumberOfFailures
+			current.Properties.MonitorConfig.CustomHeaders = desired.Properties.MonitorConfig.CustomHeaders
 		}
 		current.Properties.ProfileStatus = desired.Properties.ProfileStatus
 		current.Properties.TrafficRoutingMethod = desired.Properties.TrafficRoutingMethod

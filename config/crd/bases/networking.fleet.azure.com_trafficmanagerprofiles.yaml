@@ -59,6 +59,27 @@ spec:
                 description: The endpoint monitoring settings of the Traffic Manager
                   profile.
                 properties:
+                  customHeaders:
+                    description: Custom headers used for probing endpoints, such as
+                      Host headers.
+                    items:
+                      description: MonitorConfigCustomHeader defines a custom header
+                        for endpoint monitoring.
+                      properties:
+                        name:
+                          description: Name of the header
+                          minLength: 1
+                          type: string
+                        value:
+                          description: Value of the header
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
                   intervalInSeconds:
                     default: 30
                     description: |-
@@ -253,6 +274,27 @@ spec:
                 description: The endpoint monitoring settings of the Traffic Manager
                   profile.
                 properties:
+                  customHeaders:
+                    description: Custom headers used for probing endpoints, such as
+                      Host headers.
+                    items:
+                      description: MonitorConfigCustomHeader defines a custom header
+                        for endpoint monitoring.
+                      properties:
+                        name:
+                          description: Name of the header
+                          minLength: 1
+                          type: string
+                        value:
+                          description: Value of the header
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
                   intervalInSeconds:
                     default: 30
                     description: |-
