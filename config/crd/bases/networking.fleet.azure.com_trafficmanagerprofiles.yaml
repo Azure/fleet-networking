@@ -78,6 +78,7 @@ spec:
                       - name
                       - value
                       type: object
+                    maxItems: 8
                     type: array
                     x-kubernetes-list-type: atomic
                   intervalInSeconds:
@@ -293,6 +294,7 @@ spec:
                       - name
                       - value
                       type: object
+                    maxItems: 8
                     type: array
                     x-kubernetes-list-type: atomic
                   intervalInSeconds:

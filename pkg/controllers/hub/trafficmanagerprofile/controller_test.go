@@ -907,7 +907,7 @@ func TestEqualDNSConfig(t *testing.T) {
 			// Create mock ProfileProperties to use with equalProfilePropertiesAndDNS
 			currentProps := buildDesiredProfile().Properties
 			currentProps.DNSConfig = tt.currentConfig
-			
+
 			if got := equalProfilePropertiesAndDNS(currentProps, desiredProps); got != tt.want {
 				t.Errorf("equalProfilePropertiesAndDNS() with different DNSConfig = %v, want %v", got, tt.want)
 			}

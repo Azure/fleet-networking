@@ -814,7 +814,7 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			}
 
 			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
-			
+
 			// Re-get the profile to get the updated generation number
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the updated trafficManagerProfile")
 
@@ -843,7 +843,10 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			}
 			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 
-			// Clear the previous metrics and create a new one with the updated generation
+			// Reset the metrics registry first to clear old metrics with previous generation
+			resetTrafficManagerProfileMetricsRegistry()
+			
+			// Create a new metric expectation with the updated generation
 			wantMetrics = []*prometheusclientmodel.Metric{generateMetrics(profile, want.Status.Conditions[0])}
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 		})
