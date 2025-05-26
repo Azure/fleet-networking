@@ -11,12 +11,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	prometheusclientmodel "github.com/prometheus/client_model/go"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -97,6 +101,23 @@ func generateMetrics(
 	}
 }
 
+func validateEmittedEvents(profile *fleetnetv1beta1.TrafficManagerProfile, want []corev1.Event) {
+	var got corev1.EventList
+	Expect(k8sClient.List(ctx, &got, client.InNamespace(testNamespace),
+		client.MatchingFieldsSelector{Selector: fields.OneTermEqualSelector("involvedObject.name", profile.Name)})).Should(Succeed())
+
+	cmpOptions := []cmp.Option{
+		cmpopts.SortSlices(func(a, b corev1.Event) bool {
+			return a.LastTimestamp.Before(&b.LastTimestamp) // sort by time
+		}),
+		cmp.Comparer(func(a, b corev1.Event) bool {
+			return a.Reason == b.Reason && a.Type == b.Type && a.ReportingController == b.ReportingController
+		}),
+	}
+	diff := cmp.Diff(got.Items, want, cmpOptions...)
+	Expect(diff).To(BeEmpty(), "Event list mismatch (-got, +want):\n%s", diff)
+}
+
 var _ = Describe("Test TrafficManagerProfile Controller", func() {
 	Context("When updating existing valid trafficManagerProfile", Ordered, func() {
 		name := fakeprovider.ValidProfileName
@@ -106,9 +127,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
 		fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -142,6 +168,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonProgrammed, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Update the trafficManagerProfile spec and should fail", func() {
@@ -181,6 +212,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			// It overwrites the previous one as they have the same condition.
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -193,6 +227,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating event for deletion")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -202,8 +241,12 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -255,6 +298,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events and want no events")
+			validateEmittedEvents(profile, nil)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -267,6 +313,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events and want no events") // since we don't create any azure resource
+			validateEmittedEvents(profile, nil)
 		})
 	})
 
@@ -274,9 +323,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.ValidProfileWithUnexpectedResponse
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should be configured", func() {
@@ -324,6 +378,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonProgrammed, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -335,6 +394,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.IsTrafficManagerProfileDeleted(ctx, k8sClient, types.NamespacedName{Namespace: testNamespace, Name: name}, timeout)
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -342,9 +406,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.ConflictErrProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -376,6 +445,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeWarning, Reason: profileEventReasonAzureAPIError, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -388,6 +462,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -395,9 +474,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.ThrottledErrProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -429,6 +513,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeWarning, Reason: profileEventReasonAzureAPIError, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -441,6 +530,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -448,9 +542,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := "bad-request"
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -482,6 +581,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeWarning, Reason: profileEventReasonAzureAPIError, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -494,6 +598,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -501,9 +610,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.InternalServerErrProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("AzureTrafficManager should not be configured", func() {
@@ -535,6 +649,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeWarning, Reason: profileEventReasonAzureAPIError, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -547,6 +666,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeNormal, Reason: profileEventReasonDeleted, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 	})
 
@@ -554,9 +678,14 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		name := fakeprovider.ValidProfileName
 		var profile *fleetnetv1beta1.TrafficManagerProfile
 		var wantMetrics []*prometheusclientmodel.Metric
+		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
+
+			By("By deleting all the events")
+			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
 		It("TrafficManagerProfile should be invalid", func() {
@@ -591,6 +720,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
+
+			By("By validating events")
+			event := corev1.Event{Type: corev1.EventTypeWarning, Reason: profileEventReasonAzureAPIError, ReportingController: ControllerName}
+			wantEvents = append(wantEvents, event)
+			validateEmittedEvents(profile, wantEvents)
 		})
 
 		It("Deleting trafficManagerProfile", func() {
@@ -604,6 +738,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 
 			By("By validating the status metrics")
 			validateTrafficManagerProfileMetricsEmitted()
+
+			By("By validating events")
+			validateEmittedEvents(profile, wantEvents) // azure api error
 		})
 	})
 })
