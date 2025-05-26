@@ -814,6 +814,9 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			}
 
 			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
+			
+			// Re-get the profile to get the updated generation number
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, profile)).Should(Succeed(), "failed to get the updated trafficManagerProfile")
 
 			relativeDNSName := fmt.Sprintf(DNSRelativeNameFormat, testNamespace, name)
 			fqdn := fmt.Sprintf(fakeprovider.ProfileDNSNameFormat, relativeDNSName)
