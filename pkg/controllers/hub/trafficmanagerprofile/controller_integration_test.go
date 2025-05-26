@@ -129,11 +129,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -241,11 +241,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		profileResourceID := fmt.Sprintf(fakeprovider.ProfileResourceIDFormat, fakeprovider.DefaultSubscriptionID, fakeprovider.DefaultResourceGroupName, name)
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -325,11 +325,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -408,11 +408,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -476,11 +476,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -544,11 +544,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -612,11 +612,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 
@@ -680,11 +680,11 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		It("Reset the metrics in registry", func() {
+		BeforeAll(func() {
+			By("By Reset the metrics in registry")
 			resetTrafficManagerProfileMetricsRegistry()
-		})
 
-		It("Delete all the events", func() {
+			By("By deleting all the events")
 			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
 		})
 

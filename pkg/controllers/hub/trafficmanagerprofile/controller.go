@@ -186,7 +186,6 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	profileKObj := klog.KObj(profile)
 	atmProfileName := generateAzureTrafficManagerProfileNameFunc(profile)
 	desiredATMProfile := generateAzureTrafficManagerProfile(profile)
-	var responseError *azcore.ResponseError
 	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
@@ -223,11 +222,12 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 
 	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
 	if updateErr != nil {
+		r.Recorder.Eventf(profile, corev1.EventTypeWarning, profileEventReasonAzureAPIError, "Failed to create or update Azure Traffic Manager profile %s: %v", atmProfileName, updateErr)
+		var responseError *azcore.ResponseError
 		if !errors.As(updateErr, &responseError) {
 			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			return ctrl.Result{}, updateErr
 		}
-		r.Recorder.Eventf(profile, corev1.EventTypeWarning, profileEventReasonAzureAPIError, "Failed to create or update Azure Traffic Manager profile %s: %v", atmProfileName, updateErr)
 		klog.ErrorS(updateErr, "Failed to create or update a profile", "trafficManagerProfile", profileKObj,
 			"atmProfileName", atmProfileName,
 			"errorCode", responseError.ErrorCode, "statusCode", responseError.StatusCode)
