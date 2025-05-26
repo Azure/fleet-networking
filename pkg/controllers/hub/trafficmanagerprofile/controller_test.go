@@ -851,15 +851,25 @@ func TestEqualProfileProperties(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := equalProfileProperties(tt.currentProps, desiredProps); got != tt.want {
-				t.Errorf("equalProfileProperties() = %v, want %v", got, tt.want)
+			// Create mock DNS config to use with equalProfilePropertiesAndDNS
+			ttProps := tt.currentProps
+			if ttProps.DNSConfig == nil {
+				ttProps.DNSConfig = desiredProps.DNSConfig
+			}
+			if ttProps.MonitorConfig == nil {
+				ttProps.MonitorConfig = desiredProps.MonitorConfig
+			}
+			if got := equalProfilePropertiesAndDNS(ttProps, desiredProps); got != tt.want {
+				t.Errorf("equalProfilePropertiesAndDNS() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestEqualDNSConfig(t *testing.T) {
-	desiredConfig := buildDesiredProfile().Properties.DNSConfig
+	desiredProps := buildDesiredProfile().Properties
+	// Keep desiredConfig for clarity in the test case descriptions
+	_ = desiredProps.DNSConfig
 
 	tests := []struct {
 		name          string
@@ -894,8 +904,12 @@ func TestEqualDNSConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := equalDNSConfig(tt.currentConfig, desiredConfig); got != tt.want {
-				t.Errorf("equalDNSConfig() = %v, want %v", got, tt.want)
+			// Create mock ProfileProperties to use with equalProfilePropertiesAndDNS
+			currentProps := buildDesiredProfile().Properties
+			currentProps.DNSConfig = tt.currentConfig
+			
+			if got := equalProfilePropertiesAndDNS(currentProps, desiredProps); got != tt.want {
+				t.Errorf("equalProfilePropertiesAndDNS() with different DNSConfig = %v, want %v", got, tt.want)
 			}
 		})
 	}
