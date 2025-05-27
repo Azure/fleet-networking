@@ -44,12 +44,6 @@ func buildDesiredProfile() armtrafficmanager.Profile {
 				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
 				TimeoutInSeconds:          ptr.To[int64](10),
 				ToleratedNumberOfFailures: ptr.To[int64](3),
-				CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
-					{
-						Name:  ptr.To("HeaderName"),
-						Value: ptr.To("HeaderValue"),
-					},
-				},
 			},
 			ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 			TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -62,12 +56,13 @@ func buildDesiredProfile() armtrafficmanager.Profile {
 
 func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 	tests := []struct {
-		name             string
-		buildCurrentFunc func() armtrafficmanager.Profile
-		want             bool
+		name                string
+		buildDesiredProfile func() armtrafficmanager.Profile
+		buildCurrentFunc    func() armtrafficmanager.Profile
+		want                bool
 	}{
 		{
-			name: "Profiles are equal though buildCurrentFunc profile has some different fields from the desired",
+			name: "Profiles are equal while the current has some different fields from the desired",
 			buildCurrentFunc: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.ID = ptr.To("abc")
@@ -81,10 +76,28 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "CustomHeaders are equal",
+			name: "CustomHeaders are equal with different order",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+					{
+						Name:  ptr.To("HeaderName1"),
+						Value: ptr.To("HeaderValue1"),
+					},
+				}
+				return res
+			},
 			buildCurrentFunc: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName1"),
+						Value: ptr.To("HeaderValue1"),
+					},
 					{
 						Name:  ptr.To("HeaderName"),
 						Value: ptr.To("HeaderValue"),
@@ -95,7 +108,49 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "CustomHeaders are equal (empty headers)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = nil
+				return res
+			},
+			want: true,
+		},
+		{
+			name: "CustomHeaders are different (empty headers)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				return res
+			},
+		},
+		{
 			name: "CustomHeaders are different (different value)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
 			buildCurrentFunc: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
@@ -108,20 +163,22 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 			},
 		},
 		{
-			name: "CustomHeaders are different (missing header)",
-			buildCurrentFunc: func() armtrafficmanager.Profile {
+			name: "CustomHeaders are different (different header name)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
-				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
 				return res
 			},
-		},
-		{
-			name: "CustomHeaders with nil name",
 			buildCurrentFunc: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 					{
-						Name:  nil,
+						Name:  ptr.To("DifferentName"),
 						Value: ptr.To("HeaderValue"),
 					},
 				}
@@ -129,15 +186,20 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 			},
 		},
 		{
-			name: "CustomHeaders with nil value",
-			buildCurrentFunc: func() armtrafficmanager.Profile {
+			name: "CustomHeaders is nil",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
 					{
 						Name:  ptr.To("HeaderName"),
-						Value: nil,
+						Value: ptr.To("HeaderValue"),
 					},
 				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = nil
 				return res
 			},
 		},
@@ -339,7 +401,12 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			desired := buildDesiredProfile()
+			var desired armtrafficmanager.Profile
+			if tt.buildDesiredProfile == nil {
+				desired = buildDesiredProfile()
+			} else {
+				desired = tt.buildDesiredProfile()
+			}
 			if got := equalAzureTrafficManagerProfile(tt.buildCurrentFunc(), desired); got != tt.want {
 				t.Errorf("equalAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
 			}
@@ -349,6 +416,12 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 
 func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 	desired := buildDesiredProfile()
+	desired.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+		{
+			Name:  ptr.To("HeaderName"),
+			Value: ptr.To("HeaderValue"),
+		},
+	}
 	tests := []struct {
 		name    string
 		current armtrafficmanager.Profile
@@ -637,399 +710,6 @@ func TestHasRequiredProperties(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := hasRequiredProperties(tt.profile); got != tt.want {
 				t.Errorf("hasRequiredProperties() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEqualMonitorConfig(t *testing.T) {
-	desiredConfig := buildDesiredProfile().Properties.MonitorConfig
-
-	tests := []struct {
-		name    string
-		current *armtrafficmanager.MonitorConfig
-		want    bool
-	}{
-		{
-			name:    "Monitor configs are equal",
-			current: desiredConfig,
-			want:    true,
-		},
-		{
-			name: "IntervalInSeconds is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         nil,
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Path is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      nil,
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Port is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      nil,
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Protocol is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  nil,
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "TimeoutInSeconds is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          nil,
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "ToleratedNumberOfFailures is nil",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: nil,
-			},
-			want: false,
-		},
-		{
-			name: "IntervalInSeconds is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](60),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Path is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/different-path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Port is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](443),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "Protocol is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTPS),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "TimeoutInSeconds is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](20),
-				ToleratedNumberOfFailures: ptr.To[int64](3),
-			},
-			want: false,
-		},
-		{
-			name: "ToleratedNumberOfFailures is different",
-			current: &armtrafficmanager.MonitorConfig{
-				IntervalInSeconds:         ptr.To[int64](30),
-				Path:                      ptr.To("/path"),
-				Port:                      ptr.To[int64](80),
-				Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
-				TimeoutInSeconds:          ptr.To[int64](10),
-				ToleratedNumberOfFailures: ptr.To[int64](5),
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := equalMonitorConfig(tt.current, desiredConfig); got != tt.want {
-				t.Errorf("equalMonitorConfig() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEqualCustomHeadersObsolete(t *testing.T) {
-	// This test is no longer needed as custom headers comparison is now handled by equalMonitorConfig
-	t.Skip("Custom headers comparison is now part of TestEqualMonitorConfig")
-}
-
-func TestEqualProfileProperties(t *testing.T) {
-	desiredProps := buildDesiredProfile().Properties
-
-	tests := []struct {
-		name         string
-		currentProps *armtrafficmanager.ProfileProperties
-		want         bool
-	}{
-		{
-			name: "Properties are equal",
-			currentProps: &armtrafficmanager.ProfileProperties{
-				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-			},
-			want: true,
-		},
-		{
-			name: "Different profile status",
-			currentProps: &armtrafficmanager.ProfileProperties{
-				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusDisabled),
-				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
-			},
-			want: false,
-		},
-		{
-			name: "Different traffic routing method",
-			currentProps: &armtrafficmanager.ProfileProperties{
-				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
-				TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodPriority),
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DNS config to use with equalProfilePropertiesAndDNS
-			ttProps := tt.currentProps
-			if ttProps.DNSConfig == nil {
-				ttProps.DNSConfig = desiredProps.DNSConfig
-			}
-			if ttProps.MonitorConfig == nil {
-				ttProps.MonitorConfig = desiredProps.MonitorConfig
-			}
-			if got := equalProfilePropertiesAndDNS(ttProps, desiredProps); got != tt.want {
-				t.Errorf("equalProfilePropertiesAndDNS() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEqualDNSConfig(t *testing.T) {
-	desiredProps := buildDesiredProfile().Properties
-	// Keep desiredConfig for clarity in the test case descriptions
-	_ = desiredProps.DNSConfig
-
-	tests := []struct {
-		name          string
-		currentConfig *armtrafficmanager.DNSConfig
-		want          bool
-	}{
-		{
-			name: "DNS configs are equal",
-			currentConfig: &armtrafficmanager.DNSConfig{
-				TTL:          ptr.To(int64(60)),
-				RelativeName: ptr.To("namespace-name"),
-			},
-			want: true,
-		},
-		{
-			name: "TTL is nil",
-			currentConfig: &armtrafficmanager.DNSConfig{
-				TTL:          nil,
-				RelativeName: ptr.To("namespace-name"),
-			},
-			want: false,
-		},
-		{
-			name: "Different TTL",
-			currentConfig: &armtrafficmanager.DNSConfig{
-				TTL:          ptr.To(int64(30)),
-				RelativeName: ptr.To("namespace-name"),
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock ProfileProperties to use with equalProfilePropertiesAndDNS
-			currentProps := buildDesiredProfile().Properties
-			currentProps.DNSConfig = tt.currentConfig
-
-			if got := equalProfilePropertiesAndDNS(currentProps, desiredProps); got != tt.want {
-				t.Errorf("equalProfilePropertiesAndDNS() with different DNSConfig = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEqualTags(t *testing.T) {
-	desiredTags := buildDesiredProfile().Tags
-
-	tests := []struct {
-		name        string
-		currentTags map[string]*string
-		want        bool
-	}{
-		{
-			name: "Tags are equal",
-			currentTags: map[string]*string{
-				"tagKey": ptr.To("tagValue"),
-			},
-			want: true,
-		},
-		{
-			name:        "Nil current tags",
-			currentTags: nil,
-			want:        false,
-		},
-		{
-			name:        "Empty current tags",
-			currentTags: map[string]*string{},
-			want:        false,
-		},
-		{
-			name: "Extra tag in current",
-			currentTags: map[string]*string{
-				"tagKey":   ptr.To("tagValue"),
-				"extraKey": ptr.To("extraValue"),
-			},
-			want: true,
-		},
-		{
-			name: "Missing tag in current",
-			currentTags: map[string]*string{
-				"otherKey": ptr.To("otherValue"),
-			},
-			want: false,
-		},
-		{
-			name: "Different tag value",
-			currentTags: map[string]*string{
-				"tagKey": ptr.To("differentValue"),
-			},
-			want: false,
-		},
-		{
-			name: "Nil tag value in current",
-			currentTags: map[string]*string{
-				"tagKey": nil,
-			},
-			want: false,
-		},
-		{
-			name: "Nil tag value in desired but non-nil in current",
-			currentTags: map[string]*string{
-				"tagKey": ptr.To("tagValue"),
-			},
-			want: true, // The original function allows extra tags
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := desiredTagsExistInCurrentTags(tt.currentTags, desiredTags); got != tt.want {
-				t.Errorf("desiredTagsExistInCurrentTags() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEqualProfilePropertiesAndDNS(t *testing.T) {
-	desiredProps := buildDesiredProfile().Properties
-
-	tests := []struct {
-		name         string
-		currentProps *armtrafficmanager.ProfileProperties
-		want         bool
-	}{
-		{
-			name:         "Properties are equal",
-			currentProps: desiredProps,
-			want:         true,
-		},
-		{
-			name: "Different profile status",
-			currentProps: &armtrafficmanager.ProfileProperties{
-				ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusDisabled),
-				TrafficRoutingMethod: desiredProps.TrafficRoutingMethod,
-				DNSConfig:            desiredProps.DNSConfig,
-				MonitorConfig:        desiredProps.MonitorConfig,
-			},
-			want: false,
-		},
-		{
-			name: "Different DNS TTL",
-			currentProps: &armtrafficmanager.ProfileProperties{
-				ProfileStatus:        desiredProps.ProfileStatus,
-				TrafficRoutingMethod: desiredProps.TrafficRoutingMethod,
-				DNSConfig: &armtrafficmanager.DNSConfig{
-					TTL:          ptr.To(int64(60)), // Different TTL
-					RelativeName: desiredProps.DNSConfig.RelativeName,
-					Fqdn:         desiredProps.DNSConfig.Fqdn,
-				},
-				MonitorConfig: desiredProps.MonitorConfig,
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := equalProfilePropertiesAndDNS(tt.currentProps, desiredProps); got != tt.want {
-				t.Errorf("equalProfilePropertiesAndDNS() = %v, want %v", got, tt.want)
 			}
 		})
 	}

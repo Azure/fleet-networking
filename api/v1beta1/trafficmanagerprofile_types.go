@@ -97,7 +97,8 @@ type MonitorConfig struct {
 
 	// Custom headers used for probing endpoints, such as Host headers.
 	// +optional
-	// +listType=atomic
+	// +listType=map
+	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=8
 	CustomHeaders []MonitorConfigCustomHeader `json:"customHeaders,omitempty"`
 

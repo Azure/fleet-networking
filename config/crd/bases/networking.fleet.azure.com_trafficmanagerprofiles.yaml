@@ -80,7 +80,9 @@ spec:
                       type: object
                     maxItems: 8
                     type: array
-                    x-kubernetes-list-type: atomic
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   intervalInSeconds:
                     default: 30
                     description: |-
@@ -296,7 +298,9 @@ spec:
                       type: object
                     maxItems: 8
                     type: array
-                    x-kubernetes-list-type: atomic
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   intervalInSeconds:
                     default: 30
                     description: |-

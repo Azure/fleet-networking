@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -253,8 +254,15 @@ func equalAzureTrafficManagerProfile(current, desired armtrafficmanager.Profile)
 		return false
 	}
 
-	// Compare profile properties and DNS
-	if !equalProfilePropertiesAndDNS(current.Properties, desired.Properties) {
+	if *current.Properties.ProfileStatus != *desired.Properties.ProfileStatus {
+		return false
+	}
+
+	if *current.Properties.TrafficRoutingMethod != *desired.Properties.TrafficRoutingMethod {
+		return false
+	}
+
+	if current.Properties.DNSConfig.TTL == nil || *current.Properties.DNSConfig.TTL != *desired.Properties.DNSConfig.TTL {
 		return false
 	}
 
@@ -275,7 +283,7 @@ func hasRequiredProperties(profile armtrafficmanager.Profile) bool {
 		profile.Properties.DNSConfig != nil
 }
 
-// equalMonitorConfig compares the monitoring configuration
+// equalMonitorConfig compares the monitoring configuration.
 func equalMonitorConfig(current, desired *armtrafficmanager.MonitorConfig) bool {
 	if current.IntervalInSeconds == nil || current.Path == nil ||
 		current.Port == nil || current.Protocol == nil ||
@@ -294,21 +302,22 @@ func equalMonitorConfig(current, desired *armtrafficmanager.MonitorConfig) bool 
 	}
 
 	// Also check custom headers
-	return equality.Semantic.DeepEqual(current.CustomHeaders, desired.CustomHeaders)
+	return equalMonitorConfigWithCustomHeaders(current.CustomHeaders, desired.CustomHeaders)
 }
 
-// equalProfilePropertiesAndDNS compares profile status, traffic routing method, and DNS configuration
-func equalProfilePropertiesAndDNS(current, desired *armtrafficmanager.ProfileProperties) bool {
-	// Check profile status and routing method
-	if *current.ProfileStatus != *desired.ProfileStatus || *current.TrafficRoutingMethod != *desired.TrafficRoutingMethod {
-		return false
-	}
-
-	// Check DNS configuration
-	return current.DNSConfig != nil && current.DNSConfig.TTL != nil && *current.DNSConfig.TTL == *desired.DNSConfig.TTL
+func equalMonitorConfigWithCustomHeaders(current, desired []*armtrafficmanager.MonitorConfigCustomHeadersItem) bool {
+	// Sort the slices to ensure the order does not affect the comparison.
+	sort.Slice(current, func(i, j int) bool {
+		return *current[i].Name < *current[j].Name
+	})
+	sort.Slice(desired, func(i, j int) bool {
+		return *desired[i].Name < *desired[j].Name
+	})
+	// equality.Semantic.DeepEqual cannot compare the slices without the order.
+	return equality.Semantic.DeepEqual(current, desired)
 }
 
-// desiredTagsExistInCurrentTags checks if all desired tags exist in current tags with the same value
+// desiredTagsExistInCurrentTags checks if all desired tags exist in current tags with the same value.
 func desiredTagsExistInCurrentTags(currentTags, desiredTags map[string]*string) bool {
 	if currentTags == nil {
 		return false
