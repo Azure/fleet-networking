@@ -316,6 +316,7 @@ var _ = BeforeSuite(func() {
 		Client:          mgr.GetClient(),
 		ProfilesClient:  profileClient,
 		EndpointsClient: endpointClient,
+		Recorder:        mgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(ctx, mgr, false)
 	Expect(err).ToNot(HaveOccurred())
 

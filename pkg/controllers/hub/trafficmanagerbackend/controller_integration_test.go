@@ -12,14 +12,18 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	prometheusclientmodel "github.com/prometheus/client_model/go"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -40,6 +44,10 @@ var (
 	testNamespace = fakeprovider.ProfileNamespace
 	serviceName   = fakeprovider.ServiceImportName
 	backendWeight = int64(10)
+	// Define event constants for testing
+	wantAcceptedEvent = corev1.Event{Type: corev1.EventTypeNormal, Reason: backendEventReasonAccepted, ReportingController: ControllerName}
+	wantDeletedEvent  = corev1.Event{Type: corev1.EventTypeNormal, Reason: backendEventReasonDeleted, ReportingController: ControllerName}
+	wantErrorEvent    = corev1.Event{Type: corev1.EventTypeWarning, Reason: backendEventReasonAzureAPIError, ReportingController: ControllerName}
 )
 
 func resetTrafficManagerBackendMetricsRegistry() {
@@ -195,6 +203,10 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
+		})
+
+		It("Validating events", func() {
+			validateEmittedEvents(backend, []corev1.Event{wantErrorEvent})
 		})
 
 		It("Deleting trafficManagerBackend", func() {
