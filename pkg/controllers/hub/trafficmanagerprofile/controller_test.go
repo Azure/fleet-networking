@@ -56,12 +56,13 @@ func buildDesiredProfile() armtrafficmanager.Profile {
 
 func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 	tests := []struct {
-		name             string
-		buildCurrentFunc func() armtrafficmanager.Profile
-		want             bool
+		name                string
+		buildDesiredProfile func() armtrafficmanager.Profile
+		buildCurrentFunc    func() armtrafficmanager.Profile
+		want                bool
 	}{
 		{
-			name: "Profiles are equal though buildCurrentFunc profile has some different fields from the desired",
+			name: "Profiles are equal while the current has some different fields from the desired",
 			buildCurrentFunc: func() armtrafficmanager.Profile {
 				res := buildDesiredProfile()
 				res.ID = ptr.To("abc")
@@ -73,6 +74,134 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 				return res
 			},
 			want: true,
+		},
+		{
+			name: "CustomHeaders are equal with different order",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+					{
+						Name:  ptr.To("HeaderName1"),
+						Value: ptr.To("HeaderValue1"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName1"),
+						Value: ptr.To("HeaderValue1"),
+					},
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			want: true,
+		},
+		{
+			name: "CustomHeaders are equal (empty headers)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = nil
+				return res
+			},
+			want: true,
+		},
+		{
+			name: "CustomHeaders are different (empty headers)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders are different (different value)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("DifferentValue"),
+					},
+				}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders are different (different header name)",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("DifferentName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+		},
+		{
+			name: "CustomHeaders is nil",
+			buildDesiredProfile: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+					{
+						Name:  ptr.To("HeaderName"),
+						Value: ptr.To("HeaderValue"),
+					},
+				}
+				return res
+			},
+			buildCurrentFunc: func() armtrafficmanager.Profile {
+				res := buildDesiredProfile()
+				res.Properties.MonitorConfig.CustomHeaders = nil
+				return res
+			},
 		},
 		{
 			name: "properties is nil",
@@ -272,7 +401,12 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			desired := buildDesiredProfile()
+			var desired armtrafficmanager.Profile
+			if tt.buildDesiredProfile == nil {
+				desired = buildDesiredProfile()
+			} else {
+				desired = tt.buildDesiredProfile()
+			}
 			if got := equalAzureTrafficManagerProfile(tt.buildCurrentFunc(), desired); got != tt.want {
 				t.Errorf("equalAzureTrafficManagerProfile() = %v, want %v", got, tt.want)
 			}
@@ -282,6 +416,12 @@ func TestEqualAzureTrafficManagerProfile(t *testing.T) {
 
 func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 	desired := buildDesiredProfile()
+	desired.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+		{
+			Name:  ptr.To("HeaderName"),
+			Value: ptr.To("HeaderValue"),
+		},
+	}
 	tests := []struct {
 		name    string
 		current armtrafficmanager.Profile
@@ -315,6 +455,12 @@ func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
 						TimeoutInSeconds:          ptr.To[int64](10),
 						ToleratedNumberOfFailures: ptr.To[int64](3),
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("HeaderName"),
+								Value: ptr.To("HeaderValue"),
+							},
+						},
 					},
 					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
 					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
@@ -422,6 +568,34 @@ func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "different custom headers",
+			current: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						CustomHeaders: []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+							{
+								Name:  ptr.To("OtherHeader"),
+								Value: ptr.To("OtherValue"),
+							},
+						},
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+				},
+			},
+			want: desired,
+		},
 	}
 
 	for _, tt := range tests {
@@ -429,6 +603,113 @@ func TestBuildAzureTrafficManagerProfileRequest(t *testing.T) {
 			got := buildAzureTrafficManagerProfileRequest(tt.current, desired)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("buildAzureTrafficManagerProfileRequest()  mismatch (-want, +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestHasRequiredProperties(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile armtrafficmanager.Profile
+		want    bool
+	}{
+		{
+			name:    "All required properties exist",
+			profile: buildDesiredProfile(),
+			want:    true,
+		},
+		{
+			name: "Properties is nil",
+			profile: armtrafficmanager.Profile{
+				Properties: nil,
+			},
+			want: false,
+		},
+		{
+			name: "MonitorConfig is nil",
+			profile: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					MonitorConfig:        nil,
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "ProfileStatus is nil",
+			profile: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        nil,
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "TrafficRoutingMethod is nil",
+			profile: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: nil,
+					DNSConfig: &armtrafficmanager.DNSConfig{
+						RelativeName: ptr.To("namespace-name"),
+						TTL:          ptr.To(int64(60)),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "DNSConfig is nil",
+			profile: armtrafficmanager.Profile{
+				Properties: &armtrafficmanager.ProfileProperties{
+					MonitorConfig: &armtrafficmanager.MonitorConfig{
+						IntervalInSeconds:         ptr.To[int64](30),
+						Path:                      ptr.To("/path"),
+						Port:                      ptr.To[int64](80),
+						Protocol:                  ptr.To(armtrafficmanager.MonitorProtocolHTTP),
+						TimeoutInSeconds:          ptr.To[int64](10),
+						ToleratedNumberOfFailures: ptr.To[int64](3),
+					},
+					ProfileStatus:        ptr.To(armtrafficmanager.ProfileStatusEnabled),
+					TrafficRoutingMethod: ptr.To(armtrafficmanager.TrafficRoutingMethodWeighted),
+					DNSConfig:            nil,
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasRequiredProperties(tt.profile); got != tt.want {
+				t.Errorf("hasRequiredProperties() = %v, want %v", got, tt.want)
 			}
 		})
 	}

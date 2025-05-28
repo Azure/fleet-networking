@@ -185,6 +185,13 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 		It("Updating trafficManagerProfile spec to valid and validating trafficManagerProfile status", func() {
 			profile.Spec.MonitorConfig.IntervalInSeconds = ptr.To[int64](30)
 			profile.Spec.MonitorConfig.TimeoutInSeconds = ptr.To[int64](10)
+			// add custom headers
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "Host",
+					Value: "myapp.example.com",
+				},
+			}
 			Expect(k8sClient.Update(ctx, profile)).Should(Succeed(), "failed to update the trafficManagerProfile")
 
 			want := fleetnetv1beta1.TrafficManagerProfile{
@@ -210,7 +217,8 @@ var _ = Describe("Test TrafficManagerProfile Controller", func() {
 			validator.ValidateTrafficManagerProfile(ctx, k8sClient, &want, timeout)
 
 			By("By validating the status metrics")
-			// It overwrites the previous one as they have the same condition.
+			// Generation is updated.
+			wantMetrics = append(wantMetrics, generateMetrics(profile, want.Status.Conditions[0]))
 			validateTrafficManagerProfileMetricsEmitted(wantMetrics...)
 
 			By("By validating events")

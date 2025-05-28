@@ -283,6 +283,98 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.timeoutInSeconds in body should be less than or equal to 10"))
 			Expect(statusErr.Status().Message).Should(ContainSubstring("timeoutInSeconds must be between 5 and 10 when intervalInSeconds is 30"))
 		})
+
+		It("should deny creating API with duplicate customHeaders", func() {
+			// Create the API.
+			trafficManagerProfileWithDuplicateHeaders := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						CustomHeaders: []fleetnetv1beta1.MonitorConfigCustomHeader{
+							{
+								Name:  "Header1",
+								Value: "Value1",
+							},
+							{
+								Name:  "Header1", // Duplicate header name
+								Value: "Value2",
+							},
+						},
+					},
+					ResourceGroup: trafficManagerProfileSpec.ResourceGroup,
+				},
+			}
+			By("expecting denial of CREATE API with duplicate customHeaders")
+			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("Duplicate value: map[string]interface {}{\"name\":\"Header1\""))
+		})
+
+		It("should deny creating API with empty customHeader name", func() {
+			// Create the API.
+			trafficManagerProfileWithDuplicateHeaders := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						CustomHeaders: []fleetnetv1beta1.MonitorConfigCustomHeader{
+							{
+								Value: "Value1",
+							},
+						},
+					},
+					ResourceGroup: trafficManagerProfileSpec.ResourceGroup,
+				},
+			}
+			By("expecting denial of CREATE API with duplicate customHeaders")
+			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.customHeaders[0].name in body should be at least 1 chars long"))
+		})
+
+		It("should deny creating API with empty customHeader value", func() {
+			// Create the API.
+			trafficManagerProfileWithDuplicateHeaders := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						CustomHeaders: []fleetnetv1beta1.MonitorConfigCustomHeader{
+							{
+								Name: "Header1",
+							},
+						},
+					},
+					ResourceGroup: trafficManagerProfileSpec.ResourceGroup,
+				},
+			}
+			By("expecting denial of CREATE API with duplicate customHeaders")
+			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.customHeaders[0].value in body should be at least 1 chars long"))
+		})
+
+		It("should deny creating API with 9 headers", func() {
+			// Create the API.
+			var headers []fleetnetv1beta1.MonitorConfigCustomHeader
+			for i := range 9 {
+				headers = append(headers, fleetnetv1beta1.MonitorConfigCustomHeader{
+					Name:  fmt.Sprintf("Header%d", i),
+					Value: fmt.Sprintf("Value%d", i),
+				})
+			}
+			trafficManagerProfileWithDuplicateHeaders := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec: fleetnetv1beta1.TrafficManagerProfileSpec{
+					MonitorConfig: &fleetnetv1beta1.MonitorConfig{
+						CustomHeaders: headers,
+					},
+					ResourceGroup: trafficManagerProfileSpec.ResourceGroup,
+				},
+			}
+			By("expecting denial of CREATE API with duplicate customHeaders")
+			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
+			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig.customHeaders: Too many: 9: must have at most 8 items,"))
+		})
 	})
 
 	Context("Test TrafficManagerProfile API validation - valid cases", func() {
@@ -466,6 +558,26 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			}
 			Expect(hubClient.Create(ctx, profile)).Should(Succeed(), "failed to create trafficManagerProfile at upper bound")
 			Expect(hubClient.Delete(ctx, profile)).Should(Succeed(), "failed to delete trafficManagerProfile at upper bound")
+		})
+
+		It("should allow creating API with valid custom headers", func() {
+			// Create the API.
+			trafficManagerProfileName := &fleetnetv1beta1.TrafficManagerProfile{
+				ObjectMeta: objectMetaWithNameValid,
+				Spec:       trafficManagerProfileSpec,
+			}
+			trafficManagerProfileName.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "Header1",
+					Value: "Value1",
+				},
+				{
+					Name:  "Header2",
+					Value: "Value2",
+				},
+			}
+			Expect(hubClient.Create(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to create trafficManagerProfile")
+			Expect(hubClient.Delete(ctx, trafficManagerProfileName)).Should(Succeed(), "failed to delete trafficManagerProfile")
 		})
 	})
 
