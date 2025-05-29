@@ -75,10 +75,9 @@ const (
 	// The endpoint name must contain no more than 260 characters, excluding the following characters "< > * % $ : \ ? + /".
 	AzureResourceEndpointNameFormat = "%s%s#%s"
 
-	backendEventReasonAzureAPIError    = "AzureAPIError"
-	backendEventReasonAccepted         = "Accepted"
-	backendEventReasonParticalAccepted = "PartiallyAccepted"
-	backendEventReasonDeleted          = "Deleted"
+	backendEventReasonAzureAPIError = "AzureAPIError"
+	backendEventReasonAccepted      = "Accepted"
+	backendEventReasonDeleted       = "Deleted"
 )
 
 var (
@@ -402,7 +401,6 @@ func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, bac
 			// 2. the TrafficManagerProfile info is stale.
 			// For the case 1, retry won't help to recover the Azure Traffic Manager profile resource.
 			// For the case 2, the controller will be re-triggered when the TrafficManagerProfile is updated.
-			klog.ErrorS(getErr, "NotFound Azure Traffic Manager profile", "resourceGroup", profile.Spec.ResourceGroup, "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			// none of the endpoints are accepted by the TrafficManager
 			setFalseCondition(backend, nil, fmt.Sprintf("Azure Traffic Manager profile %q under %q is not found", atmProfileName, profile.Spec.ResourceGroup))
 			return nil, r.updateTrafficManagerBackendStatus(ctx, backend)
