@@ -24,6 +24,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -261,6 +262,9 @@ var _ = BeforeSuite(func() {
 	klog.InitFlags(fs)
 	Expect(fs.Parse([]string{"--v", "5", "-add_dir_header", "true"})).Should(Succeed())
 
+	// Set up controller-runtime logger
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
@@ -316,6 +320,7 @@ var _ = BeforeSuite(func() {
 		Client:          mgr.GetClient(),
 		ProfilesClient:  profileClient,
 		EndpointsClient: endpointClient,
+		Recorder:        mgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(ctx, mgr, false)
 	Expect(err).ToNot(HaveOccurred())
 

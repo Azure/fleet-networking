@@ -228,6 +228,7 @@ func main() {
 			Client:          mgr.GetClient(),
 			ProfilesClient:  profilesClient,
 			EndpointsClient: endpointsClient,
+			Recorder:        mgr.GetEventRecorderFor(trafficmanagerbackend.ControllerName),
 			// serviceImport controller has already enabled the internalServiceExportIndexer.
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {
