@@ -43,6 +43,17 @@ const (
 	heavyAzureOperationTimeout = 10 * time.Minute
 )
 
+func updateTrafficManagerProfile(hubClient client.Client, profile fleetnetv1beta1.TrafficManagerProfile) {
+	Eventually(func() error {
+		var gotProfile fleetnetv1beta1.TrafficManagerProfile
+		if err := hubClient.Get(ctx, types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}, &gotProfile); err != nil {
+			return err
+		}
+		gotProfile.Spec = profile.Spec
+		return hubClient.Update(ctx, &gotProfile)
+	}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerProfile")
+}
+
 var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
 	var wm *framework.WorkloadManager
 	var profile fleetnetv1beta1.TrafficManagerProfile
@@ -148,7 +159,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterEach(func() {
 			By("Updating the trafficManagerProfile spec")
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
+			updateTrafficManagerProfile(hubClient, profile)
 
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
@@ -205,8 +216,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					Value: "custom-value-2",
 				},
 			}
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
-
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile has the customHeaders")
@@ -220,8 +230,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					Value: "modified-value",
 				},
 			}
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
-
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile has the updated customHeaders")
@@ -230,8 +239,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Removing customHeaders from the trafficManagerProfile spec")
 			profile.Spec.MonitorConfig.CustomHeaders = nil
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
-
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile has no customHeaders")
@@ -493,6 +501,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					Value: "custom-value-2",
 				},
 			}
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
@@ -522,7 +531,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					Value: "custom-value-2",
 				},
 			}
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
@@ -551,7 +560,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 					Value: "custom-value-2",
 				},
 			}
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
