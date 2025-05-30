@@ -25,6 +25,9 @@ var (
 		cmpopts.SortSlices(func(e1, e2 *armtrafficmanager.Endpoint) bool {
 			return *e1.Name < *e2.Name
 		}),
+		cmpopts.SortSlices(func(c1, c2 *armtrafficmanager.MonitorConfigCustomHeadersItem) bool {
+			return *c1.Name < *c2.Name
+		}),
 	}
 )
 
