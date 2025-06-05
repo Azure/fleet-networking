@@ -165,8 +165,8 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
   AKS_HUB_CLUSTER=$(az aks show -g $RESOURCE_GROUP -n $HUB_CLUSTER)
   AKS_HUB_CLUSTER_NODE_RESOURCE_GROUP=$(echo ${AKS_HUB_CLUSTER} | jq -r '. | .nodeResourceGroup')
 
-  echo "Assigning roles to hub kubelet identity on the resourceGroup of the hub cluster"
-  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
+  echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the resourceGroup of the hub cluster"
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/hub_azure_config.yaml
@@ -183,8 +183,8 @@ EOF
   AKS_MEMBER_1=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_1)
   AKS_MEMBER_1_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_1} | jq -r '. | .nodeResourceGroup')
 
-  echo "Assigning roles to hub kubelet identity on the MC_resourceGroup of the member cluster"
-  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
+  echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
 
   echo "Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
@@ -205,8 +205,8 @@ EOF
   AKS_MEMBER_2=$(az aks show -g $RESOURCE_GROUP -n $MEMBER_CLUSTER_2)
   AKS_MEMBER_2_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_2} | jq -r '. | .nodeResourceGroup')
 
-  echo "Assigning roles to hub kubelet identity on the MC_resourceGroup of the member cluster"
-  az role assignment create --role "Network Contributor" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
+  echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the MC_resourceGroup of the member cluster"
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
 
   echo "Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
