@@ -223,7 +223,7 @@ func ProfileDelete(_ context.Context, resourceGroupName string, profileName stri
 		profileResp := armtrafficmanager.ProfilesClientDeleteResponse{}
 		resp.SetResponse(http.StatusOK, profileResp, nil)
 	default:
-		errResp.SetResponseError(http.StatusNotFound, "NotFound")
+		errResp.SetResponseError(http.StatusNotFound, "NotFoundError")
 	}
 	return resp, errResp
 }
