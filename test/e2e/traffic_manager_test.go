@@ -43,6 +43,17 @@ const (
 	heavyAzureOperationTimeout = 10 * time.Minute
 )
 
+func updateTrafficManagerProfile(hubClient client.Client, profile fleetnetv1beta1.TrafficManagerProfile) {
+	Eventually(func() error {
+		var gotProfile fleetnetv1beta1.TrafficManagerProfile
+		if err := hubClient.Get(ctx, types.NamespacedName{Namespace: profile.Namespace, Name: profile.Name}, &gotProfile); err != nil {
+			return err
+		}
+		gotProfile.Spec = profile.Spec
+		return hubClient.Update(ctx, &gotProfile)
+	}, defaultTimeout, framework.PollInterval).Should(Succeed(), "Failed to update the trafficManagerProfile")
+}
+
 var _ = Describe("Test exporting service via Azure traffic manager", Ordered, func() {
 	var wm *framework.WorkloadManager
 	var profile fleetnetv1beta1.TrafficManagerProfile
@@ -148,7 +159,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		AfterEach(func() {
 			By("Updating the trafficManagerProfile spec")
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
+			updateTrafficManagerProfile(hubClient, profile)
 
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
@@ -172,7 +183,12 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				},
 			}
 			atmProfile.Properties.MonitorConfig.ExpectedStatusCodeRanges = statusRange // should keep
-
+			atmProfile.Properties.MonitorConfig.CustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+				{
+					Name:  ptr.To("X-Custom-Header-1"),
+					Value: ptr.To("custom-value-1"),
+				},
+			} // should be reset
 			_, err := atmValidator.ProfileClient.CreateOrUpdate(ctx, atmValidator.ResourceGroup, atmProfileName, atmProfile, nil)
 			Expect(err).Should(Succeed(), "Failed to update the Azure traffic manager profile")
 
@@ -186,6 +202,49 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 			wantProfile = buildDesiredATMProfile(profile, nil)
 			_, err := atmValidator.ProfileClient.Delete(ctx, atmValidator.ResourceGroup, atmProfileName, nil)
 			Expect(err).Should(Succeed(), "Failed to delete the Azure traffic manager profile")
+		})
+
+		It("Updating the trafficManagerProfile with customHeaders", func() {
+			By("Updating the trafficManagerProfile spec with customHeaders")
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "X-Custom-Header-1",
+					Value: "custom-value-1",
+				},
+				{
+					Name:  "X-Custom-Header-2",
+					Value: "custom-value-2",
+				},
+			}
+			updateTrafficManagerProfile(hubClient, profile)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile has the customHeaders")
+			wantProfile = buildDesiredATMProfile(profile, nil)
+			atmValidator.ValidateProfile(ctx, atmProfileName, wantProfile)
+
+			By("Updating the trafficManagerProfile spec with different customHeaders")
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "X-Modified-Header",
+					Value: "modified-value",
+				},
+			}
+			updateTrafficManagerProfile(hubClient, profile)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile has the updated customHeaders")
+			wantProfile = buildDesiredATMProfile(profile, nil)
+			atmValidator.ValidateProfile(ctx, atmProfileName, wantProfile)
+
+			By("Removing customHeaders from the trafficManagerProfile spec")
+			profile.Spec.MonitorConfig.CustomHeaders = nil
+			updateTrafficManagerProfile(hubClient, profile)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile has no customHeaders")
+			wantProfile = buildDesiredATMProfile(profile, nil)
+			atmValidator.ValidateProfile(ctx, atmProfileName, wantProfile)
 		})
 	})
 
@@ -432,14 +491,80 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 		It("Updating the trafficManagerProfile spec", func() {
 			profile.Spec.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
-			Expect(hubClient.Update(ctx, &profile)).Should(Succeed(), "Failed to update the trafficManagerProfile")
-
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "X-Custom-Header-1",
+					Value: "custom-value-1",
+				},
+				{
+					Name:  "X-Custom-Header-2",
+					Value: "custom-value-2",
+				},
+			}
+			updateTrafficManagerProfile(hubClient, profile)
 			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
 
 			By("Validating the Azure traffic manager profile")
-			// All the fields excluding ToleratedNumberOfFailures should be unchanged.
+			// All the fields excluding ToleratedNumberOfFailures and customerHeaders should be unchanged.
 			atmProfile.Properties.MonitorConfig.ToleratedNumberOfFailures = ptr.To(int64(5))
+			wantCustomHeaders := []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+				{
+					Name:  ptr.To("X-Custom-Header-1"),
+					Value: ptr.To("custom-value-1"),
+				},
+				{
+					Name:  ptr.To("X-Custom-Header-2"),
+					Value: ptr.To("custom-value-2"),
+				},
+			}
+			atmProfile.Properties.MonitorConfig.CustomHeaders = wantCustomHeaders
 			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+
+			By("Updating the customerHeader-1 value in the trafficManagerProfile spec")
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "X-Custom-Header-1",
+					Value: "custom-value-2",
+				},
+				{
+					Name:  "X-Custom-Header-2",
+					Value: "custom-value-2",
+				},
+			}
+			updateTrafficManagerProfile(hubClient, profile)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile")
+			// All the fields excluding customerHeaders should be unchanged.
+			wantCustomHeaders = []*armtrafficmanager.MonitorConfigCustomHeadersItem{
+				{
+					Name:  ptr.To("X-Custom-Header-1"),
+					Value: ptr.To("custom-value-2"),
+				},
+				{
+					Name:  ptr.To("X-Custom-Header-2"),
+					Value: ptr.To("custom-value-2"),
+				},
+			}
+			atmProfile.Properties.MonitorConfig.CustomHeaders = wantCustomHeaders
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile)
+
+			By("Updating the customerHeaders order in the trafficManagerProfile spec")
+			profile.Spec.MonitorConfig.CustomHeaders = []fleetnetv1beta1.MonitorConfigCustomHeader{
+				{
+					Name:  "X-Custom-Header-2",
+					Value: "custom-value-2",
+				},
+				{
+					Name:  "X-Custom-Header-1",
+					Value: "custom-value-2",
+				},
+			}
+			updateTrafficManagerProfile(hubClient, profile)
+			validator.ValidateIfTrafficManagerProfileIsProgrammed(ctx, hubClient, profileName, true, profileResourceID, lightAzureOperationTimeout)
+
+			By("Validating the Azure traffic manager profile")
+			atmValidator.ValidateProfile(ctx, atmProfileName, atmProfile) // no change on the profile
 		})
 
 		It("Creating another trafficManagerBackend to export the same service", func() {
@@ -816,6 +941,19 @@ func buildDesiredATMProfile(profile fleetnetv1beta1.TrafficManagerProfile, endpo
 			TrafficViewEnrollmentStatus: ptr.To(armtrafficmanager.TrafficViewEnrollmentStatusDisabled),
 		},
 	}
+
+	// Add custom headers if specified
+	if len(monitorConfig.CustomHeaders) > 0 {
+		customHeaders := make([]*armtrafficmanager.MonitorConfigCustomHeadersItem, 0, len(monitorConfig.CustomHeaders))
+		for _, header := range monitorConfig.CustomHeaders {
+			customHeaders = append(customHeaders, &armtrafficmanager.MonitorConfigCustomHeadersItem{
+				Name:  ptr.To(header.Name),
+				Value: ptr.To(header.Value),
+			})
+		}
+		res.Properties.MonitorConfig.CustomHeaders = customHeaders
+	}
+
 	for _, e := range endpoints {
 		res.Properties.Endpoints = append(res.Properties.Endpoints, &armtrafficmanager.Endpoint{
 			ID:   &e.ResourceID,
