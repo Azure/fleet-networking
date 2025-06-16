@@ -17,7 +17,7 @@ env:
   # `public` indicates images to MCR wil be publicly available, and will be removed in the final MCR images
   REGISTRY_REPO: public/aks/fleet
 
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.24.4'
 
 jobs:
   prepare-variables:
