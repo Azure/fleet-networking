@@ -28,10 +28,12 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"go.goms.io/fleet/pkg/utils/condition"
@@ -767,7 +769,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleetnetv1beta1.TrafficManagerBackend{}).
+		For(&fleetnetv1beta1.TrafficManagerBackend{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(
 			&fleetnetv1beta1.TrafficManagerProfile{},
 			handler.EnqueueRequestsFromMapFunc(r.trafficManagerProfileEventHandler()),
