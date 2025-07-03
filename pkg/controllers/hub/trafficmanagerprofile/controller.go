@@ -27,9 +27,11 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"go.goms.io/fleet/pkg/utils/controller"
 
@@ -491,6 +493,6 @@ func emitTrafficManagerProfileStatusMetric(profile *fleetnetv1beta1.TrafficManag
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleetnetv1beta1.TrafficManagerProfile{}).
+		For(&fleetnetv1beta1.TrafficManagerProfile{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
