@@ -118,6 +118,20 @@ func TestEqualAzureTrafficManagerEndpoint(t *testing.T) {
 			},
 		},
 		{
+			name: "type case insensitive",
+			current: armtrafficmanager.Endpoint{
+				Type: ptr.To(string("azureEndpoints")),
+				Properties: &armtrafficmanager.EndpointProperties{
+					TargetResourceID: ptr.To("RESourceID"),
+					EndpointStatus:   ptr.To(armtrafficmanager.EndpointStatusEnabled),
+					Weight:           ptr.To(int64(100)),
+					Priority:         ptr.To(int64(1)),
+					EndpointLocation: ptr.To("location"),
+				},
+			},
+			want: true,
+		},
+		{
 			name: "Properties is nil",
 			current: armtrafficmanager.Endpoint{
 				Type: ptr.To(string(armtrafficmanager.EndpointTypeAzureEndpoints)),

@@ -638,7 +638,8 @@ func buildAcceptedEndpointStatus(endpoint *armtrafficmanager.Endpoint, desiredEn
 // by ignoring others.
 // The desired endpoint is built by the controllers and all the required fields should not be nil.
 func equalAzureTrafficManagerEndpoint(current, desired armtrafficmanager.Endpoint) bool {
-	if current.Type == nil || *current.Type != *desired.Type {
+	// Note: ATM server will change the type to "Microsoft.Network/trafficManagerProfiles/azureEndpoints" in the response.
+	if current.Type == nil || !strings.EqualFold(*current.Type, *desired.Type) {
 		return false
 	}
 	if current.Properties == nil || current.Properties.TargetResourceID == nil || current.Properties.Weight == nil || current.Properties.EndpointStatus == nil {
