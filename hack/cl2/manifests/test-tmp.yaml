@@ -1,0 +1,8 @@
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: TrafficManagerProfile
+metadata:
+  name: {{.Name}}
+spec:
+  resourceGroup: "atm-scale-test-rg"
+  monitorConfig:
+    port: 80
