@@ -1,0 +1,19 @@
+apiVersion: placement.kubernetes-fleet.io/v1alpha1
+kind: ResourceOverride
+metadata:
+  name: {{.Name}}
+spec:
+  resourceSelectors:
+    -  group: ""
+       kind: Service
+       version: v1
+       name: nginx-svc-{{.Index}}
+  policy:
+    overrideRules:
+      - clusterSelector:
+          clusterSelectorTerms: []
+        jsonPatchOverrides:
+          - op: add
+            path: /metadata/annotations
+            value:
+              {"service.beta.kubernetes.io/azure-dns-label-name":"test-${MEMBER-CLUSTER-NAME}-{{.Namespace}}-nginx-{{.Index}}"}
