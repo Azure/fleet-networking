@@ -973,7 +973,6 @@ func (r *Reconciler) handleInternalServiceExportEvent(ctx context.Context, objec
 			r.handleServiceImportEvent(ctx, serviceImport, q)
 		}
 	}
-	return
 }
 
 // emitTrafficManagerBackendStatusMetric emits the traffic manager backend status metric based on status conditions.
