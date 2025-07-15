@@ -796,7 +796,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 							"Failed to process an update event for trafficManagerProfile object")
 						return
 					}
-					if !requeueTrafficManagerProfileUpdateEvent(oldProfile, newProfile) {
+					if !shouldHandleTrafficManagerProfileUpdateEvent(oldProfile, newProfile) {
 						klog.V(2).InfoS("Skipping requeueing trafficManagerProfile update event", "trafficManagerProfile", klog.KObj(e.ObjectNew))
 						return // no need to requeue if the clusters haven't changed
 					}
@@ -834,7 +834,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 							"Failed to process an update event for serviceImport object")
 						return
 					}
-					if !requeueServiceImportUpateEvent(oldServiceImport, newServiceImport) {
+					if !shouldHandleServiceImportUpateEvent(oldServiceImport, newServiceImport) {
 						klog.V(2).InfoS("Skipping requeueing serviceImport update event", "serviceImport", klog.KObj(e.ObjectNew))
 						return // no need to requeue if the clusters haven't changed
 					}
@@ -872,7 +872,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 							"Failed to process an update event for internalServiceExport object")
 						return
 					}
-					if !requeueInternalServiceExportUpdateEvent(oldInternalServiceExport, newInternalServiceExport) {
+					if !shouldHandleInternalServiceExportUpdateEvent(oldInternalServiceExport, newInternalServiceExport) {
 						klog.V(2).InfoS("Skipping requeueing internalServiceExport update event", "internalServiceExport", klog.KObj(e.ObjectNew))
 						return
 					}
@@ -887,18 +887,23 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 		Complete(r)
 }
 
-func requeueTrafficManagerProfileUpdateEvent(old, new *fleetnetv1beta1.TrafficManagerProfile) bool {
+func shouldHandleTrafficManagerProfileUpdateEvent(old, new *fleetnetv1beta1.TrafficManagerProfile) bool {
 	oldCondition := meta.FindStatusCondition(old.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
 	newCondition := meta.FindStatusCondition(new.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
 	return !condition.EqualConditionIgnoreReason(oldCondition, newCondition)
 }
 
-func requeueServiceImportUpateEvent(old, new *fleetnetv1alpha1.ServiceImport) bool {
+func shouldHandleServiceImportUpateEvent(old, new *fleetnetv1alpha1.ServiceImport) bool {
 	return !equality.Semantic.DeepEqual(old.Status.Clusters, new.Status.Clusters)
 }
 
-func requeueInternalServiceExportUpdateEvent(old, new *fleetnetv1alpha1.InternalServiceExport) bool {
-	return !equality.Semantic.DeepEqual(old.Spec, new.Spec)
+func shouldHandleInternalServiceExportUpdateEvent(old, new *fleetnetv1alpha1.InternalServiceExport) bool {
+	// Most of the referenced service fields are immutable, so we only check the fields that can be changed.
+	return old.Spec.Type != new.Spec.Type ||
+		old.Spec.IsDNSLabelConfigured != new.Spec.IsDNSLabelConfigured ||
+		old.Spec.IsInternalLoadBalancer != new.Spec.IsInternalLoadBalancer ||
+		!equality.Semantic.DeepEqual(old.Spec.PublicIPResourceID, new.Spec.PublicIPResourceID) ||
+		!equality.Semantic.DeepEqual(old.Spec.Weight, new.Spec.Weight)
 }
 
 func (r *Reconciler) handleTrafficManagerProfileEvent(ctx context.Context, object client.Object, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {

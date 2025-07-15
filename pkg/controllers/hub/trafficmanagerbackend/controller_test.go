@@ -216,7 +216,7 @@ func TestEqualAzureTrafficManagerEndpoint(t *testing.T) {
 	}
 }
 
-func TestRequeueServiceImportUpateEvent(t *testing.T) {
+func TestShouldHandleServiceImportUpateEvent(t *testing.T) {
 	tests := []struct {
 		name string
 		old  *fleetnetv1alpha1.ServiceImport
@@ -313,13 +313,13 @@ func TestRequeueServiceImportUpateEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := requeueServiceImportUpateEvent(tt.old, tt.new); got != tt.want {
-				t.Errorf("requeueServiceImportUpateEvent() = %v, want %v", got, tt.want)
+			if got := shouldHandleServiceImportUpateEvent(tt.old, tt.new); got != tt.want {
+				t.Errorf("shouldHandleServiceImportUpateEvent() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
-func TestRequeueTrafficManagerProfileUpdateEvent(t *testing.T) {
+func TestShouldHandleTrafficManagerProfileUpdateEvent(t *testing.T) {
 	tests := []struct {
 		name string
 		old  *fleetnetv1beta1.TrafficManagerProfile
@@ -513,13 +513,13 @@ func TestRequeueTrafficManagerProfileUpdateEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := requeueTrafficManagerProfileUpdateEvent(tt.old, tt.new); got != tt.want {
-				t.Errorf("requeueTrafficManagerProfileUpdateEvent() = %v, want %v", got, tt.want)
+			if got := shouldHandleTrafficManagerProfileUpdateEvent(tt.old, tt.new); got != tt.want {
+				t.Errorf("shouldHandleTrafficManagerProfileUpdateEvent() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
-func TestRequeueInternalServiceExportUpdateEvent(t *testing.T) {
+func TestShouldHandleInternalServiceExportUpdateEvent(t *testing.T) {
 	tests := []struct {
 		name string
 		old  *fleetnetv1alpha1.InternalServiceExport
@@ -733,8 +733,8 @@ func TestRequeueInternalServiceExportUpdateEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := requeueInternalServiceExportUpdateEvent(tt.old, tt.new); got != tt.want {
-				t.Errorf("requeueInternalServiceExportUpdateEvent() = %v, want %v", got, tt.want)
+			if got := shouldHandleInternalServiceExportUpdateEvent(tt.old, tt.new); got != tt.want {
+				t.Errorf("shouldHandleInternalServiceExportUpdateEvent() = %v, want %v", got, tt.want)
 			}
 		})
 	}
