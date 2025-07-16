@@ -24,7 +24,7 @@ export MEMBER_IDENTITY_PRINCIPAL_ID=$(az identity show \
 ## Create the role assignment for the hub agent
 
 ### Create the role assignment for the hub agent to manage the Azure Traffic Manager
-Assign role “[Azure Kubernetes Fleet Manager Hub Agent Role](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-fleet-manager-hub-agent-role)” to hub cluster identity at the Azure Traffic Manager resource group scope
+Assign the “[Azure Kubernetes Fleet Manager Hub Agent Role](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-fleet-manager-hub-agent-role)” to the hub cluster identity at the Azure Traffic Manager resource group scope
 ```bash
 az role assignment create --assignee "${HUB_IDENTITY_PRINCIPAL_ID}" --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --scope "/subscriptions/mySubscriptions/resourceGroups/MyAzureTrafficManagerResourceGroup"
 ```
