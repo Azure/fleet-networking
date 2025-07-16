@@ -24,9 +24,9 @@ export MEMBER_IDENTITY_PRINCIPAL_ID=$(az identity show \
 ## Create the role assignment for the hub agent
 
 ### Create the role assignment for the hub agent to manage the Azure Traffic Manager
-Assign role “[Traffic Manager Contributor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#traffic-manager-contributor)” to hub cluster identity at the Azure Traffic Manager resource group scope
+Assign the “[Azure Kubernetes Fleet Manager Hub Agent Role](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-fleet-manager-hub-agent-role)” to the hub cluster identity at the Azure Traffic Manager resource group scope
 ```bash
-az role assignment create --assignee "${HUB_IDENTITY_PRINCIPAL_ID}" --role "a4b10055-b0c7-44c2-b00f-c7b5b3550cf7" --scope "/subscriptions/mySubscriptions/resourceGroups/MyAzureTrafficManagerResourceGroup"
+az role assignment create --assignee "${HUB_IDENTITY_PRINCIPAL_ID}" --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --scope "/subscriptions/mySubscriptions/resourceGroups/MyAzureTrafficManagerResourceGroup"
 ```
 
 ### Create the role assignment for the hub agent to read the public IP address used by the member cluster
@@ -35,10 +35,10 @@ Grant Public IP address read permission to the hub cluster identity so that the 
 
 > Note: You can create your own customized role to restrict access or restrict the scope based on your security requirements.
 
-For example, the following command grants the “[Reader](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/general#reader)” to the hub cluster identity at the resource group of the public ip scope for testing purpose.
+For example, the following command grants the “[Azure Kubernetes Fleet Manager Hub Agent Role](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-fleet-manager-hub-agent-role)” to the hub cluster identity at the resource group of the public ip scope for testing purpose.
 
 ```bash
-az role assignment create --assignee "${HUB_IDENTITY_PRINCIPAL_ID}" --role "acdd72a7-3385-48ef-bd42-f606fba81ae7" --scope "/subscriptions/mySubscriptions/resourceGroups/MyPIPResourceGroup"
+az role assignment create --assignee "${HUB_IDENTITY_PRINCIPAL_ID}" --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --scope "/subscriptions/mySubscriptions/resourceGroups/MyPIPResourceGroup"
 ```
 
 ## Create the role assignment for the member agent
