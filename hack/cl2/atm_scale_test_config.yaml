@@ -12,6 +12,9 @@ tuningSets:
 - name: Uniform10qps
   qpsLoad:
     qps: 10
+- name: CleanupQps
+  qpsLoad:
+    qps: 0.2 # 1 deletion every 5 seconds
 
 steps:
 - name: Create nginx Deployments, Services, and ServiceExports
@@ -118,3 +121,21 @@ steps:
       - Accepted=False
       minDesiredObjectCount: {{MultiplyInt $count $namespaceCount}}
       maxFailedObjectCount: 0
+# By default, the created namespaces together with all resources created within the namespaces
+# will be deleted at the end of the test automatically. 
+# We add this step because the namespace cleanup happens all at once, 
+# and it may cause throttling when deleting the ATM endpoints.
+# We add this step to delete the TrafficManagerBackends (and thus ATM endpoints) slowly, 
+# (1 backend every 5 seconds), to avoid being throttled,
+- name: Delete TrafficManagerBackends
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: 0
+    tuningSet: CleanupQps
+    objectBundle:
+    - basename: test-tmb
+      objectTemplatePath: "manifests/test-tmb.yaml"
+      templateFillMap:
+        ProfileName: test-tmp-0
