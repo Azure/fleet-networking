@@ -188,20 +188,20 @@ func validateEmittedEvents(backend *fleetnetv1beta1.TrafficManagerBackend, want 
 }
 
 var _ = Describe("Test TrafficManagerBackend Controller", func() {
+	BeforeEach(OncePerOrdered, func() {
+		By("By Reset the metrics in registry")
+		resetTrafficManagerBackendMetricsRegistry()
+
+		By("By deleting all the events")
+		Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
+	})
+
 	Context("When creating trafficManagerBackend with invalid profile", Ordered, func() {
 		name := fakeprovider.ValidBackendName
 		namespacedName := types.NamespacedName{Namespace: testNamespace, Name: name}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var wantMetrics []*prometheusclientmodel.Metric
-
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
 
 		It("Creating TrafficManagerBackend", func() {
 			backend = trafficManagerBackendForTest(name, "not-exist", "not-exist")
@@ -250,14 +250,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
-
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -358,14 +350,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
 
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
-
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -441,14 +425,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
-
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -518,14 +494,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		backendNamespacedName := types.NamespacedName{Namespace: testNamespace, Name: backendName}
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 		var wantMetrics []*prometheusclientmodel.Metric
-
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -635,14 +603,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
-
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -713,14 +673,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 		var backend *fleetnetv1beta1.TrafficManagerBackend
 
 		var wantEvents []corev1.Event
-
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
@@ -796,14 +748,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
-
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -849,6 +793,17 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			Expect(k8sClient.Create(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
 		})
 
+		It("Updating the ServiceImport status", func() {
+			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
+				Clusters: []fleetnetv1alpha1.ClusterStatus{
+					{
+						Cluster: memberClusterNames[2], // not found internalServiceExport
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
+		})
+
 		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
 			want := fleetnetv1beta1.TrafficManagerBackend{
 				ObjectMeta: metav1.ObjectMeta{
@@ -865,36 +820,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
-		})
-
-		It("Updating the ServiceImport status", func() {
-			serviceImport.Status = fleetnetv1alpha1.ServiceImportStatus{
-				Clusters: []fleetnetv1alpha1.ClusterStatus{
-					{
-						Cluster: memberClusterNames[2], // not found internalServiceExport
-					},
-				},
-			}
-			Expect(k8sClient.Status().Update(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
-		})
-
-		It("Validating trafficManagerBackend consistently and should trigger controller to reconcile", func() {
-			want := fleetnetv1beta1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.MetricsFinalizer},
-				},
-				Spec: backend.Spec,
-				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(backend.Generation),
-				},
-			}
-			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
-
-			By("By validating the status metrics")
-			// It overwrites the previous one as they have the same condition.
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
@@ -941,11 +866,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-		})
-
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")
 			profile = trafficManagerProfileForTest(profileName)
@@ -992,29 +912,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, serviceImport)).Should(Succeed(), "failed to create serviceImport")
-		})
-
-		It("Validating trafficManagerBackend and should trigger controller to reconcile", func() {
-			want := fleetnetv1beta1.TrafficManagerBackend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       backendName,
-					Namespace:  testNamespace,
-					Finalizers: []string{objectmeta.MetricsFinalizer},
-				},
-				Spec: backend.Spec,
-				Status: fleetnetv1beta1.TrafficManagerBackendStatus{
-					Conditions: buildUnknownCondition(backend.Generation),
-				},
-			}
-			validator.ValidateTrafficManagerBackend(ctx, k8sClient, &want, timeout)
-			validator.ValidateTrafficManagerBackendConsistently(ctx, k8sClient, &want)
-
-			By("By validating the status metrics")
-			// Metrics are sorted by timestamp
-			// * false
-			// * unknown
-			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
-			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
 		It("Updating the ServiceImport status", func() {
@@ -1063,10 +960,7 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// Metrics are sorted by timestamp
-			// * unknown
 			// * false
-			wantMetrics = wantMetrics[1:] // The new one will overwrite the first metrics.
-			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
 
@@ -1131,7 +1025,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// Metrics are sorted by timestamp
-			// * unknown
 			// * false
 			// * true
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
@@ -1192,7 +1085,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// Metrics are sorted by timestamp
-			// * unknown
 			// * false
 			// * true
 			// It overwrites the previous one as they have the same condition.
@@ -1245,10 +1137,9 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 			By("By validating the status metrics")
 			// Metrics are sorted by timestamp
-			// * unknown
 			// * true
 			// * false
-			wantMetrics = append(wantMetrics[:1], wantMetrics[2:]...) // The new one will overwrite the middle one.
+			wantMetrics = wantMetrics[1:] // The new one will overwrite the first one.
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
@@ -1287,7 +1178,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 			// * true
 			// * false
 			// * unknown
-			wantMetrics = wantMetrics[1:]
 			wantMetrics = append(wantMetrics, generateMetrics(backend, want.Status.Conditions[0]))
 			validateTrafficManagerBackendMetricsEmitted(wantMetrics...)
 		})
@@ -1491,14 +1381,6 @@ var _ = Describe("Test TrafficManagerBackend Controller", func() {
 
 		var wantMetrics []*prometheusclientmodel.Metric
 		var wantEvents []corev1.Event
-
-		BeforeAll(func() {
-			By("By Reset the metrics in registry")
-			resetTrafficManagerBackendMetricsRegistry()
-
-			By("By deleting all the events")
-			Expect(k8sClient.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(testNamespace))).Should(Succeed(), "failed to delete the events")
-		})
 
 		It("Creating a new TrafficManagerProfile", func() {
 			By("By creating a new TrafficManagerProfile")

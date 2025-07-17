@@ -20,17 +20,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -379,7 +382,7 @@ func (r *Reconciler) validateTrafficManagerProfile(ctx context.Context, backend 
 	if condition.IsConditionStatusTrue(programmedCondition, profile.GetGeneration()) {
 		return profile, nil // return directly if the trafficManagerProfile is programmed
 	} else if condition.IsConditionStatusFalse(programmedCondition, profile.GetGeneration()) {
-		setFalseCondition(backend, nil, fmt.Sprintf("Invalid trafficManagerProfile %q: %v", backend.Spec.Profile.Name, programmedCondition.Message))
+		setFalseCondition(backend, nil, fmt.Sprintf("Invalid trafficManagerProfile %q, please check the trafficManagerProfile status", backend.Spec.Profile.Name))
 	} else {
 		setUnknownCondition(backend, fmt.Sprintf("In the processing of trafficManagerProfile %q", backend.Spec.Profile.Name))
 	}
@@ -773,53 +776,160 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, dis
 		For(&fleetnetv1beta1.TrafficManagerBackend{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(
 			&fleetnetv1beta1.TrafficManagerProfile{},
-			handler.EnqueueRequestsFromMapFunc(r.trafficManagerProfileEventHandler()),
+			handler.Funcs{
+				UpdateFunc: func(ctx context.Context, e event.UpdateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received trafficManagerProfile update event", "trafficManagerProfile", klog.KObj(e.ObjectNew))
+					if e.ObjectOld == nil || e.ObjectNew == nil {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("updateEvent %v received with no metadata", e)),
+							"Failed to process an update event for trafficManagerProfile object")
+						return
+					}
+					oldProfile, ok := e.ObjectOld.(*fleetnetv1beta1.TrafficManagerProfile)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received old object %v not a trafficManagerProfile object", e.ObjectOld)),
+							"Failed to process an update event for trafficManagerProfile object")
+						return
+					}
+					newProfile, ok := e.ObjectNew.(*fleetnetv1beta1.TrafficManagerProfile)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received new object %v not a trafficManagerProfile object", e.ObjectNew)),
+							"Failed to process an update event for trafficManagerProfile object")
+						return
+					}
+					if !shouldHandleTrafficManagerProfileUpdateEvent(oldProfile, newProfile) {
+						klog.V(2).InfoS("Skipping requeueing trafficManagerProfile update event", "trafficManagerProfile", klog.KObj(e.ObjectNew))
+						return // no need to requeue if the clusters haven't changed
+					}
+					r.handleTrafficManagerProfileEvent(ctx, e.ObjectNew, q)
+				},
+				DeleteFunc: func(ctx context.Context, e event.DeleteEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received trafficManagerProfile delete event", "trafficManagerProfile", klog.KObj(e.Object))
+					r.handleTrafficManagerProfileEvent(ctx, e.Object, q)
+				},
+				GenericFunc: func(ctx context.Context, e event.GenericEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received trafficManagerProfile generic event", "trafficManagerProfile", klog.KObj(e.Object))
+					r.handleTrafficManagerProfileEvent(ctx, e.Object, q)
+				},
+			},
 		).
 		Watches(
 			&fleetnetv1alpha1.ServiceImport{},
-			handler.EnqueueRequestsFromMapFunc(r.serviceImportEventHandler()),
+			handler.Funcs{
+				UpdateFunc: func(ctx context.Context, e event.UpdateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received serviceImport update event", "serviceImport", klog.KObj(e.ObjectNew))
+					if e.ObjectOld == nil || e.ObjectNew == nil {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("updateEvent %v received with no metadata", e)),
+							"Failed to process an update event for serviceImport object")
+						return
+					}
+					oldServiceImport, ok := e.ObjectOld.(*fleetnetv1alpha1.ServiceImport)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received old object %v not a serviceImport object", e.ObjectOld)),
+							"Failed to process an update event for serviceImport object")
+						return
+					}
+					newServiceImport, ok := e.ObjectNew.(*fleetnetv1alpha1.ServiceImport)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received new object %v not a serviceImport object", e.ObjectNew)),
+							"Failed to process an update event for serviceImport object")
+						return
+					}
+					if !shouldHandleServiceImportUpateEvent(oldServiceImport, newServiceImport) {
+						klog.V(2).InfoS("Skipping requeueing serviceImport update event", "serviceImport", klog.KObj(e.ObjectNew))
+						return // no need to requeue if the clusters haven't changed
+					}
+					r.handleServiceImportEvent(ctx, e.ObjectNew, q)
+				},
+				DeleteFunc: func(ctx context.Context, e event.DeleteEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received serviceImport delete event", "serviceImport", klog.KObj(e.Object))
+					r.handleServiceImportEvent(ctx, e.Object, q)
+				},
+				GenericFunc: func(ctx context.Context, e event.GenericEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received serviceImport generic event", "serviceImport", klog.KObj(e.Object))
+					r.handleServiceImportEvent(ctx, e.Object, q)
+				},
+			},
 		).
 		Watches(
 			&fleetnetv1alpha1.InternalServiceExport{},
-			handler.EnqueueRequestsFromMapFunc(r.internalServiceExportEventHandler()),
+			handler.Funcs{
+				UpdateFunc: func(ctx context.Context, e event.UpdateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received internalServiceExport update event", "internalServiceExport", klog.KObj(e.ObjectNew))
+					if e.ObjectOld == nil || e.ObjectNew == nil {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("updateEvent %v received with no metadata", e)),
+							"Failed to process an update event for internalServiceExport object")
+						return
+					}
+					oldInternalServiceExport, ok := e.ObjectOld.(*fleetnetv1alpha1.InternalServiceExport)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received old object %v not a internalServiceExport object", e.ObjectOld)),
+							"Failed to process an update event for internalServiceExport object")
+						return
+					}
+					newInternalServiceExport, ok := e.ObjectNew.(*fleetnetv1alpha1.InternalServiceExport)
+					if !ok {
+						klog.ErrorS(controller.NewUnexpectedBehaviorError(fmt.Errorf("received new object %v not a internalServiceExport object", e.ObjectNew)),
+							"Failed to process an update event for internalServiceExport object")
+						return
+					}
+					if !shouldHandleInternalServiceExportUpdateEvent(oldInternalServiceExport, newInternalServiceExport) {
+						klog.V(2).InfoS("Skipping requeueing internalServiceExport update event", "internalServiceExport", klog.KObj(e.ObjectNew))
+						return
+					}
+					r.handleInternalServiceExportEvent(ctx, e.ObjectNew, q)
+				},
+				GenericFunc: func(ctx context.Context, e event.GenericEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					klog.V(2).InfoS("Received internalServiceExport generic event", "internalServiceExport", klog.KObj(e.Object))
+					r.handleInternalServiceExportEvent(ctx, e.Object, q)
+				},
+			},
 		).
 		Complete(r)
 }
 
-func (r *Reconciler) trafficManagerProfileEventHandler() handler.MapFunc {
-	return func(ctx context.Context, object client.Object) []reconcile.Request {
-		trafficManagerBackendList := &fleetnetv1beta1.TrafficManagerBackendList{}
-		fieldMatcher := client.MatchingFields{
-			trafficManagerBackendProfileFieldKey: object.GetName(),
-		}
-		// For now, we only support the backend and profile in the same namespace.
-		if err := r.Client.List(ctx, trafficManagerBackendList, client.InNamespace(object.GetNamespace()), fieldMatcher); err != nil {
-			klog.ErrorS(err,
-				"Failed to list trafficManagerBackends for the profile",
-				"trafficManagerProfile", klog.KObj(object))
-			return []reconcile.Request{}
-		}
+func shouldHandleTrafficManagerProfileUpdateEvent(old, new *fleetnetv1beta1.TrafficManagerProfile) bool {
+	oldCondition := meta.FindStatusCondition(old.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
+	newCondition := meta.FindStatusCondition(new.Status.Conditions, string(fleetnetv1beta1.TrafficManagerProfileConditionProgrammed))
+	return !condition.EqualConditionIgnoreReason(oldCondition, newCondition)
+}
 
-		res := make([]reconcile.Request, 0, len(trafficManagerBackendList.Items))
-		for _, backend := range trafficManagerBackendList.Items {
-			res = append(res, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: backend.Namespace,
-					Name:      backend.Name,
-				},
-			})
-		}
-		return res
+func shouldHandleServiceImportUpateEvent(old, new *fleetnetv1alpha1.ServiceImport) bool {
+	return !equality.Semantic.DeepEqual(old.Status.Clusters, new.Status.Clusters)
+}
+
+func shouldHandleInternalServiceExportUpdateEvent(old, new *fleetnetv1alpha1.InternalServiceExport) bool {
+	// Most of the referenced service fields are immutable, so we only check the fields that can be changed.
+	return old.Spec.Type != new.Spec.Type ||
+		old.Spec.IsDNSLabelConfigured != new.Spec.IsDNSLabelConfigured ||
+		old.Spec.IsInternalLoadBalancer != new.Spec.IsInternalLoadBalancer ||
+		!equality.Semantic.DeepEqual(old.Spec.PublicIPResourceID, new.Spec.PublicIPResourceID) ||
+		!equality.Semantic.DeepEqual(old.Spec.Weight, new.Spec.Weight)
+}
+
+func (r *Reconciler) handleTrafficManagerProfileEvent(ctx context.Context, object client.Object, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	trafficManagerBackendList := &fleetnetv1beta1.TrafficManagerBackendList{}
+	fieldMatcher := client.MatchingFields{
+		trafficManagerBackendProfileFieldKey: object.GetName(),
+	}
+	// For now, we only support the backend and profile in the same namespace.
+	if err := r.Client.List(ctx, trafficManagerBackendList, client.InNamespace(object.GetNamespace()), fieldMatcher); err != nil {
+		klog.ErrorS(err,
+			"Failed to list trafficManagerBackends for the profile",
+			"trafficManagerProfile", klog.KObj(object))
+		return
+	}
+
+	for _, backend := range trafficManagerBackendList.Items {
+		q.Add(reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: backend.Namespace,
+				Name:      backend.Name,
+			},
+		})
 	}
 }
 
-func (r *Reconciler) serviceImportEventHandler() handler.MapFunc {
-	return func(ctx context.Context, object client.Object) []reconcile.Request {
-		return r.enqueueTrafficManagerBackendByServiceImport(ctx, object)
-	}
-}
-
-func (r *Reconciler) enqueueTrafficManagerBackendByServiceImport(ctx context.Context, object client.Object) []reconcile.Request {
+func (r *Reconciler) handleServiceImportEvent(ctx context.Context, object client.Object, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	trafficManagerBackendList := &fleetnetv1beta1.TrafficManagerBackendList{}
 	fieldMatcher := client.MatchingFields{
 		trafficManagerBackendBackendFieldKey: object.GetName(),
@@ -829,49 +939,44 @@ func (r *Reconciler) enqueueTrafficManagerBackendByServiceImport(ctx context.Con
 		klog.ErrorS(err,
 			"Failed to list trafficManagerBackends for the serviceImport",
 			"serviceImport", klog.KObj(object))
-		return []reconcile.Request{}
+		return
 	}
 
-	res := make([]reconcile.Request, 0, len(trafficManagerBackendList.Items))
 	for _, backend := range trafficManagerBackendList.Items {
-		res = append(res, reconcile.Request{
+		q.Add(reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: backend.Namespace,
 				Name:      backend.Name,
 			},
 		})
 	}
-	return res
 }
 
-func (r *Reconciler) internalServiceExportEventHandler() handler.MapFunc {
-	return func(ctx context.Context, object client.Object) []reconcile.Request {
-		internalServiceExport, ok := object.(*fleetnetv1alpha1.InternalServiceExport)
-		if !ok {
-			return []reconcile.Request{}
-		}
+func (r *Reconciler) handleInternalServiceExportEvent(ctx context.Context, object client.Object, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	internalServiceExport, ok := object.(*fleetnetv1alpha1.InternalServiceExport)
+	if !ok {
+		return
+	}
 
-		serviceImport := &fleetnetv1alpha1.ServiceImport{}
-		serviceImportName := types.NamespacedName{Namespace: internalServiceExport.Spec.ServiceReference.Namespace, Name: internalServiceExport.Spec.ServiceReference.Name}
-		serviceImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
-		if err := r.Client.Get(ctx, serviceImportName, serviceImport); err != nil {
-			klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(internalServiceExport))
-			return []reconcile.Request{}
+	serviceImport := &fleetnetv1alpha1.ServiceImport{}
+	serviceImportName := types.NamespacedName{Namespace: internalServiceExport.Spec.ServiceReference.Namespace, Name: internalServiceExport.Spec.ServiceReference.Name}
+	serviceImportKRef := klog.KRef(serviceImportName.Namespace, serviceImportName.Name)
+	if err := r.Client.Get(ctx, serviceImportName, serviceImport); err != nil {
+		klog.ErrorS(err, "Failed to get serviceImport", "serviceImport", serviceImportKRef, "internalServiceExport", klog.KObj(internalServiceExport))
+		return
+	}
+	for _, cs := range serviceImport.Status.Clusters {
+		// When the cluster exposes the service, first we will check whether the cluster can be exposed or not.
+		// For example, whether the service spec conflicts with other existing services.
+		// If the cluster is not in the serviceImport status, there are two possibilities:
+		// * the controller is still in the processing of this cluster.
+		// * the cluster cannot be exposed because of the conflicted spec, which will be clearly indicated in the
+		// serviceExport status.
+		// For the first case, when the processing is finished, serviceImport will be updated so that this controller
+		// will be triggered again.
+		if cs.Cluster == internalServiceExport.Spec.ServiceReference.ClusterID {
+			r.handleServiceImportEvent(ctx, serviceImport, q)
 		}
-		for _, cs := range serviceImport.Status.Clusters {
-			// When the cluster exposes the service, first we will check whether the cluster can be exposed or not.
-			// For example, whether the service spec conflicts with other existing services.
-			// If the cluster is not in the serviceImport status, there are two possibilities:
-			// * the controller is still in the processing of this cluster.
-			// * the cluster cannot be exposed because of the conflicted spec, which will be clearly indicated in the
-			// serviceExport status.
-			// For the first case, when the processing is finished, serviceImport will be updated so that this controller
-			// will be triggered again.
-			if cs.Cluster == internalServiceExport.Spec.ServiceReference.ClusterID {
-				return r.enqueueTrafficManagerBackendByServiceImport(ctx, serviceImport)
-			}
-		}
-		return []reconcile.Request{}
 	}
 }
 
