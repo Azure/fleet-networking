@@ -125,8 +125,8 @@ steps:
 # will be deleted at the end of the test automatically. 
 # We add this step because the namespace cleanup happens all at once, 
 # and it may cause throttling when deleting the ATM endpoints.
-# We add this step to delete the TrafficManagerBackends (and thus ATM endpoints) slowly, 
-# (1 backend every 5 seconds), to avoid being throttled,
+# We add this step to delete the TrafficManagerBackends and TrafficManagerProfiles 
+# (and thus ATM endpoints and profiles) slowly, (1 per 5 seconds), to avoid being throttled,
 - name: Delete TrafficManagerBackends
   phases:
   - namespaceRange:
@@ -139,3 +139,13 @@ steps:
       objectTemplatePath: "manifests/test-tmb.yaml"
       templateFillMap:
         ProfileName: test-tmp-0
+- name: Delete TrafficManagerProfiles
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: 0
+    tuningSet: CleanupQps
+    objectBundle:
+    - basename: test-tmp
+      objectTemplatePath: "manifests/test-tmp.yaml"
