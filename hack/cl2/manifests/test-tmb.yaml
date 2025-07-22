@@ -1,0 +1,10 @@
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: TrafficManagerBackend
+metadata:
+  name: {{.Name}}
+spec:
+  profile:
+    name: {{.ProfileName}}
+  backend:
+    name: nginx-svc-{{.Index}}
+  weight: 100

@@ -1,0 +1,151 @@
+name: atm_scale_test
+
+{{$duration := "40m"}}
+{{$namespaceCount := 3}}
+{{$count := 20}}
+
+namespace:
+  number: {{$namespaceCount}}
+  prefix: atm-test-ns
+
+tuningSets:
+- name: Uniform10qps
+  qpsLoad:
+    qps: 10
+- name: CleanupQps
+  qpsLoad:
+    qps: 0.2 # 1 deletion every 5 seconds
+
+steps:
+- name: Create nginx Deployments, Services, and ServiceExports
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: {{$count}}
+    tuningSet: Uniform10qps
+    objectBundle:
+    - basename: nginx
+      objectTemplatePath: "manifests/test-nginx-deploy.yaml"
+    - basename: nginx-svc
+      objectTemplatePath: "manifests/test-nginx-svc.yaml"
+    - basename: nginx-svc
+      objectTemplatePath: "manifests/test-nginx-svc-export.yaml"
+- name: Create resourceOverrides
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: {{$count}}
+    tuningSet: Uniform10qps
+    objectBundle:
+    - basename: nginx-ro
+      objectTemplatePath: "manifests/test-nginx-ro.yaml"
+- name: Create CRPs
+  phases:
+  - replicasPerNamespace: {{$namespaceCount}}
+    tuningSet: Uniform10qps
+    objectBundle:
+    - basename: test-crp
+      objectTemplatePath: "manifests/test-crp.yaml"
+- name: Wait for CRPs to be Ready
+  measurements:
+  - Identifier: WaitForGenericK8sObjects
+    Method: WaitForGenericK8sObjects
+    Params:
+      objectGroup: placement.kubernetes-fleet.io
+      objectVersion: v1beta1
+      objectResource: clusterresourceplacements
+      timeout: {{$duration}}
+      successfulConditions: 
+      - ClusterResourcePlacementAvailable=True
+      failedConditions:
+      - ClusterResourcePlacementApplied=False
+      minDesiredObjectCount: {{$namespaceCount}}
+      maxFailedObjectCount: 0
+- name: Create TrafficManagerProfiles
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: 1
+    tuningSet: Uniform10qps
+    objectBundle:
+    - basename: test-tmp
+      objectTemplatePath: "manifests/test-tmp.yaml"
+- name: Wait for TrafficManagerProfiles to be Programmed
+  measurements:
+  - Identifier: WaitForGenericK8sObjects
+    Method: WaitForGenericK8sObjects
+    Params:
+      namespaceRange:
+        min: 1
+        max: {{$namespaceCount}}
+      objectGroup: networking.fleet.azure.com
+      objectVersion: v1beta1
+      objectResource: trafficmanagerprofiles
+      timeout: {{$duration}}
+      successfulConditions: 
+      - Programmed=True
+      failedConditions:
+      - Programmed=False
+      minDesiredObjectCount: {{$namespaceCount}}
+      maxFailedObjectCount: 0
+- name: Create TrafficManagerBackends
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: {{$count}}
+    tuningSet: Uniform10qps
+    objectBundle:
+    - basename: test-tmb
+      objectTemplatePath: "manifests/test-tmb.yaml"
+      templateFillMap:
+        ProfileName: test-tmp-0
+- name: Wait for TrafficManagerBackends to be Accepted
+  measurements:
+  - Identifier: WaitForGenericK8sObjects
+    Method: WaitForGenericK8sObjects
+    Params:
+      namespaceRange:
+        min: 1
+        max: {{$namespaceCount}}
+      objectGroup: networking.fleet.azure.com
+      objectVersion: v1beta1
+      objectResource: trafficmanagerbackends
+      timeout: {{$duration}}
+      successfulConditions: 
+      - Accepted=True
+      failedConditions:
+      - Accepted=False
+      minDesiredObjectCount: {{MultiplyInt $count $namespaceCount}}
+      maxFailedObjectCount: 0
+# By default, the created namespaces together with all resources created within the namespaces
+# will be deleted at the end of the test automatically. 
+# We add this step because the namespace cleanup happens all at once, 
+# and it may cause throttling when deleting the ATM endpoints.
+# We add this step to delete the TrafficManagerBackends and TrafficManagerProfiles 
+# (and thus ATM endpoints and profiles) slowly, (1 per 5 seconds), to avoid being throttled,
+- name: Delete TrafficManagerBackends
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: 0
+    tuningSet: CleanupQps
+    objectBundle:
+    - basename: test-tmb
+      objectTemplatePath: "manifests/test-tmb.yaml"
+      templateFillMap:
+        ProfileName: test-tmp-0
+- name: Delete TrafficManagerProfiles
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaceCount}}
+    replicasPerNamespace: 0
+    tuningSet: CleanupQps
+    objectBundle:
+    - basename: test-tmp
+      objectTemplatePath: "manifests/test-tmp.yaml"
