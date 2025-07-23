@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
@@ -44,7 +45,7 @@ var (
 	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that
 	// the ServiceExport referred by svcExportKey no longer exists.
 	serviceExportIsAbsentActual = func() error {
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcExportKey, svcExport); !errors.IsNotFound(err) {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcExportKey, err)
 		}
@@ -94,8 +95,8 @@ func unfulfilledInternalServiceExport() *fleetnetv1alpha1.InternalServiceExport 
 }
 
 // unfulfilledServiceExport returns an unfulfilled ServiceExport object.
-func unfulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
-	return &fleetnetv1alpha1.ServiceExport{
+func unfulfilledServiceExport() *fleetnetv1beta1.ServiceExport {
+	return &fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
 			Name:      svcName,
@@ -118,7 +119,7 @@ var _ = Describe("internalsvcexport controller", func() {
 	})
 
 	Context("conflict resolution in progress", func() {
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var svcExport *fleetnetv1beta1.ServiceExport
 		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
@@ -165,7 +166,7 @@ var _ = Describe("internalsvcexport controller", func() {
 	})
 
 	Context("no conflict detected", func() {
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var svcExport *fleetnetv1beta1.ServiceExport
 		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
@@ -209,7 +210,7 @@ var _ = Describe("internalsvcexport controller", func() {
 	})
 
 	Context("conflict detected", func() {
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var svcExport *fleetnetv1beta1.ServiceExport
 		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 
 		BeforeEach(func() {
@@ -253,7 +254,7 @@ var _ = Describe("internalsvcexport controller", func() {
 	})
 
 	Context("internalserviceexport is deleting", func() {
-		var svcExport *fleetnetv1alpha1.ServiceExport
+		var svcExport *fleetnetv1beta1.ServiceExport
 		var internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 		finalizer := "internal-service-export-finalizer"
 

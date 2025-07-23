@@ -29,6 +29,7 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 var (
@@ -48,6 +49,9 @@ var (
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme.
 	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+	if err := fleetnetv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 	if err := clusterv1beta1.AddToScheme(scheme.Scheme); err != nil {

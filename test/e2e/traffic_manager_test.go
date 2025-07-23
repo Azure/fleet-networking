@@ -20,7 +20,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
@@ -863,7 +862,7 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 
 			By("Validating the serviceExport condition")
 			wantValidConditionWithZeroWeight := metav1.Condition{
-				Type:    string(fleetnetv1alpha1.ServiceExportValid),
+				Type:    string(fleetnetv1beta1.ServiceExportValid),
 				Status:  metav1.ConditionTrue,
 				Reason:  "ServiceIsValid",
 				Message: fmt.Sprintf("exported service %s/%s with 0 weight", wm.ServiceExport().Namespace, wm.ServiceExport().Name),

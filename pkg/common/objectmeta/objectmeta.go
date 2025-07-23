@@ -13,7 +13,7 @@ import (
 
 	"k8s.io/klog/v2"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 const (
@@ -81,7 +81,7 @@ var (
 )
 
 // ExtractWeightFromServiceExport gets the weight from the serviceExport annotation and validates it.
-func ExtractWeightFromServiceExport(svcExport *fleetnetv1alpha1.ServiceExport) (int64, error) {
+func ExtractWeightFromServiceExport(svcExport *fleetnetv1beta1.ServiceExport) (int64, error) {
 	serviceKObj := klog.KObj(svcExport)
 	// Setup the weightAnno for the exported service on the hub cluster.
 	weightAnno, found := svcExport.Annotations[ServiceExportAnnotationWeight]

@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 // Namespace returns a Namespace object.
@@ -39,8 +40,8 @@ func ClusterIPServiceWithNoSelector(namespace, name, portName string, port, targ
 }
 
 // ServiceExport returns a ServiceExport object.
-func ServiceExport(namespace, name string) *fleetnetv1alpha1.ServiceExport {
-	return &fleetnetv1alpha1.ServiceExport{
+func ServiceExport(namespace, name string) *fleetnetv1beta1.ServiceExport {
+	return &fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,

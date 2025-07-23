@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 var (
@@ -267,7 +268,7 @@ func TestUnconflictedServiceExportConflictCondition(t *testing.T) {
 		},
 	}
 	want := metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		Reason:             conditionReasonNoConflictFound,
 		ObservedGeneration: 456,
@@ -312,7 +313,7 @@ func TestConflictedServiceExportConflictCondition(t *testing.T) {
 		},
 	}
 	want := metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		Reason:             conditionReasonConflictFound,
 		ObservedGeneration: 123,

@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
@@ -87,7 +88,7 @@ var (
 	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that a given
 	// ServiceExport no longer exists.
 	serviceExportIsAbsentActual = func() error {
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcKey, svcExport); !errors.IsNotFound(err) {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcKey, err)
 		}
@@ -118,8 +119,8 @@ func managedIPv4EndpointSliceWithoutUniqueNameAnnotation() *discoveryv1.Endpoint
 	}
 }
 
-func notYetFulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
-	return &fleetnetv1alpha1.ServiceExport{
+func notYetFulfilledServiceExport() *fleetnetv1beta1.ServiceExport {
+	return &fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
 			Name:      svcName,
@@ -131,7 +132,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 	Context("IPv6 endpointSlice", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 		)
 
 		BeforeEach(func() {
@@ -159,7 +160,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 
 			svcExport = notYetFulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
-			svcExport.Status = fleetnetv1alpha1.ServiceExportStatus{
+			svcExport.Status = fleetnetv1beta1.ServiceExportStatus{
 				Conditions: []metav1.Condition{
 					serviceExportValidCondition(memberUserNS, svcName),
 					serviceExportNoConflictCondition(memberUserNS, svcName),
@@ -192,7 +193,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 	Context("dangling endpointslice (endpointslice with no associated service)", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 		)
 
 		BeforeEach(func() {
@@ -217,7 +218,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 
 			svcExport = notYetFulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
-			svcExport.Status = fleetnetv1alpha1.ServiceExportStatus{
+			svcExport.Status = fleetnetv1beta1.ServiceExportStatus{
 				Conditions: []metav1.Condition{
 					serviceExportValidCondition(memberUserNS, svcName),
 					serviceExportNoConflictCondition(memberUserNS, svcName),
@@ -275,7 +276,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 	Context("endpointslice associated with invalid exported service", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 		)
 
 		BeforeEach(func() {
@@ -284,7 +285,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 
 			svcExport = notYetFulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
-			svcExport.Status = fleetnetv1alpha1.ServiceExportStatus{
+			svcExport.Status = fleetnetv1beta1.ServiceExportStatus{
 				Conditions: []metav1.Condition{
 					serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
 				},
@@ -317,7 +318,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 	Context("endpointslice associated with conflicted exported service", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 		)
 
 		BeforeEach(func() {
@@ -326,7 +327,7 @@ var _ = Describe("endpointslice controller (skip endpointslice)", Serial, Ordere
 
 			svcExport = notYetFulfilledServiceExport()
 			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
-			svcExport.Status = fleetnetv1alpha1.ServiceExportStatus{
+			svcExport.Status = fleetnetv1beta1.ServiceExportStatus{
 				Conditions: []metav1.Condition{
 					serviceExportConflictedCondition(memberUserNS, svcName),
 				},
@@ -490,7 +491,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 		var (
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			svcExport           *fleetnetv1alpha1.ServiceExport
+			svcExport           *fleetnetv1beta1.ServiceExport
 
 			startTime = time.Now()
 		)
@@ -544,7 +545,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 		var (
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			svcExport           *fleetnetv1alpha1.ServiceExport
+			svcExport           *fleetnetv1beta1.ServiceExport
 
 			startTime = time.Now()
 		)
@@ -598,7 +599,7 @@ var _ = Describe("endpointslice controller (unexport endpointslice)", Serial, Or
 		var (
 			endpointSlice       *discoveryv1.EndpointSlice
 			endpointSliceExport *fleetnetv1alpha1.EndpointSliceExport
-			svcExport           *fleetnetv1alpha1.ServiceExport
+			svcExport           *fleetnetv1beta1.ServiceExport
 
 			startTime = time.Now()
 		)
@@ -685,7 +686,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	Context("new endpointslice for export", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
@@ -776,7 +777,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	Context("updated exported endpointslice", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
@@ -935,7 +936,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	Context("exported endpointslice with tampered invalid unique name annotation", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
@@ -1066,7 +1067,7 @@ var _ = Describe("endpointslice controller (export endpointslice or update expor
 	Context("exported endpointslice with tampered used unique name annotation", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
@@ -1270,7 +1271,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 				Namespace: memberUserNS,
 				Name:      altEndpointSliceName,
 			}
-			svcExport *fleetnetv1alpha1.ServiceExport
+			svcExport *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime = time.Now().Add(-time.Second * 1)
@@ -1389,7 +1390,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 	Context("endpointslices when service export becomes invalid", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
@@ -1495,7 +1496,7 @@ var _ = Describe("endpointslice controller (service export status changes)", Ser
 	Context("endpointslices when service export becomes conflicted", func() {
 		var (
 			endpointSlice *discoveryv1.EndpointSlice
-			svcExport     *fleetnetv1alpha1.ServiceExport
+			svcExport     *fleetnetv1beta1.ServiceExport
 
 			// Apply an offset of 1 second to account for limited timing precision.
 			startTime     = time.Now().Add(-time.Second * 1)
