@@ -115,6 +115,14 @@ jobs:
           make e2e-collect-logs
         env:
           LOG_DIR: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
+      - name: Upload agent logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
+          path: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
+          if-no-files-found: warn
+          retention-days: 3
       - name: Cleanup e2e
         if: always()
         run: |
@@ -124,11 +132,3 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.E2E_AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
-      - name: Upload agent logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
-          path: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
-          if-no-files-found: warn
-          retention-days: 3
