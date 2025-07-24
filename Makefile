@@ -7,10 +7,12 @@ endif
 HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+NET_CRD_INSTALLER_IMAGE_VERSION ?= $(TAG)
 
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
+NET_CRD_INSTALLER_IMAGE_NAME ?= net-crd-installer
 
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -227,6 +229,15 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 		--platform="linux/amd64" \
 		--pull \
 		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
+
+.PHONY: docker-build-net-crd-installer
+docker-build-mcs-controller-manager: docker-buildx-builder vendor
+	docker buildx build \
+		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) .
 
 ## -----------------------------------
 ## Cleanup
