@@ -43,6 +43,7 @@ import (
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/env"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
@@ -83,6 +84,7 @@ func init() {
 
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
 
