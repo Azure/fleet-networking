@@ -231,7 +231,7 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
 .PHONY: docker-build-net-crd-installer
-docker-build-mcs-controller-manager: docker-buildx-builder vendor
+docker-build-net-crd-installer: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
