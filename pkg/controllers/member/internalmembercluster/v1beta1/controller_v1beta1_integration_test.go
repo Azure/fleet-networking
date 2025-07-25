@@ -13,12 +13,14 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 const (
@@ -81,7 +83,7 @@ var _ = Describe("Test InternalMemberCluster Controllers", Ordered, func() {
 		}
 		Expect(memberClient.Create(ctx, multiClusterSvc2)).To(Succeed())
 
-		svcExport1 := &fleetnetv1alpha1.ServiceExport{
+		svcExport1 := &fleetnetv1beta1.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      svcExportName1,
 				Namespace: workNamespaceName,
@@ -89,7 +91,7 @@ var _ = Describe("Test InternalMemberCluster Controllers", Ordered, func() {
 		}
 		Expect(memberClient.Create(ctx, svcExport1)).To(Succeed())
 
-		svcExport2 := &fleetnetv1alpha1.ServiceExport{
+		svcExport2 := &fleetnetv1beta1.ServiceExport{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      svcExportName2,
 				Namespace: workNamespaceName,
@@ -235,7 +237,7 @@ var _ = Describe("Test InternalMemberCluster Controllers", Ordered, func() {
 
 	It("should clean up all service export related resources when a member cluster leaves", func() {
 		Eventually(func() error {
-			svcExportList := &fleetnetv1alpha1.ServiceExportList{}
+			svcExportList := &fleetnetv1beta1.ServiceExportList{}
 			if err := memberClient.List(ctx, svcExportList); err != nil {
 				return err
 			}

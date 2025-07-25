@@ -21,6 +21,7 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 const (
@@ -243,7 +244,7 @@ func TestCleanupMCSRelatedResources(t *testing.T) {
 
 // TestCleanupServiceExportRelatedResources tests the cleanupServiceExportRelatedResources method.
 func TestCleanupServiceExportRelatedResources(t *testing.T) {
-	svcExports := []fleetnetv1alpha1.ServiceExport{
+	svcExports := []fleetnetv1beta1.ServiceExport{
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      svcExportName1,
@@ -279,7 +280,7 @@ func TestCleanupServiceExportRelatedResources(t *testing.T) {
 	for idx := range svcExports {
 		svcExport := svcExports[idx]
 		key := types.NamespacedName{Namespace: svcExport.GetNamespace(), Name: svcExport.GetName()}
-		if err := fakeMemberClient.Get(ctx, key, &fleetnetv1alpha1.ServiceExport{}); !errors.IsNotFound(err) {
+		if err := fakeMemberClient.Get(ctx, key, &fleetnetv1beta1.ServiceExport{}); !errors.IsNotFound(err) {
 			t.Errorf("serviceExport %s still exists", key)
 		}
 	}

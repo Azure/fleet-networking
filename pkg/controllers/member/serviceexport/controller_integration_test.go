@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
@@ -112,8 +113,8 @@ func publicLoadBalancerService() *corev1.Service {
 	}
 }
 
-func notYetFulfilledServiceExport() *fleetnetv1alpha1.ServiceExport {
-	return &fleetnetv1alpha1.ServiceExport{
+func notYetFulfilledServiceExport() *fleetnetv1beta1.ServiceExport {
+	return &fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
 			Name:      svcName,
@@ -138,7 +139,7 @@ var (
 	// serviceExportIsAbsentActual runs with Eventually and Consistently assertion to make sure that
 	// the ServiceExport referred by svcOrSvcExportKey no longer exists.
 	serviceExportIsAbsentActual = func() error {
-		svcExport := fleetnetv1alpha1.ServiceExport{}
+		svcExport := fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, &svcExport); !errors.IsNotFound(err) {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want not found", svcOrSvcExportKey, err)
 		}
@@ -171,7 +172,7 @@ var (
 	// the ServiceExport referred by svcOrSvcExportKey has been marked as invalid due to not being able to find
 	// the corresponding Serivce.
 	serviceIsInvalidForExportNotFoundActual = func() error {
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
@@ -181,7 +182,7 @@ var (
 		}
 
 		expectedCond := serviceExportInvalidNotFoundCondition(memberUserNS, svcName, svcExport.Generation)
-		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 		}
@@ -191,7 +192,7 @@ var (
 	// the ServiceExport referred by svcOrSvcExportKey has been marked as invalid due to the corresponding being
 	// of an unsupported type.
 	serviceIsInvalidForExportIneligibleActual = func() error {
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
@@ -205,7 +206,7 @@ var (
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
 		expectedCond := serviceExportInvalidIneligibleCondition(memberUserNS, svcName, svcExport.Generation)
-		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 		}
@@ -222,7 +223,7 @@ var (
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
@@ -232,13 +233,13 @@ var (
 		}
 
 		expectedValidCond := serviceExportValidCondition(memberUserNS, svcName, svcExport.Generation)
-		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 		if diff := cmp.Diff(validCond, &expectedValidCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 		}
 
 		expectedConflictCond := serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, svcExport.Generation)
-		conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+		conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict))
 		if diff := cmp.Diff(conflictCond, &expectedConflictCond, ignoredCondFields); diff != "" {
 			return fmt.Errorf("serviceExportConflict condition (-got, +want): %s", diff)
 		}
@@ -280,7 +281,7 @@ func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureL
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svc); err != nil {
 			return fmt.Errorf("service Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
-		svcExport := &fleetnetv1alpha1.ServiceExport{}
+		svcExport := &fleetnetv1beta1.ServiceExport{}
 		if err := memberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 			return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 		}
@@ -323,7 +324,7 @@ func serviceIsExportedToHubActual(serviceType corev1.ServiceType, isPublicAzureL
 
 var _ = Describe("serviceexport controller", func() {
 	Context("export non-existent service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 
 		BeforeEach(func() {
 			svcExport = notYetFulfilledServiceExport()
@@ -343,7 +344,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export existing service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -372,7 +373,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export new service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -401,7 +402,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export new service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -426,16 +427,16 @@ var _ = Describe("serviceexport controller", func() {
 			By("make sure the serviceExport is marked as invalid")
 			err := fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight])
 			expectedCond := metav1.Condition{
-				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Type:               string(fleetnetv1beta1.ServiceExportValid),
 				Status:             metav1.ConditionFalse,
 				Reason:             svcExportInvalidWeightAnnotationReason,
 				ObservedGeneration: svcExport.Generation,
 				Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
 			}
 			Eventually(func() error {
-				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				svcExport := &fleetnetv1beta1.ServiceExport{}
 				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
-				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 				}
@@ -448,7 +449,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("spec change in exported service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 		altSvcPortName := "port2"
 		altSvcPort := 81
@@ -537,7 +538,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("annotation change in serviceExport should be propagated to the hub", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 		weight := 560
 		newWeight := 100
@@ -597,16 +598,16 @@ var _ = Describe("serviceexport controller", func() {
 			By("make sure the serviceExport is marked as invalid")
 			err := fmt.Errorf("the weight annotation is not in the range [0, 1000]: %s", svcExport.Annotations[objectmeta.ServiceExportAnnotationWeight])
 			expectedCond := metav1.Condition{
-				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Type:               string(fleetnetv1beta1.ServiceExportValid),
 				Status:             metav1.ConditionFalse,
 				Reason:             svcExportInvalidWeightAnnotationReason,
 				ObservedGeneration: svcExport.Generation,
 				Message:            fmt.Sprintf("serviceExport %s/%s has an invalid weight annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
 			}
 			Eventually(func() error {
-				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				svcExport := &fleetnetv1beta1.ServiceExport{}
 				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
-				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 				}
@@ -632,16 +633,16 @@ var _ = Describe("serviceexport controller", func() {
 
 			By("make sure the serviceExport is marked as valid")
 			expectedCond := metav1.Condition{
-				Type:               string(fleetnetv1alpha1.ServiceExportValid),
+				Type:               string(fleetnetv1beta1.ServiceExportValid),
 				Status:             metav1.ConditionTrue,
 				Reason:             svcExportValidCondReason,
 				ObservedGeneration: svcExport.Generation,
 				Message:            fmt.Sprintf("exported service %s/%s with 0 weight", svcExport.Namespace, svcExport.Name),
 			}
 			Eventually(func() error {
-				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				svcExport := &fleetnetv1beta1.ServiceExport{}
 				Expect(memberClient.Get(ctx, svcOrSvcExportKey, svcExport)).Should(Succeed())
-				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 				if diff := cmp.Diff(validCond, &expectedCond, ignoredCondFields); diff != "" {
 					return fmt.Errorf("serviceExportValid condition (-got, +want): %s", diff)
 				}
@@ -665,7 +666,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("unexport service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -696,7 +697,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("deleted exported service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -729,7 +730,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export ineligible service (headless)", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -756,7 +757,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export ineligible service (external name)", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -783,7 +784,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("unexport service that becomes ineligible for export (external name)", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -822,7 +823,7 @@ var _ = Describe("serviceexport controller", func() {
 	})
 
 	Context("export service that becomes eligible for export", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {
@@ -871,7 +872,7 @@ var _ = Describe("serviceexport controller", func() {
 	Context("export a service when another service with the same name has been already exported earlier", func() {
 		var (
 			internalSvcExport = &fleetnetv1alpha1.InternalServiceExport{}
-			svcExport         = &fleetnetv1alpha1.ServiceExport{}
+			svcExport         = &fleetnetv1beta1.ServiceExport{}
 			svc               = &corev1.Service{}
 		)
 
@@ -933,7 +934,7 @@ var _ = Describe("serviceexport controller", func() {
 
 	// More complicated scenarios with LoadBalancer services is covered in the unit tests.
 	Context("export existing public load balancer service", func() {
-		var svcExport = &fleetnetv1alpha1.ServiceExport{}
+		var svcExport = &fleetnetv1beta1.ServiceExport{}
 		var svc = &corev1.Service{}
 
 		BeforeEach(func() {

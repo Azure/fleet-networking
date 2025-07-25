@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
@@ -48,7 +49,7 @@ var ignoredCondFields = cmpopts.IgnoreFields(metav1.Condition{}, "LastTransition
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
 func serviceExportValidCondition(userNS, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportValidCondReason,
@@ -60,7 +61,7 @@ func serviceExportValidCondition(userNS, svcName string, observedGeneration int6
 // serviceExportInvalidNotFoundCond returns a ServiceExportValid condition for exporting a Service that is not found.
 func serviceExportInvalidNotFoundCondition(userNS, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidNotFoundCondReason,
@@ -72,7 +73,7 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string, observedGener
 // serviceExportInvalidIneligibleCondition returns a ServiceExportValid condition for exporting an ineligible Service.
 func serviceExportInvalidIneligibleCondition(userNS, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionStatus(corev1.ConditionFalse),
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportInvalidIneligibleCondReason,
@@ -85,7 +86,7 @@ func serviceExportInvalidIneligibleCondition(userNS, svcName string, observedGen
 // a confliction resolution is in progress.
 func serviceExportPendingConflictResolutionCondition(userNS, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
 		LastTransitionTime: metav1.Now(),
 		Reason:             svcExportPendingConflictResolutionReason,
@@ -98,7 +99,7 @@ func serviceExportPendingConflictResolutionCondition(userNS, svcName string, obs
 // with no conflict.
 func serviceExportNoConflictCondition(userNS, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "NoConflictDetected",
@@ -111,6 +112,10 @@ func serviceExportNoConflictCondition(userNS, svcName string, observedGeneration
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
 	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
+	if err := fleetnetv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -190,12 +195,12 @@ func TestIsServiceEligibleForExport(t *testing.T) {
 func TestFormatInternalServiceExportName(t *testing.T) {
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		want      string
 	}{
 		{
 			name: "should return formatted name",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -259,12 +264,12 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 	exportGeneration := int64(123)
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		wantConds []metav1.Condition
 	}{
 		{
 			name: "should mark a new svc export as invalid (not found)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -277,13 +282,13 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 		},
 		{
 			name: "should mark a valid svc export as invalid (not found)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -316,7 +321,7 @@ func TestMarkServiceExportAsInvalidNotFound(t *testing.T) {
 				t.Fatalf("failed to mark svc export: %v", err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			svcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
 			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v): %v", svcExportKey, err)
@@ -334,13 +339,13 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 	exportGeneration := int64(123)
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		svc       *corev1.Service
 		wantConds []metav1.Condition
 	}{
 		{
 			name: "should mark a new svc export as invalid (ineligible)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -359,13 +364,13 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 		},
 		{
 			name: "should mark a valid svc export as invalid (ineligible)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -404,7 +409,7 @@ func TestMarkServiceExportAsInvalidIneligible(t *testing.T) {
 				t.Fatalf("failed to mark svc export: %v", err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			svcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
 			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", svcExportKey, err)
@@ -422,13 +427,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 	exportGeneration := int64(123)
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		svc       *corev1.Service
 		wantConds []metav1.Condition
 	}{
 		{
 			name: "should mark a new svc export as valid",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -448,13 +453,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 		},
 		{
 			name: "should mark an invalid svc export (not found) as valid",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportInvalidNotFoundCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -473,13 +478,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 		},
 		{
 			name: "should mark an invalid svc export (ineligible) as valid",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportInvalidIneligibleCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -498,13 +503,13 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 		},
 		{
 			name: "should not mark a svc export that is valid already with a conflict condition (pending)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName, exportGeneration),
 						serviceExportPendingConflictResolutionCondition(memberUserNS, svcName, exportGeneration),
@@ -524,12 +529,12 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 		},
 		{
 			name: "should not mark a svc export that is valid already with a conflict condition (no conflict)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName, exportGeneration),
 						serviceExportNoConflictCondition(memberUserNS, svcName, exportGeneration),
@@ -549,16 +554,16 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 		},
 		{
 			name: "should mark a svc export that is valid but with different message and a conflict condition (no conflict)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:               string(fleetnetv1alpha1.ServiceExportValid),
+							Type:               string(fleetnetv1beta1.ServiceExportValid),
 							Status:             metav1.ConditionTrue,
 							LastTransitionTime: metav1.Now(),
 							ObservedGeneration: exportGeneration,
@@ -603,7 +608,7 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 				t.Fatalf("failed to mark svc export: %v", err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			svcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
 			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", svcExportKey, err)
@@ -620,12 +625,12 @@ func TestMarkServiceExportAsValid(t *testing.T) {
 func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		want      []string
 	}{
 		{
 			name: "should remove cleanup finalizer",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -656,7 +661,7 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 				t.Fatalf("removeServiceExportCleanupFinalizer(%+v) = %v, want no error", tc.svcExport, err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			updatedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", updatedSvcExportKey, err)
@@ -673,12 +678,12 @@ func TestRemoveServiceExportCleanupFinalizer(t *testing.T) {
 func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		want      []string
 	}{
 		{
 			name: "should add cleanup finalizer",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -708,7 +713,7 @@ func TestAddServiceExportCleanupFinalizer(t *testing.T) {
 				t.Fatalf("addServiceExportCleanupFinalizer(%+v), got %v, want no error", tc.svcExport, err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			updatedSvcExportKey := types.NamespacedName{Namespace: memberUserNS, Name: svcName}
 			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", updatedSvcExportKey, err)
@@ -727,12 +732,12 @@ func TestUnexportService(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		svcExport         *fleetnetv1alpha1.ServiceExport
+		svcExport         *fleetnetv1beta1.ServiceExport
 		internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 	}{
 		{
 			name: "should unexport svc",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -748,7 +753,7 @@ func TestUnexportService(t *testing.T) {
 		},
 		{
 			name: "should unexport partially exported svc (internal svc export not yet created)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
@@ -783,7 +788,7 @@ func TestUnexportService(t *testing.T) {
 				t.Fatalf("unexportService() = %+v, %v, want %+v, %v", res, err, ctrl.Result{}, err)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			updatedSvcExportKey := types.NamespacedName{Namespace: tc.svcExport.Namespace, Name: tc.svcExport.Name}
 			if err := fakeMemberClient.Get(ctx, updatedSvcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("svc export Get(%+v), got %v, want no error", updatedSvcExportKey, err)
@@ -821,7 +826,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 	testCases := []struct {
 		name              string
 		svc               *corev1.Service
-		svcExport         *fleetnetv1alpha1.ServiceExport
+		svcExport         *fleetnetv1beta1.ServiceExport
 		startTime         time.Time
 		wantExportedSince time.Time
 		wantAnnotations   map[string]string
@@ -835,7 +840,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -854,7 +859,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -880,7 +885,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -903,7 +908,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -926,7 +931,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -963,7 +968,7 @@ func TestCollectAndVerifyLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					tc.svc, tc.svcExport, tc.startTime, exportedSince, err, tc.wantExportedSince, nil)
 			}
 
-			svcExport := &fleetnetv1alpha1.ServiceExport{}
+			svcExport := &fleetnetv1beta1.ServiceExport{}
 			if err := fakeMemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 				t.Fatalf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
 			}
@@ -982,7 +987,7 @@ func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 	testCases := []struct {
 		name            string
 		svc             *corev1.Service
-		svcExport       *fleetnetv1alpha1.ServiceExport
+		svcExport       *fleetnetv1beta1.ServiceExport
 		wantAnnotations map[string]string
 	}{
 		{
@@ -994,7 +999,7 @@ func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 					ResourceVersion: svcResourceVersion,
 				},
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -1028,7 +1033,7 @@ func TestAnnotateLastSeenResourceVersionAndTimestamp(t *testing.T) {
 				t.Fatalf("annotateLastSeenResourceVersionAndTimestamp(%+v, %+v, %v), got %v, want no error", tc.svc, tc.svcExport, startTime, err)
 			}
 
-			svcExport := &fleetnetv1alpha1.ServiceExport{}
+			svcExport := &fleetnetv1beta1.ServiceExport{}
 			if err := fakeMemberClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 				t.Fatalf("serviceExport Get(%+v), got %v, want no error", svcOrSvcExportKey, err)
 			}

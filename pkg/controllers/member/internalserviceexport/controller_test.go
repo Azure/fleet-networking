@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
@@ -48,7 +49,7 @@ var (
 // conflictedServiceExportConflictCondition returns a ServiceExportConflict condition that reports an export conflict.
 func conflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "ConflictFound",
@@ -61,7 +62,7 @@ func conflictedServiceExportConflictCondition(svcNamespace string, svcName strin
 // export (no conflict).
 func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "NoConflictFound",
@@ -74,7 +75,7 @@ func unconflictedServiceExportConflictCondition(svcNamespace string, svcName str
 // conflict resolution session.
 func unknownServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionUnknown,
 		LastTransitionTime: metav1.NewTime(time.Now().Round(time.Second)),
 		Reason:             "PendingConflictResolution",
@@ -91,6 +92,11 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
+	err = fleetnetv1beta1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -100,20 +106,20 @@ func TestReportBackConflictCondition(t *testing.T) {
 	internalExportGeneration := int64(456)
 	testCases := []struct {
 		name              string
-		svcExport         *fleetnetv1alpha1.ServiceExport
+		svcExport         *fleetnetv1beta1.ServiceExport
 		internalSvcExport *fleetnetv1alpha1.InternalServiceExport
 		wantReported      bool
 		wantConds         []metav1.Condition
 	}{
 		{
 			name: "should not report back conflict cond (no condition yet)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						unknownServiceExportConflictCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -133,13 +139,13 @@ func TestReportBackConflictCondition(t *testing.T) {
 		},
 		{
 			name: "should not report back conflict cond (no update)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						unconflictedServiceExportConflictCondition(memberUserNS, svcName, exportGeneration),
 					},
@@ -164,13 +170,13 @@ func TestReportBackConflictCondition(t *testing.T) {
 		},
 		{
 			name: "should report back conflict cond",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  memberUserNS,
 					Name:       svcName,
 					Generation: exportGeneration,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{},
 				},
 			},
@@ -215,7 +221,7 @@ func TestReportBackConflictCondition(t *testing.T) {
 					tc.svcExport, tc.internalSvcExport, reported, err, tc.wantReported, nil)
 			}
 
-			var updatedSvcExport = &fleetnetv1alpha1.ServiceExport{}
+			var updatedSvcExport = &fleetnetv1beta1.ServiceExport{}
 			if err := fakeMemberClient.Get(ctx, svcExportKey, updatedSvcExport); err != nil {
 				t.Fatalf("failed to get updated svc export: %v", err)
 			}

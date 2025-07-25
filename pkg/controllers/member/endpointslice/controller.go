@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
@@ -230,7 +231,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) err
 	// EndpointSlice controller watches over EndpointSlice and ServiceExport objects.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&discoveryv1.EndpointSlice{}).
-		Watches(&fleetnetv1alpha1.ServiceExport{}, eventHandlers).
+		Watches(&fleetnetv1beta1.ServiceExport{}, eventHandlers).
 		Complete(r)
 }
 
@@ -276,7 +277,7 @@ func (r *Reconciler) shouldSkipOrUnexportEndpointSlice(ctx context.Context,
 	}
 
 	// Retrieve the Service Export.
-	svcExport := &fleetnetv1alpha1.ServiceExport{}
+	svcExport := &fleetnetv1beta1.ServiceExport{}
 	err := r.MemberClient.Get(ctx, types.NamespacedName{Namespace: endpointSlice.Namespace, Name: svcName}, svcExport)
 	switch {
 	case errors.IsNotFound(err) && hasUniqueNameAnnotation:

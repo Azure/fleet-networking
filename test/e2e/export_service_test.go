@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
@@ -212,7 +213,7 @@ var _ = Describe("Test exporting service", func() {
 
 			By("Unexporting the service")
 			svcExportDef := wm.ServiceExport()
-			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExportObj := &fleetnetv1beta1.ServiceExport{}
 			svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 			for _, m := range memberClusters {
 				Expect(m.Client().Delete(ctx, &svcExportDef)).Should(Succeed(), "Failed to delete service export %s in cluster %s", svcExportDef.Name, m.Name())
@@ -387,20 +388,20 @@ var _ = Describe("Test exporting service", func() {
 			By("Validating exporting the service should have conflict in member cluster one")
 			svcExportDef := wm.ServiceExport()
 			svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
-			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExportObj := &fleetnetv1beta1.ServiceExport{}
 			Eventually(func() string {
 				if err := memberClusterUpdateService.Client().Get(ctx, svcExporKey, svcExportObj); err != nil {
 					return err.Error()
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Type:               string(fleetnetv1beta1.ServiceExportValid),
 						Reason:             "ServiceIsValid",
 						Status:             metav1.ConditionTrue,
 						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Type:               string(fleetnetv1beta1.ServiceExportConflict),
 						Reason:             "ConflictFound",
 						Status:             metav1.ConditionTrue,
 						ObservedGeneration: svcExportObj.Generation,
@@ -451,20 +452,20 @@ var _ = Describe("Test exporting service", func() {
 			svcExportDef := wm.ServiceExport()
 			svcExportKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 			Expect(memberClusterOne.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberClusterOne.Name())
-			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExportObj := &fleetnetv1beta1.ServiceExport{}
 			Eventually(func() string {
 				if err := memberClusterOne.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
 					return err.Error()
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Type:               string(fleetnetv1beta1.ServiceExportValid),
 						Reason:             "ServiceIsValid",
 						Status:             metav1.ConditionTrue,
 						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Type:               string(fleetnetv1beta1.ServiceExportConflict),
 						Reason:             "NoConflictFound",
 						Status:             metav1.ConditionFalse,
 						ObservedGeneration: svcExportObj.Generation,
@@ -491,13 +492,13 @@ var _ = Describe("Test exporting service", func() {
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Type:               string(fleetnetv1beta1.ServiceExportValid),
 						Reason:             "ServiceIsValid",
 						Status:             metav1.ConditionTrue,
 						ObservedGeneration: svcExportObj.Generation,
 					},
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+						Type:               string(fleetnetv1beta1.ServiceExportConflict),
 						Reason:             "ConflictFound",
 						Status:             metav1.ConditionTrue,
 						ObservedGeneration: svcExportObj.Generation,
@@ -531,14 +532,14 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Validating exporting the headless service should be ineligible")
-			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExportObj := &fleetnetv1beta1.ServiceExport{}
 			Eventually(func() string {
 				if err := memberCluster.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
 					return err.Error()
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Type:               string(fleetnetv1beta1.ServiceExportValid),
 						Reason:             "ServiceIneligible",
 						Status:             metav1.ConditionFalse,
 						ObservedGeneration: svcExportObj.Generation,
@@ -570,14 +571,14 @@ var _ = Describe("Test exporting service", func() {
 			Expect(memberCluster.Client().Create(ctx, &svcExportDef)).Should(Succeed(), "Failed to create service export %s in cluster %s", svcExportKey, memberCluster.Name())
 
 			By("Validating exporting service of type ExternalName should be ineligible")
-			svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+			svcExportObj := &fleetnetv1beta1.ServiceExport{}
 			Eventually(func() string {
 				if err := memberCluster.Client().Get(ctx, svcExportKey, svcExportObj); err != nil {
 					return err.Error()
 				}
 				wantedSvcExportConditions := []metav1.Condition{
 					{
-						Type:               string(fleetnetv1alpha1.ServiceExportValid),
+						Type:               string(fleetnetv1beta1.ServiceExportValid),
 						Reason:             "ServiceIneligible",
 						Status:             metav1.ConditionFalse,
 						ObservedGeneration: svcExportObj.Generation,

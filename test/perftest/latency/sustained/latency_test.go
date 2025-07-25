@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/apiretry"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/test/e2e/framework"
@@ -137,17 +137,17 @@ var _ = Describe("evaluate sustained endpointslice export/import latency", Seria
 
 			// Verify that the export has succeeded.
 			Eventually(func() error {
-				svcExport := &fleetnetv1alpha1.ServiceExport{}
+				svcExport := &fleetnetv1beta1.ServiceExport{}
 				if err := memberClusterClient.Get(ctx, svcOrSvcExportKey, svcExport); err != nil {
 					return fmt.Errorf("serviceExport Get(%+v), got %w, want no error", svcOrSvcExportKey, err)
 				}
 
-				svcExportValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+				svcExportValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 				if svcExportValidCond == nil || svcExportValidCond.Status != metav1.ConditionTrue {
 					return fmt.Errorf("serviceExportValid condition, got %+v, want true condition", svcExportValidCond)
 				}
 
-				svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+				svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict))
 				if svcExportConflictCond == nil || svcExportConflictCond.Status != metav1.ConditionFalse {
 					return fmt.Errorf("serviceExportConflict condition, got %+v, want false condition", svcExportConflictCond)
 				}

@@ -11,10 +11,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 // formatInternalServiceExportName returns the unique name assigned to an exported Service.
-func formatInternalServiceExportName(svcExport *fleetnetv1alpha1.ServiceExport) string {
+func formatInternalServiceExportName(svcExport *fleetnetv1beta1.ServiceExport) string {
 	return fmt.Sprintf("%s-%s", svcExport.Namespace, svcExport.Name)
 }
 

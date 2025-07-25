@@ -32,6 +32,7 @@ import (
 	"go.goms.io/fleet/pkg/utils/controller"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -85,7 +86,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}()
 
 	// Retrieve the ServiceExport object.
-	var svcExport fleetnetv1alpha1.ServiceExport
+	var svcExport fleetnetv1beta1.ServiceExport
 	if err := r.MemberClient.Get(ctx, req.NamespacedName, &svcExport); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Skip the reconciliation if the ServiceExport does not exist; this happens when the controller detects
@@ -177,9 +178,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Here we don't unexport the service as it will interrupt the current traffic.
 		// There is no need to requeue the error as the controller should be triggered when the user corrects the annotation.
 		klog.ErrorS(controller.NewUserError(err), "service export has invalid annotation weight", "service", svcRef)
-		curValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		curValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetv1alpha1.ServiceExportValid),
+			Type:               string(fleetnetv1beta1.ServiceExportValid),
 			Status:             metav1.ConditionFalse,
 			Reason:             svcExportInvalidWeightAnnotationReason,
 			ObservedGeneration: svcExport.Generation,
@@ -206,9 +207,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				return ctrl.Result{}, err
 			}
 		}
-		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+		validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 		expectedValidCond := metav1.Condition{
-			Type:               string(fleetnetv1alpha1.ServiceExportValid),
+			Type:               string(fleetnetv1beta1.ServiceExportValid),
 			Status:             metav1.ConditionTrue,
 			Reason:             svcExportValidCondReason,
 			ObservedGeneration: svcExport.Generation,
@@ -252,7 +253,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.exportService(ctx, &svcExport, &svc, exportedSince, exportWeight)
 }
 
-func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport, svc *corev1.Service,
+func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport, svc *corev1.Service,
 	exportedSince time.Time, exportWeight int64) (ctrl.Result, error) {
 	svcRef := klog.KObj(svc)
 	// Create or update the InternalServiceExport object.
@@ -430,7 +431,7 @@ func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Contex
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// The ServiceExport controller watches over ServiceExport objects.
-		For(&fleetnetv1alpha1.ServiceExport{}).
+		For(&fleetnetv1beta1.ServiceExport{}).
 		// The ServiceExport controller watches over Service objects.
 		Watches(&corev1.Service{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
@@ -438,7 +439,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unexportService unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the
 // hub cluster and removes the cleanup finalizer.
-func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) (ctrl.Result, error) {
+func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) (ctrl.Result, error) {
 	// Get the unique name assigned when the Service is exported. it is guaranteed that Services are
 	// always exported using the name format `ORIGINAL_NAMESPACE-ORIGINAL_NAME`; for example, a Service
 	// from namespace `default`` with the name `store`` will be exported with the name `default-store`.
@@ -469,16 +470,16 @@ func (r *Reconciler) unexportService(ctx context.Context, svcExport *fleetnetv1a
 }
 
 // removeServiceExportCleanupFinalizer removes the cleanup finalizer from a ServiceExport.
-func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) removeServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) error {
 	controllerutil.RemoveFinalizer(svcExport, svcExportCleanupFinalizer)
 	return r.MemberClient.Update(ctx, svcExport)
 }
 
 // markServiceExportAsInvalidNotFound marks a ServiceExport as invalid.
-func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
-	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) error {
+	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		Reason:             svcExportInvalidNotFoundCondReason,
 		ObservedGeneration: svcExport.Generation,
@@ -494,10 +495,10 @@ func (r *Reconciler) markServiceExportAsInvalidNotFound(ctx context.Context, svc
 }
 
 // markServiceExportAsInvalidSvcIneligible marks a ServiceExport as invalid.
-func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
-	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) error {
+	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		Reason:             svcExportInvalidIneligibleCondReason,
 		ObservedGeneration: svcExport.Generation,
@@ -513,18 +514,18 @@ func (r *Reconciler) markServiceExportAsInvalidSvcIneligible(ctx context.Context
 }
 
 // addServiceExportCleanupFinalizer adds the cleanup finalizer to a ServiceExport.
-func (r *Reconciler) addServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) addServiceExportCleanupFinalizer(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) error {
 	controllerutil.AddFinalizer(svcExport, svcExportCleanupFinalizer)
 	return r.MemberClient.Update(ctx, svcExport)
 }
 
 // markServiceExportAsValid marks a ServiceExport as valid; if no conflict condition has been added, the
 // ServiceExport will be marked as pending conflict resolution as well.
-func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1alpha1.ServiceExport) error {
+func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport) error {
 	needUpdateStatus := false
-	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
+	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
 	expectedValidCond := &metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
 		Reason:             svcExportValidCondReason,
 		ObservedGeneration: svcExport.Generation,
@@ -539,9 +540,9 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		needUpdateStatus = true
 	}
 
-	if conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict)); conflictCond == nil {
+	if conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict)); conflictCond == nil {
 		meta.SetStatusCondition(&svcExport.Status.Conditions, metav1.Condition{
-			Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+			Type:               string(fleetnetv1beta1.ServiceExportConflict),
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: svcExport.Generation,
 			Reason:             svcExportPendingConflictResolutionReason,
@@ -561,7 +562,7 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 // collectAndVerifyLastSeenResourceVersionAndTime collects and verifies the last seen resource version and timestamp annotations
 // on ServiceExports; it will assign new values if the annotations are not present or not valid.
 func (r *Reconciler) collectAndVerifyLastSeenResourceVersionAndTimestamp(ctx context.Context,
-	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) (time.Time, error) {
+	svc *corev1.Service, svcExport *fleetnetv1beta1.ServiceExport, startTime time.Time) (time.Time, error) {
 	// Check if the two annotations are present; assign new values if they are absent.
 	lastSeenResourceVersion, lastSeenResourceVersionOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenResourceVersion]
 	lastSeenTimestampData, lastSeenTimestampOk := svcExport.Annotations[metrics.MetricsAnnotationLastSeenTimestamp]
@@ -581,7 +582,7 @@ func (r *Reconciler) collectAndVerifyLastSeenResourceVersionAndTimestamp(ctx con
 
 // annotateLastSeenResourceVersionAndTimestamp annotates a ServiceExport with last seen resource version and timestamp.
 func (r *Reconciler) annotateLastSeenResourceVersionAndTimestamp(ctx context.Context,
-	svc *corev1.Service, svcExport *fleetnetv1alpha1.ServiceExport, startTime time.Time) error {
+	svc *corev1.Service, svcExport *fleetnetv1beta1.ServiceExport, startTime time.Time) error {
 	// Initialize the annotation map if no annoation has been added yet.
 	if svcExport.Annotations == nil {
 		svcExport.Annotations = map[string]string{}

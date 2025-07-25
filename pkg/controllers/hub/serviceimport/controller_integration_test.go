@@ -21,12 +21,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 func unconflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),
@@ -37,7 +38,7 @@ func unconflictedServiceExportConflictCondition(svcNamespace string, svcName str
 
 func conflictedServiceExportConflictCondition(svcNamespace string, svcName string, observedGeneration int64) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: observedGeneration,
 		LastTransitionTime: metav1.Now(),

@@ -112,8 +112,8 @@ func (wm *WorkloadManager) Service() corev1.Service {
 }
 
 // ServiceExport returns the ServiceExport definition from pre-defined service name and namespace.
-func (wm *WorkloadManager) ServiceExport() fleetnetv1alpha1.ServiceExport {
-	return fleetnetv1alpha1.ServiceExport{
+func (wm *WorkloadManager) ServiceExport() fleetnetv1beta1.ServiceExport {
+	return fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: wm.namespace,
 			Name:      wm.service.Name,
@@ -255,7 +255,7 @@ func (wm *WorkloadManager) UpdateServiceType(ctx context.Context, cluster *Clust
 
 // UpdateServiceExportWeight updates the service export weight in the member cluster.
 func (wm *WorkloadManager) UpdateServiceExportWeight(ctx context.Context, cluster *Cluster, weight int) error {
-	var svcExport fleetnetv1alpha1.ServiceExport
+	var svcExport fleetnetv1beta1.ServiceExport
 	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &svcExport); err != nil {
 		return fmt.Errorf("failed to get service export %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
 	}
@@ -272,7 +272,7 @@ func (wm *WorkloadManager) UpdateServiceExportWeight(ctx context.Context, cluste
 // ValidateServiceExportCondition validates the service export condition in the member cluster.
 // The function will update the `wantCondition` using the latest generation of the serviceExport.
 func (wm *WorkloadManager) ValidateServiceExportCondition(ctx context.Context, cluster *Cluster, wantCondition metav1.Condition) error {
-	var svcExport fleetnetv1alpha1.ServiceExport
+	var svcExport fleetnetv1beta1.ServiceExport
 	if err := cluster.kubeClient.Get(ctx, types.NamespacedName{Namespace: wm.namespace, Name: wm.service.Name}, &svcExport); err != nil {
 		return fmt.Errorf("failed to get service export %s in cluster %s: %w", wm.service.Name, cluster.Name(), err)
 	}
@@ -311,12 +311,12 @@ func (wm *WorkloadManager) RemoveWorkload(ctx context.Context) error {
 }
 
 // ExportService exports the service by creating a service export.
-func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnetv1alpha1.ServiceExport) error {
+func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnetv1beta1.ServiceExport) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		// NOTE: since `Create` function provided by controller-runtime will update the k8s definition variable, resuing
 		// this variable for another `Create` will raise for non-empty resourceVersion.
 		svcExportDef := svcExport
-		svcExportObj := &fleetnetv1alpha1.ServiceExport{}
+		svcExportObj := &fleetnetv1beta1.ServiceExport{}
 		svcExporKey := types.NamespacedName{Namespace: svcExportDef.Namespace, Name: svcExportDef.Name}
 		if err := m.Client().Create(ctx, &svcExportDef); err != nil {
 			return fmt.Errorf("failed to create service export %s in cluster %s: %w", svcExportDef.Name, m.Name(), err)
@@ -329,13 +329,13 @@ func (wm *WorkloadManager) ExportService(ctx context.Context, svcExport fleetnet
 			}
 			wantedSvcExportConditions := []metav1.Condition{
 				{
-					Type:               string(fleetnetv1alpha1.ServiceExportValid),
+					Type:               string(fleetnetv1beta1.ServiceExportValid),
 					Reason:             "ServiceIsValid",
 					Status:             metav1.ConditionTrue,
 					ObservedGeneration: svcExportObj.Generation,
 				},
 				{
-					Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+					Type:               string(fleetnetv1beta1.ServiceExportConflict),
 					Reason:             "NoConflictFound",
 					Status:             metav1.ConditionFalse,
 					ObservedGeneration: svcExportObj.Generation,
@@ -397,14 +397,14 @@ func (wm *WorkloadManager) DeleteMultiClusterService(ctx context.Context, mcs fl
 }
 
 // UnexportService deletes the ServiceExport specified by caller and wait until the ServiceExport is not found.
-func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetnetv1alpha1.ServiceExport) error {
+func (wm *WorkloadManager) UnexportService(ctx context.Context, svcExport fleetnetv1beta1.ServiceExport) error {
 	for _, m := range wm.Fleet.MemberClusters() {
 		serviceExporKey := types.NamespacedName{Namespace: svcExport.Namespace, Name: svcExport.Name}
 		if err := m.Client().Delete(ctx, &svcExport); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete service export %s in cluster %s: %w", serviceExporKey, m.Name(), err)
 		}
 		if err := retry.OnError(defaultBackOff(), func(error) bool { return true }, func() error {
-			serviceExportObj := &fleetnetv1alpha1.ServiceExport{}
+			serviceExportObj := &fleetnetv1beta1.ServiceExport{}
 			if err := m.Client().Get(ctx, serviceExporKey, serviceExportObj); err != nil && !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to delete service export %s in cluster %s, %w", serviceExporKey, m.Name(), err)
 			}

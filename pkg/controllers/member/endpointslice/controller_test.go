@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/common/uniquename"
@@ -47,7 +48,7 @@ var (
 // serviceExportValidCond returns a ServiceExportValid condition for exporting a valid Service.
 func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: 0,
 		LastTransitionTime: metav1.Now(),
@@ -59,7 +60,7 @@ func serviceExportValidCondition(userNS, svcName string) metav1.Condition {
 // serviceExportInvalidNotFoundCond returns a ServiceExportValid condition for exporting a Service that is not found.
 func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportValid),
+		Type:               string(fleetnetv1beta1.ServiceExportValid),
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: 1,
 		LastTransitionTime: metav1.Now(),
@@ -72,7 +73,7 @@ func serviceExportInvalidNotFoundCondition(userNS, svcName string) metav1.Condit
 // conflicts.
 func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: 2,
 		LastTransitionTime: metav1.Now(),
@@ -85,7 +86,7 @@ func serviceExportNoConflictCondition(userNS, svcName string) metav1.Condition {
 // with other exported Services.
 func serviceExportConflictedCondition(userNS, svcName string) metav1.Condition {
 	return metav1.Condition{
-		Type:               string(fleetnetv1alpha1.ServiceExportConflict),
+		Type:               string(fleetnetv1beta1.ServiceExportConflict),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: 3,
 		LastTransitionTime: metav1.Now(),
@@ -97,6 +98,10 @@ func serviceExportConflictedCondition(userNS, svcName string) metav1.Condition {
 func TestMain(m *testing.M) {
 	// Add custom APIs to the runtime scheme
 	if err := fleetnetv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
+	}
+
+	if err := fleetnetv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		log.Fatalf("failed to add custom APIs to the runtime scheme: %v", err)
 	}
 
@@ -535,7 +540,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 	testCases := []struct {
 		name          string
 		endpointSlice *discoveryv1.EndpointSlice
-		svcExport     *fleetnetv1alpha1.ServiceExport
+		svcExport     *fleetnetv1beta1.ServiceExport
 		want          skipOrUnexportEndpointSliceOp
 	}{
 		{
@@ -553,12 +558,12 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportInvalidNotFoundCondition(memberClusterID, svcName),
 					},
@@ -581,12 +586,12 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportConflictedCondition(memberClusterID, svcName),
@@ -610,7 +615,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
 					Name:              svcName,
@@ -621,7 +626,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 						customDeletionBlockerFinalizer,
 					},
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportNoConflictCondition(memberClusterID, svcName),
@@ -642,12 +647,12 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportInvalidNotFoundCondition(memberClusterID, svcName),
 					},
@@ -667,12 +672,12 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportConflictedCondition(memberClusterID, svcName),
@@ -693,7 +698,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 				},
 				AddressType: discoveryv1.AddressTypeIPv4,
 			},
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
 					Name:              svcName,
@@ -704,7 +709,7 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 						customDeletionBlockerFinalizer,
 					},
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportNoConflictCondition(memberClusterID, svcName),
@@ -745,12 +750,12 @@ func TestShouldSkipOrUnexportEndpointSlice_InvalidOrConflictedServiceExport(t *t
 // method.
 func TestShouldSkipOrUnexportEndpointSlice_ExportedService(t *testing.T) {
 	deletionTimestamp := metav1.Now()
-	svcExport := &fleetnetv1alpha1.ServiceExport{
+	svcExport := &fleetnetv1beta1.ServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: memberUserNS,
 			Name:      svcName,
 		},
-		Status: fleetnetv1alpha1.ServiceExportStatus{
+		Status: fleetnetv1beta1.ServiceExportStatus{
 			Conditions: []metav1.Condition{
 				serviceExportValidCondition(memberUserNS, svcName),
 				serviceExportNoConflictCondition(memberUserNS, svcName),
@@ -871,17 +876,17 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		svcExport *fleetnetv1alpha1.ServiceExport
+		svcExport *fleetnetv1beta1.ServiceExport
 		want      bool
 	}{
 		{
 			name: "svc export is valid with no conflicts",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportNoConflictCondition(memberUserNS, svcName),
@@ -892,12 +897,12 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 		},
 		{
 			name: "svc export is invalid",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportInvalidNotFoundCondition(memberUserNS, svcName),
 					},
@@ -907,12 +912,12 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 		},
 		{
 			name: "svc export is valid but with conflicts",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportConflictedCondition(memberUserNS, svcName),
@@ -923,7 +928,7 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 		},
 		{
 			name: "svc export has no conditions set yet",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: memberUserNS,
 					Name:      svcName,
@@ -933,13 +938,13 @@ func TestIsServiceExportValidWithNoConflict(t *testing.T) {
 		},
 		{
 			name: "svc export is valid with no conflicts, but has been deleted",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         memberUserNS,
 					Name:              svcName,
 					DeletionTimestamp: &deletionTimestamp,
 				},
-				Status: fleetnetv1alpha1.ServiceExportStatus{
+				Status: fleetnetv1beta1.ServiceExportStatus{
 					Conditions: []metav1.Condition{
 						serviceExportValidCondition(memberUserNS, svcName),
 						serviceExportNoConflictCondition(memberUserNS, svcName),

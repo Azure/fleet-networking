@@ -25,6 +25,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 )
 
@@ -114,7 +115,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	svcNS := internalSvcExport.Spec.ServiceReference.Namespace
 	svcName := internalSvcExport.Spec.ServiceReference.Name
 	svcExportRef := klog.KRef(svcNS, svcName)
-	var svcExport fleetnetv1alpha1.ServiceExport
+	var svcExport fleetnetv1beta1.ServiceExport
 	err := r.MemberClient.Get(ctx, types.NamespacedName{Namespace: svcNS, Name: svcName}, &svcExport)
 	switch {
 	case errors.IsNotFound(err):
@@ -168,11 +169,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // hub cluster back to the ServiceExport ojbect in the member cluster.
 // It returns a bool value, reported, to signify whether a report-back has been completed.
 func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
-	svcExport *fleetnetv1alpha1.ServiceExport,
+	svcExport *fleetnetv1beta1.ServiceExport,
 	internalSvcExport *fleetnetv1alpha1.InternalServiceExport) (reported bool, err error) {
 	internalSvcExportRef := klog.KRef(internalSvcExport.Namespace, internalSvcExport.Name)
 	internalSvcExportConflictCond := meta.FindStatusCondition(internalSvcExport.Status.Conditions,
-		string(fleetnetv1alpha1.ServiceExportConflict))
+		string(fleetnetv1beta1.ServiceExportConflict))
 	if internalSvcExportConflictCond == nil {
 		// No conflict condition to report back; this is the expected behavior when the conflict resolution process
 		// has not completed yet.
@@ -183,7 +184,7 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 	// But the service generation won't be populated by the controller.
 	desiredSvcExportConflictCond := internalSvcExportConflictCond.DeepCopy()
 	desiredSvcExportConflictCond.ObservedGeneration = svcExport.Generation
-	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+	svcExportConflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict))
 	if reflect.DeepEqual(internalSvcExportConflictCond, svcExportConflictCond) {
 		// The conflict condition has not changed and there is no need to report back; this is also an expected
 		// behavior.
