@@ -121,6 +121,9 @@ e2e-setup:
 e2e-tests:
 	go test -timeout 50m -tags=e2e -v ./test/e2e -args -ginkgo.v
 
+.PHONY: e2e-collect-logs
+e2e-collect-logs:
+	bash test/scripts/collect-logs.sh
 .PHONY: e2e-cleanup
 e2e-cleanup:
 	bash test/scripts/cleanup.sh
