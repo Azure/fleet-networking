@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
@@ -171,7 +172,7 @@ func (r *Reconciler) updateInternalServiceExportStatus(ctx context.Context, inte
 	if conflict {
 		desiredCond = condition.ConflictedServiceExportConflictCondition(*internalServiceExport)
 	}
-	currentCond := meta.FindStatusCondition(internalServiceExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+	currentCond := meta.FindStatusCondition(internalServiceExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict))
 	if condition.EqualCondition(currentCond, &desiredCond) {
 		return nil
 	}

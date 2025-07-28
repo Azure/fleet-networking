@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 // isEndpointSlicePermanentlyUnexportable returns if an EndpointSlice is permanently unexportable.
@@ -24,9 +25,9 @@ func isEndpointSlicePermanentlyUnexportable(endpointSlice *discoveryv1.EndpointS
 // * is valid; and
 // * is in no conflict with other service exports; and
 // * has not been deleted
-func isServiceExportValidWithNoConflict(svcExport *fleetnetv1alpha1.ServiceExport) bool {
-	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportValid))
-	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1alpha1.ServiceExportConflict))
+func isServiceExportValidWithNoConflict(svcExport *fleetnetv1beta1.ServiceExport) bool {
+	validCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
+	conflictCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportConflict))
 	isValid := (validCond != nil && validCond.Status == metav1.ConditionTrue)
 	hasNoConflict := (conflictCond != nil && conflictCond.Status == metav1.ConditionFalse)
 	return (isValid && hasNoConflict && svcExport.DeletionTimestamp == nil)

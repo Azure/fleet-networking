@@ -10,7 +10,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 func TestAzureTrafficManagerProfileTagKey(t *testing.T) {
@@ -23,20 +23,20 @@ func TestAzureTrafficManagerProfileTagKey(t *testing.T) {
 func TestExtractWeightFromServiceExport(t *testing.T) {
 	testCases := []struct {
 		name       string
-		svcExport  *fleetnetv1alpha1.ServiceExport
+		svcExport  *fleetnetv1beta1.ServiceExport
 		wantWeight int64
 		wantError  bool
 	}{
 		{
 			name: "default weight when annotation is missing",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
 			wantWeight: 1,
 		},
 		{
 			name: "valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "500",
@@ -47,7 +47,7 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		},
 		{
 			name: "test 0 is valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "0",
@@ -58,7 +58,7 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		},
 		{
 			name: "test 1000 is valid weight annotation",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "1000",
@@ -69,7 +69,7 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		},
 		{
 			name: "invalid weight annotation (non-integer)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "invalid",
@@ -80,7 +80,7 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		},
 		{
 			name: "invalid weight annotation (out of range)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "2000",
@@ -91,7 +91,7 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		},
 		{
 			name: "invalid weight annotation (out of range)",
-			svcExport: &fleetnetv1alpha1.ServiceExport{
+			svcExport: &fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						ServiceExportAnnotationWeight: "-2",

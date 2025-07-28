@@ -23,6 +23,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 )
 
 var (
@@ -88,6 +89,7 @@ var _ = BeforeSuite(func() {
 
 	// Add custom APIs to the runtime scheme.
 	Expect(fleetnetv1alpha1.AddToScheme(scheme.Scheme)).Should(Succeed())
+	Expect(fleetnetv1beta1.AddToScheme(scheme.Scheme)).Should(Succeed())
 
 	// Start up the EndpointSliceExport controller.
 	hubCtrlMgr, err := ctrl.NewManager(hubCfg, ctrl.Options{

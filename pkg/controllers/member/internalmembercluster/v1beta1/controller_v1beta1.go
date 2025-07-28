@@ -22,6 +22,7 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/apiretry"
 )
 
@@ -189,7 +190,7 @@ func (r *Reconciler) cleanupMCSRelatedResources(ctx context.Context) error {
 // Ideally it should stop the controllers.
 // For now, it tries its best to delete the existing serviceExport and won't handle the newly created resources for now.
 func (r *Reconciler) cleanupServiceExportRelatedResources(ctx context.Context) error {
-	list := &fleetnetv1alpha1.ServiceExportList{}
+	list := &fleetnetv1beta1.ServiceExportList{}
 	if err := r.MemberClient.List(ctx, list); err != nil {
 		klog.ErrorS(err, "Failed to list service export")
 		return err
@@ -209,7 +210,7 @@ func (r *Reconciler) cleanupServiceExportRelatedResources(ctx context.Context) e
 
 	for i := range list.Items {
 		name := types.NamespacedName{Namespace: list.Items[i].GetNamespace(), Name: list.Items[i].GetName()}
-		svcExport := fleetnetv1alpha1.ServiceExport{}
+		svcExport := fleetnetv1beta1.ServiceExport{}
 		getFunc := func() error {
 			return r.MemberClient.Get(ctx, name, &svcExport)
 		}

@@ -17,6 +17,7 @@ import (
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
 
@@ -175,7 +176,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 		It("Unjoin member cluster and should cleanup serviceExport related resources", func() {
 			By("Creating serviceExport")
 			serviceName := "my-svc"
-			serviceExport := fleetnetv1alpha1.ServiceExport{
+			serviceExport := fleetnetv1beta1.ServiceExport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      serviceName,
 					Namespace: testNamespace,
@@ -223,7 +224,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 			}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate internalMemberCluster mismatch (-want, +got):")
 
 			By("Validating serviceExport resources")
-			serviceExportList := &fleetnetv1alpha1.ServiceExportList{}
+			serviceExportList := &fleetnetv1beta1.ServiceExportList{}
 			Expect(memberCluster.Client().List(ctx, serviceExportList)).Should(Succeed())
 			Expect(len(serviceExportList.Items) == 0).Should(BeTrue(), "Failed to cleanup serviceExport resources")
 		})
