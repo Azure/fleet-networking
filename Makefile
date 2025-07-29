@@ -188,11 +188,11 @@ vendor:
 
 .PHONY: image
 image:
-	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
 
 .PHONY: push
 push:
-	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
 
 # By default, docker buildx create will pull image moby/buildkit:buildx-stable-1 and hit the too many requests error.
 .PHONY: docker-buildx-builder
