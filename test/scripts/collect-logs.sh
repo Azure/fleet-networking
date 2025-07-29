@@ -53,14 +53,42 @@ collect_logs() {
         local pod_name=${pod#pod/}
         echo "  Collecting logs from pod ${pod_name}..."
         
-        # Get containers in the pod
-        local containers
+        # Get containers in the pod (both regular and init containers)
+        local containers init_containers
         if ! containers=$(kubectl --context="${context}" get pod "${pod_name}" -n "${FLEET_NAMESPACE}" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null); then
             echo "    Warning: Failed to get containers for pod ${pod_name}"
             continue
         fi
         
-        # Collect logs from each container
+        if ! init_containers=$(kubectl --context="${context}" get pod "${pod_name}" -n "${FLEET_NAMESPACE}" -o jsonpath='{.spec.initContainers[*].name}' 2>/dev/null); then
+            init_containers=""
+        fi
+        
+        # Collect logs from each init container first
+        if [[ -n "${init_containers}" ]]; then
+            for container in ${init_containers}; do
+                local log_file="${cluster_dir}/${pod_name}-init-${container}.log"
+                
+                # Current logs
+                if kubectl --context="${context}" logs "${pod_name}" -c "${container}" -n "${FLEET_NAMESPACE}" > "${log_file}" 2>&1; then
+                    echo "    Collected current logs for init container ${container}"
+                else
+                    echo "    Warning: Failed to collect current logs for init container ${container}"
+                    echo "Failed to collect logs for ${pod_name}/init-${container} at $(date)" > "${log_file}"
+                fi
+                
+                # Previous logs (if available)
+                local prev_log_file="${cluster_dir}/${pod_name}-init-${container}-previous.log"
+                if kubectl --context="${context}" logs "${pod_name}" -c "${container}" -n "${FLEET_NAMESPACE}" --previous > "${prev_log_file}" 2>&1; then
+                    echo "    Collected previous logs for init container ${container}"
+                else
+                    # Remove empty previous log file
+                    rm -f "${prev_log_file}"
+                fi
+            done
+        fi
+        
+        # Collect logs from each regular container
         for container in ${containers}; do
             local log_file="${cluster_dir}/${pod_name}-${container}.log"
             
@@ -177,6 +205,8 @@ summary_file="${LOG_DIR}/summary.txt"
     echo "Statistics:"
     echo "  Total files: $(find "${LOG_DIR}" -type f | wc -l)"
     echo "  Log files: $(find "${LOG_DIR}" -name "*.log" | wc -l)"
+    echo "  Init container logs: $(find "${LOG_DIR}" -name "*-init-*.log" | wc -l)"
+    echo "  Regular container logs: $(find "${LOG_DIR}" -name "*.log" ! -name "*-init-*.log" | wc -l)"
     echo "  Resource files: $(find "${LOG_DIR}" -name "describe.txt" | wc -l)"
     echo "  Total size: $(du -sh "${LOG_DIR}" | cut -f1)"
     
