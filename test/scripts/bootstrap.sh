@@ -305,16 +305,17 @@ kubectl config use-context $HUB_CLUSTER-admin
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.14.0/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
-kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
         $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
-kubectl apply -f config/crd/*
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -326,6 +327,9 @@ helm install mcs-controller-manager \
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
@@ -333,7 +337,6 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml" )
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
-kubectl apply -f config/crd/*
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -345,6 +348,9 @@ helm install mcs-controller-manager \
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
@@ -364,7 +370,6 @@ fi
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
     kubectl config use-context $MEMBER_CLUSTER_3-admin
-    kubectl apply -f config/crd/*
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -376,13 +381,15 @@ then
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
         --set image.tag=$TAG \
+        --set crdInstaller.enabled=true \
+        --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+        --set crdInstaller.image.tag=$TAG \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
     
     kubectl config use-context $MEMBER_CLUSTER_4-admin
-    kubectl apply -f config/crd/*
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -394,6 +401,9 @@ then
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
         --set image.tag=$TAG \
+        --set crdInstaller.enabled=true \
+        --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+        --set crdInstaller.image.tag=$TAG \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_4 \
