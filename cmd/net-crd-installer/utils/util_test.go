@@ -55,7 +55,8 @@ func runTest(t *testing.T, crdPath string) {
 			name: "hub mode excludes EndpointSlice CRDs",
 			mode: "hub",
 			wantedCRDNames: []string{
-				// EndpointSliceImport and EndpointSliceExport are excluded from hub clusters
+				"endpointsliceexports.networking.fleet.azure.com",
+				"endpointsliceimports.networking.fleet.azure.com",
 				"internalserviceexports.networking.fleet.azure.com",
 				"internalserviceimports.networking.fleet.azure.com",
 				"multiclusterservices.networking.fleet.azure.com",

@@ -32,11 +32,6 @@ const (
 )
 
 var (
-	// hubExcludedCRDs defines CRDs that should be excluded from hub clusters
-	hubExcludedCRDs = map[string]bool{
-		"endpointsliceimports.networking.fleet.azure.com": true,
-		"endpointsliceexports.networking.fleet.azure.com": true,
-	}
 	// memberExcludedCRDs defines CRDs that should be excluded from member clusters
 	memberExcludedCRDs = map[string]bool{
 		"trafficmanagerbackends.networking.fleet.azure.com": true,
@@ -107,11 +102,6 @@ func CollectCRDs(crdDirectoryPath, mode string, scheme *runtime.Scheme) ([]apiex
 			crdName := crd.Name
 
 			if mode == "hub" {
-				// Apply hub exclusion logic
-				if hubExcludedCRDs[crdName] {
-					klog.V(2).Infof("Excluding CRD %s from hub cluster", crdName)
-					return nil
-				}
 				crdsToInstall = append(crdsToInstall, *crd)
 			}
 
