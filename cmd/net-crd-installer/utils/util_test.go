@@ -52,11 +52,10 @@ func runTest(t *testing.T, crdPath string) {
 		wantError      bool
 	}{
 		{
-			name: "hub mode with actual directory",
+			name: "hub mode excludes EndpointSlice CRDs",
 			mode: "hub",
 			wantedCRDNames: []string{
-				"endpointsliceexports.networking.fleet.azure.com",
-				"endpointsliceimports.networking.fleet.azure.com",
+				// EndpointSliceImport and EndpointSliceExport are excluded from hub clusters
 				"internalserviceexports.networking.fleet.azure.com",
 				"internalserviceimports.networking.fleet.azure.com",
 				"multiclusterservices.networking.fleet.azure.com",
@@ -68,7 +67,7 @@ func runTest(t *testing.T, crdPath string) {
 			wantError: false,
 		},
 		{
-			name: "member mode with actual directory",
+			name: "member mode excludes TrafficManager CRDs",
 			mode: "member",
 			wantedCRDNames: []string{
 				"endpointsliceexports.networking.fleet.azure.com",
@@ -78,8 +77,7 @@ func runTest(t *testing.T, crdPath string) {
 				"multiclusterservices.networking.fleet.azure.com",
 				"serviceexports.networking.fleet.azure.com",
 				"serviceimports.networking.fleet.azure.com",
-				"trafficmanagerbackends.networking.fleet.azure.com",
-				"trafficmanagerprofiles.networking.fleet.azure.com",
+				// TrafficManagerBackend and TrafficManagerProfile are excluded from member clusters
 			},
 			wantError: false,
 		},

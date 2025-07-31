@@ -31,6 +31,19 @@ const (
 	FleetLabelValue = "fleet"
 )
 
+var (
+	// hubExcludedCRDs defines CRDs that should be excluded from hub clusters
+	hubExcludedCRDs = map[string]bool{
+		"endpointsliceimports.networking.fleet.azure.com": true,
+		"endpointsliceexports.networking.fleet.azure.com": true,
+	}
+	// memberExcludedCRDs defines CRDs that should be excluded from member clusters
+	memberExcludedCRDs = map[string]bool{
+		"trafficmanagerbackends.networking.fleet.azure.com": true,
+		"trafficmanagerprofiles.networking.fleet.azure.com": true,
+	}
+)
+
 // InstallCRD creates/updates a Custom Resource Definition (CRD) from the provided CRD object.
 func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.CustomResourceDefinition) error {
 	klog.V(2).Infof("Installing CRD: %s", crd.Name)
@@ -88,10 +101,26 @@ func CollectCRDs(crdDirectoryPath, mode string, scheme *runtime.Scheme) ([]apiex
 			return err
 		}
 
-		if mode == "hub" || mode == "member" {
-			group := crd.Spec.Group
-			// Check if the group equals "networking.fleet.azure.com".
-			if group == "networking.fleet.azure.com" {
+		group := crd.Spec.Group
+		// Check if the group equals "networking.fleet.azure.com".
+		if group == "networking.fleet.azure.com" {
+			crdName := crd.Name
+
+			if mode == "hub" {
+				// Apply hub exclusion logic
+				if hubExcludedCRDs[crdName] {
+					klog.V(2).Infof("Excluding CRD %s from hub cluster", crdName)
+					return nil
+				}
+				crdsToInstall = append(crdsToInstall, *crd)
+			}
+
+			if mode == "member" {
+				// Apply member exclusion logic
+				if memberExcludedCRDs[crdName] {
+					klog.V(2).Infof("Excluding CRD %s from member cluster", crdName)
+					return nil
+				}
 				crdsToInstall = append(crdsToInstall, *crd)
 			}
 		}
