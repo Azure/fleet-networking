@@ -40,7 +40,7 @@ var (
 )
 
 // InstallCRD creates/updates a Custom Resource Definition (CRD) from the provided CRD object.
-func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.CustomResourceDefinition) error {
+func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.CustomResourceDefinition, isE2ETest bool) error {
 	klog.V(2).Infof("Installing CRD: %s", crd.Name)
 
 	existingCRD := apiextensionsv1.CustomResourceDefinition{
@@ -59,9 +59,12 @@ func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.
 		}
 		// Ensure the label for management by the installer is set.
 		existingCRD.Labels[CRDInstallerLabelKey] = "true"
-		// Also set the Azure managed label to indicate this is managed by Fleet,
-		// needed for clean up of CRD by kube-addon-manager.
-		existingCRD.Labels[AzureManagedLabelKey] = FleetLabelValue
+		// Only set the Azure managed label if this is not an E2E test.
+		// This label is needed for clean up of CRD by kube-addon-manager in production,
+		// but can interfere with E2E test cleanup.
+		if !isE2ETest {
+			existingCRD.Labels[AzureManagedLabelKey] = FleetLabelValue
+		}
 		return nil
 	})
 

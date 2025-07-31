@@ -28,6 +28,7 @@ spec:
           args:
             - --mode=hub
             - --v={{ .Values.crdInstaller.logVerbosity }}
+            - --e2e-test={{ .Values.crdInstaller.isE2ETest }}
         {{- end }}
       containers:
         - name: {{ .Chart.Name }}

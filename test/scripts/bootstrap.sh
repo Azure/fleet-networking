@@ -314,6 +314,7 @@ helm install hub-net-controller-manager \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
     --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
         $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
@@ -332,6 +333,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
     --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
@@ -353,6 +355,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
     --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
@@ -386,6 +389,7 @@ then
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
         --set crdInstaller.image.tag=$TAG \
+        --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
@@ -406,6 +410,7 @@ then
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
         --set crdInstaller.image.tag=$TAG \
+        --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_4 \

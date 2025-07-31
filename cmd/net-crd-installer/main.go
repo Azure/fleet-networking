@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	mode = flag.String("mode", "", "Mode to run in: 'hub' or 'member' (required)")
+	mode      = flag.String("mode", "", "Mode to run in: 'hub' or 'member' (required)")
+	isE2ETest = flag.Bool("e2e-test", false, "Whether this is running as part of E2E tests (default: false)")
 )
 
 func main() {
@@ -65,7 +66,7 @@ func main() {
 
 	// Install CRDs from the fixed location.
 	const crdPath = "/workspace/config/crd/bases"
-	if err := installCRDs(ctx, client, crdPath, *mode); err != nil {
+	if err := installCRDs(ctx, client, crdPath, *mode, *isE2ETest); err != nil {
 		klog.Fatalf("Failed to install CRDs: %v", err)
 	}
 
@@ -73,7 +74,7 @@ func main() {
 }
 
 // installCRDs installs the CRDs from the specified directory based on the mode.
-func installCRDs(ctx context.Context, client client.Client, crdPath, mode string) error {
+func installCRDs(ctx context.Context, client client.Client, crdPath, mode string, isE2ETest bool) error {
 	// List of CRDs to install based on mode.
 	crdsToInstall, err := utils.CollectCRDs(crdPath, mode, client.Scheme())
 	if err != nil {
@@ -88,7 +89,7 @@ func installCRDs(ctx context.Context, client client.Client, crdPath, mode string
 
 	// Install each CRD.
 	for i := range crdsToInstall {
-		if err := utils.InstallCRD(ctx, client, &crdsToInstall[i]); err != nil {
+		if err := utils.InstallCRD(ctx, client, &crdsToInstall[i], isE2ETest); err != nil {
 			return err
 		}
 	}

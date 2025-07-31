@@ -18,6 +18,8 @@ crdInstaller:
     pullPolicy: Always
     tag: main
   logVerbosity: 2
+  # Set to true when running E2E tests to avoid adding Azure managed labels
+  isE2ETest: false
 
 fleetSystemNamespace:  fleet-system
 leaderElectionNamespace: fleet-system
