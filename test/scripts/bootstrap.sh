@@ -365,7 +365,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
 then
     export APP_IMAGE=$REGISTRY/app
-    docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+    docker build --platform linux/amd64 -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
     docker push $APP_IMAGE
 fi
 
