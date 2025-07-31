@@ -66,6 +66,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
        --resource-group $RESOURCE_GROUP \
        --name $HUB_CLUSTER \
        --node-count $NODE_COUNT \
+       --node-vm-size Standard_A2_v2 \
        --generate-ssh-keys \
        --enable-aad \
        --enable-azure-rbac \
@@ -89,6 +90,7 @@ else
          --resource-group $RESOURCE_GROUP \
          --name $HUB_CLUSTER \
          --node-count $NODE_COUNT \
+         --node-vm-size Standard_A2_v2 \
          --generate-ssh-keys \
          --enable-aad \
          --enable-azure-rbac \
