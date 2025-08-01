@@ -20,6 +20,16 @@ spec:
         {{- include "member-net-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "member-net-controller-manager.fullname" . }}-sa
+      {{- if .Values.crdInstaller.enabled }}
+      initContainers:
+        - name: net-crd-installer
+          image: "{{ .Values.crdInstaller.image.repository }}:{{ .Values.crdInstaller.image.tag }}"
+          imagePullPolicy: {{ .Values.crdInstaller.image.pullPolicy }}
+          args:
+            - --mode=member
+            - --v={{ .Values.crdInstaller.logVerbosity }}
+            - --e2e-test={{ .Values.crdInstaller.isE2ETest }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:

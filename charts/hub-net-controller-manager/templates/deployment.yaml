@@ -20,6 +20,16 @@ spec:
         {{- include "hub-net-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName:  {{ include "hub-net-controller-manager.fullname" . }}-sa
+      {{- if .Values.crdInstaller.enabled }}
+      initContainers:
+        - name: net-crd-installer
+          image: "{{ .Values.crdInstaller.image.repository }}:{{ .Values.crdInstaller.image.tag }}"
+          imagePullPolicy: {{ .Values.crdInstaller.image.pullPolicy }}
+          args:
+            - --mode=hub
+            - --v={{ .Values.crdInstaller.logVerbosity }}
+            - --e2e-test={{ .Values.crdInstaller.isE2ETest }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

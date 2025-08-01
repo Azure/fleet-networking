@@ -10,6 +10,17 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "v0.1.0"
 
+# CRD installer configuration.
+crdInstaller:
+  enabled: false
+  image:
+    repository: ghcr.io/azure/fleet-networking/net-crd-installer
+    pullPolicy: Always
+    tag: main
+  logVerbosity: 2
+  # Set to true when running E2E tests to avoid adding Azure managed labels
+  isE2ETest: false
+
 logVerbosity: 2
 
 leaderElectionNamespace: fleet-system
