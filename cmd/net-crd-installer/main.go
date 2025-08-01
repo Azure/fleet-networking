@@ -36,6 +36,7 @@ func main() {
 	}
 
 	klog.Infof("Starting network CRD installer in %s mode", *mode)
+	klog.Infof("E2E test mode: %t", *isE2ETest)
 
 	// Print all flags for debugging.
 	flag.VisitAll(func(f *flag.Flag) {
