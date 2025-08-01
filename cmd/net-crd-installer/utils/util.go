@@ -32,10 +32,11 @@ const (
 )
 
 var (
-	// memberExcludedCRDs defines CRDs that should be excluded from member clusters
-	memberExcludedCRDs = map[string]bool{
-		"trafficmanagerbackends.networking.fleet.azure.com": true,
-		"trafficmanagerprofiles.networking.fleet.azure.com": true,
+	// memberIncludedCRDs defines CRDs that should be included in member clusters
+	memberIncludedCRDs = map[string]bool{
+		"serviceexports.networking.fleet.azure.com":       true,
+		"serviceimports.networking.fleet.azure.com":       true,
+		"multiclusterservices.networking.fleet.azure.com": true,
 	}
 )
 
@@ -109,8 +110,8 @@ func CollectCRDs(crdDirectoryPath, mode string, scheme *runtime.Scheme) ([]apiex
 			}
 
 			if mode == "member" {
-				// Apply member exclusion logic
-				if memberExcludedCRDs[crdName] {
+				// Apply member inclusion logic - only install specific CRDs
+				if !memberIncludedCRDs[crdName] {
 					klog.V(2).Infof("Excluding CRD %s from member cluster", crdName)
 					return nil
 				}
