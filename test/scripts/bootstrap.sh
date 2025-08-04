@@ -7,6 +7,13 @@ set -x
 # Check required variables.
 [[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
+# Check required tools.
+if ! command -v yq &> /dev/null; then
+    echo "error: yq is not installed. Please install yq to continue."
+    echo "Install instructions: https://github.com/mikefarah/yq#install"
+    exit 1
+fi
+
 export ENABLE_TRAFFIC_MANAGER=${ENABLE_TRAFFIC_MANAGER:-"false"}
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ] && [ "$AZURE_NETWORK_SETTING" != "shared-vnet" ]; then
