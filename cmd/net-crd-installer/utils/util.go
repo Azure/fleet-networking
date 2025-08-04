@@ -62,7 +62,8 @@ func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.
 		existingCRD.Labels[CRDInstallerLabelKey] = "true"
 		// Only set the Azure managed label if this is not an E2E test.
 		// This label is needed for clean up of CRD by kube-addon-manager in production,
-		// but can interfere with E2E test cleanup.
+		// but can interfere with E2E test as CRDs are removed from AKS clusters which
+		// are actually not hub/member clusters.
 		if !isE2ETest {
 			existingCRD.Labels[AzureManagedLabelKey] = FleetLabelValue
 		}
