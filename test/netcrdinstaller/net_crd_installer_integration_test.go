@@ -30,7 +30,7 @@ const (
 	eventuallyInterval = time.Millisecond * 250
 )
 
-// This test verifies the behavior of the CRD installer when creating and updating CRDs in E2E mode is set to true.
+// This test verifies the behavior of the CRD installer when E2E mode is set to true.
 // It ensures that the installer can create a CRD, update it with new fields, and handle ownership label correctly.
 // The original CRD has 4 properties, and the updated CRD has a new property to simulate CRD upgrade.
 var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to true", Ordered, func() {
@@ -94,7 +94,7 @@ var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to tru
 	})
 })
 
-// This test verifies the behavior of the CRD installer when creating and updating CRDs in E2E mode is set to false.
+// This test verifies the behavior of the CRD installer when E2E mode is set to false.
 // It ensures that the installer can create a CRD, update it with new fields, and handle ownership label correctly.
 // The original CRD has 4 properties, and the updated CRD has a new property to simulate CRD upgrade.
 var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to false", Ordered, func() {
