@@ -20,6 +20,8 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"go.goms.io/fleet/pkg/utils/controller"
 )
 
 const (
@@ -149,7 +151,7 @@ func GetCRDFromPath(crdPath string, scheme *runtime.Scheme) (*apiextensionsv1.Cu
 	// Type assertion to make sure we have a CRD.
 	crd, ok := obj.(*apiextensionsv1.CustomResourceDefinition)
 	if !ok {
-		return nil, fmt.Errorf("unexpected type from %s, expected %s but got %s", crdPath, gvk, apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
+		return nil, controller.NewUnexpectedBehaviorError(fmt.Errorf("unexpected type from %s, expected %s but got %s", crdPath, gvk, apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition")))
 	}
 
 	return crd, nil
