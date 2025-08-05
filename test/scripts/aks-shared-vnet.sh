@@ -36,14 +36,14 @@ az network vnet subnet create \
     -g $RESOURCE_GROUP \
     --address-prefixes 10.2.0.0/16
 
-# Create aks member cluster1.
+# Create aks member cluster1, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_1 \
     --node-count $NODE_COUNT \
-    --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+    --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
@@ -54,7 +54,7 @@ else
      --resource-group $RESOURCE_GROUP \
      --name $MEMBER_CLUSTER_1 \
      --node-count $NODE_COUNT \
-     --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+     --node-vm-size Standard_A2_v2 \
      --generate-ssh-keys \
      --network-plugin azure \
      --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
@@ -62,14 +62,14 @@ else
      --no-wait
 fi
 
-# Create aks member cluster2.
+# Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_2 \
     --node-count $NODE_COUNT \
-    --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+    --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
@@ -80,7 +80,7 @@ else
       --resource-group $RESOURCE_GROUP \
       --name $MEMBER_CLUSTER_2 \
       --node-count $NODE_COUNT \
-      --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+      --node-vm-size Standard_A2_v2 \
       --generate-ssh-keys \
       --network-plugin azure \
       --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \

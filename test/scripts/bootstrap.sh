@@ -66,14 +66,14 @@ export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NA
 
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
-  # Create aks hub cluster
+  # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
   echo "Creating aks cluster: ${HUB_CLUSTER}"
   az aks create \
        --location $LOCATION \
        --resource-group $RESOURCE_GROUP \
        --name $HUB_CLUSTER \
        --node-count $NODE_COUNT \
-       --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+       --node-vm-size Standard_A2_v2 \
        --generate-ssh-keys \
        --enable-aad \
        --enable-azure-rbac \
@@ -92,12 +92,13 @@ else
   HUB_CLUSTER_KUBELET_CLIENT_ID=$(echo ${HUB_CLUSTER_AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
 
   echo "Creating aks cluster: ${HUB_CLUSTER}"
+  # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
   az aks create \
          --location $LOCATION \
          --resource-group $RESOURCE_GROUP \
          --name $HUB_CLUSTER \
          --node-count $NODE_COUNT \
-         --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
+         --node-vm-size Standard_A2_v2 \
          --generate-ssh-keys \
          --enable-aad \
          --enable-azure-rbac \
