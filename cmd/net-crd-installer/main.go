@@ -26,6 +26,10 @@ var (
 	isE2ETest = flag.Bool("e2e-test", false, "Whether this is running as part of E2E tests (default: false)")
 )
 
+const (
+	crdPath = "/workspace/config/crd/bases"
+)
+
 func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -66,7 +70,6 @@ func main() {
 	}
 
 	// Install CRDs from the fixed location.
-	const crdPath = "/workspace/config/crd/bases"
 	if err := installCRDs(ctx, client, crdPath, *mode, *isE2ETest); err != nil {
 		klog.Fatalf("Failed to install CRDs: %v", err)
 	}

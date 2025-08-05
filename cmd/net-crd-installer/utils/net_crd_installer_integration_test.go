@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package netcrdinstaller
+package utils
 
 import (
 	"fmt"
@@ -15,8 +15,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-
-	cmdNetCRDInstaller "go.goms.io/fleet-networking/cmd/net-crd-installer/utils"
 )
 
 const (
@@ -35,14 +33,14 @@ const (
 // The original CRD has 4 properties, and the updated CRD has a new property to simulate CRD upgrade.
 var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to true", Ordered, func() {
 	It("should create original CRD", func() {
-		crd, err := cmdNetCRDInstaller.GetCRDFromPath(originalCRDPath, scheme)
+		crd, err := getCRDFromPath(originalCRDPath, scheme)
 		Expect(err).NotTo(HaveOccurred(), "should get CRD from path %s", originalCRDPath)
-		Expect(cmdNetCRDInstaller.InstallCRD(ctx, k8sClient, crd, true)).To(Succeed())
+		Expect(InstallCRD(ctx, k8sClient, crd, true)).To(Succeed())
 	})
 
 	It("should verify original CRD installation", func() {
 		ensureCRDExistsWithLabels(map[string]string{
-			cmdNetCRDInstaller.CRDInstallerLabelKey: "true",
+			crdInstallerLabelKey: "true",
 			// Azure managed label should not be set in E2E tests.
 		})
 		crd := &apiextensionsv1.CustomResourceDefinition{}
@@ -60,16 +58,16 @@ var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to tru
 	})
 
 	It("should update the CRD with new field in spec with crdinstaller label", func() {
-		crd, err := cmdNetCRDInstaller.GetCRDFromPath(updatedCRDPath, scheme)
+		crd, err := getCRDFromPath(updatedCRDPath, scheme)
 		Expect(err).NotTo(HaveOccurred(), "should get CRD from path %s", updatedCRDPath)
-		Expect(cmdNetCRDInstaller.InstallCRD(ctx, k8sClient, crd, true)).To(Succeed())
+		Expect(InstallCRD(ctx, k8sClient, crd, true)).To(Succeed())
 	})
 
 	It("should verify updated CRD", func() {
 		// ensure we don't overwrite the random label.
 		ensureCRDExistsWithLabels(map[string]string{
-			randomLabelKey:                          "true",
-			cmdNetCRDInstaller.CRDInstallerLabelKey: "true",
+			randomLabelKey:       "true",
+			crdInstallerLabelKey: "true",
 			// Azure managed label should not be set in E2E tests.
 		})
 		crd := &apiextensionsv1.CustomResourceDefinition{}
@@ -99,15 +97,15 @@ var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to tru
 // The original CRD has 4 properties, and the updated CRD has a new property to simulate CRD upgrade.
 var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to false", Ordered, func() {
 	It("should create original CRD", func() {
-		crd, err := cmdNetCRDInstaller.GetCRDFromPath(originalCRDPath, scheme)
+		crd, err := getCRDFromPath(originalCRDPath, scheme)
 		Expect(err).NotTo(HaveOccurred(), "should get CRD from path %s", originalCRDPath)
-		Expect(cmdNetCRDInstaller.InstallCRD(ctx, k8sClient, crd, false)).To(Succeed())
+		Expect(InstallCRD(ctx, k8sClient, crd, false)).To(Succeed())
 	})
 
 	It("should verify original CRD installation", func() {
 		ensureCRDExistsWithLabels(map[string]string{
-			cmdNetCRDInstaller.CRDInstallerLabelKey: "true",
-			cmdNetCRDInstaller.AzureManagedLabelKey: cmdNetCRDInstaller.FleetLabelValue,
+			crdInstallerLabelKey: "true",
+			azureManagedLabelKey: fleetLabelValue,
 		})
 		crd := &apiextensionsv1.CustomResourceDefinition{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: crdName}, crd)).NotTo(HaveOccurred(), "CRD %s should be installed", crdName)
@@ -124,17 +122,17 @@ var _ = Describe("Test CRD Installer, Create and Update CRD, E2E mode set to fal
 	})
 
 	It("should update the CRD with new field in spec with crdinstaller label", func() {
-		crd, err := cmdNetCRDInstaller.GetCRDFromPath(updatedCRDPath, scheme)
+		crd, err := getCRDFromPath(updatedCRDPath, scheme)
 		Expect(err).NotTo(HaveOccurred(), "should get CRD from path %s", updatedCRDPath)
-		Expect(cmdNetCRDInstaller.InstallCRD(ctx, k8sClient, crd, false)).To(Succeed())
+		Expect(InstallCRD(ctx, k8sClient, crd, false)).To(Succeed())
 	})
 
 	It("should verify updated CRD", func() {
 		// ensure we don't overwrite the random label.
 		ensureCRDExistsWithLabels(map[string]string{
-			randomLabelKey:                          "true",
-			cmdNetCRDInstaller.CRDInstallerLabelKey: "true",
-			cmdNetCRDInstaller.AzureManagedLabelKey: cmdNetCRDInstaller.FleetLabelValue,
+			randomLabelKey:       "true",
+			crdInstallerLabelKey: "true",
+			azureManagedLabelKey: fleetLabelValue,
 		})
 		crd := &apiextensionsv1.CustomResourceDefinition{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: crdName}, crd)).NotTo(HaveOccurred(), "CRD %s should be installed", crdName)

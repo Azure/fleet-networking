@@ -26,11 +26,11 @@ import (
 
 const (
 	// CRDInstallerLabelKey is the label key used to indicate that a CRD is managed by the installer.
-	CRDInstallerLabelKey = "crd-installer.azurefleet.io/managed"
+	crdInstallerLabelKey = "crd-installer.networking.azure.fleet.com/managed"
 	// AzureManagedLabelKey is the label key used to indicate that a CRD is managed by an Azure resource.
-	AzureManagedLabelKey = "kubernetes.azure.com/managedby"
+	azureManagedLabelKey = "kubernetes.azure.com/managedby"
 	// FleetLabelValue is the value for the AzureManagedLabelKey indicating management by Fleet.
-	FleetLabelValue = "fleet"
+	fleetLabelValue = "fleet"
 )
 
 var (
@@ -65,13 +65,13 @@ func InstallCRD(ctx context.Context, client client.Client, crd *apiextensionsv1.
 			existingCRD.Labels = make(map[string]string)
 		}
 		// Ensure the label for management by the installer is set.
-		existingCRD.Labels[CRDInstallerLabelKey] = "true"
+		existingCRD.Labels[crdInstallerLabelKey] = "true"
 		// Only set the Azure managed label if this is not an E2E test.
 		// This label is needed for clean up of CRD by kube-addon-manager in production,
 		// but can interfere with E2E test as CRDs are removed from AKS clusters which
 		// are actually not hub/member clusters.
 		if !isE2ETest {
-			existingCRD.Labels[AzureManagedLabelKey] = FleetLabelValue
+			existingCRD.Labels[azureManagedLabelKey] = fleetLabelValue
 		}
 		return nil
 	})
@@ -102,7 +102,7 @@ func CollectCRDs(crdDirectoryPath, mode string, scheme *runtime.Scheme) ([]apiex
 			return nil
 		}
 
-		crd, err := GetCRDFromPath(crdpath, scheme)
+		crd, err := getCRDFromPath(crdpath, scheme)
 		if err != nil {
 			return err
 		}
@@ -139,8 +139,8 @@ func CollectCRDs(crdDirectoryPath, mode string, scheme *runtime.Scheme) ([]apiex
 	return crdsToInstall, nil
 }
 
-// GetCRDFromPath reads a CRD from the specified path and decodes it into a CustomResourceDefinition object.
-func GetCRDFromPath(crdPath string, scheme *runtime.Scheme) (*apiextensionsv1.CustomResourceDefinition, error) {
+// getCRDFromPath reads a CRD from the specified path and decodes it into a CustomResourceDefinition object.
+func getCRDFromPath(crdPath string, scheme *runtime.Scheme) (*apiextensionsv1.CustomResourceDefinition, error) {
 	// Read and parse CRD file.
 	crdBytes, err := os.ReadFile(crdPath)
 	if err != nil {

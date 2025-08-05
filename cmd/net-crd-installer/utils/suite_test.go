@@ -3,7 +3,7 @@ Copyright (c) Microsoft Corporation.
 Licensed under the MIT license.
 */
 
-package netcrdinstaller
+package utils
 
 import (
 	"context"
@@ -32,7 +32,7 @@ var (
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Net CRD installer Suite")
+	RunSpecs(t, "Net CRD installer Utils Suite")
 }
 
 var _ = BeforeSuite(func() {
