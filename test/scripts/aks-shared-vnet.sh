@@ -43,7 +43,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_1 \
     --node-count $NODE_COUNT \
-    --node-vm-size Standard_A2_v2 \
+    --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
@@ -54,7 +54,7 @@ else
      --resource-group $RESOURCE_GROUP \
      --name $MEMBER_CLUSTER_1 \
      --node-count $NODE_COUNT \
-     --node-vm-size Standard_A2_v2 \
+     --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
      --generate-ssh-keys \
      --network-plugin azure \
      --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
@@ -69,7 +69,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_2 \
     --node-count $NODE_COUNT \
-    --node-vm-size Standard_A2_v2 \
+    --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
@@ -80,7 +80,7 @@ else
       --resource-group $RESOURCE_GROUP \
       --name $MEMBER_CLUSTER_2 \
       --node-count $NODE_COUNT \
-      --node-vm-size Standard_A2_v2 \
+      --node-vm-size Standard_A2_v2 \ # specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
       --generate-ssh-keys \
       --network-plugin azure \
       --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \

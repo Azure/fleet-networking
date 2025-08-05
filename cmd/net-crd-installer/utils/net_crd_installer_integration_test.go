@@ -28,6 +28,8 @@ const (
 	eventuallyInterval = time.Millisecond * 250
 )
 
+// TODO(Arvindthiru): compare the whole CRD spec object.
+
 // This test verifies the behavior of the CRD installer when E2E mode is set to true.
 // It ensures that the installer can create a CRD, update it with new fields, and handle ownership label correctly.
 // The original CRD has 4 properties, and the updated CRD has a new property to simulate CRD upgrade.

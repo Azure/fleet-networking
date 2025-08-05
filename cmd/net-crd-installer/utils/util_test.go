@@ -22,6 +22,7 @@ var (
 	}
 )
 
+// TODO(Arvindthiru): consider using absolute paths.
 // Test using the actual config/crd/bases directory.
 func TestCollectCRDFileNamesWithActualPath(t *testing.T) {
 	// Use a path relative to the project root when running with make local-unit-test
