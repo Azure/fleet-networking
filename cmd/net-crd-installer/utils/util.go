@@ -25,11 +25,11 @@ import (
 )
 
 const (
-	// CRDInstallerLabelKey is the label key used to indicate that a CRD is managed by the installer.
+	// crdInstallerLabelKey is the label key used to indicate that a CRD is managed by the installer.
 	crdInstallerLabelKey = "crd-installer.networking.azure.fleet.com/managed"
-	// AzureManagedLabelKey is the label key used to indicate that a CRD is managed by an Azure resource.
+	// azureManagedLabelKey is the label key used to indicate that a CRD is managed by an Azure resource.
 	azureManagedLabelKey = "kubernetes.azure.com/managedby"
-	// FleetLabelValue is the value for the AzureManagedLabelKey indicating management by Fleet.
+	// fleetLabelValue is the value for the AzureManagedLabelKey indicating management by Fleet.
 	fleetLabelValue = "fleet"
 )
 
