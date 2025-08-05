@@ -113,7 +113,7 @@ local-unit-test: $(ENVTEST) ## Run tests.
 .PHONY: integration-test
 integration-test: $(ENVTEST) ## Run integration tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/... ./test/netcrdinstaller
+	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/... ./cmd/net-crd-installer/utils
 
 .PHONY: e2e-setup
 e2e-setup:
