@@ -7,10 +7,12 @@ endif
 HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+NET_CRD_INSTALLER_IMAGE_VERSION ?= $(TAG)
 
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
+NET_CRD_INSTALLER_IMAGE_NAME ?= net-crd-installer
 
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -24,7 +26,7 @@ CONTROLLER_GEN_VER := v0.16.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 
-STATICCHECK_VER := 2023.1.7
+STATICCHECK_VER := 2025.1.1
 STATICCHECK_BIN := staticcheck
 STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/$(STATICCHECK_BIN)-$(STATICCHECK_VER))
 
@@ -106,12 +108,12 @@ test: manifests generate fmt vet local-unit-test integration-test
 
 .PHONY: local-unit-test
 local-unit-test: $(ENVTEST) ## Run tests.
-	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic -v
+	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic -v
 
 .PHONY: integration-test
 integration-test: $(ENVTEST) ## Run integration tests.
 	CGO_ENABLED=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/...
+	ginkgo -v -p --race --cover --coverpkg=./... ./test/apis/... ./cmd/net-crd-installer/utils
 
 .PHONY: e2e-setup
 e2e-setup:
@@ -186,11 +188,11 @@ vendor:
 
 .PHONY: image
 image:
-	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
 
 .PHONY: push
 push:
-	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager
+	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
 
 # By default, docker buildx create will pull image moby/buildkit:buildx-stable-1 and hit the too many requests error.
 .PHONY: docker-buildx-builder
@@ -227,6 +229,15 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 		--platform="linux/amd64" \
 		--pull \
 		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
+
+.PHONY: docker-build-net-crd-installer
+docker-build-net-crd-installer: docker-buildx-builder vendor
+	docker buildx build \
+		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/amd64" \
+		--pull \
+		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) .
 
 ## -----------------------------------
 ## Cleanup

@@ -7,6 +7,13 @@ set -x
 # Check required variables.
 [[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
+# Check required tools.
+if ! command -v yq &> /dev/null; then
+    echo "error: yq is not installed. Please install yq to continue."
+    echo "Install instructions: https://github.com/mikefarah/yq#install"
+    exit 1
+fi
+
 export ENABLE_TRAFFIC_MANAGER=${ENABLE_TRAFFIC_MANAGER:-"false"}
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ] && [ "$AZURE_NETWORK_SETTING" != "shared-vnet" ]; then
@@ -59,13 +66,14 @@ export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NA
 
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
-  # Create aks hub cluster
+  # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
   echo "Creating aks cluster: ${HUB_CLUSTER}"
   az aks create \
        --location $LOCATION \
        --resource-group $RESOURCE_GROUP \
        --name $HUB_CLUSTER \
        --node-count $NODE_COUNT \
+       --node-vm-size Standard_A2_v2 \
        --generate-ssh-keys \
        --enable-aad \
        --enable-azure-rbac \
@@ -84,11 +92,13 @@ else
   HUB_CLUSTER_KUBELET_CLIENT_ID=$(echo ${HUB_CLUSTER_AKS_KUBELET_IDENTITY} | jq -r '. | .clientId')
 
   echo "Creating aks cluster: ${HUB_CLUSTER}"
+  # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
   az aks create \
          --location $LOCATION \
          --resource-group $RESOURCE_GROUP \
          --name $HUB_CLUSTER \
          --node-count $NODE_COUNT \
+         --node-vm-size Standard_A2_v2 \
          --generate-ssh-keys \
          --enable-aad \
          --enable-azure-rbac \
@@ -305,16 +315,18 @@ kubectl config use-context $HUB_CLUSTER-admin
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.14.0/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
-kubectl apply -f config/crd/*
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
         $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
-kubectl apply -f config/crd/*
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -326,6 +338,10 @@ helm install mcs-controller-manager \
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
@@ -333,7 +349,6 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml" )
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
-kubectl apply -f config/crd/*
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -345,6 +360,10 @@ helm install mcs-controller-manager \
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
+    --set crdInstaller.enabled=true \
+    --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+    --set crdInstaller.image.tag=$TAG \
+    --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
@@ -357,14 +376,13 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
 then
     export APP_IMAGE=$REGISTRY/app
-    docker build -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+    docker build --platform linux/amd64 -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
     docker push $APP_IMAGE
 fi
 
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
     kubectl config use-context $MEMBER_CLUSTER_3-admin
-    kubectl apply -f config/crd/*
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -376,13 +394,16 @@ then
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
         --set image.tag=$TAG \
+        --set crdInstaller.enabled=true \
+        --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+        --set crdInstaller.image.tag=$TAG \
+        --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
     
     kubectl config use-context $MEMBER_CLUSTER_4-admin
-    kubectl apply -f config/crd/*
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
@@ -394,6 +415,10 @@ then
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
         --set image.tag=$TAG \
+        --set crdInstaller.enabled=true \
+        --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
+        --set crdInstaller.image.tag=$TAG \
+        --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_4 \

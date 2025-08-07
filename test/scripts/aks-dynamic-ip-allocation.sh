@@ -26,24 +26,26 @@ az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBE
 az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_2_NODE_SUBNET --address-prefixes 10.244.0.0/16 -o none
 az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_2_POD_SUBNET --address-prefixes 10.245.0.0/16 -o none
 
-# Create aks member cluster1
+# Create aks member cluster1, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_1 \
     --node-count $NODE_COUNT \
+    --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_NODE_SUBNET" \
     --pod-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_POD_SUBNET" \
     --no-wait
 
-# Create aks member cluster2
+# Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
     --name $MEMBER_CLUSTER_2 \
     --node-count $NODE_COUNT \
+    --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_NODE_SUBNET" \
