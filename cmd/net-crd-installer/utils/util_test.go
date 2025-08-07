@@ -64,7 +64,7 @@ func runTest(t *testing.T, crdPath string) {
 				"serviceimports.networking.fleet.azure.com",
 				"trafficmanagerbackends.networking.fleet.azure.com",
 				"trafficmanagerprofiles.networking.fleet.azure.com",
-				// multiclusterservices.networking.fleet.azure.com is excluded from hub clusters
+				"multiclusterservices.networking.fleet.azure.com",
 			},
 			wantError: false,
 		},
