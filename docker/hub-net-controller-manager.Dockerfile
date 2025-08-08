@@ -1,4 +1,4 @@
-# Build the manager binary
+# Build the hub-net-controller-manager binary
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.4 as builder
 
 WORKDIR /workspace
@@ -20,8 +20,8 @@ ARG TARGETARCH
 RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o hub-net-controller-manager main.go
 
 # Use Azure Linux distroless as minimal base image to package the manager binary
-# Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/minimal/about for more details
-FROM mcr.microsoft.com/azurelinux/distroless/minimal:3.0
+# Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0
 WORKDIR /
 COPY --from=builder /workspace/hub-net-controller-manager .
 USER 65532:65532
