@@ -14,12 +14,12 @@ COPY cmd/net-crd-installer/ cmd/net-crd-installer/
 
 ARG TARGETARCH
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
+# Build with CGO enabled and GOEXPERIMENT=systemcrypto for internal usage
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
 
-# Use distroless as minimal base image to package the net-crd-installer binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+# Use Azure Linux distroless as minimal base image to package the net-crd-installer binary
+# Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/minimal/about for more details
+FROM mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 WORKDIR /
 COPY --from=builder /workspace/net-crd-installer .
 COPY config/crd/bases/ /workspace/config/crd/bases/
