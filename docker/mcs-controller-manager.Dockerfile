@@ -19,7 +19,7 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o mcs-controller-manager main.go
 
-# Use Azure Linux distroless as minimal base image to package the manager binary
+# Use Azure Linux distroless base image to package mcs-controller-manager binary
 # Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
 FROM mcr.microsoft.com/azurelinux/distroless/base:3.0
 WORKDIR /
