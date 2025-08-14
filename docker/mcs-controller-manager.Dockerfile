@@ -1,5 +1,5 @@
 # Build the mcs-controller-manager binary
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.4 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.6 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
