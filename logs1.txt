@@ -1,0 +1,58 @@
+I0819 21:05:11.033523       1 workspace/main.go:98] "flag:" name="add_dir_header" value="true"
+I0819 21:05:11.033696       1 workspace/main.go:98] "flag:" name="alsologtostderr" value="false"
+I0819 21:05:11.033703       1 workspace/main.go:98] "flag:" name="enable-networking-features" value="false"
+I0819 21:05:11.033709       1 workspace/main.go:98] "flag:" name="enable-v1alpha1-apis" value="false"
+I0819 21:05:11.033713       1 workspace/main.go:98] "flag:" name="enable-v1beta1-apis" value="true"
+I0819 21:05:11.033719       1 workspace/main.go:98] "flag:" name="fleet-system-namespace" value="fleet-system"
+I0819 21:05:11.033724       1 workspace/main.go:98] "flag:" name="health-probe-bind-address" value=":8091"
+I0819 21:05:11.033729       1 workspace/main.go:98] "flag:" name="hub-health-probe-bind-address" value=":8081"
+I0819 21:05:11.033733       1 workspace/main.go:98] "flag:" name="hub-metrics-bind-address" value=":8080"
+I0819 21:05:11.033738       1 workspace/main.go:98] "flag:" name="kubeconfig" value=""
+I0819 21:05:11.033742       1 workspace/main.go:98] "flag:" name="leader-elect" value="true"
+I0819 21:05:11.033747       1 workspace/main.go:98] "flag:" name="leader-election-namespace" value="fleet-system"
+I0819 21:05:11.033754       1 workspace/main.go:98] "flag:" name="log_backtrace_at" value=":0"
+I0819 21:05:11.033759       1 workspace/main.go:98] "flag:" name="log_dir" value=""
+I0819 21:05:11.033763       1 workspace/main.go:98] "flag:" name="log_file" value=""
+I0819 21:05:11.033769       1 workspace/main.go:98] "flag:" name="log_file_max_size" value="1800"
+I0819 21:05:11.033773       1 workspace/main.go:98] "flag:" name="logtostderr" value="true"
+I0819 21:05:11.033778       1 workspace/main.go:98] "flag:" name="metrics-bind-address" value=":8090"
+I0819 21:05:11.033782       1 workspace/main.go:98] "flag:" name="one_output" value="false"
+I0819 21:05:11.033786       1 workspace/main.go:98] "flag:" name="skip_headers" value="false"
+I0819 21:05:11.033790       1 workspace/main.go:98] "flag:" name="skip_log_headers" value="false"
+I0819 21:05:11.033797       1 workspace/main.go:98] "flag:" name="stderrthreshold" value="2"
+I0819 21:05:11.033801       1 workspace/main.go:98] "flag:" name="tls-insecure" value="true"
+I0819 21:05:11.033809       1 workspace/main.go:98] "flag:" name="v" value="2"
+I0819 21:05:11.040173       1 workspace/main.go:98] "flag:" name="vmodule" value=""
+I0819 21:05:11.199465       1 workspace/main.go:143] "Setup controllers with controller manager"
+I0819 21:05:11.199788       1 workspace/main.go:248] "Begin to setup controllers with controller manager" networkingFeaturesEnabled=false
+I0819 21:05:11.199984       1 workspace/main.go:266] "Create internalmembercluster (v1beta1 API) reconciler"
+I0819 21:05:11.200568       1 workspace/main.go:280] "Networking features disabled, skipping networking controllers setup"
+I0819 21:05:11.200730       1 workspace/main.go:281] "Succeeded to setup controllers with controller manager (heartbeat only)"
+I0819 21:05:11.201854       1 workspace/main.go:175] "Starting member manager for MultiClusterService agent"
+2025-08-19T21:05:11Z	INFO	controller-runtime.metrics	Starting metrics server
+2025-08-19T21:05:11Z	INFO	controller-runtime.metrics	Serving metrics server	{"bindAddress": ":8090", "secure": false}
+I0819 21:05:11.202929       1 workspace/main.go:162] "Starting hub manager for MultiClusterService agent"
+2025-08-19T21:05:11Z	INFO	controller-runtime.metrics	Starting metrics server
+2025-08-19T21:05:11Z	INFO	controller-runtime.metrics	Serving metrics server	{"bindAddress": ":8080", "secure": false}
+2025-08-19T21:05:11Z	INFO	starting server	{"name": "health probe", "addr": "[::]:8081"}
+I0819 21:05:11.205307       1 leaderelection/leaderelection.go:254] attempting to acquire leader lease fleet-system/2bf2b407.mcs.hub.networking.fleet.azure.com...
+2025-08-19T21:05:11Z	INFO	starting server	{"name": "health probe", "addr": "[::]:8091"}
+I0819 21:05:11.224653       1 leaderelection/leaderelection.go:254] attempting to acquire leader lease fleet-system/2bf2b407.mcs.member.networking.fleet.azure.com...
+I0819 21:05:11.308562       1 leaderelection/leaderelection.go:268] successfully acquired lease fleet-system/2bf2b407.mcs.hub.networking.fleet.azure.com
+2025-08-19T21:05:11Z	INFO	Starting EventSource	{"controller": "internalmembercluster", "controllerGroup": "cluster.kubernetes-fleet.io", "controllerKind": "InternalMemberCluster", "source": "kind source: *v1beta1.InternalMemberCluster"}
+2025-08-19T21:05:11Z	INFO	Starting Controller	{"controller": "internalmembercluster", "controllerGroup": "cluster.kubernetes-fleet.io", "controllerKind": "InternalMemberCluster"}
+2025-08-19T21:05:11Z	DEBUG	events	mcs-controller-manager-5cb74798c4-8v6zv_9c0853c5-855a-4fa9-8770-85806e1cc23e became leader	{"type": "Normal", "object": {"kind":"Lease","namespace":"fleet-system","name":"2bf2b407.mcs.hub.networking.fleet.azure.com","uid":"95814918-034d-4499-8981-b027a149a3e1","apiVersion":"coordination.k8s.io/v1","resourceVersion":"5291"}, "reason": "LeaderElection"}
+I0819 21:05:11.350971       1 leaderelection/leaderelection.go:268] successfully acquired lease fleet-system/2bf2b407.mcs.member.networking.fleet.azure.com
+2025-08-19T21:05:11Z	DEBUG	events	mcs-controller-manager-5cb74798c4-8v6zv_25bf8558-3ec0-4d37-a5ac-4766e8287cec became leader	{"type": "Normal", "object": {"kind":"Lease","namespace":"fleet-system","name":"2bf2b407.mcs.member.networking.fleet.azure.com","uid":"d0a94f38-d651-4f5e-ac52-c4c7970f1633","apiVersion":"coordination.k8s.io/v1","resourceVersion":"5293"}, "reason": "LeaderElection"}
+I0819 21:05:11.953476       1 features/envvar.go:172] "Feature gate default state" feature="WatchListClient" enabled=false
+I0819 21:05:11.953506       1 features/envvar.go:172] "Feature gate default state" feature="InformerResourceVersion" enabled=false
+I0819 21:05:12.005067       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+2025-08-19T21:05:12Z	INFO	Starting workers	{"controller": "internalmembercluster", "controllerGroup": "cluster.kubernetes-fleet.io", "controllerKind": "InternalMemberCluster", "worker count": 1}
+I0819 21:05:14.563061       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:05:17.732490       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:05:22.576017       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:05:32.960145       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:05:56.504590       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:06:40.612221       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:07:34.285520       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106
+I0819 21:08:16.652205       1 cache/reflector.go:368] Caches populated for *v1beta1.InternalMemberCluster from sigs.k8s.io/controller-runtime/pkg/cache/internal/informers.go:106

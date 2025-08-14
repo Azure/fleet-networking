@@ -76,6 +76,8 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 
+	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
+
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
@@ -257,7 +259,7 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 }
 
 func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.Manager) error {
-	klog.V(1).InfoS("Begin to setup controllers with controller manager")
+	klog.V(1).InfoS("Begin to setup controllers with controller manager", "networkingFeaturesEnabled", *enableNetworkingFeatures)
 
 	mcName, err := env.LookupMemberClusterName()
 	if err != nil {
@@ -273,6 +275,39 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
+
+	// Always setup heartbeat controllers regardless of networking features flag
+	if *isV1Alpha1APIEnabled {
+		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
+		if err := (&imcv1alpha1.Reconciler{
+			MemberClient: memberClient,
+			HubClient:    hubClient,
+			AgentType:    fleetv1alpha1.ServiceExportImportAgent,
+		}).SetupWithManager(hubMgr); err != nil {
+			klog.ErrorS(err, "Unable to create internalmembercluster (v1alpha1 API) reconciler")
+			return err
+		}
+	}
+
+	if *isV1Beta1APIEnabled {
+		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
+		if err := (&imcv1beta1.Reconciler{
+			MemberClient:              memberClient,
+			HubClient:                 hubClient,
+			AgentType:                 clusterv1beta1.ServiceExportImportAgent,
+			EnabledNetworkingFeatures: *enableNetworkingFeatures, // Pass the flag to the reconciler
+		}).SetupWithManager(hubMgr); err != nil {
+			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
+			return err
+		}
+	}
+
+	// Only setup networking controllers if networking features are enabled
+	if !*enableNetworkingFeatures {
+		klog.V(1).InfoS("Networking features disabled, skipping networking controllers setup")
+		klog.V(1).InfoS("Succeeded to setup controllers with controller manager (heartbeat only)")
+		return nil
+	}
 
 	klog.V(1).InfoS("Create endpointslice controller")
 	if err := (&endpointslice.Reconciler{
@@ -370,30 +405,6 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceimport reconciler")
 		return err
-	}
-
-	if *isV1Alpha1APIEnabled {
-		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
-		if err := (&imcv1alpha1.Reconciler{
-			MemberClient: memberClient,
-			HubClient:    hubClient,
-			AgentType:    fleetv1alpha1.ServiceExportImportAgent,
-		}).SetupWithManager(hubMgr); err != nil {
-			klog.ErrorS(err, "Unable to create internalmembercluster (v1alpha1 API) reconciler")
-			return err
-		}
-	}
-
-	if *isV1Beta1APIEnabled {
-		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
-		if err := (&imcv1beta1.Reconciler{
-			MemberClient: memberClient,
-			HubClient:    hubClient,
-			AgentType:    clusterv1beta1.ServiceExportImportAgent,
-		}).SetupWithManager(hubMgr); err != nil {
-			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
-			return err
-		}
 	}
 
 	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")

@@ -35,13 +35,15 @@ jobs:
       # get test results for all scenarios.
       fail-fast: false
       matrix:
-        network-setting: [shared-vnet, peered-vnet,  dynamic-ip-allocation]
+        network-setting: [shared-vnet, peered-vnet,  dynamic-ip-allocation, unsupported]
         include:
           - network-setting: shared-vnet
             enable-traffic-manager: true
           - network-setting: peered-vnet
             enable-traffic-manager: false
           - network-setting: dynamic-ip-allocation
+            enable-traffic-manager: false
+          - network-setting: unsupported
             enable-traffic-manager: false
     runs-on: ubuntu-latest
     needs: [

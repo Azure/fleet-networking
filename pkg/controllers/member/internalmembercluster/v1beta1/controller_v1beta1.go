@@ -36,9 +36,10 @@ const (
 
 // Reconciler reconciles a InternalMemberCluster object.
 type Reconciler struct {
-	MemberClient client.Client
-	HubClient    client.Client
-	AgentType    clusterv1beta1.AgentType
+	MemberClient              client.Client
+	HubClient                 client.Client
+	AgentType                 clusterv1beta1.AgentType
+	EnabledNetworkingFeatures bool
 }
 
 //+kubebuilder:rbac:groups=cluster.kubernetes-fleet.io,resources=internalmemberclusters,verbs=get;list;watch
@@ -74,12 +75,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.V(2).InfoS("member cluster has left the fleet; performing cleanup", "internalMemberCluster", imcKRef)
 
 		// Clean up fleet networking related resources.
-		if r.AgentType == clusterv1beta1.MultiClusterServiceAgent {
+		if r.AgentType == clusterv1beta1.MultiClusterServiceAgent && r.EnabledNetworkingFeatures {
 			if err := r.cleanupMCSRelatedResources(ctx); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-		if r.AgentType == clusterv1beta1.ServiceExportImportAgent {
+		if r.AgentType == clusterv1beta1.ServiceExportImportAgent && r.EnabledNetworkingFeatures {
 			if err := r.cleanupServiceExportRelatedResources(ctx); err != nil {
 				return ctrl.Result{}, err
 			}

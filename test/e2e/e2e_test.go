@@ -57,6 +57,8 @@ var (
 
 	subscriptionID   string
 	atmResourceGroup string
+
+	enabledNetworkingFeatures = os.Getenv("AZURE_NETWORK_SETTING") != "unsupported"
 )
 
 func init() {

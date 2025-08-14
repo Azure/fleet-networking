@@ -115,6 +115,7 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
 | enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
+| enableNetworkingFeatures | Set to true to enable Networking Controllers on member cluster. | `true` |
 | azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
 
 ## Override Azure cloud config

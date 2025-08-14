@@ -63,6 +63,8 @@ var (
 
 	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", true, "If set, the agents will watch for the v1alpha1 APIs.")
 	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
+
+	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
 )
 
 func init() {
@@ -243,21 +245,11 @@ func prepareMemberParameters() (*rest.Config, *ctrl.Options) {
 }
 
 func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Manager) error {
-	klog.V(1).InfoS("Begin to setup controllers with controller manager")
+	klog.V(1).InfoS("Begin to setup controllers with controller manager", "networkingFeaturesEnabled", *enableNetworkingFeatures)
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
 
-	klog.V(1).InfoS("Create multiclusterservice reconciler")
-	if err := (&multiclusterservice.Reconciler{
-		Client:               memberClient,
-		Scheme:               memberMgr.GetScheme(),
-		FleetSystemNamespace: *fleetSystemNamespace,
-		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
-	}).SetupWithManager(memberMgr); err != nil {
-		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
-		return err
-	}
-
+	// Always setup heartbeat controllers regardless of networking features flag
 	if *isV1Alpha1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
 		if err := (&imcv1alpha1.Reconciler{
@@ -273,13 +265,32 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 	if *isV1Beta1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
 		if err := (&imcv1beta1.Reconciler{
-			MemberClient: memberClient,
-			HubClient:    hubClient,
-			AgentType:    clusterv1beta1.MultiClusterServiceAgent,
+			MemberClient:              memberClient,
+			HubClient:                 hubClient,
+			AgentType:                 clusterv1beta1.MultiClusterServiceAgent,
+			EnabledNetworkingFeatures: *enableNetworkingFeatures,
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err
 		}
+	}
+
+	// Only setup networking controllers if networking features are enabled
+	if !*enableNetworkingFeatures {
+		klog.V(1).InfoS("Networking features disabled, skipping networking controllers setup")
+		klog.V(1).InfoS("Succeeded to setup controllers with controller manager (heartbeat only)")
+		return nil
+	}
+
+	klog.V(1).InfoS("Create multiclusterservice reconciler")
+	if err := (&multiclusterservice.Reconciler{
+		Client:               memberClient,
+		Scheme:               memberMgr.GetScheme(),
+		FleetSystemNamespace: *fleetSystemNamespace,
+		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
+	}).SetupWithManager(memberMgr); err != nil {
+		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
+		return err
 	}
 
 	klog.V(1).InfoS("Succeeded to setup controllers with controller manager")
