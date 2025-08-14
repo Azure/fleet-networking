@@ -292,9 +292,9 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	if *isV1Beta1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
 		if err := (&imcv1beta1.Reconciler{
-			MemberClient:        memberClient,
-			HubClient:           hubClient,
-			AgentType:           clusterv1beta1.ServiceExportImportAgent,
+			MemberClient: memberClient,
+			HubClient:    hubClient,
+			AgentType:    clusterv1beta1.ServiceExportImportAgent,
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err
