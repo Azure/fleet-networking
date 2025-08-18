@@ -25,7 +25,7 @@ jobs:
     outputs:
       release_tag: ${{ steps.vars.outputs.release_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: 'Set output variables'
@@ -51,7 +51,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare-variables.outputs.release_tag }}
       - name: 'Login the ACR'
