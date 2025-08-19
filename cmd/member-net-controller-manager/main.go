@@ -89,6 +89,7 @@ func init() {
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
+	
 	//+kubebuilder:scaffold:scheme
 }
 

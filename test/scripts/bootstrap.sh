@@ -328,7 +328,7 @@ helm install hub-net-controller-manager \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
     --set crdInstaller.image.tag=$TAG \
     --set crdInstaller.isE2ETest=true \
-    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
+        $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
@@ -340,7 +340,7 @@ helm install mcs-controller-manager \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1 \
-    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false -f member_1_azure_config.yaml" )
+    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
@@ -352,7 +352,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1 \
-    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false -f member_1_azure_config.yaml" ) \
+    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false" ) \
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml" )
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
@@ -364,7 +364,7 @@ helm install mcs-controller-manager \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2 \
-    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ]  && echo "--set enableNetworkingFeatures=false -f member_2_azure_config.yaml" )
+    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ]  && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
@@ -376,7 +376,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2 \
-    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false -f member_2_azure_config.yaml" ) \
+    $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false" ) \
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_2_azure_config.yaml" )
 
 # TODO(mainred): Before the app image is publicly available in MCR, we build and publish the image to the test registry.
