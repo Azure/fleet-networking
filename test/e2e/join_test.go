@@ -42,7 +42,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 	)
 
 	Context("When networking features are enabled", func() {
-		BeforeEach(func() {
+		BeforeAll(func() {
 			if !enabledNetworkingFeatures {
 				Skip("Skipping setting up when networking features are not enabled")
 			}
@@ -320,6 +320,12 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 	})
 
 	Context("When networking features are disabled", func() {
+		BeforeAll(func() {
+			if enabledNetworkingFeatures {
+				Skip("Skipping setting up when networking features are enabled")
+			}
+		})
+		
 		Context("Member cluster agents should join/leave fleet", func() {
 			BeforeEach(func() {
 				By("Creating internalMemberCluster")
