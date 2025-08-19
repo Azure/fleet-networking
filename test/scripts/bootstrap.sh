@@ -334,7 +334,8 @@ helm install mcs-controller-manager \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
-    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1
+    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1 \
+    $( [ "$ENABLE_NETWORKING_FEATURES" = "false" ] && echo "--set enableNetworkingFeatures=false -f member_1_azure_config.yaml" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
@@ -346,6 +347,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_1 \
+    $( [ "$ENABLE_NETWORKING_FEATURES" = "false" ] && echo "--set enableNetworkingFeatures=false -f member_1_azure_config.yaml" ) \
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_1_azure_config.yaml" )
 
 kubectl config use-context $MEMBER_CLUSTER_2-admin
@@ -356,7 +358,8 @@ helm install mcs-controller-manager \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
-    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2
+    --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2 \
+    $( [ "$ENABLE_NETWORKING_FEATURES" = "false" ] && echo "--set enableNetworkingFeatures=false -f member_2_azure_config.yaml" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
     --set image.tag=$TAG \
@@ -368,6 +371,7 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
     --set azure.clientid=$CLIENT_ID_FOR_MEMBER_2 \
+    $( [ "$ENABLE_NETWORKING_FEATURES" = "false" ] && echo "--set enableNetworkingFeatures=false -f member_2_azure_config.yaml" ) \
     $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f member_2_azure_config.yaml" )
 
 # TODO(mainred): Before the app image is publicly available in MCR, we build and publish the image to the test registry.

@@ -57,6 +57,8 @@ var (
 
 	subscriptionID   string
 	atmResourceGroup string
+
+	enabledNetworkingFeatures = os.Getenv("ENABLE_NETWORKING_FEATURES") == "true"
 )
 
 func init() {

@@ -39,10 +39,16 @@ jobs:
         include:
           - network-setting: shared-vnet
             enable-traffic-manager: true
+            enable-networking-features: true
           - network-setting: peered-vnet
             enable-traffic-manager: false
+            enable-networking-features: true
           - network-setting: dynamic-ip-allocation
             enable-traffic-manager: false
+            enable-networking-features: true
+          - networking-setting: shared-vnet
+            enable-traffic-manager: false
+            enable-networking-features: false
     runs-on: ubuntu-latest
     needs: [
       detect-noop,
@@ -99,6 +105,7 @@ jobs:
           AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
           ENABLE_TRAFFIC_MANAGER: ${{ matrix.enable-traffic-manager }}
+          ENABLE_NETWORKING_FEATURES: ${{ matrix.enable-networking-features }}
       - name: Wait for role assignments to be effective
         run: sleep 5m
       - name: Run e2e tests
@@ -109,18 +116,19 @@ jobs:
           AZURE_NETWORK_SETTING: ${{ matrix.network-setting }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
           ENABLE_TRAFFIC_MANAGER: ${{ matrix.enable-traffic-manager }}
+          ENABLE_NETWORKING_FEATURES: ${{ matrix.enable-networking-features }}
       - name: Collect agent logs
         if: always()
         run: |
           make e2e-collect-logs
         env:
-          LOG_DIR: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
+          LOG_DIR: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}-enable-net-feature-${{ matrix.enable-networking-features }}
       - name: Upload agent logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
-          path: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
+          name: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}-enable-net-feature-${{ matrix.enable-networking-features }}
+          path: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}-enable-net-feature-${{ matrix.enable-networking-features }}
           if-no-files-found: warn
           retention-days: 3
       - name: Cleanup e2e
