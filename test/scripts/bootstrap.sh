@@ -328,7 +328,7 @@ helm install hub-net-controller-manager \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
     --set crdInstaller.image.tag=$TAG \
     --set crdInstaller.isE2ETest=true \
-        $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
+    $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
 # Helm install charts for member clusters.
 kubectl config use-context $MEMBER_CLUSTER_1-admin
