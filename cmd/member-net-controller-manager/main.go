@@ -89,7 +89,7 @@ func init() {
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
-	
+
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -295,6 +295,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 			MemberClient: memberClient,
 			HubClient:    hubClient,
 			AgentType:    clusterv1beta1.ServiceExportImportAgent,
+			EnabledNetworkingFeatures: *enableNetworkingFeatures, // Pass the flag to the reconciler
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err

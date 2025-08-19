@@ -268,6 +268,7 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 			MemberClient: memberClient,
 			HubClient:    hubClient,
 			AgentType:    clusterv1beta1.MultiClusterServiceAgent,
+			EnabledNetworkingFeatures: *enableNetworkingFeatures,
 		}).SetupWithManager(hubMgr); err != nil {
 			klog.ErrorS(err, "Unable to create internalmembercluster (v1beta1 API) reconciler")
 			return err

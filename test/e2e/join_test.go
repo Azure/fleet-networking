@@ -325,7 +325,7 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				Skip("Skipping setting up when networking features are enabled")
 			}
 		})
-		
+
 		Context("Member cluster agents should join/leave fleet", func() {
 			BeforeEach(func() {
 				By("Creating internalMemberCluster")
