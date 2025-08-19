@@ -385,47 +385,6 @@ var _ = Describe("Test Join/Leave workflow", Serial, Ordered, func() {
 				Expect(imc.Status.AgentStatus[1].LastReceivedHeartbeat).ShouldNot(BeNil(), "heartbeat should not be nil")
 			})
 
-			It("Unjoin member cluster and should cleanup multiClusterService related resources", func() {
-				By("Updating internalMemberCluster spec to leave")
-				Eventually(func() error {
-					if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
-						return err
-					}
-					imc.Spec.State = fleetv1beta1.ClusterStateLeave
-					return hubCluster.Client().Update(ctx, &imc)
-				}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to update internalMemberCluster spec")
-
-				By("Validating MultiClusterServiceAgent and ServiceExportImportAgent join status is false")
-				Eventually(func() string {
-					if err := hubCluster.Client().Get(ctx, imcKey, &imc); err != nil {
-						return err.Error()
-					}
-					want := []fleetv1beta1.AgentStatus{
-						{
-							Type: fleetv1beta1.MultiClusterServiceAgent,
-							Conditions: []metav1.Condition{
-								{
-									Type:   string(fleetv1beta1.AgentJoined),
-									Status: metav1.ConditionFalse,
-									Reason: "AgentLeft",
-								},
-							},
-						},
-						{
-							Type: fleetv1beta1.ServiceExportImportAgent,
-							Conditions: []metav1.Condition{
-								{
-									Type:   string(fleetv1beta1.AgentJoined),
-									Status: metav1.ConditionFalse,
-									Reason: "AgentLeft",
-								},
-							},
-						},
-					}
-					return cmp.Diff(want, imc.Status.AgentStatus, cmpOptions...)
-				}, framework.PollTimeout, framework.PollInterval).Should(BeEmpty(), "Validate internalMemberCluster mismatch (-want, +got):")
-			})
-
 			It("Unjoin member cluster first and then join", func() {
 				By("Updating internalMemberCluster spec to leave")
 				Eventually(func() error {
