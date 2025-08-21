@@ -20,7 +20,7 @@ spec:
         {{- include "member-net-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "member-net-controller-manager.fullname" . }}-sa
-      {{- if .Values.crdInstaller.enabled }}
+      {{- if and .Values.crdInstaller.enabled .Values.enableNetworkingFeatures}}
       initContainers:
         - name: net-crd-installer
           image: "{{ .Values.crdInstaller.image.repository }}:{{ .Values.crdInstaller.image.tag }}"
@@ -45,6 +45,7 @@ spec:
             - --enable-v1alpha1-apis={{ .Values.enableV1Alpha1APIs }}
             - --enable-v1beta1-apis={{ .Values.enableV1Beta1APIs }}
             - --enable-traffic-manager-feature={{ .Values.enableTrafficManagerFeature }}
+            - --enable-networking-features={{ .Values.enableNetworkingFeatures }}
             {{- if .Values.enableTrafficManagerFeature }}
             - --cloud-config=/etc/kubernetes/provider/azure.json
             {{- end }}

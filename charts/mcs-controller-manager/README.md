@@ -46,5 +46,6 @@ helm upgrade mcs-controller-manager ./charts/mcs-controller-manager/
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
+| enableNetworkingFeatures | Set to true to enable Networking Controllers on member cluster. | `true`|
 
 ## Contributing Changes

@@ -53,3 +53,4 @@ affinity: {}
 
 enableV1Alpha1APIs: false
 enableV1Beta1APIs: true
+enableNetworkingFeatures: true

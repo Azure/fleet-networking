@@ -119,16 +119,18 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		AgentType:    mcsAgentType,
+		MemberClient:              memberClient,
+		HubClient:                 hubClient,
+		AgentType:                 mcsAgentType,
+		EnabledNetworkingFeatures: true,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&Reconciler{
-		MemberClient: memberClient,
-		HubClient:    hubClient,
-		AgentType:    serviceExportImportAgentType,
+		MemberClient:              memberClient,
+		HubClient:                 hubClient,
+		AgentType:                 serviceExportImportAgentType,
+		EnabledNetworkingFeatures: true,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 
