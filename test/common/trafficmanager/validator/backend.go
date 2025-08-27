@@ -46,48 +46,56 @@ var (
 // while ignoring the generated endpoint name.
 func ValidateTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1beta1.TrafficManagerEndpointStatus, timeout time.Duration) fleetnetv1beta1.TrafficManagerBackendStatus {
 	var gotStatus fleetnetv1beta1.TrafficManagerBackendStatus
+	var err error
 	gomega.Eventually(func() error {
-		backend := &fleetnetv1beta1.TrafficManagerBackend{}
-		if err := k8sClient.Get(ctx, backendName, backend); err != nil {
-			return err
-		}
-		var wantStatus fleetnetv1beta1.TrafficManagerBackendStatus
-		if !isAccepted {
-			wantStatus = fleetnetv1beta1.TrafficManagerBackendStatus{
-				Conditions: []metav1.Condition{
-					{
-						Status:             metav1.ConditionFalse,
-						Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
-						Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonInvalid),
-						ObservedGeneration: backend.Generation,
-					},
-				},
-				Endpoints: wantEndpoints,
-			}
-		} else {
-			wantStatus = fleetnetv1beta1.TrafficManagerBackendStatus{
-				Conditions: []metav1.Condition{
-					{
-						Status:             metav1.ConditionTrue,
-						Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
-						Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonAccepted),
-						ObservedGeneration: backend.Generation,
-					},
-				},
-				Endpoints: wantEndpoints,
-			}
-		}
-		gotStatus = backend.Status
-		if diff := cmp.Diff(
-			gotStatus,
-			wantStatus,
-			cmpTrafficManagerBackendStatusByIgnoringEndpointName,
-		); diff != "" {
-			return fmt.Errorf("trafficManagerBackend status diff (-got, +want): \n%s, got %+v", diff, gotStatus)
-		}
-		return nil
+		gotStatus, err = CheckIfTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx, k8sClient, backendName, isAccepted, wantEndpoints)
+		return err
 	}, timeout, interval).Should(gomega.Succeed(), "Get() trafficManagerBackend status mismatch")
 	return gotStatus
+}
+
+// CheckIfTrafficManagerBackendIfAcceptedAndIgnoringEndpointName checks if the TrafficManagerBackend is accepted while ignoring the generated endpoint name.
+func CheckIfTrafficManagerBackendIfAcceptedAndIgnoringEndpointName(ctx context.Context, k8sClient client.Client, backendName types.NamespacedName, isAccepted bool, wantEndpoints []fleetnetv1beta1.TrafficManagerEndpointStatus) (fleetnetv1beta1.TrafficManagerBackendStatus, error) {
+	var gotStatus fleetnetv1beta1.TrafficManagerBackendStatus
+	backend := &fleetnetv1beta1.TrafficManagerBackend{}
+	if err := k8sClient.Get(ctx, backendName, backend); err != nil {
+		return gotStatus, err
+	}
+	var wantStatus fleetnetv1beta1.TrafficManagerBackendStatus
+	if !isAccepted {
+		wantStatus = fleetnetv1beta1.TrafficManagerBackendStatus{
+			Conditions: []metav1.Condition{
+				{
+					Status:             metav1.ConditionFalse,
+					Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
+					Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonInvalid),
+					ObservedGeneration: backend.Generation,
+				},
+			},
+			Endpoints: wantEndpoints,
+		}
+	} else {
+		wantStatus = fleetnetv1beta1.TrafficManagerBackendStatus{
+			Conditions: []metav1.Condition{
+				{
+					Status:             metav1.ConditionTrue,
+					Type:               string(fleetnetv1beta1.TrafficManagerBackendConditionAccepted),
+					Reason:             string(fleetnetv1beta1.TrafficManagerBackendReasonAccepted),
+					ObservedGeneration: backend.Generation,
+				},
+			},
+			Endpoints: wantEndpoints,
+		}
+	}
+	gotStatus = backend.Status
+	if diff := cmp.Diff(
+		gotStatus,
+		wantStatus,
+		cmpTrafficManagerBackendStatusByIgnoringEndpointName,
+	); diff != "" {
+		return gotStatus, fmt.Errorf("trafficManagerBackend status diff (-got, +want): \n%s, got %+v", diff, gotStatus)
+	}
+	return gotStatus, nil
 }
 
 // ValidateTrafficManagerBackendStatusAndIgnoringEndpointNameConsistently validates the trafficManagerBackend status consistently
