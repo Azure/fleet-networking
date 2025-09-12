@@ -217,7 +217,7 @@ docker-build-member-net-controller-manager: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform="linux/amd64,linux/arm64" \
 		--pull \
 		--tag $(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
@@ -226,7 +226,7 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform="linux/amd64,linux/arm64" \
 		--pull \
 		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
 
