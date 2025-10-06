@@ -1,6 +1,9 @@
 # Build the net-crd-installer binary
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.6 AS builder
 
+ARG GOOS=linux
+ARG GOARCH=amd64
+
 WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -12,10 +15,9 @@ RUN go mod download
 # Copy the go source
 COPY cmd/net-crd-installer/ cmd/net-crd-installer/
 
-ARG TARGETARCH
-
 # Build with CGO enabled and GOEXPERIMENT=systemcrypto for internal usage
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
+RUN echo "Building images with GOOS=linux GOARCH=$GOARCH"
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=$GOARCH GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
 
 # Use Azure Linux distroless base image to package net-crd-installer binary
 # Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
