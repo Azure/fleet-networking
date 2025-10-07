@@ -68,6 +68,8 @@ jobs:
           MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
           MCS_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
           NET_CRD_INSTALLER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
+          TARGET_ARCH: amd64
+          AUTO_DETECT_ARCH: "FALSE"
   
   publish-images-arm64:
     runs-on:
