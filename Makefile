@@ -282,9 +282,12 @@ docker-build-net-crd-installer: docker-buildx-builder vendor
 	docker buildx build \
 		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
-		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) .
+		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
 
 ## -----------------------------------
 ## Cleanup
