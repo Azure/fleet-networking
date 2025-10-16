@@ -8,16 +8,16 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
-RUN go mod download
+# Cache the downloaded dependency modules across different builds to expedite the progress.
+# This also helps reduce downloading related reliability issues in our build environment.
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy the go source
 COPY cmd/net-crd-installer/ cmd/net-crd-installer/
 
 # Build with CGO enabled and GOEXPERIMENT=systemcrypto for internal usage
 RUN echo "Building images with GOOS=linux GOARCH=$GOARCH"
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=$GOARCH GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=linux GOARCH=$GOARCH GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o net-crd-installer cmd/net-crd-installer/main.go
 
 # Use Azure Linux distroless base image to package net-crd-installer binary
 # Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
