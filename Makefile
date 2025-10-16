@@ -207,9 +207,9 @@ BUILDX_BUILDER_NAME ?= img-builder
 QEMU_VERSION ?= 7.2.0-1
 BUILDKIT_VERSION ?= v0.18.1
 
-.PHONY: vendor
-vendor:
-	go mod tidy && go mod vendor
+.PHONY: tidy
+tidy:
+	go mod tidy
 
 .PHONY: image
 image:
@@ -242,7 +242,7 @@ docker-buildx-builder:
 	fi
 
 .PHONY: docker-build-hub-net-controller-manager
-docker-build-hub-net-controller-manager: docker-buildx-builder vendor
+docker-build-hub-net-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
@@ -254,7 +254,7 @@ docker-build-hub-net-controller-manager: docker-buildx-builder vendor
 		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-member-net-controller-manager
-docker-build-member-net-controller-manager: docker-buildx-builder vendor
+docker-build-member-net-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
@@ -266,7 +266,7 @@ docker-build-member-net-controller-manager: docker-buildx-builder vendor
 		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-mcs-controller-manager
-docker-build-mcs-controller-manager: docker-buildx-builder vendor
+docker-build-mcs-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
@@ -278,7 +278,7 @@ docker-build-mcs-controller-manager: docker-buildx-builder vendor
 		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-net-crd-installer
-docker-build-net-crd-installer: docker-buildx-builder vendor
+docker-build-net-crd-installer: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \

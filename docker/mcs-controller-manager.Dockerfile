@@ -1,5 +1,5 @@
 # Build the mcs-controller-manager binary
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.6 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.6 AS builder
 
 ARG GOOS=linux
 ARG GOARCH=amd64
@@ -8,9 +8,9 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
-# the go command will load packages from the vendor directory instead of downloading modules from their sources into
-# the module cache and using packages those downloaded copies.
-COPY vendor/ vendor/
+# Cache the downloaded dependency modules across different builds to expedite the progress.
+# This also helps reduce downloading related reliability issues in our build environment.
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy the go source
 COPY cmd/mcs-controller-manager/main.go main.go
@@ -19,7 +19,7 @@ COPY pkg/ pkg/
 
 # Build with CGO enabled and GOEXPERIMENT=systemcrypto for internal usage
 RUN echo "Building images with GOOS=$GOOS GOARCH=$GOARCH"
-RUN CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o mcs-controller-manager main.go
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GOEXPERIMENT=systemcrypto GO111MODULE=on go build -o mcs-controller-manager main.go
 
 # Use Azure Linux distroless base image to package mcs-controller-manager binary
 # Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
