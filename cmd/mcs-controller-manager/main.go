@@ -41,7 +41,6 @@ import (
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
-	imcv1alpha1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1alpha1"
 	imcv1beta1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1beta1"
 	"go.goms.io/fleet-networking/pkg/controllers/multiclusterservice"
 )
@@ -61,8 +60,7 @@ var (
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 
-	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", true, "If set, the agents will watch for the v1alpha1 APIs.")
-	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
+	isV1Beta1APIEnabled = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
 	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
 )
@@ -248,19 +246,6 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 	klog.V(1).InfoS("Begin to setup controllers with controller manager", "networkingFeaturesEnabled", *enableNetworkingFeatures)
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
-
-	// Always setup heartbeat controllers regardless of networking features flag
-	if *isV1Alpha1APIEnabled {
-		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
-		if err := (&imcv1alpha1.Reconciler{
-			MemberClient: memberClient,
-			HubClient:    hubClient,
-			AgentType:    fleetv1alpha1.MultiClusterServiceAgent,
-		}).SetupWithManager(hubMgr); err != nil {
-			klog.ErrorS(err, "Unable to create internalmembercluster (v1alpha1 API) reconciler")
-			return err
-		}
-	}
 
 	if *isV1Beta1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
