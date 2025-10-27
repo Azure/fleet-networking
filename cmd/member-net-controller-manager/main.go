@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -277,7 +278,8 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	hubClient := hubMgr.GetClient()
 
 	if *isV1Alpha1APIEnabled {
-		klog.V(1).InfoS("Fleet v1alpha1 flag is set to true, but this flag is deprecated and will be removed in future releases")
+		klog.Error("Fleet v1alpha1 flag is set to true, but this flag is deprecated and will be removed in future releases")
+		return errors.New("v1alpha1 APIs are deprecated and no longer supported, please use v1beta1 APIs instead")
 	}
 
 	if *isV1Beta1APIEnabled {
