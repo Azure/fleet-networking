@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"os/signal"
@@ -60,7 +61,9 @@ var (
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 
-	isV1Beta1APIEnabled = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
+	// TODO(weiweng): remove fleet v1alpha1 flag after references was removed elsewhere.
+	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", false, "If set, the agents will watch for the v1alpha1 APIs. This flag is deprecated and will be removed in future releases.")
+	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
 	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
 )
@@ -246,6 +249,11 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 	klog.V(1).InfoS("Begin to setup controllers with controller manager", "networkingFeaturesEnabled", *enableNetworkingFeatures)
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
+
+	if *isV1Alpha1APIEnabled {
+		klog.Error("Fleet v1alpha1 flag is set to true, but this flag is deprecated and will be removed in future releases")
+		return errors.New("v1alpha1 APIs are deprecated and no longer supported, please use v1beta1 APIs instead")
+	}
 
 	if *isV1Beta1APIEnabled {
 		klog.V(1).InfoS("Create internalmembercluster (v1beta1 API) reconciler")
