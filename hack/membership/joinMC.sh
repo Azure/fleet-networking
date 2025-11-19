@@ -66,7 +66,6 @@ helm install mcs-controller-manager ./charts/mcs-controller-manager/ \
 --set refreshtoken.pullPolicy=Always \
 --set config.hubURL=$HUB_CLUSTER_ADDRESS \
 --set config.memberClusterName=$MEMBER_CLUSTER \
---set enableV1Alpha1APIs=false \
 --set enableV1Beta1APIs=true \
 --set logVerbosity=8
 
@@ -83,7 +82,6 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 --set refreshtoken.pullPolicy=Always \
 --set config.hubURL=$HUB_CLUSTER_ADDRESS \
 --set config.memberClusterName=$MEMBER_CLUSTER \
---set enableV1Alpha1APIs=false \
 --set enableV1Beta1APIs=true \
 --set logVerbosity=8
 
