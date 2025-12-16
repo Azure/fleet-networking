@@ -119,7 +119,7 @@ jobs:
           LOG_DIR: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
       - name: Upload agent logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
           path: agent-logs-${{ matrix.network-setting }}-enable-atm-${{ matrix.enable-traffic-manager }}
