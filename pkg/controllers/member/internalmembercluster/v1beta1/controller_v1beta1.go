@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,9 +18,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -228,6 +229,6 @@ func (r *Reconciler) cleanupServiceExportRelatedResources(ctx context.Context) e
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clusterv1beta1.InternalMemberCluster{}).
+		For(&clusterv1beta1.InternalMemberCluster{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
