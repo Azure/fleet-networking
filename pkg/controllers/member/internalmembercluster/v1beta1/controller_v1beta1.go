@@ -54,26 +54,26 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	imcKRef := klog.KRef(req.Namespace, req.Name)
 	startTime := time.Now()
-	klog.V(2).InfoS("Reconciliation starts", "internalMemberCluster", imcKRef)
+	klog.V(2).InfoS("Reconciliation starts", "internalMemberCluster", imcKRef, "agentType", r.AgentType)
 	defer func() {
 		latency := time.Since(startTime).Milliseconds()
-		klog.V(2).InfoS("Reconciliation ends", "internalMemberCluster", imcKRef, "latency", latency)
+		klog.V(2).InfoS("Reconciliation ends", "internalMemberCluster", imcKRef, "latency", latency, "agentType", r.AgentType)
 	}()
 
 	var imc clusterv1beta1.InternalMemberCluster
 	if err := r.HubClient.Get(ctx, req.NamespacedName, &imc); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.V(4).InfoS("internal member cluster object is not found", "internalMemberCluster", imcKRef)
+			klog.V(4).InfoS("internal member cluster object is not found", "internalMemberCluster", imcKRef, "agentType", r.AgentType)
 			return ctrl.Result{}, nil
 		}
-		klog.ErrorS(err, "Failed to get internal member cluster object", "internalMemberCluster", imcKRef)
+		klog.ErrorS(err, "Failed to get internal member cluster object", "internalMemberCluster", imcKRef, "agentType", r.AgentType)
 		return ctrl.Result{}, err
 	}
 
 	switch imc.Spec.State {
 	case clusterv1beta1.ClusterStateLeave:
 		// The member cluster is leaving the fleet.
-		klog.V(2).InfoS("member cluster has left the fleet; performing cleanup", "internalMemberCluster", imcKRef)
+		klog.V(2).InfoS("member cluster has left the fleet; performing cleanup", "internalMemberCluster", imcKRef, "agentType", r.AgentType)
 
 		// Clean up fleet networking related resources.
 		if r.AgentType == clusterv1beta1.MultiClusterServiceAgent && r.EnabledNetworkingFeatures {
@@ -101,7 +101,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		requeueAfter := time.Millisecond * (time.Duration(hbInterval) + time.Duration(rand.Int63nRange(0, jitterRange)-jitterRange/2))
 		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	default:
-		klog.ErrorS(fmt.Errorf("cluster is of an invalid state"), "internalMemberCluster", imcKRef, "clusterState", imc.Spec.State)
+		klog.ErrorS(fmt.Errorf("cluster is of an invalid state"), "internalMemberCluster", imcKRef, "clusterState", imc.Spec.State, "agentType", r.AgentType)
 	}
 
 	return ctrl.Result{}, nil
@@ -138,12 +138,7 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, imc *clusterv1beta1.
 	}
 
 	if err := r.HubClient.Status().Update(ctx, imc); err != nil {
-		if apierrors.IsConflict(err) {
-			klog.V(2).InfoS("Failed to update internal member cluster status due to conflicts", "internalMemberCluster", klog.KObj(imc))
-			return nil
-		}
-
-		klog.ErrorS(err, "Failed to update internal member cluster status", "internalMemberCluster", klog.KObj(imc))
+		klog.ErrorS(err, "Failed to update internal member cluster status", "internalMemberCluster", imcKObj, "agentType", r.AgentType)
 		return err
 	}
 	return nil
