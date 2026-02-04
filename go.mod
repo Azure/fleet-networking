@@ -1,6 +1,6 @@
 module go.goms.io/fleet-networking
 
-go 1.24.9
+go 1.24.13
 
 require go.goms.io/fleet v0.14.0
 
