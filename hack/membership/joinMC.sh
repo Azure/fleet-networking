@@ -66,7 +66,6 @@ helm install mcs-controller-manager ./charts/mcs-controller-manager/ \
 --set refreshtoken.pullPolicy=Always \
 --set config.hubURL=$HUB_CLUSTER_ADDRESS \
 --set config.memberClusterName=$MEMBER_CLUSTER \
---set enableV1Beta1APIs=true \
 --set logVerbosity=8
 
 echo "Uninstalling member-net-controller-manager..."
@@ -78,11 +77,10 @@ helm install member-net-controller-manager ./charts/member-net-controller-manage
 --set refreshtoken.repository=$REGISTRY/$REFRESH_TOKEN_IMAGE \
 --set refreshtoken.tag=$FLEET_IMAGE_TAG \
 --set image.tag=$FLEET_NETWORKING_AGENT_IMAGE_TAG \
---set timage.pullPolicy=Always \
+--set image.pullPolicy=Always \
 --set refreshtoken.pullPolicy=Always \
 --set config.hubURL=$HUB_CLUSTER_ADDRESS \
 --set config.memberClusterName=$MEMBER_CLUSTER \
---set enableV1Beta1APIs=true \
 --set logVerbosity=8
 
 kubectl get pods -A
