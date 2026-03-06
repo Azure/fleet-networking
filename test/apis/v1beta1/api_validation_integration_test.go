@@ -161,7 +161,7 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with resourceGroup (length > 90)")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
-			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.resourceGroup: Too long: may not be longer than 90"))
+			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.resourceGroup: Too long: may not be more than 90"))
 		})
 
 		It("should deny update of resourceGroup", func() {
