@@ -17,7 +17,7 @@ COPY cmd/mcs-controller-manager/main.go main.go
 COPY api/ api/
 COPY pkg/ pkg/
 
-# Build with CGO enabled and GOEXPERIMENT=systemcrypto for internal usage
+# Build with CGO enabled for internal usage
 RUN echo "Building images with GOOS=$GOOS GOARCH=$GOARCH"
 RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GO111MODULE=on go build -o mcs-controller-manager main.go
 
