@@ -74,6 +74,13 @@ Therefore ATM is today the **only** GLB surface, and it is
 
 ### 2.3 Non-goals
 
+* **L4 workloads (non-HTTP/HTTPS).** AFD is an L7 reverse proxy —
+  it only serves HTTP, HTTPS, and WebSockets-over-HTTPS. Arbitrary
+  TCP / UDP first-party workloads (databases, gRPC-over-plain-TCP,
+  SMTP, DNS, etc.) are **not covered** by this proposal and cannot
+  satisfy SFI-NS253 via AFD. The likely future counterpart for L4
+  is Azure Cross-region Load Balancer (anycast, Private Link
+  backends), tracked as a follow-up and not proposed here.
 * Removing or deprecating ATM — the two features coexist behind
   independent feature flags.
 * Building a generic ingress controller inside a member cluster.  We

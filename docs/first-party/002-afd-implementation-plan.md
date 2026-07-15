@@ -708,7 +708,108 @@ API + fake provider work.
   breaking field changes; the plan is to keep v1beta1 field-identical
   to v1alpha1 for the first cut so no webhook is needed.
 
-## 8. Risks and mitigations
+## 8. East-west (MCS) compatibility
+
+This proposal is a **north-south** feature (internet → member cluster
+via AFD). The pre-existing **east-west** (in-fleet, cluster-to-cluster)
+data plane is:
+
+```
+ServiceExport (member)
+  → InternalServiceExport  (hub, per-cluster shard)
+  → ServiceImport          (hub, aggregated)
+  → InternalServiceImport  (member)
+  → local ClusterSet IP + imported EndpointSlices
+     from EndpointSliceExport / EndpointSliceImport
+```
+
+Traffic between clusters resolves to **pod IPs** via imported
+`EndpointSlice`s. It does not traverse any external load balancer,
+Traffic Manager, or Front Door. The two directions of traffic share
+`ServiceExport` as the entry-point CR but otherwise use disjoint
+control paths.
+
+### 8.1 What is guaranteed to keep working
+
+| Concern | Guarantee |
+|---------|-----------|
+| `ServiceImport` aggregation | Untouched. `ServiceImport`, `InternalServiceImport`, and `EndpointSlice{Export,Import}` types are not modified. |
+| Pod-to-pod fleet traffic | Uses `EndpointSlice` imports, which carry pod IPs. Neither the addition of an internal LB nor a PLS on the origin `Service` changes pod IPs. |
+| Existing consumers of `ServiceExport` | `Spec.ExportMode` is optional with a default of `L4-TrafficManager`. Existing manifests apply and behave identically. |
+| MCS `weight` annotation | `networking.fleet.azure.com/weight` (used by MCS aggregation and by the ATM backend) is **not** consumed by the AFD backend controller. AFD weights are declared explicitly on `FrontDoorBackend.spec.weight` and `FrontDoorBackend.status.origins[].weight`. |
+| Existing `Service` types | Only `Services` whose owning `ServiceExport` opts in with `ExportMode: L7-FrontDoor` are subject to the PLS-annotation projection described in §4.3. |
+
+### 8.2 What the AFD path adds on top
+
+Setting `ServiceExport.Spec.ExportMode = L7-FrontDoor` causes the
+member `serviceexport` controller to layer three things onto the
+underlying `Service`, alongside the east-west export that would have
+happened anyway:
+
+1. Ensure the `Service` is `type: LoadBalancer` with the
+   `azure-load-balancer-internal: "true"` annotation.
+2. Ensure the PLS-creation annotations (`azure-pls-*`) documented in
+   §3.3 of proposal 001.
+3. Copy the AKS-programmed PLS resource ID back into
+   `InternalServiceExport.status.privateLinkService.resourceID`.
+
+None of the above touches `EndpointSliceExport`, `EndpointSliceImport`,
+or `ServiceImport`. The `Service.ClusterIP` is preserved on a
+`type: LoadBalancer` `Service`, so an east-west consumer that
+resolves via `ServiceImport` → imported `EndpointSlice` → pod IP is
+byte-for-byte unchanged.
+
+### 8.3 Guardrails to enforce
+
+To make “east-west stays working” a checked invariant rather than an
+assumption, the member `serviceexport` controller MUST reject the
+opt-in when the underlying `Service` cannot be safely mutated to
+`type: LoadBalancer`:
+
+* Reject if `Service.Spec.Type == ExternalName` — surface
+  `ServiceExportValid=False, Reason=UnsupportedServiceTypeForFrontDoor`.
+* Reject if `Service.Spec.ClusterIP == "None"` (headless service) —
+  PLS requires an ILB frontend IP; headless services can't provide one.
+* Refuse to overwrite user-provided values on the annotations it
+  manages; if a conflicting value is present, surface
+  `Reason=ConflictingServiceAnnotations` and requeue without mutation.
+* On `ExportMode` transitions **away from** `L7-FrontDoor`, strip only
+  the annotations the controller itself added (tracked via a
+  `fleet.networking.fleet.azure.com/afd-managed-annotations` sentinel
+  annotation) — never remove user annotations.
+
+### 8.4 Interaction with the ATM backend controller
+
+`TrafficManagerBackend` reads endpoint IPs from the `Service`'s
+external LoadBalancer IP. An operator who flips a `ServiceExport`
+from `L4-TrafficManager` to `L7-FrontDoor` on a `Service` that already
+has a **public** LB IP referenced by an existing `TrafficManagerBackend`
+would inadvertently drop that public IP (internal LB has no public
+frontend). The controller MUST detect this and refuse the transition:
+
+* If any `TrafficManagerBackend` in the namespace references the same
+  `ServiceImport`, refuse `ExportMode: L7-FrontDoor` with reason
+  `ConflictsWithTrafficManagerBackend`, requiring the user to delete
+  the ATM backend first (or use a distinct `Service` for AFD).
+
+This keeps the invariant that at any point in time, a `Service` is
+attached to **at most one** north-south surface, while east-west
+continues to operate untouched.
+
+### 8.5 Test coverage for east-west non-regression
+
+Phase 3 must add integration tests that assert, for a `ServiceExport`
+with `ExportMode: L7-FrontDoor`:
+
+* `InternalServiceExport.Spec` is produced identically to the
+  `L4-TrafficManager` case (byte diff on spec fields).
+* `EndpointSliceExport` objects are produced identically.
+* East-west round trip (pod-A in cluster-A → `ServiceImport` VIP in
+  cluster-B → pod-B) still succeeds when the same `Service` is also
+  fronted by AFD — covered end-to-end in phase 4 e2e as an added
+  assertion, not a separate test.
+
+## 9. Risks and mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
@@ -718,8 +819,15 @@ API + fake provider work.
 | Two hub controllers competing for the same AFD profile | Split-brain writes | Owner-references from backends → profile; single reconciler per resource; `client.OwnerReference` gating |
 | SFI review demands additional controls (e.g. mandatory managed identity, mandatory diagnostic settings) | Slippage | Track in open questions §11 of Proposal 001; add controls in phase 5 without blocking phases 1–4 |
 
-## 9. Out-of-scope for this proposal
+## 10. Out-of-scope for this proposal
 
+* **L4 (non-HTTP/HTTPS) workloads.** AFD is L7-only (HTTP, HTTPS,
+  WebSockets-over-HTTPS). This proposal therefore does not extend
+  SFI-NS253 compliance to raw TCP, UDP, gRPC-over-plain-TCP,
+  databases, SMTP, DNS, etc. Those workloads either stay on ATM
+  (non-compliant with SFI-NS253) or wait for a separate L4 proposal
+  (likely Azure Cross-region Load Balancer with Private Link
+  backends).
 * Rules engine / URL rewriting inside AFD.
 * Multi-region AFD failover policies (uses AFD-native latency /
   weighted / priority load balancing implicitly).
@@ -729,7 +837,7 @@ API + fake provider work.
 * An umbrella `GlobalLoadBalancer` CRD unifying ATM and AFD (open
   question §11.4 of Proposal 001).
 
-## 10. Success criteria
+## 11. Success criteria
 
 Feature is considered done when **all** of the following hold on
 `main`:
