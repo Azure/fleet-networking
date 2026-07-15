@@ -28,6 +28,7 @@ The proposals in this folder describe how to close that gap.
 | # | Title | Status |
 |---|-------|--------|
 | [001](./001-afd-global-load-balancing.md) | Azure Front Door + WAF + Private Link based Global Load Balancing | Draft |
+| [002](./002-afd-implementation-plan.md) | Implementation plan and file-by-file scope of changes for Proposal 001 | Draft |
 
 ## Non-goals of this folder
 
