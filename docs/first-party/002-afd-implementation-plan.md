@@ -211,8 +211,31 @@ type FrontDoorProfile struct {
 type FrontDoorSKU string
 
 const (
-    FrontDoorSKUStandard FrontDoorSKU = "Standard_AzureFrontDoor"
-    FrontDoorSKUPremium  FrontDoorSKU = "Premium_AzureFrontDoor"
+    // Premium is the only supported SKU — Private Link origins are
+    // Premium-only and required for SFI-NS253. Standard and classic
+    // AFD are out of scope (see Proposal 001 §2.3).
+    FrontDoorSKUPremium FrontDoorSKU = "Premium_AzureFrontDoor"
+)
+
+// ComplianceMode declares the security/compliance regime a profile
+// (and its backends) must satisfy. See Proposal 001 §2.1.
+type ComplianceMode string
+
+const (
+    // ComplianceModeNone imposes no additional constraints beyond the
+    // structural ones. Suitable for dev/test or non-first-party use.
+    ComplianceModeNone ComplianceMode = "None"
+
+    // ComplianceModeSFINS253 enforces:
+    //   * spec.wafPolicy is required          (CEL on the profile)
+    //   * every referencing FrontDoorBackend must have
+    //     spec.privateLink.enabled = true     (enforced in the backend reconciler,
+    //                                          surfaced as Accepted=False,
+    //                                          Reason=SFIComplianceViolation)
+    //   * WAF policy MUST be in Prevention mode (surfaced as
+    //                                          Programmed=False,
+    //                                          Reason=WAFPolicyNotInPreventionMode)
+    ComplianceModeSFINS253 ComplianceMode = "SFI-NS253"
 )
 
 type FrontDoorProfileSpec struct {
@@ -221,15 +244,32 @@ type FrontDoorProfileSpec struct {
     // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
     ResourceGroup string `json:"resourceGroup"`
 
-    // +kubebuilder:validation:Enum=Standard_AzureFrontDoor;Premium_AzureFrontDoor
+    // Only Premium_AzureFrontDoor is supported; the enum is
+    // single-valued so the field is effectively fixed but stays
+    // present for forward compatibility.
+    // +kubebuilder:validation:Enum=Premium_AzureFrontDoor
     // +kubebuilder:default=Premium_AzureFrontDoor
     // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="sku is immutable"
     SKU FrontDoorSKU `json:"sku,omitempty"`
 
-    // WAFPolicy is REQUIRED when SKU == Premium_AzureFrontDoor for
-    // SFI-NS253 compliance. Validated by a CEL rule.
+    // ComplianceMode declares the security/compliance regime this
+    // profile is subject to. When set to "SFI-NS253", the CEL rule
+    // below requires spec.wafPolicy, and the FrontDoorBackend
+    // reconciler additionally requires PrivateLink on every
+    // backend that references this profile. Immutable: switching
+    // out of SFI-NS253 mode would silently weaken guarantees the
+    // operator relied on — recreate the profile instead.
     // +optional
-    // +kubebuilder:validation:XValidation:rule="self.sku != 'Premium_AzureFrontDoor' || has(self.wafPolicy)",message="wafPolicy is required for Premium_AzureFrontDoor SKU"
+    // +kubebuilder:validation:Enum=None;SFI-NS253
+    // +kubebuilder:default=None
+    // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="complianceMode is immutable"
+    ComplianceMode ComplianceMode `json:"complianceMode,omitempty"`
+
+    // WAFPolicy is REQUIRED when complianceMode == SFI-NS253.
+    // Optional otherwise, so third-party dev/test flows can create
+    // an AFD profile without a WAF attach.
+    // +optional
+    // +kubebuilder:validation:XValidation:rule="self.complianceMode != 'SFI-NS253' || has(self.wafPolicy)",message="wafPolicy is required when complianceMode is SFI-NS253"
     WAFPolicy *FrontDoorWAFPolicyRef `json:"wafPolicy,omitempty"`
 
     // +optional
@@ -505,6 +545,17 @@ Private-endpoint approval:
   `PrivateEndpointStatus = Pending` and sets the backend condition
   `Accepted=False, Reason=PrivateLinkPending`, waiting for
   approval.
+
+Cross-check with profile compliance mode:
+
+* When the referenced `FrontDoorProfile.spec.complianceMode == SFI-NS253`
+  and this backend has `privateLink == nil` or
+  `privateLink.enabled == false`, the reconciler refuses to create
+  any origin and surfaces
+  `Accepted=False, Reason=SFIComplianceViolation` with a message
+  explaining that the parent profile is in SFI mode. This closes the
+  loophole where an operator could create an SFI-compliant profile
+  but then attach a lax backend to it.
 
 ### 4.3 Member `serviceexport` extension
 

@@ -46,17 +46,25 @@ Each of these can change the API surface. Resolve before typing
       - Owner: @rchinchani_microsoft
       - Decision: **Namespaced** (2026-07-17)
 
-- [ ] **1.2 WAF policy required at SKU level?** — CEL rule in
-      Proposal 002 §3.1 currently makes `wafPolicy` required only for
-      `Premium_AzureFrontDoor`. Options:
-      - (a) required for Premium only (current proposal)
-      - (b) required for **any** SKU (stricter; matches SFI intent
-        for internet-facing surfaces)
-      - (c) required only when annotated as first-party
-      - Impact: `+kubebuilder:validation:XValidation` rule, validation
-        tests under `test/apis/v1alpha1/`.
-      - Owner: —
-      - Decision: —
+- [x] **1.2 WAF policy required at SKU level?** — **Resolved:
+      required when `spec.complianceMode == SFI-NS253`, optional
+      otherwise.** The SKU-based gate collapsed once §2.3 of Proposal
+      001 scoped the feature to Premium only. Instead of a hidden
+      annotation, `FrontDoorProfileSpec` gains an explicit
+      `complianceMode: None | SFI-NS253` field (default `None`,
+      immutable). When `SFI-NS253`, a CEL rule requires
+      `spec.wafPolicy` and the `FrontDoorBackend` reconciler
+      additionally requires `spec.privateLink.enabled = true` on every
+      referencing backend (surfaced as
+      `Accepted=False, Reason=SFIComplianceViolation`). This keeps
+      third-party dev/test paths permissive while making SFI intent
+      a first-class, kubectl-discoverable, mistype-safe field, and
+      lets a single Spec field drive both profile-side and
+      backend-side enforcement. Proposal 002 §3.1 and §4.2 updated
+      accordingly.
+      - Owner: @rchinchani_microsoft
+      - Decision: **Explicit Spec field, default None, immutable**
+        (2026-07-17)
 
 - [ ] **1.3 Custom domains in phase 2 or phase 5?**
       - Impact: shape of `FrontDoorProfileStatus` (does it grow a
