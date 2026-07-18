@@ -24,14 +24,27 @@ trackable, checkable list.
 Each of these can change the API surface. Resolve before typing
 `api/v1alpha1/frontdoorprofile_types.go`.
 
-- [ ] **1.1 `FrontDoorProfile` scope** — namespaced (current proposal)
-      vs cluster-scoped. Namespaced matches ATM parity and RBAC
-      isolation; cluster-scoped matches the "shared ingress" mental
-      model.
-      - Impact: `+kubebuilder:resource:scope=` marker, CRD manifest,
-        RBAC rules in `charts/hub-net-controller-manager/templates/rbac.yaml`.
-      - Owner: —
-      - Decision: —
+- [x] **1.1 `FrontDoorProfile` scope** — **Resolved: namespaced.**
+      An AFD `FrontDoorBackend` binds an AFD origin to a specific PLS
+      that fronts a specific `Service` in a specific namespace on a
+      member cluster. Ownership follows the workload: the app team
+      that owns the `Service` also owns the `ServiceExport`,
+      `ServiceImport`, `FrontDoorBackend`, and — for RBAC parity — the
+      `FrontDoorProfile` too. A cluster-scoped profile would split
+      ownership between cluster admins (owning the public hostname +
+      WAF attach) and app teams (owning the origins grafted onto it),
+      which the controller cannot safely arbitrate across namespaces.
+      Namespaced also matches the existing `TrafficManagerProfile`
+      scoping (parity), and the traffic-isolation property is
+      per-flow so nothing about the Private-Link backbone story
+      requires a shared cluster-wide profile. Truly shared AFD
+      profiles remain an operator/IaC concern outside fleet-networking.
+      - Impact: `+kubebuilder:resource:scope=Namespaced` (already the
+        working assumption in Proposal 002 §3.1), CRD manifest,
+        namespaced RBAC in
+        `charts/hub-net-controller-manager/templates/rbac.yaml`.
+      - Owner: @rchinchani_microsoft
+      - Decision: **Namespaced** (2026-07-17)
 
 - [ ] **1.2 WAF policy required at SKU level?** — CEL rule in
       Proposal 002 §3.1 currently makes `wafPolicy` required only for

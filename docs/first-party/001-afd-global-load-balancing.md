@@ -33,10 +33,26 @@ origins, routes, and security policies via the `armcdn` SDK.
 
 Any first-party Microsoft service exposed to the internet must:
 
-* terminate ingress on an Azure-managed edge (AFD Standard/Premium),
+* terminate ingress on an Azure-managed edge (**AFD Premium** — see
+  §2.3, Standard does not support Private Link origins),
 * have a WAF policy in **Prevention** mode attached to that edge, and
 * reach origins **exclusively over Private Link** — the origin must not
   expose a public IP.
+
+**Traffic-isolation property.** With AFD Premium + Private Link
+Service to the AKS internal load balancer, the request path is:
+
+```
+client ──▶ AFD PoP (TLS termination) ──▶ Microsoft backbone
+       ──▶ Private Endpoint in member VNet ──▶ AKS ILB ──▶ pod
+```
+
+No leg of that path traverses the public internet between AFD and the
+origin. The AKS ingress therefore has **no public IP**, which is
+what SFI-NS253 fundamentally requires. This isolation is per-flow:
+each `FrontDoorBackend` binds a specific AFD origin to a specific
+PLS to a specific ILB to a specific `Service`, and there is no
+shared route table between different profiles.
 
 See <https://eng.ms/docs/initiatives/project-standard/standards-categories/sc-networking/ddos/sfi-ns/sfi-ns253-kpi>.
 
@@ -87,9 +103,14 @@ Therefore ATM is today the **only** GLB surface, and it is
   reuse the Azure cloud-provider Service annotations for internal load
   balancer + PLS creation, and rely on the AKS-managed cloud provider
   to program them.
-* Supporting AFD **classic**.  Only AFD Standard / Premium (`Microsoft.Cdn`
-  resource provider, API surface `armcdn`) are in scope, because
-  classic does not support Private Link origins.
+* Supporting AFD **classic** or AFD **Standard**. Only AFD
+  **Premium** (`Microsoft.Cdn` resource provider, API surface
+  `armcdn`, SKU `Premium_AzureFrontDoor`) is in scope. **Private
+  Link origins are a Premium-only feature** — Standard cannot
+  satisfy SFI-NS253's private-origin requirement, and classic does
+  not support Private Link at all. The CEL rule on
+  `FrontDoorProfile.spec.sku` enforces Premium for any profile whose
+  backends require Private Link.
 
 ## 3. User-facing shape
 
@@ -154,6 +175,12 @@ For the example above, the reconciler ensures:
    path patterns / protocol.
 6. One **security policy** binding the endpoint domain(s) to the
    referenced WAF policy.
+
+All traffic from step 2 onward stays on the Microsoft backbone:
+AFD terminates TLS at its edge PoP, then reaches the origin over
+the AFD → PLS → ILB private path. The public IP on the member-cluster
+`Service` is never provisioned, satisfying SFI-NS253's private-origin
+requirement.
 
 ### 3.3 What the member controller creates in each cluster
 
