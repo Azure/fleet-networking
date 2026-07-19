@@ -39,7 +39,10 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/azurefrontdoor"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorcustomdomain"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorprofile"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
@@ -68,6 +71,12 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 
+	// enableFrontDoorFeature gates the AFD (Azure Front Door) POC controllers. Defaults to
+	// false because the feature requires Workload Identity + AFD-scoped subscription config
+	// that is not present on existing hub installations. Existing installs that only enable
+	// the ATM feature are unaffected. See breadcrumb D9 for the compatibility contract.
+	enableFrontDoorFeature = flag.Bool("enable-frontdoor-feature", false, "If set, the Azure Front Door feature (POC) will be enabled.")
+
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 
@@ -75,6 +84,11 @@ var (
 	trafficManagerFeatureRequiredGVKs = []schema.GroupVersionKind{
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerProfileKind),
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerBackendKind),
+	}
+
+	frontDoorFeatureRequiredGVKs = []schema.GroupVersionKind{
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.FrontDoorProfileKind),
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.FrontDoorCustomDomainKind),
 	}
 )
 
@@ -233,6 +247,57 @@ func main() {
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
+	}
+
+	if *enableFrontDoorFeature {
+		// AFD feature is entirely independent of ATM: separate CRDs, separate credential
+		// path (Workload Identity, not cloudConfigFile), and separate Azure sub-clients.
+		// See breadcrumb D6 (auth) and D9 (chart / identity split) for the rationale.
+		klog.V(1).InfoS("Front Door feature is enabled, checking the required CRDs")
+		for _, gvk := range frontDoorFeatureRequiredGVKs {
+			if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
+				klog.ErrorS(err, "Unable to find the required Front Door CRD", "GVK", gvk)
+				exitWithErrorFunc()
+			}
+		}
+
+		klog.V(1).InfoS("Front Door feature is enabled, loading Workload Identity config and creating AFD clients")
+		afdConfig, err := azurefrontdoor.LoadConfigFromEnv()
+		if err != nil {
+			klog.ErrorS(err, "Unable to load AFD Workload Identity config from environment")
+			exitWithErrorFunc()
+		}
+		afdCred, err := azurefrontdoor.NewCredential(afdConfig)
+		if err != nil {
+			klog.ErrorS(err, "Unable to create AFD Workload Identity credential")
+			exitWithErrorFunc()
+		}
+		afdClients, err := azurefrontdoor.NewClients(afdCred, afdConfig.SubscriptionID, azurefrontdoor.DefaultARMClientOptions())
+		if err != nil {
+			klog.ErrorS(err, "Unable to create AFD clients")
+			exitWithErrorFunc()
+		}
+
+		klog.V(1).InfoS("Start to setup FrontDoorProfile controller")
+		if err := (&frontdoorprofile.Reconciler{
+			Client:          mgr.GetClient(),
+			ProfilesClient:  afdClients.Profiles,
+			EndpointsClient: afdClients.AFDEndpoints,
+			Recorder:        mgr.GetEventRecorderFor(frontdoorprofile.ControllerName),
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create FrontDoorProfile controller")
+			exitWithErrorFunc()
+		}
+
+		klog.V(1).InfoS("Start to setup FrontDoorCustomDomain controller")
+		if err := (&frontdoorcustomdomain.Reconciler{
+			Client:              mgr.GetClient(),
+			CustomDomainsClient: afdClients.CustomDomains,
+			Recorder:            mgr.GetEventRecorderFor(frontdoorcustomdomain.ControllerName),
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create FrontDoorCustomDomain controller")
 			exitWithErrorFunc()
 		}
 	}

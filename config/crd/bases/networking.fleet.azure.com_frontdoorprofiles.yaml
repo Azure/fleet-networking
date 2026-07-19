@@ -4,26 +4,26 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
-  name: serviceexports.networking.fleet.azure.com
+  name: frontdoorprofiles.networking.fleet.azure.com
 spec:
   group: networking.fleet.azure.com
   names:
     categories:
     - fleet-networking
-    kind: ServiceExport
-    listKind: ServiceExportList
-    plural: serviceexports
+    kind: FrontDoorProfile
+    listKind: FrontDoorProfileList
+    plural: frontdoorprofiles
     shortNames:
-    - svcexport
-    singular: serviceexport
+    - afdp
+    singular: frontdoorprofile
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.conditions[?(@.type=='Valid')].status
-      name: Is-Valid
+    - jsonPath: .status.endpointHostname
+      name: Endpoint
       type: string
-    - jsonPath: .status.conditions[?(@.type=='Conflict')].status
-      name: Is-Conflicted
+    - jsonPath: .status.conditions[?(@.type=='Programmed')].status
+      name: Is-Programmed
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -32,13 +32,10 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          ServiceExport declares that the associated service should be exported to other clusters.
-          The annotation "networking.fleet.azure.com/weight" specifies the proportion of requests forwarded to the cluster
-          within a serviceImport.
-          The actual value is the ceiling value of a number computed as weight/(sum of all weights in the serviceImport).
-          If weight is set to 0, no traffic should be forwarded for this entry.
-          If unspecified, weight defaults to 1.
-          The value should be in the range [0, 1000].
+          FrontDoorProfile manages an Azure Front Door profile and its default endpoint
+          using the cloud-native (Kubernetes) API. It is the L7 counterpart to
+          TrafficManagerProfile.
+          https://learn.microsoft.com/en-us/azure/frontdoor/front-door-overview
         properties:
           apiVersion:
             description: |-
@@ -57,10 +54,39 @@ spec:
             type: string
           metadata:
             type: object
+          spec:
+            description: The desired state of FrontDoorProfile.
+            properties:
+              resourceGroup:
+                description: |-
+                  ResourceGroup is the name of the Azure resource group in which the
+                  underlying Front Door profile will be created. Immutable after creation.
+                maxLength: 90
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: resourceGroup is immutable
+                  rule: self == oldSelf
+              sku:
+                description: |-
+                  Sku selects the Front Door SKU. Only Standard and Premium are supported.
+                  Immutable after creation (SKU upgrades are not supported in-place by AFD).
+                enum:
+                - Standard_AzureFrontDoor
+                - Premium_AzureFrontDoor
+                type: string
+                x-kubernetes-validations:
+                - message: sku is immutable
+                  rule: self == oldSelf
+            required:
+            - resourceGroup
+            - sku
+            type: object
           status:
-            description: ServiceExportStatus contains the current status of an export.
+            description: The observed status of FrontDoorProfile.
             properties:
               conditions:
+                description: Current profile status.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -119,7 +145,19 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              endpointHostname:
+                description: |-
+                  EndpointHostname is the default *.azurefd.net hostname assigned by Azure
+                  to the profile's default endpoint. Populated once the endpoint is programmed.
+                type: string
+              resourceID:
+                description: |-
+                  ResourceID is the fully qualified Azure resource ID of the Front Door profile.
+                  Example: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Cdn/profiles/{name}
+                type: string
             type: object
+        required:
+        - spec
         type: object
         x-kubernetes-validations:
         - message: metadata.name max length is 63

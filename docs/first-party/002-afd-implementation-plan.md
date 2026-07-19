@@ -882,8 +882,9 @@ with `ExportMode: L7-FrontDoor`:
 * Rules engine / URL rewriting inside AFD.
 * Multi-region AFD failover policies (uses AFD-native latency /
   weighted / priority load balancing implicitly).
-* Custom domains + managed TLS certificates (deferred to a follow-up
-  proposal 003 once phase 4 lands).
+* Custom domains + managed TLS certificates — **deferred to Phase 5
+  of this proposal**, not to a separate proposal. See §12 for the
+  forward-compatible field shape that Phase 2 must reserve.
 * IPv6 origins (AFD limitation, not ours).
 * An umbrella `GlobalLoadBalancer` CRD unifying ATM and AFD (open
   question §11.4 of Proposal 001).
@@ -892,7 +893,6 @@ with `ExportMode: L7-FrontDoor`:
 
 Feature is considered done when **all** of the following hold on
 `main`:
-
 1. `--enable-frontdoor-feature=true` on both hub and member managers
    yields a Programmed `FrontDoorProfile` with a reachable AFD
    endpoint, in <5 minutes.

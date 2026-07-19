@@ -35,6 +35,16 @@ const (
 	// to make sure that the controller can react to backend deletions if necessary.
 	TrafficManagerBackendFinalizer = fleetNetworkingPrefix + "traffic-manager-backend-cleanup"
 
+	// FrontDoorProfileFinalizer is a finalizer added by the FrontDoorProfile controller to
+	// FrontDoorProfile resources so the controller can delete the underlying Azure Front Door
+	// profile before the Kubernetes object is removed.
+	FrontDoorProfileFinalizer = fleetNetworkingPrefix + "frontdoor-profile-cleanup"
+
+	// FrontDoorCustomDomainFinalizer is a finalizer added by the FrontDoorCustomDomain
+	// controller to FrontDoorCustomDomain resources so the controller can unbind and delete the
+	// underlying Azure Front Door custom domain before the Kubernetes object is removed.
+	FrontDoorCustomDomainFinalizer = fleetNetworkingPrefix + "frontdoor-custom-domain-cleanup"
+
 	// MetricsFinalizer is the finalizer added by the controller to clean up all metrics.
 	MetricsFinalizer = fleetNetworkingPrefix + "metrics-cleanup"
 )
