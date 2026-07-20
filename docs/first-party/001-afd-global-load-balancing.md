@@ -165,11 +165,15 @@ spec:
 
 For the example above, the reconciler ensures:
 
-1. An **AFD profile** `contoso` (SKU `Premium_AzureFrontDoor`) in
-   `fleet-frontdoor-rg`.
-2. An **AFD endpoint** with hostname
-   `contoso-<hash>.z01.azurefd.net`, surfaced back in
-   `status.hostName`.
+1. An **AFD profile** named `fleet-<CR-UID>` (SKU
+   `Premium_AzureFrontDoor`) in `fleet-frontdoor-rg`. Azure resource
+   names are derived from the `FrontDoorProfile` CR's Kubernetes UID,
+   not from `metadata.name`, so a CR rename does not orphan the
+   underlying Azure resource. The `fleet-` prefix keeps the composed
+   endpoint hostname (`fleet-<uid>-<hash>.z01.azurefd.net`) safely
+   under AFD's 46-character endpoint-name cap.
+2. An **AFD default endpoint** (also named `fleet-<CR-UID>`) whose
+   hostname is surfaced back in `status.endpointHostname`.
 3. One **origin group** per `FrontDoorBackend`, with the health probe
    copied from the profile.
 4. One **AFD origin** per (member cluster × exported service) tuple.
@@ -397,31 +401,45 @@ Both new types land first in `api/v1alpha1` (matching how
 `TrafficManager*` graduated) and are promoted to `v1beta1` after
 integration coverage is in place.
 
-#### 4.1.1 `FrontDoorProfile` (shortName `fdp`)
+#### 4.1.1 `FrontDoorProfile` (shortName `afdp`)
 
 Package: `api/v1alpha1/frontdoorprofile_types.go`.
+
+> **POC status (commit `cb02d14`).** The Phase-2 POC currently ships a
+> deliberately minimal `Spec` (`ResourceGroup` + `Sku` only) and no
+> WAF / compliance / health-probe fields yet. The illustrative Go
+> below is the *target* shape; fields marked `POC:` are the ones
+> already in `main`, everything else is Phase-4/5 work. See §6 of
+> Proposal 002 for the phase table.
 
 Key fields (illustrative Go, not final):
 
 ```go
 type FrontDoorProfileSpec struct {
+    // POC: present in cb02d14.
     // +kubebuilder:validation:MinLength=1
     // +kubebuilder:validation:MaxLength=90
     // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
     ResourceGroup string `json:"resourceGroup"`
 
-    // +kubebuilder:validation:Enum=Standard_AzureFrontDoor;Premium_AzureFrontDoor
+    // POC: present in cb02d14, but the POC enum permissively includes
+    // Standard_AzureFrontDoor. Per Proposal 001 §2.3 and the SFI-NS253
+    // scoping decision, GA MUST tighten this enum to Premium only —
+    // Private Link origins (the SFI cornerstone) are Premium-only.
+    // +kubebuilder:validation:Enum=Premium_AzureFrontDoor
     // +kubebuilder:default=Premium_AzureFrontDoor
     SKU FrontDoorSKU `json:"sku,omitempty"`
 
-    // Optional attach of a WAF policy.  Recommended: reference an
-    // externally-managed policy; inline creation is opt-in.
+    // Post-POC: optional attach of a WAF policy. Required when
+    // complianceMode == SFI-NS253 (see Proposal 003 §1.2).
     // +optional
     WAFPolicy *FrontDoorWAFPolicyRef `json:"wafPolicy,omitempty"`
 
+    // Post-POC.
     // +optional
     HealthProbe *FrontDoorHealthProbe `json:"healthProbe,omitempty"`
 
+    // Post-POC.
     // +optional
     // +kubebuilder:validation:Minimum=16
     // +kubebuilder:validation:Maximum=240
@@ -429,17 +447,15 @@ type FrontDoorProfileSpec struct {
 }
 
 type FrontDoorProfileStatus struct {
-    // HostName is the AFD endpoint FQDN, e.g. contoso-<hash>.z01.azurefd.net.
-    // +optional
-    HostName *string `json:"hostName,omitempty"`
-
-    // ResourceID of the underlying Microsoft.Cdn/profiles resource.
+    // POC: present in cb02d14. Full ARM resource ID of the AFD
+    // profile.
     // +optional
     ResourceID string `json:"resourceID,omitempty"`
 
-    // EndpointResourceID of the Microsoft.Cdn/profiles/afdEndpoints resource.
+    // POC: present in cb02d14. The default endpoint's *.azurefd.net
+    // hostname (string, not the full endpoint resource ID).
     // +optional
-    EndpointResourceID string `json:"endpointResourceID,omitempty"`
+    EndpointHostname *string `json:"endpointHostname,omitempty"`
 
     // +optional
     // +listType=map
@@ -448,13 +464,25 @@ type FrontDoorProfileStatus struct {
 }
 ```
 
-Condition types mirror `TrafficManagerProfile`: `Programmed` with
-reasons `Programmed`, `Invalid`, `Pending`, plus a new
-`WAFPolicyNotFound` reason.
+Condition types (POC, per `cb02d14`): `Programmed` with reasons
+`Programmed`, `Invalid`, `AzureError`, `Pending`. `WAFPolicyNotFound`
+and `WAFPolicyNotInPreventionMode` land alongside the WAF fields in
+a later phase. AFD is a global service, so **no `Location` field is
+exposed on the CR**; the controller sets `Location: "Global"`
+internally.
 
-#### 4.1.2 `FrontDoorBackend` (shortName `fdb`)
+There is no separate `EndpointResourceID` status field; the ARM ID
+of the endpoint is deterministically composable from `ResourceID` +
+the fixed endpoint name (`fleet-<UID>`).
+
+#### 4.1.2 `FrontDoorBackend` (shortName `afdb`)
 
 Package: `api/v1alpha1/frontdoorbackend_types.go`.
+
+> **POC status.** `FrontDoorBackend` is **not yet implemented** in
+> `main` (cb02d14 only landed `FrontDoorProfile` + `FrontDoorCustomDomain`).
+> This section describes the target shape; the type + controller
+> land together in Phase 4 (see Proposal 002 §6).
 
 ```go
 type FrontDoorBackendSpec struct {
@@ -488,6 +516,51 @@ the PLS resource ID and the PLS connection approval state
 
 Condition types: `Accepted` (reasons: `Accepted`, `Invalid`, `Pending`,
 `PrivateLinkPending`, `PrivateLinkRejected`).
+
+#### 4.1.3 `FrontDoorCustomDomain` (shortName `afdcd`)
+
+Package: `api/v1alpha1/frontdoorcustomdomain_types.go`. **Present in
+`main` as of cb02d14** (Managed TLS reconciled; BYOC deferred).
+
+`FrontDoorCustomDomain` represents a custom domain attached to a
+`FrontDoorProfile`, including DNS-based ownership validation and the
+TLS binding. Same-namespace-only reference to its parent profile
+(immutable). Immutable `hostname`.
+
+Key fields (as shipped):
+
+```go
+type FrontDoorCustomDomainSpec struct {
+    // Same-namespace ref to the owning FrontDoorProfile. Immutable.
+    ProfileRef FrontDoorProfileReference `json:"profileRef"`
+
+    // Fully qualified custom domain, e.g. www.contoso.com. Immutable.
+    // +kubebuilder:validation:Pattern=`^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`
+    Hostname string `json:"hostname"`
+
+    // TLS.Mode = Managed (AFD-issued cert, auto-renewed) or BYOC
+    // (Key Vault cert). BYOC field shape is present but the
+    // reconciler currently only implements Managed.
+    TLS FrontDoorTLSConfig `json:"tls"`
+}
+
+type FrontDoorCustomDomainStatus struct {
+    ResourceID          string                          `json:"resourceID,omitempty"`
+    ValidationState     FrontDoorDomainValidationState  `json:"validationState,omitempty"`
+    // The value to publish as TXT record at `_dnsauth.<hostname>`.
+    DNSValidationToken  *string                         `json:"dnsValidationToken,omitempty"`
+    DNSValidationExpiry *metav1.Time                    `json:"dnsValidationExpiry,omitempty"`
+    Conditions          []metav1.Condition              `json:"conditions,omitempty"`
+}
+```
+
+Condition: `Programmed` with reasons `Programmed`, `Invalid`,
+`ProfileNotReady`, `AwaitingDNSValidation`, `ValidationFailed`,
+`TLSFailed`, `AzureError`, `Pending`.
+
+The tenant workflow is: apply the CR → controller creates the AFD
+custom domain resource → status surfaces `DNSValidationToken` → the
+tenant publishes a TXT record → AFD validates and `Programmed=True`.
 
 ### 4.2 Additive changes to existing CRDs
 
@@ -528,34 +601,44 @@ proven.
 
 ### 4.3 CRD manifests
 
-`config/crd/bases/` will grow two new files
-(`networking.fleet.azure.com_frontdoorprofiles.yaml` and
+`config/crd/bases/` grows three new files
+(`networking.fleet.azure.com_frontdoorprofiles.yaml`,
+`networking.fleet.azure.com_frontdoorcustomdomains.yaml`, and
 `networking.fleet.azure.com_frontdoorbackends.yaml`) generated by
-`make manifests`.
+`make manifests`. The first two land in `main` as of cb02d14; the
+third arrives with Phase 4.
 
 ## 5. Controller changes
 
 ### 5.1 New hub packages
 
-* `pkg/controllers/hub/frontdoorprofile/`
-  * Reconciles `Microsoft.Cdn/profiles` + `afdEndpoints` and, if
-    requested, the `securityPolicies` binding to the WAF policy.
-* `pkg/controllers/hub/frontdoorbackend/`
-  * Reconciles `originGroups`, `origins`, and `routes` under the
-    referenced profile.
-  * Watches `InternalServiceExport` for changes to
-    `status.privateLinkService.resourceID`.
-  * Handles the AFD private-endpoint approval workflow when
-    auto-approval is not in effect.
+* `pkg/controllers/hub/frontdoorprofile/` — **shipped in cb02d14.**
+  Reconciles `Microsoft.Cdn/profiles` + the default `afdEndpoint`.
+  WAF `securityPolicies` binding lands with the WAF fields on the
+  CR (post-POC).
+* `pkg/controllers/hub/frontdoorcustomdomain/` — **shipped in cb02d14.**
+  Reconciles `Microsoft.Cdn/profiles/customDomains`, surfaces the
+  DNS validation token, and (Managed TLS only for now) binds the
+  cert. BYOC (Key Vault) reconciliation is deferred.
+* `pkg/controllers/hub/frontdoorbackend/` — **not yet in main;
+  Phase 4.** Reconciles `originGroups`, `origins`, and `routes`
+  under the referenced profile; watches `InternalServiceExport` for
+  changes to `status.privateLinkService.resourceID`; handles the AFD
+  private-endpoint approval workflow when auto-approval is not in
+  effect.
 
-Both packages follow the structural conventions of the existing
+All three packages follow the structural conventions of the existing
 `trafficmanager*` packages: `controller.go`, `controller_test.go`,
 `controller_integration_test.go`, `suite_test.go`, plus a shared fake
-provider under `test/common/frontdoor/`.
+provider under `test/common/frontdoor/`. cb02d14 ships the
+happy-path reconciler + finalizer for Profile and CustomDomain, but
+**not** the unit/integration test scaffolding — that is tracked in
+Proposal 002 §6 as remaining Phase-2 work.
 
 ### 5.2 New / extended member packages
 
-* `pkg/controllers/member/serviceexport/` — extended to
+* `pkg/controllers/member/serviceexport/` — **not yet extended in
+  main; Phase 3.** Will be extended to
   (a) detect the AFD path via the annotation-then-inference rule
   described in §3.3, and
   (b) copy the AKS-cloud-provider-set annotation
@@ -566,59 +649,103 @@ provider under `test/common/frontdoor/`.
 
 ### 5.3 SDK wiring
 
-`cmd/hub-net-controller-manager/main.go`:
+The **target** wiring lives in a new binary
+`cmd/hub-afd-controller-manager/main.go` (see §6), separate from
+`cmd/hub-net-controller-manager/main.go`. The wiring adds:
 
-* Add `initAzureFrontDoorClients(cloudConfig)` returning a small
-  bundle of `armcdn` clients:
-  * `armcdn.ProfilesClient`
-  * `armcdn.AFDEndpointsClient`
-  * `armcdn.AFDOriginGroupsClient`
-  * `armcdn.AFDOriginsClient`
-  * `armcdn.RoutesClient`
-  * `armcdn.SecurityPoliciesClient`
-* Add a new flag `--enable-frontdoor-feature` (default `false` until
-  the feature is GA) gating the registration of the two new
-  controllers.
+* `initAzureFrontDoorClients(cfg)` returning the AFD sub-clients
+  (`ProfilesClient`, `AFDEndpointsClient`, `AFDCustomDomainsClient`,
+  and — Phase 4 — `AFDOriginGroupsClient`, `AFDOriginsClient`,
+  `RoutesClient`, `SecurityPoliciesClient`). See
+  `pkg/common/azurefrontdoor/client.go` (shipped in cb02d14).
+* A flag `--enable-frontdoor-feature` gating controller registration.
+
+**POC deviation (cb02d14):** the AFD controllers currently live
+inside `cmd/hub-net-controller-manager/main.go` behind the same
+`--enable-frontdoor-feature` flag (default `false`) as a temporary
+bridge — the sibling binary+chart split is a hard prerequisite for
+GA because of §7 (see the Impossibility flag there).
 
 `go.mod` gains a dependency on
-`github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn`.
+`github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn`
+(pinned at `v1.1.1` in cb02d14).
 
 ### 5.4 Common libraries
 
-* `pkg/common/azurefrontdoor/` — SDK helpers analogous to what
-  `pkg/controllers/hub/trafficmanager*` already inlines, plus
-  origin/route/security-policy naming (reusing the `fleet-<UUID>#…`
-  scheme from `pkg/common/objectmeta`).
-* `pkg/common/azureerrors/` — extended to classify AFD-specific error
-  codes (private-link approval races, WAF policy not found, etc.).
-* `pkg/common/defaulter/` — new defaulters for `FrontDoorProfile` and
-  `FrontDoorBackend`.
+* `pkg/common/azurefrontdoor/` — **shipped in cb02d14** as a single
+  `client.go`: Workload-Identity `Config` + `NewCredential` +
+  `NewClients` factory bundling `ProfilesClient`, `AFDEndpointsClient`,
+  `AFDCustomDomainsClient`. Additional sub-clients (origin, route,
+  security-policy) land alongside `FrontDoorBackend` in Phase 4.
+  Naming helpers (`fleet-<UID>`) live in each controller for now.
+* `pkg/common/objectmeta/` — **shipped in cb02d14**: finalizer
+  constants `networking.fleet.azure.com/frontdoor-profile-cleanup`
+  and `.../frontdoor-custom-domain-cleanup`.
+* `pkg/common/azureerrors/` — extended to classify AFD-specific
+  error codes (private-link approval races, WAF policy not found,
+  etc.).
+* `pkg/common/defaulter/` — new defaulters for `FrontDoorProfile`
+  and `FrontDoorBackend` (Phase 4).
 * Prometheus metrics analogous to the existing ATM ones, e.g.
   `fleet_networking_frontdoor_profile_status_last_timestamp_seconds`.
 
 ## 6. Deployment / charts
 
-* `charts/hub-net-controller-manager/`
-  * New RBAC rules for `frontdoorprofiles` and `frontdoorbackends`
-    (both `*` verbs on the resources and `get`, `update` on
-    `/status`).
-  * New value block `frontDoor.enabled` (default `false`) wired to
-    `--enable-frontdoor-feature`.
-  * Documentation of the AFD-authorized identity requirement (see
-    §7).
-* `charts/member-net-controller-manager/`
-  * Update `--enable-traffic-manager-feature` documentation to note it
-    now toggles ATM only; add `--enable-frontdoor-feature` for the
-    member half of the PLS provisioner.
+The **target** deployment model is a **sibling chart + sibling
+binary**, isolated from the existing hub-net-controller-manager
+chart:
+
+* `charts/hub-afd-controller-manager/` (new) — RBAC on
+  `frontdoorprofiles`, `frontdoorcustomdomains`, `frontdoorbackends`;
+  its own ServiceAccount with its own Workload-Identity federated
+  subject; its own Deployment, values, and PDB. This isolation is
+  what makes the §7 identity-split requirement satisfiable end to
+  end (see §7).
+* `charts/hub-net-controller-manager/` — **unchanged** for AFD. The
+  ATM controller retains its own SA and MI. The `helm template`
+  fixtures under `.github/.copilot/breadcrumbs/baselines/` protect
+  this chart from silent drift.
+* `charts/member-net-controller-manager/` — update `--enable-traffic-manager-feature`
+  documentation to note it toggles ATM only. The member-side AFD
+  work (Phase 3) is a *reader* of Service annotations and does not
+  need Azure SDK access, so a member-side sibling chart is not
+  required; the flag `--enable-frontdoor-feature` is added to the
+  existing member chart.
+
+**POC deviation (cb02d14):** the sibling chart+binary do **not
+exist yet**. The AFD controllers are hosted inside
+`cmd/hub-net-controller-manager` under `--enable-frontdoor-feature`
+(default `false`, preserving zero-diff `helm template` output for
+ATM-only installs). The chart+binary split is a Phase-4/5
+prerequisite and is tracked in Proposal 003 §2.4.
 
 ## 7. Security / SFI considerations
 
-* **Least privilege.**  AFD reconciliation requires the `CDN Profile
-  Contributor` role (or a custom role that grants `Microsoft.Cdn/*`
-  under the AFD resource group).  This is a **strict superset** of
-  what ATM needs and MUST be granted to a **separate managed identity**
-  from the ATM identity — otherwise ATM-only tenants inherit AFD
-  write permissions they do not need.
+* **Least privilege (identity split).** AFD reconciliation requires
+  the `CDN Profile Contributor` role (or a custom role that grants
+  `Microsoft.Cdn/*` under the AFD resource group). It MUST run under
+  a **different Azure identity** from the ATM controller — otherwise
+  ATM-only tenants inherit AFD write permissions they do not need.
+  Authentication uses **Azure AD Workload Identity** (a projected
+  federated token backed by the pod's Kubernetes ServiceAccount);
+  managed-identity-with-mounted-azure.json is not used. Because a
+  federated token is a **pod-level attribute** (the projected token
+  path is set on the pod, not the ServiceAccount alone), the only
+  way to have two Azure identities is to run two pods with two
+  distinct ServiceAccounts. This is why §6 mandates a sibling
+  binary+chart (`cmd/hub-afd-controller-manager` +
+  `charts/hub-afd-controller-manager`) for AFD.
+
+  > **Impossibility flag on the current POC (cb02d14).** The POC
+  > hosts AFD and ATM controllers **in the same pod**
+  > (`hub-net-controller-manager` under `--enable-frontdoor-feature`),
+  > so today they necessarily share one Workload-Identity federated
+  > subject. This means the "separate identity" requirement above is
+  > **not** satisfied by cb02d14. The sibling binary+chart split
+  > (§6) is a hard GA prerequisite, tracked in Proposal 003 §2.4.
+  > Interim POC installs must use a WI subject bound to the *union*
+  > of the AFD and ATM roles, and MUST NOT be used for production
+  > SFI-NS253 workloads.
 * **WAF mode.**  For SFI-NS253 compliance the referenced WAF policy
   MUST be in `Prevention` mode.  The controller validates this at
   admission time (via CEL on `FrontDoorProfile.spec.wafPolicy` if the

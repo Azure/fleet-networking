@@ -235,3 +235,137 @@ export-mode change above.
 - AKS Node auto-provisioning: <https://learn.microsoft.com/azure/aks/node-autoprovision>
 - AKS Application Gateway for Containers: <https://learn.microsoft.com/azure/application-gateway/for-containers/overview>
 - Azure Private Link Service network-policy prerequisite: <https://learn.microsoft.com/azure/private-link/disable-private-link-service-network-policy>
+
+
+---
+
+## Addendum 2 (2026-07-20 T19:00Z): reconcile design docs with the cb02d14 POC
+
+### Requirements
+Reconcile Proposals 001/002/003 with the POC that landed as
+`cb02d14ba31b1a42f5ec51821c7bf3b856836581`
+("feat(hub): POC for Azure Front Door (AFD) controllers behind
+`--enable-frontdoor-feature`"). Flag anything that is impossible or
+incompatible under the current wiring rather than silently
+resolving it.
+
+### User inputs during the conversation
+- **Choice A (SKU):** Premium-only. Drop `Standard_AzureFrontDoor`
+  from the CRD enum (Phase-4 change; document the current POC
+  permissiveness as a risk).
+- **Choice B (identity split):** B-ii — sibling binary
+  (`cmd/hub-afd-controller-manager`) + sibling chart
+  (`charts/hub-afd-controller-manager`) is the target model, so §7
+  of Proposal 001 is satisfiable. Docs-only this session
+  (**B-ii/a**); actual code split lands in a follow-up commit.
+
+### Facts extracted from cb02d14 by direct code reads
+- **API types shipped:**
+  - `api/v1alpha1/frontdoorprofile_types.go` — Spec = {ResourceGroup,
+    Sku}; Status = {ResourceID, EndpointHostname, Conditions}; Sku
+    enum permissively includes both `Standard_AzureFrontDoor` and
+    `Premium_AzureFrontDoor`; immutability CEL on ResourceGroup and
+    Sku; metadata.name < 64 CEL.
+  - `api/v1alpha1/frontdoorcustomdomain_types.go` — Spec =
+    {ProfileRef (same-namespace, immutable), Hostname (immutable),
+    TLS = {Mode (Managed|BYOC), KeyVaultCertificate}}; Status =
+    {ResourceID, ValidationState, DNSValidationToken,
+    DNSValidationExpiry, Conditions}. BYOC reconciliation deferred.
+  - Neither `FrontDoorBackend` nor member-side changes are in cb02d14.
+- **Controllers shipped:**
+  - `pkg/controllers/hub/frontdoorprofile/controller.go` — happy-path
+    reconcile; finalizer `networking.fleet.azure.com/frontdoor-profile-cleanup`;
+    Azure name `fleet-<UID>`; Azure Location hardcoded to `Global`.
+  - `pkg/controllers/hub/frontdoorcustomdomain/controller.go`
+    (Managed TLS only).
+  - No unit tests, no envtest scaffolding, no fake provider yet.
+- **Client library shipped:** `pkg/common/azurefrontdoor/client.go`
+  (single file). Auth = **Workload Identity** via
+  `azidentity.NewWorkloadIdentityCredential`; env vars
+  `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+  `AZURE_FEDERATED_TOKEN_FILE`, `AZURE_SUBSCRIPTION_ID`. Bundles
+  `Profiles`, `AFDEndpoints`, `AFDCustomDomains` sub-clients.
+  `armcdn v1.1.1` pinned in `go.mod`.
+- **Wiring in `cmd/hub-net-controller-manager/main.go`** — flag
+  `--enable-frontdoor-feature` (default `false`); when true, calls
+  `azurefrontdoor.LoadConfigFromEnv() → NewCredential → NewClients`
+  and registers both AFD reconcilers on the shared manager. **No
+  sibling binary or sibling chart.**
+
+### Incompatibilities / impossibilities flagged in docs
+1. **Identity split (SFI blocker).** POC hosts AFD + ATM in one pod
+   → one WI federated subject → §7 not satisfied. Sibling
+   binary+chart is a hard GA prerequisite. Flagged in 001 §7
+   "Impossibility flag on the current POC", 002 §2.6 and §9 risks,
+   003 §2.4 and readiness table.
+2. **SKU enum permissiveness.** POC allows Standard; docs require
+   Premium-only. Flagged as a Phase-4 CRD tightening in 002 §3.1
+   Sku comment and §9 risks.
+3. **`FrontDoorBackend` unimplemented.** Docs described it as a peer
+   to `FrontDoorProfile`; marked "not yet in main; Phase 4" in 001
+   §4.1.2 / §5.1 and 002 §2.3.
+4. **AFD/ATM coexistence guard unenforced.** Depends on
+   `FrontDoorBackend`; flagged in 002 §9.
+5. **BYOC (Key Vault) TLS unimplemented.** Field shape present but
+   reconciler no-ops; flagged in 002 §9.
+6. **Custom domain route binding deferred.** A `FrontDoorCustomDomain`
+   by itself does not front traffic; needs `FrontDoorBackend`.
+   Noted in 002 §3.3.
+
+### Files touched this session (Addendum 2)
+- `docs/first-party/001-afd-global-load-balancing.md`
+  - §3.2 rewritten to describe the `fleet-<UID>` naming pattern and
+    the AFD-endpoint 46-char cap that motivates it.
+  - §4.1.1 `shortName: afdp` (was `fdp`); illustrative Go now marks
+    `POC:` fields vs. post-POC fields; Status shape corrected
+    (`EndpointHostname` string, `ResourceID` string, no separate
+    `EndpointResourceID`).
+  - §4.1.2 `shortName: afdb`; added "not yet implemented" callout.
+  - **New §4.1.3** `FrontDoorCustomDomain` (`afdcd`) — full
+    description of Spec/Status/Conditions/finalizer.
+  - §4.3 lists three CRD YAMLs, notes two are shipped.
+  - §5.1 marks profile+customdomain controllers "shipped in cb02d14",
+    backend controller "not yet in main; Phase 4".
+  - §5.2 clarifies member changes are Phase 3.
+  - §5.3 describes target sibling-binary wiring; documents POC
+    deviation.
+  - §5.4 aligns to actual `azurefrontdoor/client.go` and finalizer
+    constants.
+  - **§6 rewritten** to describe the sibling-chart target model with
+    an explicit "POC deviation" paragraph.
+  - **§7 rewritten** — Workload Identity, identity-split impossibility
+    flag on cb02d14.
+- `docs/first-party/002-afd-implementation-plan.md`
+  - §2.1 file table: marks shipped rows, adds custom-domain type,
+    drops Location from Spec, notes Sku tightening as future work.
+  - §2.2 chart section: new sibling chart `charts/hub-afd-controller-manager`;
+    ATM chart unchanged; POC deviation call-out.
+  - §2.3 controllers table: shipped/pending markers.
+  - §2.5 common libs: aligned to shipped `client.go`.
+  - §2.6 entry points: new `cmd/hub-afd-controller-manager/main.go`;
+    documents the POC bridge.
+  - §3.1 `shortName: afdp`; metadata.name < 64 CEL; Sku comment
+    describes POC vs. GA; note about UID-based naming.
+  - **New §3.3** describes shipped `FrontDoorCustomDomain`.
+  - Renumbered old §3.3 → §3.4 (additive changes to existing types);
+    updated cross-references.
+  - §6 phase table: prepended "Current phase status" block.
+  - §9 risks: two new rows (Sku permissiveness, identity split) plus
+    two more (backend coexistence guard unenforced, BYOC deferred).
+  - §11 success criterion 1: references sibling chart install as the
+    canonical form; POC bridge as bridge.
+- `docs/first-party/003-pre-implementation-checklist.md`
+  - §1.3 (custom domains): resolved — separate CRD in Phase 2.
+  - §2.4 (security review): resolved and expanded — sibling
+    binary+chart is a hard GA prerequisite.
+  - §3.2 (armcdn compat): resolved — pinned at v1.1.1.
+  - §3.6 (azcloudconfig): resolved — WI supersedes it.
+  - §6 readiness table: added SFI identity-split row and "POC
+    reconciled with docs" row.
+  - Fixed §3.3 → §3.4 citation.
+
+### Not touched
+- The ~130 unrelated unstaged files in `api/`, `pkg/`, `cmd/`,
+  `test/`, `hack/`.
+- Any code files (per B-ii/a: docs only this session; code split
+  is a follow-up commit).

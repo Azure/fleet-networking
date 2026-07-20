@@ -66,12 +66,20 @@ Each of these can change the API surface. Resolve before typing
       - Decision: **Explicit Spec field, default None, immutable**
         (2026-07-17)
 
-- [ ] **1.3 Custom domains in phase 2 or phase 5?**
-      - Impact: shape of `FrontDoorProfileStatus` (does it grow a
-        `CustomDomains []` list now?), extra controller code in
-        phase 2 vs. clean deferral.
-      - Owner: —
-      - Decision: —
+- [x] **1.3 Custom domains in phase 2 or phase 5?** — **Resolved:
+      Phase 2, as a separate CRD.** cb02d14 landed
+      `FrontDoorCustomDomain` (`afdcd`) alongside `FrontDoorProfile`
+      rather than growing `FrontDoorProfileStatus` with a
+      `CustomDomains []` list. This keeps DNS-validation lifecycle
+      (Pending → Approved) and TLS binding (Managed today; BYOC
+      reserved) in a dedicated reconciler with its own finalizer,
+      rather than complicating the profile controller. Route binding
+      (attaching a validated custom domain to an AFD route) waits
+      for `FrontDoorBackend` in Phase 4. Proposal 001 §4.1.3 and
+      Proposal 002 §3.3 describe the shipped shape.
+      - Owner: @rchinchani_microsoft
+      - Decision: **Separate CRD in Phase 2** (2026-07-19,
+        commit cb02d14)
 
 - [ ] **1.4 Umbrella `GlobalLoadBalancer` CRD later?** — if yes,
       invest in shared abstractions in `pkg/common/globalload/` from
@@ -95,7 +103,7 @@ Each of these can change the API surface. Resolve before typing
       fallback). This preserves upstream mcs-api (KEP-1645) parity
       for `ServiceExport` / `MultiClusterService`, which is a
       repository preference. Proposals 001 §3.3 / §4.2 and 002 §2.1
-      / §3.3 / §4.3 / §8 updated accordingly.
+      / §3.4 / §4.3 / §8 updated accordingly.
       - Owner: @rchinchani_microsoft
       - Decision: **Annotation + inference; no `Spec` change**
         (2026-07-20)
@@ -129,10 +137,26 @@ Each of these can change the API surface. Resolve before typing
       §2.3 and Proposal 002 §10 state L4 (raw TCP/UDP) is out of
       scope. Confirm no first-party adopter blocks on L4 before
       we commit to the phased plan.
-- [ ] **2.4 Security review of identity split** — Proposal 001 §7
+- [x] **2.4 Security review of identity split** — Proposal 001 §7
       requires a separate managed identity for AFD vs. ATM.
-      Confirm charts / Helm can express this without breaking
-      existing ATM installations.
+      **Structural blocker uncovered by cb02d14:** the POC hosts
+      both AFD and ATM controllers in the same pod, so today they
+      necessarily share one Workload-Identity federated subject —
+      Kubernetes does not allow two federated identities per pod
+      (the projected-token path is a pod-level attribute).
+      Satisfying §7 requires a sibling binary
+      (`cmd/hub-afd-controller-manager`) + sibling chart
+      (`charts/hub-afd-controller-manager`). Docs updated to
+      describe this end state (Proposal 001 §6, §7; Proposal 002
+      §2.2, §2.6). Actual code split is a follow-up commit, gated on
+      security-reviewer sign-off before Phase 5 (GA).
+      - Impact: adds one new binary, one new chart, one new Docker
+        image, corresponding CI wiring. No changes required to the
+        controller packages themselves.
+      - Owner: @rchinchani_microsoft (docs); TBD (code split)
+      - Decision: **Sibling binary+chart is a hard GA prerequisite;
+        POC bridge uses a shared WI subject and is explicitly
+        non-production** (2026-07-20)
 
 ## 3. Spikes (each ≤ 1 engineer-day)
 
@@ -152,17 +176,14 @@ run in parallel with Phase 1 API work.
       - Owner: —
       - Result: —
 
-- [ ] **3.2 `armcdn` SDK compatibility with pinned `azure-sdk-for-go`** —
-      `sigs.k8s.io/cloud-provider-azure` transitively pins
-      `azure-sdk-for-go/sdk/azcore`. Run:
-      ```
-      go get github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn@latest
-      go mod tidy && go build ./...
-      ```
-      on a throwaway branch and confirm no conflict.
-      - Impact: `go.mod` version pin decisions.
-      - Owner: —
-      - Result: —
+- [x] **3.2 `armcdn` SDK compatibility with pinned `azure-sdk-for-go`** —
+      **Resolved by cb02d14.**
+      `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn v1.1.1`
+      was pinned and `go mod tidy` / `go build ./...` succeed
+      alongside the existing `sigs.k8s.io/cloud-provider-azure`
+      pin. No dependency conflict.
+      - Owner: @rchinchani_microsoft
+      - Result: **compatible** (2026-07-19, commit cb02d14)
 
 - [ ] **3.3 Cross-subscription PLS auto-approval** — confirm that
       listing the AFD subscription in
@@ -200,16 +221,18 @@ run in parallel with Phase 1 API work.
       - Owner: —
       - Result: —
 
-- [ ] **3.6 Interaction with existing `azcloudconfig` in charts** —
-      the ATM path today uses a single `azurecloudconfig.yaml` per
-      chart (see `charts/hub-net-controller-manager/templates/azurecloudconfig.yaml`).
-      Decide whether AFD reuses the same file (single identity for
-      all Azure work — simpler but violates SFI least-privilege) or
-      gets its own (two configs, two mounts). Proposal 001 §7
-      assumes the latter — confirm this is chart-expressible without
-      breaking existing users.
-      - Owner: —
-      - Result: —
+- [x] **3.6 Interaction with existing `azcloudconfig` in charts** —
+      **Resolved: obsoleted by the Workload-Identity + sibling-chart
+      decision.** cb02d14 picked Azure AD Workload Identity for AFD
+      auth (env vars `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+      `AZURE_FEDERATED_TOKEN_FILE`, `AZURE_SUBSCRIPTION_ID`), not
+      `azurecloudconfig.yaml`. Combined with the sibling-chart
+      decision (§2.4 above), AFD gets its own ServiceAccount, its
+      own WI federation, and its own values file — the ATM chart's
+      `azurecloudconfig.yaml` remains untouched.
+      - Owner: @rchinchani_microsoft
+      - Result: **WI supersedes azcloudconfig for AFD; ATM chart
+        unmodified** (2026-07-20)
 
 - [ ] **3.7 AKS Automatic Deployment Safeguards install validation** —
       run `helm template charts/hub-net-controller-manager | kubectl
@@ -253,18 +276,23 @@ Explicitly *not* required before starting Phase 1:
 |----------------------------|--------|
 | Design coherent            | ✅     |
 | Scope and phases documented | ✅     |
-| Open design decisions closed | ⏳ (§1) |
+| Open design decisions closed | ⏳ (§1.4 only) |
 | Maintainer review          | ⏳ (§2.1) |
 | SFI sign-off               | ⏳ (§2.2) |
-| SDK / cloud-provider spikes | ⏳ (§3.1–3.4) |
+| **SFI identity split (sibling binary+chart)** | ⏳ **hard GA blocker (§2.4)** |
+| SDK / cloud-provider spikes | ⏳ (§3.1, §3.3, §3.4) |
 | Dev-sub ready              | ⏳ (§3.5) |
 | AKS Automatic install validated | ⏳ (§3.7) |
+| POC (cb02d14) reconciled with docs | ✅ (2026-07-20) |
 
 **Recommendation:** start Phase 1 (API types + defaulters + CEL, no
 controllers) *only after* §1.1, §1.2, §1.5, §2.1 are closed. Phases
 2–4 additionally require §3.1–3.4 and §3.5. Phase 4 additionally
 requires §3.7 (AKS Automatic Deployment Safeguards) to be run and
-its findings folded into the chart hygiene work.
+its findings folded into the chart hygiene work. **Phase 5 (GA)
+additionally requires §2.4** — no SFI-NS253 install can be declared
+until the sibling AFD binary+chart replace the current in-binary
+bridge.
 
 Update the checkboxes above as items close; when every box in §1–§3
 is checked, Phase 2 can begin.
