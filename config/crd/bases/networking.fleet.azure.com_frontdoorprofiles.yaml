@@ -57,6 +57,42 @@ spec:
           spec:
             description: The desired state of FrontDoorProfile.
             properties:
+              complianceMode:
+                default: None
+                description: |-
+                  ComplianceMode declares the security/compliance regime this profile
+                  (and its backends) must satisfy. See docs/first-party/001-afd-global-load-balancing.md
+                  §2.1 for the design and docs/first-party/003-pre-implementation-checklist.md §1.2
+                  for the operational requirements.
+
+                  Effects of the value:
+                    - "None" (default): no additional constraints beyond the structural
+                      ones. Suitable for dev/test tenants that don't need SFI-NS253
+                      compliance, and lets the profile be created without a WAF policy
+                      attach (WAFPolicy stays optional).
+                    - "SFI-NS253":
+                        * spec.wafPolicy is REQUIRED (enforced by the cross-field CEL
+                          rule on this Spec — see below).
+                        * The FrontDoorProfile reconciler additionally verifies that the
+                          referenced WAF policy exists and is in Prevention mode
+                          (surfaced as Programmed=False with
+                          Reason=WAFPolicyNotFound / WAFPolicyNotInPreventionMode).
+                        * Every FrontDoorBackend that references this profile must have
+                          spec.privateLink.enabled = true (enforced in the backend
+                          reconciler, surfaced as Accepted=False,
+                          Reason=SFIComplianceViolation).
+
+                  Immutable after creation: switching a live profile out of SFI-NS253
+                  would silently weaken guarantees the operator relied on when
+                  creating the profile — recreate the profile if the compliance regime
+                  legitimately needs to change.
+                enum:
+                - None
+                - SFI-NS253
+                type: string
+                x-kubernetes-validations:
+                - message: complianceMode is immutable
+                  rule: self == oldSelf
               resourceGroup:
                 description: |-
                   ResourceGroup is the name of the Azure resource group in which the
@@ -83,6 +119,36 @@ spec:
                 x-kubernetes-validations:
                 - message: sku is immutable
                   rule: self == oldSelf
+              wafPolicy:
+                description: |-
+                  WAFPolicy attaches a Web Application Firewall policy to the profile.
+
+                  Required when ComplianceMode is "SFI-NS253"; optional otherwise (dev/test
+                  tenants may run without a WAF attach). The cross-field CEL rule below
+                  rejects any object that violates this at admission time so that a
+                  misconfigured SFI-NS253 profile never even reaches the reconciler.
+                properties:
+                  resourceID:
+                    description: |-
+                      ResourceID is the fully qualified ARM resource ID of an existing
+                      Microsoft.Network/frontdoorwebapplicationfirewallpolicies resource.
+
+                      Format:
+                        /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/frontdoorwebapplicationfirewallpolicies/{name}
+
+                      The policy may live in a different subscription/RG from the AFD
+                      profile; cross-subscription references are supported at the Azure
+                      level, subject to the AFD controller's managed identity having
+                      Microsoft.Network/frontDoorWebApplicationFirewallPolicies/read on
+                      the policy's scope. Cross-sub RBAC failures surface as
+                      Programmed=False, Reason=WAFPolicyNotFound with the exact ID in the
+                      message (per docs/first-party/002-afd-implementation-plan.md §11).
+                    minLength: 1
+                    pattern: ^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Network/frontdoorwebapplicationfirewallpolicies/[^/]+$
+                    type: string
+                required:
+                - resourceID
+                type: object
             required:
             - resourceGroup
             - sku
@@ -167,6 +233,8 @@ spec:
         x-kubernetes-validations:
         - message: metadata.name max length is 63
           rule: size(self.metadata.name) < 64
+        - message: spec.wafPolicy is required when spec.complianceMode is SFI-NS253
+          rule: self.spec.complianceMode != 'SFI-NS253' || has(self.spec.wafPolicy)
     served: true
     storage: true
     subresources:
