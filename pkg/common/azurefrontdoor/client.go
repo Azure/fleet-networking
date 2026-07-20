@@ -50,12 +50,22 @@ import (
 	azcloud "github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
 	// armcdn is the Azure SDK for Front Door Standard/Premium. Pinned to v2
 	// (2024-02-01 API) so tests can use the SDK-provided armcdn/v2/fake
 	// package — v1.x does not ship a fake subpackage. The imported name
 	// stays `armcdn` (no explicit alias needed) so call sites are unchanged
 	// across the version bump.
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2"
+
+	// armfrontdoor is the classic Front Door SDK; we do NOT use its classic
+	// FrontDoors/FrontendEndpoints APIs (superseded by armcdn's AFD types),
+	// but its PoliciesClient is the ONLY SDK-supported way to read/write
+	// Microsoft.Network/frontdoorwebapplicationfirewallpolicies — the WAF
+	// policy type that FrontDoorProfile.spec.wafPolicy references. Pinned to
+	// v1.4.0 because it ships an armfrontdoor/fake package (PoliciesServer)
+	// mirroring the armcdn/v2/fake pattern; earlier v1.x releases don't.
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor"
 )
 
 // Environment variable names read by LoadConfigFromEnv. AZURE_CLIENT_ID,
@@ -143,15 +153,38 @@ func NewCredential(c *Config) (azcore.TokenCredential, error) {
 // Clients bundles the AFD sub-clients used by the Phase 2 POC controllers.
 // Kept small on purpose; additional clients (routes, origins, secrets) can be
 // added as later phases need them.
+//
+// The bundle intentionally mixes two SDK modules:
+//   - armcdn/v2: Microsoft.Cdn/profiles/* (the AFD profile itself, endpoints,
+//     custom domains, security-policy attaches).
+//   - armfrontdoor: Microsoft.Network/frontdoorwebapplicationfirewallpolicies
+//     (the WAF policy resource referenced by
+//     FrontDoorProfile.spec.wafPolicy.resourceID). Kept as a distinct client
+//     because it lives under a different ARM resource provider and the
+//     armcdn SDK deliberately does not expose it (WAF policies pre-date the
+//     AFD Standard/Premium API surface).
 type Clients struct {
-	Profiles      *armcdn.ProfilesClient
-	AFDEndpoints  *armcdn.AFDEndpointsClient
-	CustomDomains *armcdn.AFDCustomDomainsClient
+	Profiles         *armcdn.ProfilesClient
+	AFDEndpoints     *armcdn.AFDEndpointsClient
+	CustomDomains    *armcdn.AFDCustomDomainsClient
+	SecurityPolicies *armcdn.SecurityPoliciesClient
+	// WAFPolicies reads and writes classic AFD WAF policies. Read is used
+	// unconditionally by the profile reconciler to resolve
+	// spec.wafPolicy.resourceID; write is currently unused by the
+	// controllers (all first-party services reference a centrally-managed
+	// policy — see the FrontDoorWAFPolicyRef type doc) but is exposed here
+	// so a future inline-WAF creation path can use it without another
+	// change to this bundle.
+	WAFPolicies *armfrontdoor.PoliciesClient
 }
 
 // NewClients builds the AFD sub-clients using the given credential and target
 // subscription. armOpts may be nil; callers wanting retry/telemetry tuning
 // should pass a shared *arm.ClientOptions.
+//
+// Both underlying SDKs (armcdn/v2, armfrontdoor) share the same credential
+// and arm.ClientOptions so retry/telemetry policy is applied uniformly across
+// AFD and WAF calls.
 func NewClients(cred azcore.TokenCredential, subscriptionID string, armOpts *arm.ClientOptions) (*Clients, error) {
 	if cred == nil {
 		return nil, errors.New("azurefrontdoor: credential is nil")
@@ -159,14 +192,20 @@ func NewClients(cred azcore.TokenCredential, subscriptionID string, armOpts *arm
 	if subscriptionID == "" {
 		return nil, errors.New("azurefrontdoor: subscriptionID is empty")
 	}
-	factory, err := armcdn.NewClientFactory(subscriptionID, cred, armOpts)
+	cdnFactory, err := armcdn.NewClientFactory(subscriptionID, cred, armOpts)
 	if err != nil {
 		return nil, fmt.Errorf("azurefrontdoor: create armcdn client factory: %w", err)
 	}
+	fdFactory, err := armfrontdoor.NewClientFactory(subscriptionID, cred, armOpts)
+	if err != nil {
+		return nil, fmt.Errorf("azurefrontdoor: create armfrontdoor client factory: %w", err)
+	}
 	return &Clients{
-		Profiles:      factory.NewProfilesClient(),
-		AFDEndpoints:  factory.NewAFDEndpointsClient(),
-		CustomDomains: factory.NewAFDCustomDomainsClient(),
+		Profiles:         cdnFactory.NewProfilesClient(),
+		AFDEndpoints:     cdnFactory.NewAFDEndpointsClient(),
+		CustomDomains:    cdnFactory.NewAFDCustomDomainsClient(),
+		SecurityPolicies: cdnFactory.NewSecurityPoliciesClient(),
+		WAFPolicies:      fdFactory.NewPoliciesClient(),
 	}, nil
 }
 

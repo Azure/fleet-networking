@@ -4,7 +4,10 @@ go 1.25.12
 
 require go.goms.io/fleet v0.14.0
 
-require github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2 v2.2.0
+require (
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2 v2.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.4.0
+)
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
