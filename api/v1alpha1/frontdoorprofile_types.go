@@ -14,6 +14,21 @@ const (
 )
 
 // FrontDoorProfileSkuName defines the SKU of the Azure Front Door profile.
+//
+// Design note (see docs/first-party/001-afd-global-load-balancing.md §2.3
+// and docs/first-party/003-pre-implementation-checklist.md §1.2 / §6):
+// the POC enum below accepts both Standard and Premium so this PR does
+// not block dev/lab installs, but SFI-NS253 workloads REQUIRE Premium
+// because Private Link origins (the SFI cornerstone) are Premium-only.
+// Docs proposal 002 §9 tracks a Phase-4 CRD tightening that removes
+// Standard from the enum. In the meantime, callers that declare
+// SFI-NS253 compliance must additionally verify sku == Premium at the
+// application layer.
+//
+// Note there is no Location field on FrontDoorProfileSpec: AFD is a
+// global service and the RP rejects any Location other than "Global",
+// so the controller sets Location internally rather than exposing a
+// single-valued CR field.
 type FrontDoorProfileSkuName string
 
 const (

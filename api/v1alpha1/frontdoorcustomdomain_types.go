@@ -23,10 +23,24 @@ const (
 
 	// FrontDoorTLSModeBYOC binds a customer-supplied certificate stored in
 	// Azure Key Vault. Requires KeyVaultCertificate to be set.
-	// NOTE (POC): reserved. The controller currently only implements the
-	// Managed path; BYOC reconciliation is deferred (see breadcrumb D3).
+	//
+	// NOTE (POC, cb02d14): reserved. The controller currently only implements
+	// the Managed path; BYOC reconciliation is deferred. Cross-field CEL
+	// validation on FrontDoorTLSConfig accepts BYOC + keyVaultCertificate
+	// at admission time, but the reconciler surfaces
+	// Programmed=False, Reason=TLSFailed until Phase 4 adds the Key Vault
+	// binding. Tracked in docs/first-party/002-afd-implementation-plan.md
+	// §9 risks (breadcrumb D3).
 	FrontDoorTLSModeBYOC FrontDoorTLSMode = "BYOC"
 )
+
+// Design note (traffic vs. ownership): a validated FrontDoorCustomDomain
+// only proves ownership and provisions the AFD-side custom-domain
+// resource. It does NOT front any traffic on its own. Attaching a
+// custom domain to an AFD route (so end-user requests actually resolve
+// through it) is the FrontDoorBackend controller's job, which arrives
+// in Phase 4. Cross-reference:
+// docs/first-party/002-afd-implementation-plan.md §3.3.
 
 // FrontDoorDomainValidationState is the current state of DNS-based ownership
 // validation of a custom domain, mirroring the AFD resource provider states.

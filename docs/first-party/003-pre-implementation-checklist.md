@@ -17,6 +17,13 @@ Nothing in Proposals 001 / 002 changes based on this document — it
 converts their open questions and unstated assumptions into a
 trackable, checkable list.
 
+> **Reader's note.** As of the reconciliation pass on 2026-07-20 (see
+> `.github/.copilot/breadcrumbs/2026-07-20-1108-afd-export-mode-mcs-parity.md`,
+> Addendum 2), several items are already `[x] Resolved` by decisions
+> that shipped in commit `cb02d14`. The single current hard blocker
+> for GA is §2.4 (SFI identity split) — see the readiness table in
+> §6.
+
 ---
 
 ## 1. Open design decisions (from Proposal 001 §11)

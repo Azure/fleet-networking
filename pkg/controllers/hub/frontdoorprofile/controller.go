@@ -6,9 +6,28 @@ Licensed under the MIT license.
 // Package frontdoorprofile features the FrontDoorProfile controller (POC) that reconciles
 // FrontDoorProfile CRs to Azure Front Door profiles + their default AFD endpoint.
 //
-// Scope note (POC, see breadcrumb 2026-07-18): this controller implements the
-// happy-path reconciliation only. Full error-classification, metrics, and
-// conflict handling are deferred past POC.
+// Scope note (POC, see breadcrumb 2026-07-18 and Addendum 2 of 2026-07-20-1108):
+//   - Happy-path reconcile only. Full error-classification, metrics, and conflict handling
+//     are deferred past POC.
+//   - No FrontDoorBackend controller exists yet, so this reconciler does not program
+//     originGroups, origins, routes, or securityPolicies. A programmed profile is reachable
+//     at its *.azurefd.net endpoint but has no backends. Backend reconciliation is Phase 4.
+//   - The Sku enum accepts both Standard_AzureFrontDoor and Premium_AzureFrontDoor. SFI-NS253
+//     workloads must use Premium (Private Link is Premium-only); a Phase-4 CRD tightening
+//     removes Standard from the enum. See docs/first-party/002-afd-implementation-plan.md §9.
+//   - Additional Spec fields (WAFPolicy, ComplianceMode, HealthProbe,
+//     OriginResponseTimeoutSeconds) are documented in the proposals but not yet
+//     implemented; they land alongside the FrontDoorBackend work in Phase 4.
+//
+// Identity note (SFI-NS253):
+//   - Proposal 001 §7 requires a separate Azure identity for the AFD controller so
+//     ATM-only tenants do not inherit AFD write permissions. Because a Kubernetes pod
+//     projects exactly one Workload-Identity federated token, satisfying §7 requires
+//     the AFD controllers to run in a separate pod (sibling binary
+//     cmd/hub-afd-controller-manager + sibling chart charts/hub-afd-controller-manager).
+//   - The current POC hosts this reconciler INSIDE cmd/hub-net-controller-manager under
+//     --enable-frontdoor-feature, so it shares one WI subject with ATM. The sibling
+//     binary+chart split is a hard GA prerequisite (docs/first-party/003 §2.4).
 package frontdoorprofile
 
 import (

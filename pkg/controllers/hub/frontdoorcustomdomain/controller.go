@@ -6,12 +6,22 @@ Licensed under the MIT license.
 // Package frontdoorcustomdomain features the FrontDoorCustomDomain controller (POC) that
 // reconciles FrontDoorCustomDomain CRs to Azure Front Door custom domain resources.
 //
-// Scope note (POC, see breadcrumb 2026-07-18):
+// Scope note (POC, see breadcrumb 2026-07-18 and Addendum 2 of 2026-07-20-1108):
 //   - Only the Managed TLS path is implemented. BYOC (Key Vault) is intentionally rejected
 //     with an Invalid condition — the spec field is reserved but the reconciliation path is
-//     deferred (breadcrumb D3).
-//   - The DNS validation token is surfaced in .status only; Kubernetes Event emission for the
-//     token is deferred (breadcrumb D5).
+//     deferred (breadcrumb D3). Tracked in docs/first-party/002-afd-implementation-plan.md
+//     §9 risks.
+//   - The DNS validation token is surfaced in .status only; Kubernetes Event emission for
+//     the token is deferred (breadcrumb D5). Tenants read the token via
+//     `kubectl get frontdoorcustomdomain <name> -o jsonpath='{.status.dnsValidationToken}'`
+//     and publish a TXT record at `_dnsauth.<hostname>` to trigger AFD-side validation.
+//   - A validated FrontDoorCustomDomain only owns the AFD custom-domain resource; it does
+//     NOT front any traffic until a FrontDoorBackend route attaches it. Route attachment is
+//     Phase 4 work.
+//
+// Identity note (SFI-NS253): same caveat as the frontdoorprofile controller — this
+// reconciler shares its Workload-Identity subject with the ATM controller under the POC
+// wiring. See docs/first-party/003 §2.4 for the sibling binary+chart migration plan.
 package frontdoorcustomdomain
 
 import (

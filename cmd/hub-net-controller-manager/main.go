@@ -75,7 +75,21 @@ var (
 	// false because the feature requires Workload Identity + AFD-scoped subscription config
 	// that is not present on existing hub installations. Existing installs that only enable
 	// the ATM feature are unaffected. See breadcrumb D9 for the compatibility contract.
-	enableFrontDoorFeature = flag.Bool("enable-frontdoor-feature", false, "If set, the Azure Front Door feature (POC) will be enabled.")
+	//
+	// POC BRIDGE — NOT A GA WIRING (docs/first-party/003 §2.4):
+	// Hosting the AFD controllers in this binary shares the pod's Workload-Identity
+	// federated subject with the ATM controller. Proposal 001 §7 requires those two
+	// identities to be DISTINCT so ATM-only tenants do not inherit AFD write permissions.
+	// A Kubernetes pod projects exactly one WI token, so the only way to satisfy §7 is to
+	// run the AFD controllers in a SEPARATE pod. The intended GA topology is:
+	//   * cmd/hub-afd-controller-manager/main.go — new sibling binary that owns the AFD
+	//     controllers and its own WI subject.
+	//   * charts/hub-afd-controller-manager/ — new sibling chart with its own
+	//     ServiceAccount, RBAC, PDB, and values (frontDoor.enabled effectively always
+	//     true in that chart — it is a single-purpose chart).
+	// When the sibling wiring lands, the flag below and the frontdoor initialization block
+	// deeper in main() should be removed from this binary in the same change.
+	enableFrontDoorFeature = flag.Bool("enable-frontdoor-feature", false, "If set, the Azure Front Door feature (POC) will be enabled. NOTE: this is a POC bridge; the target GA topology is a separate cmd/hub-afd-controller-manager binary — see the package comment above.")
 
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )

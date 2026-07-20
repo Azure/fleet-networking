@@ -21,6 +21,14 @@ match.
 
 ## 1. Guiding conventions (extracted from the existing codebase)
 
+> **Reader's note.** File tables in §2 tag rows with **Shipped
+> (cb02d14)** when they are already in `main`, or with an operation
+> code (`A`/`M`/`G`) plus a phase reference when they are still
+> future work. `POC status (cb02d14)` and `POC deviation` callouts
+> throughout §3–§9 highlight cases where the current code intentionally
+> diverges from the target design — those are followed up in
+> Proposal 003 §2.4 and the readiness table in §6 of that document.
+
 The AFD implementation MUST mirror the ATM implementation's structural
 choices so that reviewers, on-callers, and future contributors have
 one mental model, not two.

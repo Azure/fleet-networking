@@ -10,6 +10,14 @@
 
 ## 1. Summary
 
+> **Reader's note.** This proposal reflects the state of the branch as
+> of commit `cb02d14` (2026-07-19). Passages tagged `POC:` describe
+> what is already in `main`; passages tagged **POC deviation** or
+> **Impossibility flag** describe gaps between the shipped code and
+> the target design. The reconciliation pass is recorded in
+> `.github/.copilot/breadcrumbs/2026-07-20-1108-afd-export-mode-mcs-parity.md`
+> (Addendum 2). Proposal 003 §6 tracks the outstanding blockers.
+
 Add a new global load-balancing (GLB) data-plane option to
 fleet-networking based on **Azure Front Door (AFD) Standard / Premium**
 with an attached **WAF policy** and **Azure Private Link** to the

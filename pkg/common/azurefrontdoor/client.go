@@ -4,10 +4,40 @@ Licensed under the MIT license.
 */
 
 // Package azurefrontdoor provides Azure client construction for the Front Door
-// (AFD) controllers. Per breadcrumb D6, authentication uses Azure AD Workload
-// Identity (federated token) via azidentity.NewWorkloadIdentityCredential.
-// Per breadcrumb D7, this package is intentionally scoped to AFD only and does
-// not share code with pkg/common/azuretrafficmanager.
+// (AFD) controllers.
+//
+// Authentication (breadcrumb D6):
+//   - Uses Azure AD Workload Identity (federated token) via
+//     azidentity.NewWorkloadIdentityCredential. This is deliberately chosen over
+//     managed-identity-with-mounted-azure.json (the ATM controller's approach)
+//     because Workload Identity is the AKS-supported path forward for new
+//     controllers, integrates cleanly with the projected ServiceAccount token
+//     mounted by the azure-workload-identity mutating webhook, and does not
+//     require the controller pod to read a cloud provider config file.
+//   - Reads AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE,
+//     AZURE_SUBSCRIPTION_ID from the environment. The first three are set
+//     automatically by the workload-identity webhook when the pod's
+//     ServiceAccount is annotated appropriately; AZURE_SUBSCRIPTION_ID is
+//     supplied via chart values.
+//
+// Scope (breadcrumb D7):
+//   - Intentionally does not share code with pkg/common/azuretrafficmanager.
+//     The two controllers have distinct SDKs (armcdn vs. armtrafficmanager),
+//     distinct identities per Proposal 001 §7, and distinct release timelines;
+//     a shared abstraction would couple them without simplifying anything.
+//
+// Identity-sharing note (POC bridge, Proposal 001 §7 gap):
+//   - This package's Config maps 1:1 to the AFD-scoped Workload-Identity
+//     federated subject. Proposal 001 §7 requires that this subject be
+//     DISTINCT from the ATM controller's subject so ATM-only tenants do not
+//     inherit AFD write permissions. Because a Kubernetes pod projects
+//     exactly one WI federated token, achieving that isolation requires the
+//     AFD controllers to run in a separate pod. The current POC hosts them
+//     inside cmd/hub-net-controller-manager under --enable-frontdoor-feature
+//     as a temporary bridge, which shares one subject across both controllers.
+//     Migrating to a sibling binary (cmd/hub-afd-controller-manager) + sibling
+//     chart (charts/hub-afd-controller-manager) is a hard GA prerequisite;
+//     see docs/first-party/003-pre-implementation-checklist.md §2.4.
 package azurefrontdoor
 
 import (
