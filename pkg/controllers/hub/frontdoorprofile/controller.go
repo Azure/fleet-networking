@@ -12,9 +12,6 @@ Licensed under the MIT license.
 //   - No FrontDoorBackend controller exists yet, so this reconciler does not program
 //     originGroups, origins, routes, or securityPolicies. A programmed profile is reachable
 //     at its *.azurefd.net endpoint but has no backends. Backend reconciliation is Phase 4.
-//   - The Sku enum accepts both Standard_AzureFrontDoor and Premium_AzureFrontDoor. SFI-NS253
-//     workloads must use Premium (Private Link is Premium-only); a Phase-4 CRD tightening
-//     removes Standard from the enum. See docs/first-party/002-afd-implementation-plan.md §9.
 //   - Additional Spec fields (WAFPolicy, ComplianceMode, HealthProbe,
 //     OriginResponseTimeoutSeconds) are documented in the proposals but not yet
 //     implemented; they land alongside the FrontDoorBackend work in Phase 4.

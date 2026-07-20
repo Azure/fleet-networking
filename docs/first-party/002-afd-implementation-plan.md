@@ -272,11 +272,6 @@ const (
     // excluded at the CRD enum layer so misconfiguration is rejected
     // at admission time, not surfaced as a Programmed=False condition
     // hours later.
-    //
-    // POC status (cb02d14): the enum currently also lists
-    // Standard_AzureFrontDoor. Tightening to Premium-only is tracked
-    // as a Phase-4 change (see §9 risks) — a CRD-only edit, no
-    // controller changes required.
     FrontDoorSKUPremium FrontDoorSKU = "Premium_AzureFrontDoor"
 )
 
@@ -1114,7 +1109,7 @@ resolved to `L7-FrontDoor` (via annotation or inference):
 | `networking.fleet.azure.com/export-mode` annotation set to `L7-FrontDoor` on a `Service` that lacks the internal-LB + PLS annotations | Silent AFD misconfiguration if the controller falls back to L4 | Controller surfaces `ServiceExportValid=False, Reason=ExportModeAnnotationServiceMismatch` and does not fall back; a platform admission policy (Kyverno / Gatekeeper) can additionally reject the mismatch at write-time to give tenants an immediate error |
 | Charts drift from AKS Automatic Deployment Safeguards (missing resource limits, root user, `hostPath`, non-allow-listed image) | Install blocked on Automatic member clusters even when Standard works | Chart hygiene enumerated in §6.5.1; pre-merge `hack/verify-safeguards.sh` runs `helm template` + a policy check offline; Phase 4 e2e installs on at least one Automatic cluster |
 | Node auto-provisioning (NAP) on AKS Automatic restarts the leader controller replica during scale events | Reconciliation stalls for the leader-election lease duration on every NAP scale | Two replicas per manager, pod anti-affinity across nodes, and leader-election lease tuned to tolerate a ~30s restart window (§6.5.3) |
-| POC `FrontDoorProfile.Spec.Sku` enum permissively accepts `Standard_AzureFrontDoor` | An SFI-intended tenant creates a Standard profile, gets no admission-time rejection, then discovers at backend-creation time that Private Link origins are unavailable | Phase-4 CRD tightening removes `Standard_AzureFrontDoor` from the enum. Interim: document Premium-only requirement in the POC README; add an early-reconcile check that surfaces `Programmed=False, Reason=Invalid, Message="Standard SKU is not supported for SFI-NS253"` immediately. |
+| ~~POC `FrontDoorProfile.Spec.Sku` enum permissively accepts `Standard_AzureFrontDoor`~~ | ~~An SFI-intended tenant creates a Standard profile, gets no admission-time rejection, then discovers at backend-creation time that Private Link origins are unavailable~~ | ✅ **Resolved.** CRD enum tightened to `Premium_AzureFrontDoor` only, with `+kubebuilder:default=Premium_AzureFrontDoor`. Standard profiles are now rejected at admission time. Requires `make manifests` regen of `config/crd/bases/networking.fleet.azure.com_frontdoorprofiles.yaml`. |
 | POC hosts AFD + ATM controllers in the same pod (shared Workload-Identity subject) | Violates Proposal 001 §7 identity-split invariant; ATM-only tenants inherit AFD write permissions if the shared subject is used in production | Sibling binary+chart split (`cmd/hub-afd-controller-manager`, `charts/hub-afd-controller-manager`) is a hard GA prerequisite (Proposal 003 §2.4). POC installs must be gated by an explicit "non-production" acknowledgement in the chart values and are excluded from SFI-NS253 conformance. |
 | `FrontDoorBackend` controller (which enforces the AFD/ATM coexistence invariant — a `ServiceImport` cannot be a backend on both surfaces) does not exist in the POC | Coexistence guard from Proposal 001 §3.5 is unenforced until Phase 4 | Document as an intentional gap in the POC README; e2e in Phase 4 asserts the guard. Nothing in the POC produces AFD origins yet, so the exposure is limited to future manual `az cli` misconfiguration. |
 | Custom domain BYOC (Key Vault) reconciliation is not yet implemented | Tenants who set `TLS.Mode: BYOC` see the CR admission-time validation pass but reconciliation surfaces `Programmed=False, Reason=TLSFailed` | Managed mode is documented as the only supported path in the POC. Phase 4 adds Key Vault binding (`AzureKeyVault` secret) reconciliation. |

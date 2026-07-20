@@ -430,12 +430,19 @@ type FrontDoorProfileSpec struct {
     // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
     ResourceGroup string `json:"resourceGroup"`
 
-    // POC: present in cb02d14, but the POC enum permissively includes
-    // Standard_AzureFrontDoor. Per Proposal 001 §2.3 and the SFI-NS253
-    // scoping decision, GA MUST tighten this enum to Premium only —
-    // Private Link origins (the SFI cornerstone) are Premium-only.
+    // Sku selects the AFD SKU. The CRD enum accepts only Premium
+    // (`Premium_AzureFrontDoor`); Standard is intentionally excluded
+    // because Private Link origins — the SFI-NS253 cornerstone — are
+    // Premium-only, so a Standard profile could never satisfy the
+    // first-party compliance envelope. Failing at admission is
+    // preferable to surfacing `Programmed=False` hours later.
+    // The field is retained (rather than removed as redundant) so
+    // future SKUs can be added additively without a schema break.
+    // Immutable after creation: AFD does not support in-place SKU
+    // upgrades on an existing profile.
     // +kubebuilder:validation:Enum=Premium_AzureFrontDoor
     // +kubebuilder:default=Premium_AzureFrontDoor
+    // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="sku is immutable"
     SKU FrontDoorSKU `json:"sku,omitempty"`
 
     // Post-POC: optional attach of a WAF policy. Required when

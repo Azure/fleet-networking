@@ -15,25 +15,25 @@ const (
 
 // FrontDoorProfileSkuName defines the SKU of the Azure Front Door profile.
 //
-// Design note (see docs/first-party/001-afd-global-load-balancing.md §2.3
-// and docs/first-party/003-pre-implementation-checklist.md §1.2 / §6):
-// the POC enum below accepts both Standard and Premium so this PR does
-// not block dev/lab installs, but SFI-NS253 workloads REQUIRE Premium
-// because Private Link origins (the SFI cornerstone) are Premium-only.
-// Docs proposal 002 §9 tracks a Phase-4 CRD tightening that removes
-// Standard from the enum. In the meantime, callers that declare
-// SFI-NS253 compliance must additionally verify sku == Premium at the
-// application layer.
+// Only Premium is supported (see docs/first-party/001-afd-global-load-balancing.md
+// §2.3 and docs/first-party/003-pre-implementation-checklist.md §1.2). Private
+// Link origins — the SFI-NS253 cornerstone that makes AFD viable as a
+// first-party GLB surface — are Premium-only, so Standard would produce an
+// installation that could not satisfy the compliance regime this feature
+// exists to serve. Restricting the enum at admission time gives tenants an
+// immediate, unambiguous rejection instead of a surprise runtime condition
+// hours later at backend creation.
 //
-// Note there is no Location field on FrontDoorProfileSpec: AFD is a
-// global service and the RP rejects any Location other than "Global",
-// so the controller sets Location internally rather than exposing a
-// single-valued CR field.
+// Note there is no Location field on FrontDoorProfileSpec: AFD is a global
+// service and the RP rejects any Location other than "Global", so the
+// controller sets Location internally rather than exposing a single-valued
+// CR field.
 type FrontDoorProfileSkuName string
 
 const (
-	FrontDoorProfileSkuStandard FrontDoorProfileSkuName = "Standard_AzureFrontDoor"
-	FrontDoorProfileSkuPremium  FrontDoorProfileSkuName = "Premium_AzureFrontDoor"
+	// FrontDoorProfileSkuPremium is the only supported SKU value; see
+	// FrontDoorProfileSkuName for the SFI-NS253 rationale.
+	FrontDoorProfileSkuPremium FrontDoorProfileSkuName = "Premium_AzureFrontDoor"
 )
 
 // +kubebuilder:object:root=true
@@ -71,12 +71,18 @@ type FrontDoorProfileSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="resourceGroup is immutable"
 	ResourceGroup string `json:"resourceGroup"`
 
-	// Sku selects the Front Door SKU. Only Standard and Premium are supported.
-	// Immutable after creation (SKU upgrades are not supported in-place by AFD).
+	// Sku selects the Front Door SKU. Premium is the only supported value
+	// (see the FrontDoorProfileSkuName type comment for the SFI-NS253
+	// rationale). Retained as an explicit field — even though the enum is
+	// currently single-valued — so future SKUs (if AFD ever ships a
+	// compliance-equivalent alternative) can be introduced additively
+	// without a schema break. Immutable after creation because AFD does
+	// not support in-place SKU upgrades on an existing profile.
 	// +required
-	// +kubebuilder:validation:Enum=Standard_AzureFrontDoor;Premium_AzureFrontDoor
+	// +kubebuilder:validation:Enum=Premium_AzureFrontDoor
+	// +kubebuilder:default=Premium_AzureFrontDoor
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="sku is immutable"
-	Sku FrontDoorProfileSkuName `json:"sku"`
+	Sku FrontDoorProfileSkuName `json:"sku,omitempty"`
 }
 
 // FrontDoorProfileStatus defines the observed state of FrontDoorProfile.
