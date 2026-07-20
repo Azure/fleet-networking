@@ -81,14 +81,24 @@ Each of these can change the API surface. Resolve before typing
       - Owner: —
       - Decision: —
 
-- [ ] **1.5 Adding `Spec` to `ServiceExport`** — today
-      `api/v1alpha1/serviceexport_types.go:51-56` has no `Spec` at
-      all. Proposal 002 §3.3 introduces one with a single defaulted
-      field. Confirm with maintainers that this is acceptable
-      (vs. e.g. an annotation-based opt-in that avoids the CRD
-      schema change).
-      - Owner: —
-      - Decision: —
+- [x] **1.5 Adding `Spec` to `ServiceExport`** — **Resolved: no
+      schema change.** The AFD path uses an annotation
+      (`networking.fleet.azure.com/export-mode: L7-FrontDoor |
+      L4-TrafficManager`) following the existing
+      `networking.fleet.azure.com/weight` precedent, and the member
+      controller additionally infers `L7-FrontDoor` from the
+      Service's internal-LB + PLS annotations when the annotation
+      is unset. Precedence: annotation wins when set; a mismatch
+      between annotation and Service surfaces
+      `ServiceExportValid=False,
+      Reason=ExportModeAnnotationServiceMismatch` (no silent
+      fallback). This preserves upstream mcs-api (KEP-1645) parity
+      for `ServiceExport` / `MultiClusterService`, which is a
+      repository preference. Proposals 001 §3.3 / §4.2 and 002 §2.1
+      / §3.3 / §4.3 / §8 updated accordingly.
+      - Owner: @rchinchani_microsoft
+      - Decision: **Annotation + inference; no `Spec` change**
+        (2026-07-20)
 
 ## 2. External review / sign-off gates
 

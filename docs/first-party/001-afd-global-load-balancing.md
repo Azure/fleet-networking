@@ -182,28 +182,62 @@ the AFD → PLS → ILB private path. The public IP on the member-cluster
 `Service` is never provisioned, satisfying SFI-NS253's private-origin
 requirement.
 
-### 3.3 What the member controller creates in each cluster
+### 3.3 What the member controller observes in each cluster
 
-For each `ServiceExport` whose exported `Service` opts into AFD (see
-§4.2), the member controller ensures the underlying `Service` is
-`type: LoadBalancer` and carries the following AKS cloud-provider
-annotations (documented at
-<https://learn.microsoft.com/azure/aks/internal-lb> and
-<https://learn.microsoft.com/azure/aks/private-link-service>):
+The proposal **does not add a new `Spec` field to `ServiceExport`**.
+Upstream mcs-api (KEP-1645) parity is a repository preference, and
+Fleet-specific configuration is already carried via annotations
+(e.g. `networking.fleet.azure.com/weight`). This proposal follows
+the same pattern.
 
-```
-service.beta.kubernetes.io/azure-load-balancer-internal: "true"
-service.beta.kubernetes.io/azure-pls-create: "true"
-service.beta.kubernetes.io/azure-pls-name: fleet-<uuid>
-service.beta.kubernetes.io/azure-pls-ip-configuration-subnet: <subnet>
-service.beta.kubernetes.io/azure-pls-visibility: "*"
-service.beta.kubernetes.io/azure-pls-auto-approval: "<AFD-subscription-id>"
-```
+The member controller determines that an exported `Service` is
+destined for the AFD path using two signals, evaluated in this
+order:
 
-Once AKS programs the PLS, the controller writes the resulting PLS
-resource ID into `InternalServiceExport.status.privateLinkService`.
-The hub AFD-backend controller watches that field and creates / updates
-the corresponding AFD origin.
+1. **Opt-in annotation on `ServiceExport`** (primary when set):
+   ```
+   networking.fleet.azure.com/export-mode: L7-FrontDoor   # or L4-TrafficManager (default)
+   ```
+   Suitable for GitOps pipelines that want the `ServiceExport`
+   to declare intent before the `Service` is fully provisioned.
+2. **Inference from the `Service` itself** (fallback): if the
+   annotation is unset, the controller inspects the exported
+   `Service` and infers `L7-FrontDoor` when **all** of the
+   following AKS cloud-provider annotations are present
+   (documented at <https://learn.microsoft.com/azure/aks/internal-lb>
+   and <https://learn.microsoft.com/azure/aks/private-link-service>):
+
+   ```
+   service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+   service.beta.kubernetes.io/azure-pls-create: "true"
+   service.beta.kubernetes.io/azure-pls-name: <name>
+   service.beta.kubernetes.io/azure-pls-ip-configuration-subnet: <subnet>
+   service.beta.kubernetes.io/azure-pls-visibility: "*"                              # or a comma-separated allow-list
+   service.beta.kubernetes.io/azure-pls-auto-approval: "<AFD-subscription-id>"
+   ```
+
+   Otherwise the export is treated as `L4-TrafficManager` (today's
+   default behaviour).
+
+**Ownership boundary — the member controller does not mutate the
+`Service`.** The Service's annotations are tenant-owned (typically
+authored by the app team via GitOps, or enforced centrally by a
+platform admission policy such as Kyverno / Gatekeeper). The
+controller only *reads* them.
+
+**Precedence and mismatch handling.** When the annotation says
+`L7-FrontDoor` but the underlying `Service` is not internal +
+PLS-enabled, the controller does not fall back to L4 — that would
+silently downgrade an SFI intent. Instead it surfaces
+`ServiceExportValid=False` with
+`Reason=ExportModeAnnotationServiceMismatch` and waits.
+
+Once AKS programs the PLS, the controller copies the resulting PLS
+resource ID (surfaced by the cloud provider as
+`service.beta.kubernetes.io/azure-pls-resource-id`) into
+`InternalServiceExport.status.privateLinkService`. The hub
+AFD-backend controller watches that field and creates / updates the
+corresponding AFD origin.
 
 ## 4. API changes
 
@@ -307,13 +341,21 @@ Condition types: `Accepted` (reasons: `Accepted`, `Invalid`, `Pending`,
 
 ### 4.2 Additive changes to existing CRDs
 
-Only additive fields — no breaking changes.
+Only additive fields — no breaking changes. **`ServiceExport` itself
+gains no new `Spec` field.** Per the mcs-api parity preference (see
+§3.3), Fleet-specific intent is expressed via an annotation:
 
-* `api/v1alpha1/serviceexport_types.go`
-  * New optional `Spec.ExportMode` (enum `L4-TrafficManager` |
-    `L7-FrontDoor`, default `L4-TrafficManager`).  Governs whether the
-    member controller should provision an internal LB + PLS for this
-    Service.
+```
+networking.fleet.azure.com/export-mode: L7-FrontDoor   # optional; default is L4-TrafficManager (i.e., today's behaviour)
+```
+
+The annotation constant lives alongside the existing
+`networking.fleet.azure.com/weight` constant under
+`pkg/common/objectmeta/`. Absence of the annotation is equivalent to
+`L4-TrafficManager`; the member controller may still infer
+`L7-FrontDoor` from the Service's internal-LB + PLS annotations, per
+the precedence rule in §3.3.
+
 * `api/v1alpha1/internalserviceexport_types.go`
   * New optional `Status.PrivateLinkService` block:
 
@@ -363,12 +405,14 @@ provider under `test/common/frontdoor/`.
 
 ### 5.2 New / extended member packages
 
-* `pkg/controllers/member/serviceexport/` — extended to honour
-  `spec.exportMode: L7-FrontDoor` and to project the AKS-cloud-provider
-  PLS annotations onto the exported Service.
-* PLS status is copied into `InternalServiceExport.status.privateLinkService`
-  by the same controller once the AKS cloud provider surfaces the PLS
-  resource ID as a Service annotation (`service.beta.kubernetes.io/azure-pls-resource-id`).
+* `pkg/controllers/member/serviceexport/` — extended to
+  (a) detect the AFD path via the annotation-then-inference rule
+  described in §3.3, and
+  (b) copy the AKS-cloud-provider-set annotation
+  `service.beta.kubernetes.io/azure-pls-resource-id` into
+  `InternalServiceExport.status.privateLinkService` once the PLS is
+  ready. The controller does **not** mutate the exported `Service`;
+  the internal-LB + PLS annotations are tenant-owned.
 
 ### 5.3 SDK wiring
 

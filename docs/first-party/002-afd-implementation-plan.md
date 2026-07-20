@@ -73,14 +73,19 @@ rough size estimate for planning only.
 | A | `api/v1alpha1/frontdoorprofile_types.go` | ~250 lines | See §3.1 |
 | A | `api/v1alpha1/frontdoorbackend_types.go` | ~200 lines | See §3.2 |
 | A | `api/v1alpha1/common_types.go` (edit) | ~20 lines | add `PrivateLinkService` struct shared by FD types |
-| M | `api/v1alpha1/serviceexport_types.go` | ~15 lines | add optional `Spec.ExportMode` |
 | M | `api/v1alpha1/internalserviceexport_types.go` | ~30 lines | add `Status.PrivateLinkService` |
+| M | `pkg/common/objectmeta/annotations.go` (or equivalent) | ~10 lines | add `ExportModeAnnotation` constant next to the existing `weight` annotation |
 | G | `api/v1alpha1/zz_generated.deepcopy.go` | auto | `make generate` |
 | A | `api/v1beta1/frontdoorprofile_types.go` | ~250 lines | Phase-5 copy of v1alpha1 |
 | A | `api/v1beta1/frontdoorbackend_types.go` | ~200 lines | Phase-5 copy of v1alpha1 |
-| M | `api/v1beta1/serviceexport_types.go` | ~15 lines | Phase-5 mirror |
 | M | `api/v1beta1/internalserviceexport_types.go` (if exists; else v1alpha1 only) | ~30 lines | see §3.3 |
 | G | `api/v1beta1/zz_generated.deepcopy.go` | auto | `make generate` |
+
+`ServiceExport` itself is **unchanged** — no new `Spec` field, no
+new `Status` field. Fleet-specific intent is carried via the
+`networking.fleet.azure.com/export-mode` annotation (§3.3). This
+preserves upstream mcs-api (KEP-1645) parity, which is a repository
+preference for `ServiceExport` / `MultiClusterService`.
 
 ### 2.2 CRD manifests and RBAC
 
@@ -114,7 +119,7 @@ rough size estimate for planning only.
 
 | Op | Path | Notes |
 |----|------|-------|
-| M | `pkg/controllers/member/serviceexport/controller.go` | honour `ExportMode`, project PLS annotations, populate `InternalServiceExport.status.privateLinkService` |
+| M | `pkg/controllers/member/serviceexport/controller.go` | resolve export mode (annotation, else infer from Service), populate `InternalServiceExport.status.privateLinkService`; never mutate the Service |
 | M | `pkg/controllers/member/serviceexport/controller_test.go` | new test cases |
 | M | `pkg/controllers/member/serviceexport/controller_integration_test.go` | new Ginkgo `Context` |
 | A | `pkg/controllers/member/serviceexport/frontdoor.go` | helper file for the PLS annotation logic (keeps `controller.go` small) |
@@ -419,29 +424,30 @@ type FrontDoorOriginStatus struct {
 
 ### 3.3 Additive changes to existing types
 
-```go
-// api/v1alpha1/serviceexport_types.go (partial)
+**`ServiceExport` gains no schema change.** Per Proposal 001 §3.3 /
+§4.2, mode selection is carried by an annotation, matching the
+existing `networking.fleet.azure.com/weight` precedent and preserving
+upstream mcs-api (KEP-1645) parity.
 
-type ExportMode string
+```go
+// pkg/common/objectmeta/annotations.go (partial)
 
 const (
-    ExportModeTrafficManager ExportMode = "L4-TrafficManager"
-    ExportModeFrontDoor      ExportMode = "L7-FrontDoor"
-)
+    // ExportModeAnnotation, when set on a ServiceExport, selects the
+    // north-south surface the exported Service should be attached to.
+    // Absence of the annotation is equivalent to L4-TrafficManager
+    // (today's implicit default). See Proposal 001 §3.3 for the
+    // annotation-vs-inference precedence rule.
+    ExportModeAnnotation = "networking.fleet.azure.com/export-mode"
 
-type ServiceExportSpec struct {
-    // +optional
-    // +kubebuilder:validation:Enum=L4-TrafficManager;L7-FrontDoor
-    // +kubebuilder:default=L4-TrafficManager
-    ExportMode ExportMode `json:"exportMode,omitempty"`
-}
+    ExportModeValueTrafficManager = "L4-TrafficManager"
+    ExportModeValueFrontDoor      = "L7-FrontDoor"
+)
 ```
 
-Note: today `ServiceExport` has no `Spec` (verified at
-`api/v1alpha1/serviceexport_types.go:51-56`).  We add one — this
-requires a coordinated CRD manifest regeneration and a Helm upgrade
-gate but is backward compatible because the field is optional with a
-default equal to today’s implicit behaviour.
+No CRD manifest regeneration is required for `ServiceExport`; only
+`InternalServiceExport` gains the `Status.PrivateLinkService` block
+below.
 
 ```go
 // api/v1alpha1/internalserviceexport_types.go (partial)
@@ -565,18 +571,38 @@ member-cluster’s reserved hub namespace.
 
 Additions:
 
-1. If `ServiceExport.Spec.ExportMode == L7-FrontDoor`:
-   * Ensure the underlying `Service` is `type: LoadBalancer` (reject
-     otherwise with a new `ServiceExportInvalid` reason
+1. **Mode resolution** (per Proposal 001 §3.3):
+   * Read the `networking.fleet.azure.com/export-mode` annotation
+     on the `ServiceExport`. If set to `L7-FrontDoor`, treat as AFD
+     mode.
+   * If the annotation is unset, infer AFD mode when the exported
+     `Service` carries **all** of the following annotations:
+     `azure-load-balancer-internal: "true"`,
+     `azure-pls-create: "true"`,
+     `azure-pls-name`,
+     `azure-pls-ip-configuration-subnet`,
+     `azure-pls-visibility`,
+     `azure-pls-auto-approval`.
+     Otherwise treat as `L4-TrafficManager` (today's behaviour).
+   * If the annotation demands `L7-FrontDoor` but the Service is
+     not internal + PLS-enabled, surface
+     `ServiceExportValid=False,
+     Reason=ExportModeAnnotationServiceMismatch` and do not
+     mutate anything. **The controller never writes annotations
+     to the Service** — the internal-LB + PLS annotations are
+     tenant-owned (via GitOps and/or platform admission policy).
+2. When AFD mode is resolved, additionally require:
+   * `Service.Spec.Type == LoadBalancer` (reject otherwise with
+     `ServiceExportInvalid` reason
      `UnsupportedServiceTypeForFrontDoor`).
-   * Ensure it carries the internal-LB + PLS annotations
-     enumerated in §3.3 of proposal 001.
-   * Watch the resulting `Service.Status.LoadBalancer` + the
-     AKS-cloud-provider-set annotation
-     `service.beta.kubernetes.io/azure-pls-resource-id`.
-   * Copy the PLS resource ID into
-     `InternalServiceExport.status.privateLinkService`.
-2. Emit a Kubernetes `Event` on the source `ServiceExport` when the
+   * `Service.Spec.ClusterIP != "None"` (headless services cannot
+     back a PLS; reject with the same reason).
+3. Watch the `Service.Status.LoadBalancer` and the
+   AKS-cloud-provider-set annotation
+   `service.beta.kubernetes.io/azure-pls-resource-id`, and copy
+   the PLS resource ID into
+   `InternalServiceExport.status.privateLinkService`.
+4. Emit a Kubernetes `Event` on the source `ServiceExport` when the
    PLS transitions to `Approved`.
 
 Nothing in this controller talks to Azure directly — the AKS cloud
@@ -700,10 +726,14 @@ Exit criteria:
 Deliverables:
 * §2.4 changes to member `serviceexport`.
 * The additive field on `InternalServiceExport.Status`.
-* Integration test proves that a `ServiceExport` with
-  `spec.exportMode: L7-FrontDoor` produces a PLS in the member
+* Integration test proves that a `ServiceExport` resolved to
+  `L7-FrontDoor` (annotation or inference) with a `Service` that
+  has the internal-LB + PLS annotations produces a PLS in the member
   cluster and the resource ID is reflected in
   `InternalServiceExport.status.privateLinkService.resourceID`.
+  A companion test proves that an annotation-driven mismatch
+  (Service missing the annotations) surfaces
+  `ExportModeAnnotationServiceMismatch` and does not mutate anything.
 
 Exit criteria:
 * Member controller does not require any Azure SDK — the AKS cloud
@@ -746,9 +776,11 @@ API + fake provider work.
 
 ## 7. Backward compatibility, versioning, and downgrade
 
-* Every new field is optional with a defaulted enum value.  Existing
-  `ServiceExport` YAMLs continue to apply and behave identically
-  (default `ExportMode = L4-TrafficManager`).
+* Every new field on `FrontDoor*` types is optional with a defaulted
+  value. `ServiceExport` itself gains no schema change; absence of
+  the `networking.fleet.azure.com/export-mode` annotation is
+  equivalent to today's `L4-TrafficManager` behaviour. Existing
+  `ServiceExport` YAMLs continue to apply and behave identically.
 * Downgrade: since both new CRDs are gated by
   `--enable-frontdoor-feature`, an operator can downgrade by
   disabling the flag and deleting all `FrontDoor*` CRs.  The CRD
@@ -786,23 +818,27 @@ control paths.
 |---------|-----------|
 | `ServiceImport` aggregation | Untouched. `ServiceImport`, `InternalServiceImport`, and `EndpointSlice{Export,Import}` types are not modified. |
 | Pod-to-pod fleet traffic | Uses `EndpointSlice` imports, which carry pod IPs. Neither the addition of an internal LB nor a PLS on the origin `Service` changes pod IPs. |
-| Existing consumers of `ServiceExport` | `Spec.ExportMode` is optional with a default of `L4-TrafficManager`. Existing manifests apply and behave identically. |
+| Existing consumers of `ServiceExport` | `ServiceExport` schema is **unchanged**. Mode selection is an opt-in annotation (`networking.fleet.azure.com/export-mode`); absence keeps today's `L4-TrafficManager` behaviour. Existing manifests apply and behave identically. |
 | MCS `weight` annotation | `networking.fleet.azure.com/weight` (used by MCS aggregation and by the ATM backend) is **not** consumed by the AFD backend controller. AFD weights are declared explicitly on `FrontDoorBackend.spec.weight` and `FrontDoorBackend.status.origins[].weight`. |
-| Existing `Service` types | Only `Services` whose owning `ServiceExport` opts in with `ExportMode: L7-FrontDoor` are subject to the PLS-annotation projection described in §4.3. |
+| Existing `Service` types | Only `Services` that carry the internal-LB + PLS annotations (either authored by the tenant/GitOps or required by a platform admission policy) trigger the AFD path described in §4.3. A `ServiceExport` opted in via annotation but pointing at a Service without those annotations surfaces `ExportModeAnnotationServiceMismatch` and does not mutate anything. |
 
 ### 8.2 What the AFD path adds on top
 
-Setting `ServiceExport.Spec.ExportMode = L7-FrontDoor` causes the
-member `serviceexport` controller to layer three things onto the
-underlying `Service`, alongside the east-west export that would have
-happened anyway:
+When the member `serviceexport` controller resolves an export to
+`L7-FrontDoor` (either by annotation on the `ServiceExport` or by
+inference from the Service's own annotations — see §4.3), the
+controller does exactly one thing beyond the east-west export that
+would have happened anyway:
 
-1. Ensure the `Service` is `type: LoadBalancer` with the
-   `azure-load-balancer-internal: "true"` annotation.
-2. Ensure the PLS-creation annotations (`azure-pls-*`) documented in
-   §3.3 of proposal 001.
-3. Copy the AKS-programmed PLS resource ID back into
-   `InternalServiceExport.status.privateLinkService.resourceID`.
+* Copy the AKS-programmed PLS resource ID from
+  `service.beta.kubernetes.io/azure-pls-resource-id` on the
+  `Service` into `InternalServiceExport.status.privateLinkService`.
+
+The internal-LB + PLS annotations on the `Service` itself are
+authored by the tenant / GitOps or enforced by a platform admission
+policy — **not** written by this controller. That preserves the
+existing ownership boundary: the tenant owns the `Service`, Fleet
+owns the `ServiceExport` → `InternalServiceExport` mirror.
 
 None of the above touches `EndpointSliceExport`, `EndpointSliceImport`,
 or `ServiceImport`. The `Service.ClusterIP` is preserved on a
@@ -812,34 +848,39 @@ byte-for-byte unchanged.
 
 ### 8.3 Guardrails to enforce
 
-To make “east-west stays working” a checked invariant rather than an
-assumption, the member `serviceexport` controller MUST reject the
-opt-in when the underlying `Service` cannot be safely mutated to
-`type: LoadBalancer`:
+Because the member `serviceexport` controller does not mutate the
+tenant-owned `Service`, the guardrails become validation-only —
+surfaced as conditions on the `ServiceExport` — rather than
+mutation refusals:
 
-* Reject if `Service.Spec.Type == ExternalName` — surface
+* If the `networking.fleet.azure.com/export-mode` annotation is
+  `L7-FrontDoor` but the `Service` is `type: ExternalName`, headless
+  (`ClusterIP: None`), or missing the required internal-LB + PLS
+  annotations, surface
+  `ServiceExportValid=False, Reason=ExportModeAnnotationServiceMismatch`
+  and requeue without mutation.
+* If inference selects `L7-FrontDoor` (annotation unset, Service has
+  full internal-LB + PLS annotations) but the `Service` is `type:
+  ExternalName` or headless, surface
   `ServiceExportValid=False, Reason=UnsupportedServiceTypeForFrontDoor`.
-* Reject if `Service.Spec.ClusterIP == "None"` (headless service) —
-  PLS requires an ILB frontend IP; headless services can't provide one.
-* Refuse to overwrite user-provided values on the annotations it
-  manages; if a conflicting value is present, surface
-  `Reason=ConflictingServiceAnnotations` and requeue without mutation.
-* On `ExportMode` transitions **away from** `L7-FrontDoor`, strip only
-  the annotations the controller itself added (tracked via a
-  `fleet.networking.fleet.azure.com/afd-managed-annotations` sentinel
-  annotation) — never remove user annotations.
+* The controller never adds or removes annotations on the `Service`.
+  All ATM ↔ AFD transitions are driven by the tenant / GitOps
+  editing the `Service` and/or `ServiceExport`. This avoids the
+  "who wins" fight between the controller and admission policy.
 
 ### 8.4 Interaction with the ATM backend controller
 
 `TrafficManagerBackend` reads endpoint IPs from the `Service`'s
-external LoadBalancer IP. An operator who flips a `ServiceExport`
-from `L4-TrafficManager` to `L7-FrontDoor` on a `Service` that already
-has a **public** LB IP referenced by an existing `TrafficManagerBackend`
-would inadvertently drop that public IP (internal LB has no public
-frontend). The controller MUST detect this and refuse the transition:
+external LoadBalancer IP. If a tenant flips the underlying `Service`
+to internal + PLS (or opts the export in to AFD via annotation while
+the Service is already internal + PLS), the existing
+`TrafficManagerBackend` would immediately lose its public IP and
+start failing probes. The AFD backend controller MUST refuse to
+program AFD origins in this case:
 
-* If any `TrafficManagerBackend` in the namespace references the same
-  `ServiceImport`, refuse `ExportMode: L7-FrontDoor` with reason
+* If any `TrafficManagerBackend` in the namespace already references
+  the same `ServiceImport`, refuse to accept a `FrontDoorBackend`
+  for that `ServiceImport` with reason
   `ConflictsWithTrafficManagerBackend`, requiring the user to delete
   the ATM backend first (or use a distinct `Service` for AFD).
 
@@ -850,7 +891,7 @@ continues to operate untouched.
 ### 8.5 Test coverage for east-west non-regression
 
 Phase 3 must add integration tests that assert, for a `ServiceExport`
-with `ExportMode: L7-FrontDoor`:
+resolved to `L7-FrontDoor` (via annotation or inference):
 
 * `InternalServiceExport.Spec` is produced identically to the
   `L4-TrafficManager` case (byte diff on spec fields).
@@ -859,6 +900,10 @@ with `ExportMode: L7-FrontDoor`:
   cluster-B → pod-B) still succeeds when the same `Service` is also
   fronted by AFD — covered end-to-end in phase 4 e2e as an added
   assertion, not a separate test.
+* Annotation set to `L7-FrontDoor` against a Service missing
+  internal-LB + PLS annotations surfaces
+  `ExportModeAnnotationServiceMismatch` and produces no
+  `PrivateLinkService` status.
 
 ## 9. Risks and mitigations
 
@@ -869,6 +914,7 @@ with `ExportMode: L7-FrontDoor`:
 | WAF policy reference lives in a different subscription than AFD | Cross-sub RBAC errors | Support fully qualified resource ID; controller surfaces `WAFPolicyNotFound` with the exact ID |
 | Two hub controllers competing for the same AFD profile | Split-brain writes | Owner-references from backends → profile; single reconciler per resource; `client.OwnerReference` gating |
 | SFI review demands additional controls (e.g. mandatory managed identity, mandatory diagnostic settings) | Slippage | Track in open questions §11 of Proposal 001; add controls in phase 5 without blocking phases 1–4 |
+| `networking.fleet.azure.com/export-mode` annotation set to `L7-FrontDoor` on a `Service` that lacks the internal-LB + PLS annotations | Silent AFD misconfiguration if the controller falls back to L4 | Controller surfaces `ServiceExportValid=False, Reason=ExportModeAnnotationServiceMismatch` and does not fall back; a platform admission policy (Kyverno / Gatekeeper) can additionally reject the mismatch at write-time to give tenants an immediate error |
 
 ## 10. Out-of-scope for this proposal
 
