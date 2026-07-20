@@ -68,11 +68,16 @@ spec:
                 - message: resourceGroup is immutable
                   rule: self == oldSelf
               sku:
+                default: Premium_AzureFrontDoor
                 description: |-
-                  Sku selects the Front Door SKU. Only Standard and Premium are supported.
-                  Immutable after creation (SKU upgrades are not supported in-place by AFD).
+                  Sku selects the Front Door SKU. Premium is the only supported value
+                  (see the FrontDoorProfileSkuName type comment for the SFI-NS253
+                  rationale). Retained as an explicit field — even though the enum is
+                  currently single-valued — so future SKUs (if AFD ever ships a
+                  compliance-equivalent alternative) can be introduced additively
+                  without a schema break. Immutable after creation because AFD does
+                  not support in-place SKU upgrades on an existing profile.
                 enum:
-                - Standard_AzureFrontDoor
                 - Premium_AzureFrontDoor
                 type: string
                 x-kubernetes-validations:
