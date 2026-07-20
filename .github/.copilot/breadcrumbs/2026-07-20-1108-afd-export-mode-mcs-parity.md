@@ -141,3 +141,97 @@ code changes in this pass.
 - Existing Fleet-specific annotation precedent: `networking.fleet.azure.com/weight` on `ServiceExport` (see `pkg/common/objectmeta`).
 - AKS internal LB annotations: <https://learn.microsoft.com/azure/aks/internal-lb>
 - AKS PLS annotations: <https://learn.microsoft.com/azure/aks/private-link-service>
+
+---
+
+## Addendum — AKS Automatic support + AFD/ATM coexistence (2026-07-20)
+
+Follow-up in the same session. Two additions on top of the
+export-mode change above.
+
+### Requirements (addendum)
+
+1. Declare **AKS Automatic** a first-class supported member cluster
+   SKU alongside AKS Standard. AFD + PLS data-plane primitives are
+   identical on both SKUs; the only differences are operational
+   (BYO VNet planning, Deployment Safeguards).
+2. Explicitly document **coexistence with the existing Traffic
+   Manager (ATM) path**: fleet-wide, same-namespace-different-Service
+   coexistence is supported; same-`ServiceImport`-on-both-surfaces is
+   forbidden by the AFD backend reconciler.
+3. Capture the security implications (bypass surface, split
+   identities, WAF-per-surface, audit split) and the tenancy
+   implications (weight-annotation divergence, per-surface quotas,
+   cost attribution, migration cadence) in the proposal itself
+   rather than only in chat.
+
+### Plan (addendum)
+
+* `docs/first-party/001-afd-global-load-balancing.md`
+  * New **§3.4** — Member cluster requirements (AKS Standard +
+    Automatic): Standard LB, BYO VNet, PLS NAT subnet with
+    `privateLinkServiceNetworkPolicies: Disabled`, PLS auto-approval
+    for the AFD subscription. Automatic-specific notes for
+    Deployment Safeguards, NAP, cluster-config lockdown, AGC
+    coexistence.
+  * New **§3.5** — Coexistence with ATM: coexistence-granularity
+    table, security implications, tenancy implications, migration
+    playbook.
+  * §2.3 non-goals: add "managing member-cluster provisioning" as
+    an explicit non-goal, pointing at §3.4.
+* `docs/first-party/002-afd-implementation-plan.md`
+  * New **§6.5** — AKS Automatic compatibility: Safeguards
+    requirements, file table (Deployment `securityContext` /
+    `resources`, PDBs, `values.yaml` surface, `hack/verify-safeguards.sh`),
+    NAP handling, e2e coverage note, doc pointers.
+  * §9 risks: two new rows — Safeguards drift, and NAP-driven
+    controller restarts.
+  * §11 success criteria: add criterion 7 — clean install on an AKS
+    Automatic member with Safeguards in Enforcement mode.
+* `docs/first-party/003-pre-implementation-checklist.md`
+  * New **§1.6** — closed: "AKS Automatic as supported member SKU"
+    — Yes, first-class alongside Standard.
+  * New spike **§3.7** — AKS Automatic Deployment Safeguards install
+    validation: `helm template` + policy check offline, fold gaps
+    into §6.5.2 chart hygiene work before Phase 4.
+  * §6 readiness table gains an "AKS Automatic install validated"
+    row.
+
+### Decisions (addendum)
+
+- **AKS Automatic is supported.** No code branch; the safeguards-clean
+  chart is the correct chart for AKS Standard too. Data-plane code
+  paths are identical.
+- **BYO VNet is a platform responsibility, not a Fleet
+  responsibility.** Fleet controllers do not provision or reshape
+  subnets; the PLS NAT subnet must exist with the correct
+  network-policy at cluster create time.
+- **AFD and ATM coexist behind independent feature flags.** No plan
+  to deprecate ATM. Same-`ServiceImport`-on-both-surfaces is
+  forbidden at reconcile time (Proposal 002 §8.4).
+- **Compliance is per-tenant / per-Service, not per-fleet.** A fleet
+  running both surfaces is not "SFI compliant" as a whole; only
+  AFD-fronted Services are. First-party tenancy classes that must be
+  AFD-only should be enforced via cluster admission policy that
+  denies ATM CRs in those namespaces.
+- **ATM → AFD migration is staged, not hot-swapped.** Add a second
+  Service with internal LB + PLS, verify AFD, cut DNS, delete the
+  ATM Service — no controller-driven cutover.
+
+### Changes Made (addendum)
+
+- `docs/first-party/001-afd-global-load-balancing.md` — new §3.4
+  and §3.5 added; §2.3 non-goals extended.
+- `docs/first-party/002-afd-implementation-plan.md` — new §6.5
+  added; §9 risks and §11 success criteria extended.
+- `docs/first-party/003-pre-implementation-checklist.md` — item
+  1.6 added (resolved), spike 3.7 added, §6 readiness table
+  extended.
+
+### References (addendum)
+
+- AKS Automatic overview: <https://learn.microsoft.com/azure/aks/intro-aks-automatic>
+- AKS Deployment Safeguards: <https://learn.microsoft.com/azure/aks/deployment-safeguards>
+- AKS Node auto-provisioning: <https://learn.microsoft.com/azure/aks/node-autoprovision>
+- AKS Application Gateway for Containers: <https://learn.microsoft.com/azure/application-gateway/for-containers/overview>
+- Azure Private Link Service network-policy prerequisite: <https://learn.microsoft.com/azure/private-link/disable-private-link-service-network-policy>

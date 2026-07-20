@@ -103,6 +103,10 @@ Therefore ATM is today the **only** GLB surface, and it is
   reuse the Azure cloud-provider Service annotations for internal load
   balancer + PLS creation, and rely on the AKS-managed cloud provider
   to program them.
+* Managing member-cluster provisioning (VNet layout, subnet
+  `privateLinkServiceNetworkPolicies`, cluster SKU choice between
+  AKS Standard and AKS Automatic). These are platform-team concerns;
+  see §3.4 for the invariants a member cluster MUST satisfy.
 * Supporting AFD **classic** or AFD **Standard**. Only AFD
   **Premium** (`Microsoft.Cdn` resource provider, API surface
   `armcdn`, SKU `Premium_AzureFrontDoor`) is in scope. **Private
@@ -238,6 +242,152 @@ resource ID (surfaced by the cloud provider as
 `InternalServiceExport.status.privateLinkService`. The hub
 AFD-backend controller watches that field and creates / updates the
 corresponding AFD origin.
+
+### 3.4 Member cluster requirements (AKS Standard and AKS Automatic)
+
+Both **AKS Standard** and **AKS Automatic** are supported as member
+cluster SKUs. The controller code paths are identical because the
+data-plane primitives this proposal relies on — Standard SKU internal
+Load Balancer + Private Link Service, driven by
+`service.beta.kubernetes.io/azure-*` annotations — are provided by
+the AKS-managed cloud provider and are available on both SKUs.
+
+The following cluster-side prerequisites apply regardless of SKU and
+are the responsibility of the platform team, not the fleet-networking
+controllers:
+
+1. **Standard SKU Load Balancer.** Required by PLS. This is the
+   default on both AKS Standard and AKS Automatic; Basic LB clusters
+   are unsupported.
+2. **BYO VNet with a dedicated PLS NAT subnet.** The subnet
+   referenced by
+   `service.beta.kubernetes.io/azure-pls-ip-configuration-subnet`
+   MUST have `privateLinkServiceNetworkPolicies: Disabled`. This is
+   a subnet-level property that must be set at (or before) cluster
+   provisioning — AKS does not toggle it on the tenant's behalf.
+   AKS Automatic supports BYO VNet at cluster creation but restricts
+   post-hoc network reshaping; plan the ILB and PLS subnets up front.
+3. **PLS auto-approval configured for the AFD subscription.** The
+   `service.beta.kubernetes.io/azure-pls-auto-approval` annotation
+   MUST include the AFD control-plane subscription ID so that AFD's
+   private-endpoint connection requests are approved without human
+   intervention.
+4. **Egress path.** Not affected by this proposal — AKS Automatic's
+   NAT-Gateway egress is orthogonal to ingress via PLS.
+
+**AKS Automatic — additional considerations:**
+
+* **Deployment Safeguards (Enforcement mode).** AKS Automatic ships
+  Azure Policy safeguards in enforcement mode by default. The
+  fleet-networking hub and member Helm charts (see Proposal 002
+  §6.1) MUST satisfy those safeguards — resource requests/limits,
+  `runAsNonRoot`, `readOnlyRootFilesystem` where feasible, no
+  `hostPath`, images from allow-listed registries, `seccomp:
+  RuntimeDefault`, no privileged containers. Any drift here blocks
+  install on Automatic even though it succeeds on Standard.
+* **Node auto-provisioning (NAP).** Controller Deployments should
+  set pod anti-affinity / PDBs so that NAP-driven scale events do
+  not simultaneously restart the active reconciler replicas.
+* **Locked-down cluster configuration.** Some `az aks update` knobs
+  are not permitted on Automatic. All state this proposal touches
+  is user-surface (`Service`, `ServiceExport`, `FrontDoor*`), not
+  cluster-config surface, so this is a non-issue for the data path
+  — but bear it in mind when writing runbooks that assume a Standard
+  cluster's mutability.
+* **AGC (Application Gateway for Containers) coexistence.** AKS
+  Automatic promotes AGC as the default HTTP entry point. AGC and
+  the AFD + PLS path proposed here are orthogonal — AGC is an
+  in-cluster L7, AFD is an external edge — and can coexist. This
+  proposal does not require or interact with AGC.
+
+Testing note: Phase 4 e2e (Proposal 002 §11) MUST include at least
+one AKS Automatic member alongside AKS Standard members, so the
+Deployment Safeguards path is exercised in CI rather than discovered
+at first-adopter onboarding.
+
+### 3.5 Coexistence with the existing Traffic Manager path
+
+ATM is not deprecated by this proposal (§2.3). Both surfaces are
+first-class and can run side-by-side in the same fleet. Where they
+interact:
+
+**Coexistence granularity.**
+
+| Scope | Coexistence outcome |
+|---|---|
+| Fleet-wide | Safe. Different CRDs (`TrafficManager*` vs `FrontDoor*`), different hub controllers, different Azure resource types (`Microsoft.Network/trafficManagerProfiles` vs `Microsoft.Cdn/profiles`), different identities (§7), different resource groups. No shared reconciler state. |
+| Same tenant namespace, different Services | Safe. `Service A` fronted by ATM (public LB) and `Service B` fronted by AFD (internal LB + PLS) is a supported topology. |
+| Same `ServiceImport` on both surfaces | **Forbidden by the AFD backend reconciler.** The two paths require mutually exclusive `Service` shapes (public LB for ATM, internal LB + PLS for AFD). See Proposal 002 §8.4 — the reconciler surfaces `Accepted=False, Reason=ConflictsWithTrafficManagerBackend` and refuses to program AFD origins for a `ServiceImport` already referenced by a `TrafficManagerBackend`. Invariant: at most one north-south surface per `Service`. |
+
+East-west traffic (pod-to-pod via `EndpointSlice` imports) is
+unaffected on either path.
+
+**Security implications of coexistence.**
+
+* **ATM public IPs remain a bypass surface.** ATM is DNS-only; its
+  origins have public IPs, so clients that discover those IPs can
+  connect directly, bypassing any WAF or rate-limiting. This is
+  unchanged by AFD's arrival. Fleets that run both must not
+  characterise the fleet as SFI-compliant simply because AFD is
+  available — compliance is per-tenant, per-Service.
+* **Split identities are mandatory.** The AFD managed identity
+  (`CDN Profile Contributor` on the AFD resource group) MUST be
+  distinct from the ATM identity (`Traffic Manager Contributor` on
+  the TM resource group). A single identity for both would grant
+  ATM-only tenants unnecessary AFD write permissions and vice-versa,
+  silently expanding blast radius. Chart wiring is tracked in
+  Proposal 003 §3.6.
+* **WAF is per-surface.** ATM has no WAF. Enforcement of "must be
+  behind WAF" is only achievable for `FrontDoor*`-fronted Services;
+  cluster-level admission policy (Kyverno / OPA / Gatekeeper) should
+  deny `TrafficManagerProfile` / `TrafficManagerBackend` creation in
+  first-party namespaces if a tenant class is required to be
+  AFD-only. Do not rely on tenants opting out voluntarily.
+* **Audit / diagnostic split.** ATM and AFD emit to separate
+  diagnostic streams. SFI KPI dashboards that count WAF-blocked
+  requests must query AFD only; ATM has no such concept.
+
+**Tenancy implications of coexistence.**
+
+* **Namespace RBAC is unchanged.** Tenant-A cannot see or modify
+  tenant-B's `TrafficManager*` or `FrontDoor*` CRs. Reserved
+  `fleet-member-*` namespaces on the hub remain platform-only.
+* **Per-Service surface choice.** With the annotation + inference
+  model (§3.3, §4.2), a single tenant namespace may host a mix of
+  Services on ATM and AFD without any `Spec`-level opt-in — the
+  Service annotations themselves drive the routing choice.
+* **Weight-annotation semantics differ.** The Fleet-specific
+  `networking.fleet.azure.com/weight` annotation on `ServiceExport`
+  is consumed by the ATM backend controller. The AFD backend
+  controller ignores it and takes weights from
+  `FrontDoorBackend.spec.weight` instead (see Proposal 002 §8.1).
+  Migration howtos MUST call this out.
+* **Quota accounting is per-surface.** ATM profile limits (200/sub
+  default) and AFD Premium profile/endpoint/origin quotas are
+  independent. Fleets running both surfaces at scale need
+  per-tenant subscription / RG sharding informed by both quotas.
+* **Cost attribution.** Different cost models (ATM: per million DNS
+  queries; AFD Premium: base fee + per-request + WAF).  Use
+  per-tenant `resourceGroup` on both `TrafficManagerProfile` and
+  `FrontDoorProfile` so Azure Cost Management can split the bill
+  cleanly.
+
+**Migration (ATM → AFD) is a staged tenant operation, not a hot swap.**
+Because the same `ServiceImport` cannot attach to both surfaces:
+
+1. Stand up a second `Service` (e.g. `api-v2`) in each member cluster
+   with internal LB + PLS annotations; create the matching
+   `ServiceExport api-v2`.
+2. Hub aggregates a new `ServiceImport api-v2`; create
+   `FrontDoorProfile` + `FrontDoorBackend` pointing at it and verify
+   `Accepted=True` on every origin.
+3. Cut the public DNS record from `<atm-name>.trafficmanager.net` to
+   the AFD endpoint hostname; drain traffic per your TTL.
+4. Delete `TrafficManagerBackend api` and the original public-LB
+   `Service api` in each member cluster.
+
+This intentionally slow, reviewable sequence matches first-party
+migration cadence; a controller-driven hot swap is not planned.
 
 ## 4. API changes
 

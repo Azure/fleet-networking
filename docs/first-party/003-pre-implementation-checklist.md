@@ -100,6 +100,23 @@ Each of these can change the API surface. Resolve before typing
       - Decision: **Annotation + inference; no `Spec` change**
         (2026-07-20)
 
+- [x] **1.6 AKS Automatic as a supported member cluster SKU** —
+      **Resolved: yes, first-class alongside AKS Standard.** The AFD
+      + PLS data plane depends only on cloud-provider-managed
+      annotations (Standard SKU LB, PLS, `azure-pls-*`), which are
+      available identically on both SKUs. Two operational caveats
+      apply: (a) member cluster VNet/subnet layout must be planned
+      up-front on Automatic (BYO VNet at create-time; PLS subnet
+      MUST have `privateLinkServiceNetworkPolicies: Disabled`), and
+      (b) the hub and member Helm charts MUST satisfy AKS Automatic
+      Deployment Safeguards. Neither is Automatic-specific in the
+      sense of requiring a code branch — the safeguards-clean chart
+      is also the correct chart for AKS Standard. Recorded in
+      Proposal 001 §3.4 and Proposal 002 §6.5.
+      - Owner: @rchinchani_microsoft
+      - Decision: **Supported; see 3.7 spike for validation**
+        (2026-07-20)
+
 ## 2. External review / sign-off gates
 
 - [ ] **2.1 Fleet-networking maintainer review of PR #373** —
@@ -194,6 +211,22 @@ run in parallel with Phase 1 API work.
       - Owner: —
       - Result: —
 
+- [ ] **3.7 AKS Automatic Deployment Safeguards install validation** —
+      run `helm template charts/hub-net-controller-manager | kubectl
+      apply --dry-run=server -f -` (or a `kubectl-safeguards` /
+      equivalent policy-check tool offline) against the current chart
+      output. Enumerate every Safeguards violation and confirm each
+      one can be closed with a values-only or template-only change
+      (no code changes). Fold the fixes into the §6.5.2 file list of
+      Proposal 002 before Phase 4 starts.
+      - Impact: sizing the chart hygiene work in Phase 4; may reveal
+        that some hub/member containers need an `emptyDir` for `/tmp`
+        or writable log paths, or that init containers pulling from
+        Docker Hub have to be re-hosted in `mcr.microsoft.com` /
+        the tenant ACR.
+      - Owner: —
+      - Result: —
+
 ## 4. Nice-to-have before Phase 1
 
 - [ ] **4.1 Draft `docs/concepts/HTTPBasedGlobalLoadBalancing/README.md`**
@@ -225,10 +258,13 @@ Explicitly *not* required before starting Phase 1:
 | SFI sign-off               | ⏳ (§2.2) |
 | SDK / cloud-provider spikes | ⏳ (§3.1–3.4) |
 | Dev-sub ready              | ⏳ (§3.5) |
+| AKS Automatic install validated | ⏳ (§3.7) |
 
 **Recommendation:** start Phase 1 (API types + defaulters + CEL, no
 controllers) *only after* §1.1, §1.2, §1.5, §2.1 are closed. Phases
-2–4 additionally require §3.1–3.4 and §3.5.
+2–4 additionally require §3.1–3.4 and §3.5. Phase 4 additionally
+requires §3.7 (AKS Automatic Deployment Safeguards) to be run and
+its findings folded into the chart hygiene work.
 
 Update the checkboxes above as items close; when every box in §1–§3
 is checked, Phase 2 can begin.

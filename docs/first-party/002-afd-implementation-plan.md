@@ -774,6 +774,86 @@ API + fake provider work.
 
 ---
 
+## 6.5 AKS Automatic compatibility
+
+Proposal 001 §3.4 declares AKS Automatic a supported member cluster
+SKU. This section enumerates the concrete chart / manifest changes
+that keep the fleet-networking components installable on Automatic
+alongside the existing AKS Standard install path.
+
+### 6.5.1 Deployment Safeguards requirements
+
+AKS Automatic runs Azure Policy safeguards in Enforcement mode by
+default. The hub and member Deployments MUST satisfy at least the
+following (all standard restricted-workload hygiene):
+
+* Every container declares `resources.requests` and `resources.limits`
+  for `cpu` and `memory`.
+* `securityContext.runAsNonRoot: true` and `runAsUser` >= 1000 on
+  every container.
+* `securityContext.allowPrivilegeEscalation: false`.
+* `securityContext.capabilities.drop: ["ALL"]`; no `add:` unless
+  strictly required.
+* `securityContext.readOnlyRootFilesystem: true` where compatible
+  (may require an `emptyDir` for `/tmp` or logs).
+* `securityContext.seccompProfile.type: RuntimeDefault` at pod scope.
+* No `hostPath`, `hostNetwork`, `hostPID`, or `hostIPC`.
+* Container images pulled from an allow-listed registry
+  (`mcr.microsoft.com` or the tenant's ACR — never Docker Hub for
+  first-party installs).
+* Every Deployment ships a matching `PodDisruptionBudget` with
+  `minAvailable: 1` (or `maxUnavailable: 0` if a single replica).
+
+### 6.5.2 File-by-file additions
+
+| Op | Path | Notes |
+|----|------|-------|
+| M | `charts/hub-net-controller-manager/templates/deployment.yaml` | Add `resources`, `securityContext`, and `readOnlyRootFilesystem` for the hub manager container; add `emptyDir` for `/tmp` if `readOnlyRootFilesystem: true`. |
+| M | `charts/member-net-controller-manager/templates/deployment.yaml` | Same, for the member manager container. |
+| M | `charts/hub-net-controller-manager/templates/pdb.yaml` (new) | `PodDisruptionBudget` for the hub manager. |
+| M | `charts/member-net-controller-manager/templates/pdb.yaml` (new) | `PodDisruptionBudget` for the member manager. |
+| M | `charts/hub-net-controller-manager/values.yaml` | Surface `resources`, `securityContext`, and `image.registry` as configurable values (default to safeguards-compliant values). |
+| M | `charts/member-net-controller-manager/values.yaml` | Same. |
+| A | `hack/verify-safeguards.sh` | Optional helper: `helm template` each chart and run `kubectl-safeguards` (or equivalent) offline; wired into `Makefile` under a new `verify-safeguards` target. |
+
+None of the above changes are Automatic-specific — they are strict
+generalisations that also apply cleanly on AKS Standard. There is
+no chart branch, no conditional templating.
+
+### 6.5.3 Node auto-provisioning (NAP)
+
+AKS Automatic uses NAP: nodes come and go as workloads scale. To
+avoid controller flap when NAP evicts the leader replica:
+
+* Deployments carry `spec.replicas: 2` (already the case for the
+  hub manager; align the member manager if it currently ships as a
+  single replica).
+* Pod anti-affinity (`preferredDuringSchedulingIgnoredDuringExecution`,
+  `topologyKey: kubernetes.io/hostname`) spreads replicas across
+  nodes.
+* Leader-election lease durations (already tuned in
+  `cmd/*-net-controller-manager/main.go`) tolerate a ~30s replica
+  restart window.
+
+### 6.5.4 e2e coverage
+
+Phase 4 e2e (§11 below) MUST include at least one AKS Automatic
+member alongside AKS Standard members. The test framework in
+`test/e2e/framework/cluster.go` needs an `AksSKU` field on the
+per-cluster config with `Standard | Automatic` values; the ci-e2e
+pipeline stands up one of each and asserts that a `FrontDoorBackend`
+programs origins successfully for both.
+
+### 6.5.5 Documentation
+
+* `docs/first-party/README.md` — add a short "Member cluster SKUs"
+  paragraph pointing to Proposal 001 §3.4 and this §6.5.
+* `docs/howtos/frontdoor-permissions-setup.md` (added in Phase 5) —
+  include an "AKS Automatic checklist" appendix mirroring §3.4 of
+  Proposal 001.
+
+---
+
 ## 7. Backward compatibility, versioning, and downgrade
 
 * Every new field on `FrontDoor*` types is optional with a defaulted
@@ -915,6 +995,8 @@ resolved to `L7-FrontDoor` (via annotation or inference):
 | Two hub controllers competing for the same AFD profile | Split-brain writes | Owner-references from backends → profile; single reconciler per resource; `client.OwnerReference` gating |
 | SFI review demands additional controls (e.g. mandatory managed identity, mandatory diagnostic settings) | Slippage | Track in open questions §11 of Proposal 001; add controls in phase 5 without blocking phases 1–4 |
 | `networking.fleet.azure.com/export-mode` annotation set to `L7-FrontDoor` on a `Service` that lacks the internal-LB + PLS annotations | Silent AFD misconfiguration if the controller falls back to L4 | Controller surfaces `ServiceExportValid=False, Reason=ExportModeAnnotationServiceMismatch` and does not fall back; a platform admission policy (Kyverno / Gatekeeper) can additionally reject the mismatch at write-time to give tenants an immediate error |
+| Charts drift from AKS Automatic Deployment Safeguards (missing resource limits, root user, `hostPath`, non-allow-listed image) | Install blocked on Automatic member clusters even when Standard works | Chart hygiene enumerated in §6.5.1; pre-merge `hack/verify-safeguards.sh` runs `helm template` + a policy check offline; Phase 4 e2e installs on at least one Automatic cluster |
+| Node auto-provisioning (NAP) on AKS Automatic restarts the leader controller replica during scale events | Reconciliation stalls for the leader-election lease duration on every NAP scale | Two replicas per manager, pod anti-affinity across nodes, and leader-election lease tuned to tolerate a ~30s restart window (§6.5.3) |
 
 ## 10. Out-of-scope for this proposal
 
@@ -953,3 +1035,7 @@ Feature is considered done when **all** of the following hold on
 6. Fleet-networking maintainers approve the design and the SFI-NS253
    KPI dashboard reflects compliance for at least one first-party
    adopter.
+7. The hub and member charts install cleanly on an **AKS Automatic**
+   member cluster (Deployment Safeguards in Enforcement mode) and
+   pass the same e2e as an AKS Standard member. Covered by the
+   Phase 4 e2e matrix (§6.5.4).
