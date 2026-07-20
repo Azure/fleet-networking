@@ -39,10 +39,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
-	"go.goms.io/fleet-networking/pkg/common/azurefrontdoor"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
-	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorcustomdomain"
-	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorprofile"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
@@ -71,25 +68,14 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 
-	// enableFrontDoorFeature gates the AFD (Azure Front Door) POC controllers. Defaults to
-	// false because the feature requires Workload Identity + AFD-scoped subscription config
-	// that is not present on existing hub installations. Existing installs that only enable
-	// the ATM feature are unaffected. See breadcrumb D9 for the compatibility contract.
-	//
-	// POC BRIDGE — NOT A GA WIRING (docs/first-party/003 §2.4):
-	// Hosting the AFD controllers in this binary shares the pod's Workload-Identity
-	// federated subject with the ATM controller. Proposal 001 §7 requires those two
-	// identities to be DISTINCT so ATM-only tenants do not inherit AFD write permissions.
-	// A Kubernetes pod projects exactly one WI token, so the only way to satisfy §7 is to
-	// run the AFD controllers in a SEPARATE pod. The intended GA topology is:
-	//   * cmd/hub-afd-controller-manager/main.go — new sibling binary that owns the AFD
-	//     controllers and its own WI subject.
-	//   * charts/hub-afd-controller-manager/ — new sibling chart with its own
-	//     ServiceAccount, RBAC, PDB, and values (frontDoor.enabled effectively always
-	//     true in that chart — it is a single-purpose chart).
-	// When the sibling wiring lands, the flag below and the frontdoor initialization block
-	// deeper in main() should be removed from this binary in the same change.
-	enableFrontDoorFeature = flag.Bool("enable-frontdoor-feature", false, "If set, the Azure Front Door feature (POC) will be enabled. NOTE: this is a POC bridge; the target GA topology is a separate cmd/hub-afd-controller-manager binary — see the package comment above.")
+	// NOTE: the Azure Front Door feature used to be gated here behind
+	// --enable-frontdoor-feature. It has been moved to a dedicated binary
+	// (cmd/hub-afd-controller-manager) to satisfy the SFI-NS253 §7
+	// identity-split requirement — the AFD controllers must run under a
+	// distinct Workload-Identity federated subject from the ATM controllers,
+	// and a Kubernetes pod projects exactly one WI token. See:
+	//   - docs/first-party/001-afd-global-load-balancing.md §7
+	//   - docs/first-party/003-pre-implementation-checklist.md §2.4
 
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
@@ -98,11 +84,6 @@ var (
 	trafficManagerFeatureRequiredGVKs = []schema.GroupVersionKind{
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerProfileKind),
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerBackendKind),
-	}
-
-	frontDoorFeatureRequiredGVKs = []schema.GroupVersionKind{
-		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.FrontDoorProfileKind),
-		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.FrontDoorCustomDomainKind),
 	}
 )
 
@@ -261,57 +242,6 @@ func main() {
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
-			exitWithErrorFunc()
-		}
-	}
-
-	if *enableFrontDoorFeature {
-		// AFD feature is entirely independent of ATM: separate CRDs, separate credential
-		// path (Workload Identity, not cloudConfigFile), and separate Azure sub-clients.
-		// See breadcrumb D6 (auth) and D9 (chart / identity split) for the rationale.
-		klog.V(1).InfoS("Front Door feature is enabled, checking the required CRDs")
-		for _, gvk := range frontDoorFeatureRequiredGVKs {
-			if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
-				klog.ErrorS(err, "Unable to find the required Front Door CRD", "GVK", gvk)
-				exitWithErrorFunc()
-			}
-		}
-
-		klog.V(1).InfoS("Front Door feature is enabled, loading Workload Identity config and creating AFD clients")
-		afdConfig, err := azurefrontdoor.LoadConfigFromEnv()
-		if err != nil {
-			klog.ErrorS(err, "Unable to load AFD Workload Identity config from environment")
-			exitWithErrorFunc()
-		}
-		afdCred, err := azurefrontdoor.NewCredential(afdConfig)
-		if err != nil {
-			klog.ErrorS(err, "Unable to create AFD Workload Identity credential")
-			exitWithErrorFunc()
-		}
-		afdClients, err := azurefrontdoor.NewClients(afdCred, afdConfig.SubscriptionID, azurefrontdoor.DefaultARMClientOptions())
-		if err != nil {
-			klog.ErrorS(err, "Unable to create AFD clients")
-			exitWithErrorFunc()
-		}
-
-		klog.V(1).InfoS("Start to setup FrontDoorProfile controller")
-		if err := (&frontdoorprofile.Reconciler{
-			Client:          mgr.GetClient(),
-			ProfilesClient:  afdClients.Profiles,
-			EndpointsClient: afdClients.AFDEndpoints,
-			Recorder:        mgr.GetEventRecorderFor(frontdoorprofile.ControllerName),
-		}).SetupWithManager(mgr); err != nil {
-			klog.ErrorS(err, "Unable to create FrontDoorProfile controller")
-			exitWithErrorFunc()
-		}
-
-		klog.V(1).InfoS("Start to setup FrontDoorCustomDomain controller")
-		if err := (&frontdoorcustomdomain.Reconciler{
-			Client:              mgr.GetClient(),
-			CustomDomainsClient: afdClients.CustomDomains,
-			Recorder:            mgr.GetEventRecorderFor(frontdoorcustomdomain.ControllerName),
-		}).SetupWithManager(mgr); err != nil {
-			klog.ErrorS(err, "Unable to create FrontDoorCustomDomain controller")
 			exitWithErrorFunc()
 		}
 	}
