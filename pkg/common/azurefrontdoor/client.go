@@ -50,7 +50,12 @@ import (
 	azcloud "github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn"
+	// armcdn is the Azure SDK for Front Door Standard/Premium. Pinned to v2
+	// (2024-02-01 API) so tests can use the SDK-provided armcdn/v2/fake
+	// package — v1.x does not ship a fake subpackage. The imported name
+	// stays `armcdn` (no explicit alias needed) so call sites are unchanged
+	// across the version bump.
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2"
 )
 
 // Environment variable names read by LoadConfigFromEnv. AZURE_CLIENT_ID,
