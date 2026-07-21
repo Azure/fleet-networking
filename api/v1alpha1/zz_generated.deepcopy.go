@@ -11,7 +11,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/discovery/v1"
+	v1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -596,6 +596,11 @@ func (in *InternalServiceExportSpec) DeepCopyInto(out *InternalServiceExportSpec
 	if in.Weight != nil {
 		in, out := &in.Weight, &out.Weight
 		*out = new(int64)
+		**out = **in
+	}
+	if in.PrivateLinkServiceResourceID != nil {
+		in, out := &in.PrivateLinkServiceResourceID, &out.PrivateLinkServiceResourceID
+		*out = new(string)
 		**out = **in
 	}
 }
