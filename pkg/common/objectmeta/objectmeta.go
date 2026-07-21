@@ -69,6 +69,33 @@ const (
 	// ServiceExportAnnotationWeight is an annotation that marks the weight of the ServiceExport.
 	ServiceExportAnnotationWeight = fleetNetworkingPrefix + "weight"
 
+	// ServiceExportAnnotationExportMode is an annotation on a ServiceExport that
+	// selects which fleet-networking control plane consumes the export:
+	//   - ExportModeValueTrafficManager (default when the annotation is absent):
+	//     the export flows to the Traffic Manager path (today's behaviour).
+	//   - ExportModeValueFrontDoor: the export flows to the Front Door path
+	//     (Phase 4 work; requires the underlying Service to be an internal
+	//     load balancer with the Azure PLS annotations set).
+	//
+	// Modeled as an annotation rather than a Spec field to avoid diverging
+	// from the upstream mcs-api (KEP-1645) ServiceExport shape — see
+	// docs/first-party/002-afd-implementation-plan.md #3.4 and the breadcrumb
+	// 2026-07-20-1108-afd-export-mode-mcs-parity.md for the parity rationale.
+	// The annotation is deliberately opt-in: absence keeps every existing
+	// manifest working unchanged.
+	ServiceExportAnnotationExportMode = fleetNetworkingPrefix + "export-mode"
+
+	// ExportModeValueTrafficManager routes the export through the ATM
+	// (L4 / DNS-based) control plane. Default when the annotation is absent.
+	ExportModeValueTrafficManager = "L4-TrafficManager"
+
+	// ExportModeValueFrontDoor routes the export through the AFD
+	// (L7 / anycast) control plane. Requires the Service to be an internal
+	// load balancer with Azure PLS provisioning enabled — the reconciler
+	// verifies this and surfaces ExportModeAnnotationServiceMismatch when
+	// the Service shape is incompatible.
+	ExportModeValueFrontDoor = "L7-FrontDoor"
+
 	// ServiceAnnotationAzureLoadBalancerInternal is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
 	ServiceAnnotationAzureLoadBalancerInternal = "service.beta.kubernetes.io/azure-load-balancer-internal"
 
@@ -112,4 +139,33 @@ func ExtractWeightFromServiceExport(svcExport *fleetnetv1beta1.ServiceExport) (i
 		return -1, err
 	}
 	return int64(weight), nil
+}
+
+// ExtractExportModeFromServiceExport returns the effective export mode for a
+// ServiceExport. Absence of the annotation returns the default
+// (ExportModeValueTrafficManager) with no error, preserving today's
+// behaviour for every existing manifest. Any value other than the two
+// documented enum members is a hard rejection — silent fallback would let a
+// typo (e.g. "L4-Trafficmanager") mask the intent, so we require the caller
+// to surface the error as a status condition.
+//
+// Returned value is always non-empty on nil error; callers may compare
+// directly against ExportModeValueTrafficManager / ExportModeValueFrontDoor.
+func ExtractExportModeFromServiceExport(svcExport *fleetnetv1beta1.ServiceExport) (string, error) {
+	raw, found := svcExport.Annotations[ServiceExportAnnotationExportMode]
+	if !found {
+		return ExportModeValueTrafficManager, nil
+	}
+	switch raw {
+	case ExportModeValueTrafficManager, ExportModeValueFrontDoor:
+		return raw, nil
+	default:
+		// Empty string is deliberately treated as invalid rather than as
+		// "default" so operators immediately notice a mis-templated
+		// annotation (e.g. a Helm value that resolved to "").
+		err := fmt.Errorf("the export-mode annotation %q is not one of %q, %q",
+			raw, ExportModeValueTrafficManager, ExportModeValueFrontDoor)
+		klog.ErrorS(err, "Invalid export-mode annotation", "serviceExport", klog.KObj(svcExport))
+		return "", err
+	}
 }
