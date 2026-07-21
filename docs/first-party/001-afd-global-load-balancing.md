@@ -37,6 +37,30 @@ origins, routes, and security policies via the `armcdn` SDK.
 
 ## 2. Motivation
 
+### Competitive context (industry parity)
+
+Peer clouds already ship a first-party controller that programs a
+global L7 edge from a Kubernetes-native surface, with WAF/bot rules
+that travel with the workload manifest instead of a side-car IaC
+pipeline. Today AKS/Fleet does not:
+
+| Cloud Provider    | Controller Engine                 | Edge Routing Layer                                 | Native Bot/WAF Security Product                              | Native Bot/WAF Hook?                       | Layer-7 Controller Maturity                    |
+| :---------------- | :-------------------------------- | :------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------- | :--------------------------------------------- |
+| **GCP (GKE)**     | Multi-Cluster Gateway Controller  | Global External Application Load Balancer          | **Google Cloud Armor** (with reCAPTCHA Enterprise)           | **Yes** (via `GCPBackendPolicy`)           | Highly mature, production-standard             |
+| **AWS (EKS)**     | AWS Load Balancer Controller      | Application Load Balancer (ALB) & VPC Lattice      | **AWS WAF** (with AWS Managed Rules Bot Control)             | **Yes** (via resource annotations)         | Gateway API implementation reached GA in early 2026 |
+| **Azure (Fleet)** | Azure Kubernetes Fleet Manager    | **Azure Front Door (Premium)** — this proposal     | **Azure Web Application Firewall** (with Bot Manager Rule Set) | **No today**; must manage AFD outside K8s | **ATM only (L4 DNS)**; L7 requires Terraform/ASO |
+
+The AKS/Fleet row is what this proposal changes. `FrontDoorProfile`
+carries the WAF hook via `.spec.wafPolicy` (§4.1.1) and
+`FrontDoorBackend` (§4.1.2) makes per-workload origin programming a
+CR mutation instead of a Terraform plan — bringing AKS/Fleet to
+functional parity with `GCPBackendPolicy` on GKE and the WAF
+annotations on the AWS Load Balancer Controller, with the added
+SFI-NS253 guarantee that origins are reached exclusively over
+Private Link (§2.1). It also unblocks the migration path away from
+the L4-only Traffic Manager surface documented in §2.2 without
+forcing the workload owner to leave Kubernetes YAML.
+
 ### 2.1 SFI-NS253 in one paragraph
 
 Any first-party Microsoft service exposed to the internet must:
