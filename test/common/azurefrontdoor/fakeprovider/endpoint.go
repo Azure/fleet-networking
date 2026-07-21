@@ -24,6 +24,13 @@ import (
 // FrontDoorProfileStatus.EndpointHostname, so specs can assert against it.
 const EndpointHostnameFormat = "%s.z01.azurefd.net"
 
+// EndpointResourceIDFormat is the ARM ID format for an AFD endpoint under a
+// profile. The fake populates .ID on create so the reconciler's WAF-attach
+// path (which references the endpoint by ARM ID in a SecurityPolicy
+// Association) sees a non-nil ID; a nil ID would silently produce an empty
+// Association and mask bugs. Format matches what real AFD returns.
+const EndpointResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Cdn/profiles/%s/afdEndpoints/%s"
+
 // endpointKey scopes state by (profile, endpoint) pair so a single fake client
 // can host endpoints under multiple profiles simultaneously (some tests may
 // create sibling profiles).
@@ -89,6 +96,7 @@ func (s *endpointStore) beginCreate(_ context.Context, resourceGroupName string,
 	// empty and mask bugs in the status-population path.
 	created := parameters
 	created.Name = ptr.To(endpointName)
+	created.ID = ptr.To(fmt.Sprintf(EndpointResourceIDFormat, DefaultSubscriptionID, DefaultResourceGroupName, profileName, endpointName))
 	if created.Properties == nil {
 		created.Properties = &armcdn.AFDEndpointProperties{}
 	}

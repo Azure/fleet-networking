@@ -195,10 +195,13 @@ func main() {
 
 	klog.V(1).InfoS("Start to setup FrontDoorProfile controller")
 	if err := (&frontdoorprofile.Reconciler{
-		Client:          mgr.GetClient(),
-		ProfilesClient:  afdClients.Profiles,
-		EndpointsClient: afdClients.AFDEndpoints,
-		Recorder:        mgr.GetEventRecorderFor(frontdoorprofile.ControllerName),
+		Client:                 mgr.GetClient(),
+		ProfilesClient:         afdClients.Profiles,
+		EndpointsClient:        afdClients.AFDEndpoints,
+		WAFPoliciesClient:      afdClients.WAFPolicies,
+		SecurityPoliciesClient: afdClients.SecurityPolicies,
+		SubscriptionID:         afdConfig.SubscriptionID,
+		Recorder:               mgr.GetEventRecorderFor(frontdoorprofile.ControllerName),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create FrontDoorProfile controller")
 		exitWithError()

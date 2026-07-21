@@ -37,12 +37,14 @@ import (
 // against the real cache/informer stack (not a fakeclient).
 
 var (
-	cfg       *rest.Config
-	mgr       manager.Manager
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	cfg                *rest.Config
+	mgr                manager.Manager
+	k8sClient          client.Client
+	testEnv            *envtest.Environment
+	ctx                context.Context
+	cancel             context.CancelFunc
+	wafPolicyFake      *fakeprovider.WAFPolicyFake
+	securityPolicyFake *fakeprovider.SecurityPolicyFake
 )
 
 var testNamespace = fakeprovider.ProfileNamespace
@@ -93,11 +95,20 @@ var _ = BeforeSuite(func() {
 	endpointsClient, err := fakeprovider.NewAFDEndpointClient()
 	Expect(err).To(Succeed(), "failed to create fake AFD endpoints client")
 
+	wafPolicyFake, err = fakeprovider.NewWAFPolicyFake()
+	Expect(err).To(Succeed(), "failed to create fake WAF policies client")
+
+	securityPolicyFake, err = fakeprovider.NewSecurityPolicyFake()
+	Expect(err).To(Succeed(), "failed to create fake AFD security-policies client")
+
 	Expect((&Reconciler{
-		Client:          mgr.GetClient(),
-		ProfilesClient:  profilesClient,
-		EndpointsClient: endpointsClient,
-		Recorder:        mgr.GetEventRecorderFor(ControllerName),
+		Client:                 mgr.GetClient(),
+		ProfilesClient:         profilesClient,
+		EndpointsClient:        endpointsClient,
+		WAFPoliciesClient:      wafPolicyFake.Client,
+		SecurityPoliciesClient: securityPolicyFake.Client,
+		SubscriptionID:         fakeprovider.DefaultSubscriptionID,
+		Recorder:               mgr.GetEventRecorderFor(ControllerName),
 	}).SetupWithManager(mgr)).To(Succeed())
 
 	By("creating the profile namespace")

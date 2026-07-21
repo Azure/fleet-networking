@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -84,6 +85,22 @@ type Reconciler struct {
 	ProfilesClient *armcdn.ProfilesClient
 	// EndpointsClient is the armcdn AFD endpoints client used to CRUD the default endpoint.
 	EndpointsClient *armcdn.AFDEndpointsClient
+	// WAFPoliciesClient reads (and, for future inline-creation flows, writes)
+	// classic Front Door WAF policies referenced by spec.wafPolicy. Lives
+	// under a different ARM resource provider than the AFD profile itself,
+	// which is why it comes from armfrontdoor rather than armcdn — see
+	// pkg/common/azurefrontdoor/client.go for the rationale.
+	WAFPoliciesClient *armfrontdoor.PoliciesClient
+	// SecurityPoliciesClient upserts/deletes the AFD SecurityPolicy that
+	// binds the resolved WAF policy to the profile's default endpoint. AFD
+	// SecurityPolicies are children of the profile and are cascade-deleted
+	// with it, so handleDelete does not need to clean them up explicitly.
+	SecurityPoliciesClient *armcdn.SecurityPoliciesClient
+	// SubscriptionID is the ARM subscription both SDK clients are configured
+	// against. Cached here because neither client exposes it and the WAF
+	// resolver needs it to reject cross-subscription policy references
+	// (unsupported in POC scope).
+	SubscriptionID string
 
 	Recorder record.EventRecorder
 }
@@ -247,6 +264,37 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1alpha1
 	if epRes.Properties != nil && epRes.Properties.HostName != nil {
 		profile.Status.EndpointHostname = ptr.To(*epRes.Properties.HostName)
 	}
+
+	// Ensure WAF policy state (attach / drift-cleanup) BEFORE setting
+	// Programmed=True. Any terminal rejection (WAFPolicyNotFound,
+	// WAFPolicyNotInPreventionMode) or transient Azure error is surfaced
+	// through the returned bool/error; on rejection we short-circuit so we
+	// do not overwrite the WAF-specific condition with a generic
+	// Programmed=True. epRes.ID is required (populated by Get above or by
+	// the create-then-copy path); a nil ID would produce a SecurityPolicy
+	// with an empty Association ARM ID which AFD would reject at create
+	// time — so we defensively check.
+	endpointARMID := ""
+	if epRes.ID != nil {
+		endpointARMID = *epRes.ID
+	}
+	if endpointARMID == "" {
+		return r.reportAzureError(ctx, profile, "resolve endpoint ARM ID",
+			fmt.Errorf("endpoint %s has no ARM ID; retrying", azEndpointName))
+	}
+	proceed, err := r.ensureWAFEnforcement(ctx, profile, endpointARMID)
+	if err != nil {
+		// reportAzureError already wrote the AzureError condition; return
+		// the error so the workqueue retries with backoff.
+		return ctrl.Result{RequeueAfter: requeueOnPending}, err
+	}
+	if !proceed {
+		// WAF-specific condition was written; do NOT proceed to
+		// Programmed=True. Reconcile will re-run when the WAF policy or
+		// the CR spec changes, or on the next resync tick.
+		return ctrl.Result{RequeueAfter: requeueOnPending}, nil
+	}
+
 	meta.SetStatusCondition(&profile.Status.Conditions, metav1.Condition{
 		Type:               string(fleetnetv1alpha1.FrontDoorProfileConditionProgrammed),
 		Status:             metav1.ConditionTrue,
