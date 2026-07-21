@@ -45,6 +45,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -612,13 +614,38 @@ func derefString(s *string) string {
 	return *s
 }
 
-// SetupWithManager wires the reconciler. For now watches only the primary
-// resource; secondary watches (FrontDoorProfile status flips,
-// InternalServiceExport churn) are added in Commit 10d alongside the tests
-// that exercise them, so both land together and the churn is easier to
-// review.
+// SetupWithManager wires the reconciler with secondary watches on:
+//   - FrontDoorProfile: when a profile flips Programmed=True (or its
+//     resource group changes) all same-namespace backends must re-run so
+//     Pending states resolve without waiting for requeueOnPending.
+//   - TrafficManagerBackend: when a conflicting TMB is deleted, the
+//     coexistence guard (handleUpdate step 2a) must clear immediately.
+//   - InternalServiceExport: when an export finishes its PLS
+//     provisioning and flips its PrivateLinkServiceResourceID, the
+//     backend needs to program the new origin.
+//
+// Enqueue helpers list same-namespace FrontDoorBackends because none of
+// the secondary resources back-reference the backend directly.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	enqueueSameNamespace := func(ctx context.Context, obj client.Object) []reconcile.Request {
+		list := &fleetnetv1alpha1.FrontDoorBackendList{}
+		if err := r.Client.List(ctx, list, client.InNamespace(obj.GetNamespace())); err != nil {
+			klog.ErrorS(err, "Failed to list frontDoorBackends when enqueueing from secondary event",
+				"namespace", obj.GetNamespace(), "kind", fmt.Sprintf("%T", obj))
+			return nil
+		}
+		reqs := make([]reconcile.Request, 0, len(list.Items))
+		for i := range list.Items {
+			b := &list.Items[i]
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}})
+		}
+		return reqs
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleetnetv1alpha1.FrontDoorBackend{}).
+		Watches(&fleetnetv1alpha1.FrontDoorProfile{}, handler.EnqueueRequestsFromMapFunc(enqueueSameNamespace)).
+		Watches(&fleetnetv1beta1.TrafficManagerBackend{}, handler.EnqueueRequestsFromMapFunc(enqueueSameNamespace)).
+		Watches(&fleetnetv1alpha1.InternalServiceExport{}, handler.EnqueueRequestsFromMapFunc(enqueueSameNamespace)).
 		Complete(r)
 }
