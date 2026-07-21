@@ -68,6 +68,7 @@ func runTest(t *testing.T, crdPath string) {
 			wantedCRDNames: []string{
 				"endpointsliceexports.networking.fleet.azure.com",
 				"endpointsliceimports.networking.fleet.azure.com",
+				"frontdoorbackends.networking.fleet.azure.com",
 				"frontdoorcustomdomains.networking.fleet.azure.com",
 				"frontdoorprofiles.networking.fleet.azure.com",
 				"internalserviceexports.networking.fleet.azure.com",
