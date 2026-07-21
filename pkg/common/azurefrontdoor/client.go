@@ -168,6 +168,14 @@ type Clients struct {
 	AFDEndpoints     *armcdn.AFDEndpointsClient
 	CustomDomains    *armcdn.AFDCustomDomainsClient
 	SecurityPolicies *armcdn.SecurityPoliciesClient
+	// OriginGroups + Origins are the FrontDoorBackend reconciler's write
+	// surface: it programs one OriginGroup per FrontDoorBackend and one
+	// Origin per qualifying InternalServiceExport (see
+	// docs/first-party/002-afd-implementation-plan.md §6). Both live under
+	// Microsoft.Cdn/profiles/<profile>/originGroups[/<group>/origins/<name>]
+	// so they share the armcdn factory with the profile itself.
+	OriginGroups *armcdn.AFDOriginGroupsClient
+	Origins      *armcdn.AFDOriginsClient
 	// WAFPolicies reads and writes classic AFD WAF policies. Read is used
 	// unconditionally by the profile reconciler to resolve
 	// spec.wafPolicy.resourceID; write is currently unused by the
@@ -205,6 +213,8 @@ func NewClients(cred azcore.TokenCredential, subscriptionID string, armOpts *arm
 		AFDEndpoints:     cdnFactory.NewAFDEndpointsClient(),
 		CustomDomains:    cdnFactory.NewAFDCustomDomainsClient(),
 		SecurityPolicies: cdnFactory.NewSecurityPoliciesClient(),
+		OriginGroups:     cdnFactory.NewAFDOriginGroupsClient(),
+		Origins:          cdnFactory.NewAFDOriginsClient(),
 		WAFPolicies:      fdFactory.NewPoliciesClient(),
 	}, nil
 }
