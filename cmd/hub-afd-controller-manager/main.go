@@ -61,6 +61,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/azurefrontdoor"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorbackend"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorcustomdomain"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorprofile"
 )
@@ -214,6 +215,17 @@ func main() {
 		Recorder:            mgr.GetEventRecorderFor(frontdoorcustomdomain.ControllerName),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "Unable to create FrontDoorCustomDomain controller")
+		exitWithError()
+	}
+
+	klog.V(1).InfoS("Start to setup FrontDoorBackend controller")
+	if err := (&frontdoorbackend.Reconciler{
+		Client:             mgr.GetClient(),
+		OriginGroupsClient: afdClients.OriginGroups,
+		OriginsClient:      afdClients.Origins,
+		Recorder:           mgr.GetEventRecorderFor(frontdoorbackend.ControllerName),
+	}).SetupWithManager(mgr); err != nil {
+		klog.ErrorS(err, "Unable to create FrontDoorBackend controller")
 		exitWithError()
 	}
 

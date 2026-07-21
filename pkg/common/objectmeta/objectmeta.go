@@ -40,6 +40,13 @@ const (
 	// profile before the Kubernetes object is removed.
 	FrontDoorProfileFinalizer = fleetNetworkingPrefix + "frontdoor-profile-cleanup"
 
+	// FrontDoorBackendFinalizer is a finalizer added by the FrontDoorBackend
+	// controller to every FrontDoorBackend CR so the reconciler can
+	// guarantee the corresponding Azure Front Door OriginGroup (and its
+	// child Origins, which cascade with the OriginGroup) is deleted before
+	// the CR is removed from etcd. Naming mirrors FrontDoorProfileFinalizer.
+	FrontDoorBackendFinalizer = fleetNetworkingPrefix + "frontdoor-backend-cleanup"
+
 	// FrontDoorCustomDomainFinalizer is a finalizer added by the FrontDoorCustomDomain
 	// controller to FrontDoorCustomDomain resources so the controller can unbind and delete the
 	// underlying Azure Front Door custom domain before the Kubernetes object is removed.
