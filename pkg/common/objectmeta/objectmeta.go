@@ -108,6 +108,30 @@ const (
 	// before v1.15.10/v1.16.7/v1.17.3, the DNS label on PIP would also be deleted if the annotation is not specified.
 	// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
 	ServiceAnnotationAzureDNSLabelName = "service.beta.kubernetes.io/azure-dns-label-name"
+
+	// ServiceAnnotationAzurePLSCreate opts an internal LoadBalancer Service into
+	// Private Link Service provisioning by cloud-provider-azure. The AFD
+	// L7 export mode (ExportModeValueFrontDoor) requires the referenced
+	// Service to have this annotation set to "true" so that the member
+	// serviceexport reconciler can look up the resulting PLS by name.
+	// Docs: https://cloud-provider-azure.sigs.k8s.io/topics/pls-integration/
+	ServiceAnnotationAzurePLSCreate = "service.beta.kubernetes.io/azure-pls-create"
+
+	// ServiceAnnotationAzurePLSName is the explicit PLS resource name the
+	// operator asked cloud-provider-azure to create for this Service. We
+	// require this annotation (instead of deriving a default from
+	// cloud-provider-azure internals) so the reconciler's ARM Get lookup
+	// is unambiguous and stable across upstream default-name changes.
+	// Missing this annotation on an L7-FrontDoor export surfaces
+	// ExportModeAnnotationServiceMismatch.
+	ServiceAnnotationAzurePLSName = "service.beta.kubernetes.io/azure-pls-name"
+
+	// ServiceAnnotationAzurePLSResourceGroup optionally overrides the
+	// resource group that hosts the PLS. When absent, the reconciler
+	// falls back to the same resource-group resolution used for PIPs
+	// (ServiceAnnotationLoadBalancerResourceGroup, then the controller's
+	// default ResourceGroupName), keeping ATM and AFD paths symmetric.
+	ServiceAnnotationAzurePLSResourceGroup = "service.beta.kubernetes.io/azure-pls-resource-group"
 )
 
 // Azure Resource Tags
