@@ -17,6 +17,39 @@
 > the target design. The reconciliation pass is recorded in
 > `.github/.copilot/breadcrumbs/2026-07-20-1108-afd-export-mode-mcs-parity.md`
 > (Addendum 2). Proposal 003 §6 tracks the outstanding blockers.
+>
+> **Status update (2026-07-20 session, head `629644b`).** Several
+> POC callouts below are now resolved. In particular:
+>
+> - `FrontDoorProfile.spec.wafPolicy` + `spec.complianceMode` shipped
+>   with SecurityPolicy attach + envtest coverage (§4.1.1, §5.1);
+>   see commits `aeb116c` (API), `b2cf58f` (reconciler),
+>   `4b85044` (tests).
+> - `FrontDoorBackend` v1alpha1 CRD + reconciler shipped (§4.1.2,
+>   §5.1) including OriginGroup + Origins programming, the AFD/ATM
+>   coexistence guard from §3.5 (`Conflict` reason), and full
+>   envtest coverage; see commits `c61dc43` (CRD), `be0ccb2`
+>   (reconciler), `ceac0ab` (coexistence guard), `629644b` (tests).
+> - `ServiceExport` export-mode annotation +
+>   `InternalServiceExport.Spec.ExportMode` +
+>   `InternalServiceExport.Spec.PrivateLinkServiceResourceID` shipped
+>   (§3.5, §4.2); the member `serviceexport` reconciler now looks up
+>   the per-Service PLS by ARM Get and propagates it via
+>   `InternalServiceExport`; see commits `b85a115`, `c6d0d8e`,
+>   `cb6f23a`, `cf5324b`.
+> - `pkg/common/azurefrontdoor` client bundle now covers
+>   `WAFPoliciesClient`, `SecurityPoliciesClient`,
+>   `AFDOriginGroupsClient`, and `AFDOriginsClient` (§5.3); see
+>   commits `95a0096` and `afe12d7`.
+> - The sibling `cmd/hub-afd-controller-manager` binary and
+>   `charts/hub-afd-controller-manager` chart from §6/§7 landed in
+>   prior sessions (`fcb37f2`, `5672313`, `c219ca2`); the POC bridge
+>   in `cmd/hub-net-controller-manager` remains for now.
+>
+> Individual `POC:` / `POC deviation` blocks inline below have NOT
+> been rewritten — they remain accurate to `cb02d14`. Trust this
+> summary block for the current status; see Addendum 3 in the
+> breadcrumb for the per-commit narrative.
 
 Add a new global load-balancing (GLB) data-plane option to
 fleet-networking based on **Azure Front Door (AFD) Standard / Premium**

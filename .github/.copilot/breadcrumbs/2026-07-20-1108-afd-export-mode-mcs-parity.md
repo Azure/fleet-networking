@@ -369,3 +369,106 @@ resolving it.
   `test/`, `hack/`.
 - Any code files (per B-ii/a: docs only this session; code split
   is a follow-up commit).
+
+---
+
+## Addendum 3 (2026-07-20 T22:00Z-07:00): landing the reconciled design
+
+This addendum records the 11-commit series that closes the delta the
+reconciliation pass (Addendum 2) identified between the `cb02d14`
+POC and the target design in Proposals 001/002/003. All commits land
+on branch `rchinchani/afd-first-party-proposal`; envtests green in
+WSL and go vet / go build clean on Windows for every commit.
+
+### Commit series (in landing order)
+
+| # | SHA | Scope |
+|---|-----|-------|
+| 0a | `2fecf8d` | AFD SKU Premium-only enum tightening |
+| 0b | `8367527` | CRD regen for §0a |
+| 0c | `fcb37f2` | Split `hub-afd-controller-manager` binary |
+| 0d | `5672313` | Dockerfile + Makefile for §0c |
+| 0e | `c219ca2` | `charts/hub-afd-controller-manager` sibling chart |
+| 0f | `668b56f` | `armcdn` v2 bump to unlock OriginGroup+Origins fakes |
+| 0g | `9b6a337` | net-crd-installer test fixture repair |
+| 0h | `73e4150` | frontdoorprofile envtest scaffolding |
+| 1  | `aeb116c` | `FrontDoorProfileSpec.wafPolicy` + `complianceMode` |
+| 2  | `5b52f84` | deepcopy + CRD regen for §1 |
+| 3  | `95a0096` | Client bundle: WAFPolicies + SecurityPolicies |
+| 4  | `b2cf58f` | Reconciler: attach WAF policy via SecurityPolicy |
+| 5  | `4b85044` | envtest specs for WAF (happy / NotFound / SFI Detection) |
+| 6a | `b85a115` | `objectmeta`: export-mode annotation + extractor |
+| 6b | `c6d0d8e` | `InternalServiceExportSpec.ExportMode` + `PrivateLinkServiceResourceID` |
+| 6c | `cb6f23a` | Member `serviceexport` reconciler: ExportMode + PLS ARM Get |
+| 6d | `cf5324b` | Unit + integration tests for §6c |
+| 7  | `c61dc43` | `FrontDoorBackend` v1alpha1 CRD |
+| 8  | `afe12d7` | Client bundle: OriginGroups + Origins |
+| 9  | `be0ccb2` | `frontdoorbackend` reconciler (happy / Invalid / Pending) |
+| 10 | `ceac0ab` | AFD/ATM coexistence guard (`Conflict` reason) |
+| 11 | `629644b` | Fake OriginGroup/Origin providers + envtest specs |
+| doc | `d2ff7df` | Docs: competitive context (GKE/EKS/AKS parity) in 001 §2 |
+
+Plus this commit: docs cleanup (status-update callouts at top of
+001/002/003 + this Addendum 3).
+
+### Design decisions locked during landing
+
+Anything not in Addendum 2 but that we hardened during the landing
+pass:
+
+- **Wire contract for `ExportMode`.** Absent (`""`) on the wire is
+  treated semantically as `L4-TrafficManager`. The member reconciler
+  explicitly writes `""` for the default case so preexisting
+  `InternalServiceExport` shapes round-trip unchanged (kept 12
+  integration specs green without churning their expectations).
+  `L7-FrontDoor` is written verbatim.
+- **PLS resolution.** Requires an explicit
+  `networking.fleet.azure.com/azure-pls-name` annotation on the
+  source `Service`; no default derivation from
+  `cloud-provider-azure` internals. Rejected the "guess from
+  ILB name" path because it silently races service reconciliation.
+- **`FrontDoorBackend` UID naming.** OriginGroup is named
+  `fleet-<backendUID>`; Origins are `fleet-<backendUID>-<clusterID>`.
+  Deterministic per Kubernetes object, stable across renames,
+  matches the pattern `frontdoorprofile` already established with
+  `AzureProfileName`.
+- **Weight math.** `ceil(backend.Weight * export.Weight /
+  sum(export.Weight))`, byte-for-byte identical to the TMB formula
+  (see `trafficmanagerbackend/controller.go` line 580) so operators
+  moving between ATM and AFD get identical traffic splits.
+- **Coexistence guard scope.** Only rejects when a live
+  `TrafficManagerBackend` (DeletionTimestamp zero) in the same
+  namespace references the same `ServiceImport.Name`. TMB tearing
+  itself down is not a conflict, so the migration path
+  (delete TMB -> reconcile AFDB) works without any orchestration.
+- **Origin `HostName` placeholder.** AFD requires a non-nil
+  HostName even when SharedPrivateLinkResource is present; we
+  pass the PLS ID string. Prevents leaking a public hostname while
+  keeping the API payload valid.
+- **SetupWithManager watches.** FrontDoorProfile, TrafficManagerBackend
+  and InternalServiceExport all enqueue same-namespace
+  FrontDoorBackends (list-based). Chose list-based enqueue over a
+  field indexer because namespaces are expected to have single-digit
+  backend counts.
+
+### What is *not* in this series (intentional)
+
+- FrontDoorRoute + FrontDoorCustomDomain BYOC reconciler (Phase 4
+  tail; requires Key Vault plumbing).
+- Removing the POC bridge in `cmd/hub-net-controller-manager`
+  (GA prerequisite; sibling binary is running side-by-side today).
+- e2e coverage on a live sub (Phase 4 e2e in 002 §11).
+- OriginGroup health-probe / session-affinity knobs (§4.1.2
+  Phase 4 tail — CRD does not expose them yet).
+- Metrics + prometheus wiring on the FrontDoorBackend reconciler.
+
+### Verification
+
+- `make build` in WSL: green (all commits).
+- `make local-unit-test` in WSL: green.
+- `pkg/controllers/hub/frontdoorbackend` envtest suite: 5/5 passed.
+- `pkg/controllers/hub/frontdoorprofile` envtest suite: unaffected,
+  still passes.
+- `pkg/controllers/member/serviceexport` integration suite: green
+  after the wire-contract fix (`""` on default ExportMode).
+

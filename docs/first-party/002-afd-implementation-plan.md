@@ -28,6 +28,29 @@ match.
 > throughout §3–§9 highlight cases where the current code intentionally
 > diverges from the target design — those are followed up in
 > Proposal 003 §2.4 and the readiness table in §6 of that document.
+>
+> **Status update (2026-07-20 session, head `629644b`).** Many
+> **Phase 3** and **Phase 4** rows in §2 have now shipped; the doc
+> intentionally still shows the original per-row markers so the
+> phase framing is preserved. Concretely:
+>
+> - Phase 3 (ExportMode + PLS lookup) is complete: `b85a115`,
+>   `c6d0d8e`, `cb6f23a`, `cf5324b`.
+> - Phase 4 API + reconciler + coexistence guard + envtests are
+>   complete for `FrontDoorBackend`: `c61dc43`, `be0ccb2`,
+>   `ceac0ab`, `629644b`. WAFPolicy + ComplianceMode: `aeb116c`,
+>   `b2cf58f`, `4b85044`.
+> - AFD client bundle rows in §2.3 are complete: `95a0096`
+>   (WAF/SecurityPolicy) and `afe12d7` (OriginGroups/Origins).
+> - Sibling binary + chart (`hub-afd-controller-manager`) landed in
+>   an earlier session (`fcb37f2`, `5672313`, `c219ca2`); the POC
+>   bridge in `cmd/hub-net-controller-manager` is still present and
+>   is expected to be removed before GA (see §5.2).
+>
+> Remaining items: FrontDoorRoute + FrontDoorCustomDomain BYOC
+> (Phase 4 tail), member PLS provisioner chart flag polish, and
+> e2e coverage. See the breadcrumb Addendum 3 for the per-commit
+> narrative.
 
 The AFD implementation MUST mirror the ATM implementation's structural
 choices so that reviewers, on-callers, and future contributors have

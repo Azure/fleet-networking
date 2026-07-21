@@ -23,6 +23,18 @@ trackable, checkable list.
 > that shipped in commit `cb02d14`. The single current hard blocker
 > for GA is §2.4 (SFI identity split) — see the readiness table in
 > §6.
+>
+> **Status update (2026-07-20 session, head `629644b`).**
+> Every open item below whose blocker was "reconciler / API not yet
+> written" is now unblocked by shipped code (WAFPolicy +
+> ComplianceMode, `FrontDoorBackend` CRD + reconciler + coexistence
+> guard + envtests, member `serviceexport` PLS lookup). The
+> **§2.4 identity split** is *structurally* resolved by the sibling
+> binary + chart landing (`fcb37f2`, `5672313`, `c219ca2`), but the
+> POC bridge in `cmd/hub-net-controller-manager` remains and must
+> be removed before GA. Item checkboxes below have NOT been
+> re-checked; trust this summary block for current status and see
+> the breadcrumb Addendum 3 for the per-commit narrative.
 
 ---
 
