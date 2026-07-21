@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/frontdoorprofile"
@@ -116,6 +117,7 @@ func AzureOriginName(backend *fleetnetv1alpha1.FrontDoorBackend, clusterID strin
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=frontdoorprofiles,verbs=get;list;watch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch
+//+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerbackends,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile drives one reconciliation for a FrontDoorBackend. Mirrors the
@@ -221,6 +223,29 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1alpha1
 	}
 	if len(svcImport.Status.Clusters) == 0 {
 		return r.setPendingAndUpdate(ctx, backend, "ServiceImport has no member cluster exports yet")
+	}
+
+	// 2a. AFD/ATM coexistence guard. If a TrafficManagerBackend in the
+	//     same namespace already claims this ServiceImport, refuse to
+	//     program AFD origins for it — running both surfaces against the
+	//     same backing service double-programs traffic and (worse)
+	//     splits the L4 (public-IP) and L7 (Private-Link) exposure
+	//     models, which SFI-NS253 explicitly forbids (see
+	//     docs/first-party/001 §3.5).
+	//
+	//     This is a terminal, user-visible error: Accepted=False,
+	//     Reason=Conflict. The user has to explicitly delete the
+	//     TrafficManagerBackend (or its FrontDoorBackend twin) to
+	//     resolve; we don't guess a winner. When the loser is deleted,
+	//     the TMB reconciler's list-based watch on our namespace won't
+	//     wake us, so SetupWithManager (Commit 10d) adds an explicit
+	//     TMB watch that enqueues same-namespace FrontDoorBackends.
+	if conflict, err := r.findConflictingTrafficManagerBackend(ctx, backend); err != nil {
+		return ctrl.Result{}, err
+	} else if conflict != nil {
+		return r.setConflictAndUpdate(ctx, backend,
+			fmt.Sprintf("TrafficManagerBackend %q already claims ServiceImport %q; delete one of the two backends to resolve",
+				conflict.Name, backend.Spec.Backend.Name))
 	}
 
 	// 3. List InternalServiceExports feeding this ServiceImport and keep
@@ -474,6 +499,50 @@ func desiredAzureOrigin(plsResourceID string, weight int64) armcdn.AFDOrigin {
 			EnabledState: ptr.To(armcdn.EnabledStateEnabled),
 		},
 	}
+}
+
+// findConflictingTrafficManagerBackend returns the first
+// TrafficManagerBackend in the same namespace as `backend` whose
+// Spec.Backend.Name points at the same ServiceImport this FrontDoorBackend
+// wants to program. Returns (nil, nil) when nothing conflicts.
+//
+// The check is intentionally list-based (rather than field-indexed) — the
+// AFD/ATM coexistence guard runs at most once per FrontDoorBackend
+// reconcile, and namespaces are expected to have single-digit backend
+// counts, so a linear scan is fine and does not need a new indexer.
+func (r *Reconciler) findConflictingTrafficManagerBackend(ctx context.Context, backend *fleetnetv1alpha1.FrontDoorBackend) (*fleetnetv1beta1.TrafficManagerBackend, error) {
+	tmbList := &fleetnetv1beta1.TrafficManagerBackendList{}
+	if err := r.Client.List(ctx, tmbList, client.InNamespace(backend.Namespace)); err != nil {
+		return nil, err
+	}
+	for i := range tmbList.Items {
+		tmb := &tmbList.Items[i]
+		if !tmb.DeletionTimestamp.IsZero() {
+			// A TMB tearing itself down is not a conflict — the
+			// user has already signalled intent to migrate.
+			continue
+		}
+		if tmb.Spec.Backend.Name == backend.Spec.Backend.Name {
+			return tmb, nil
+		}
+	}
+	return nil, nil
+}
+
+// setConflictAndUpdate writes Accepted=False,Reason=Conflict. Kept separate
+// from setInvalidAndUpdate so operators (and dashboards) can distinguish
+// "user pointed at a nonexistent thing" from "user asked for two
+// mutually-exclusive surfaces at once".
+func (r *Reconciler) setConflictAndUpdate(ctx context.Context, backend *fleetnetv1alpha1.FrontDoorBackend, msg string) (ctrl.Result, error) {
+	r.Recorder.Eventf(backend, corev1.EventTypeWarning, string(fleetnetv1alpha1.FrontDoorBackendReasonConflict), "%s", msg)
+	meta.SetStatusCondition(&backend.Status.Conditions, metav1.Condition{
+		Type:               string(fleetnetv1alpha1.FrontDoorBackendConditionAccepted),
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: backend.Generation,
+		Reason:             string(fleetnetv1alpha1.FrontDoorBackendReasonConflict),
+		Message:            msg,
+	})
+	return ctrl.Result{}, r.Client.Status().Update(ctx, backend)
 }
 
 // setInvalidAndUpdate writes Accepted=False,Reason=Invalid and stops
