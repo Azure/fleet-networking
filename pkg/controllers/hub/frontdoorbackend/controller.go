@@ -491,7 +491,7 @@ func desiredAzureOrigin(plsResourceID string, weight int64) armcdn.AFDOrigin {
 	return armcdn.AFDOrigin{
 		Properties: &armcdn.AFDOriginProperties{
 			HostName: ptr.To(plsResourceID),
-			Weight:   ptr.To(int32(weight)),
+			Weight:   ptr.To(int32(weight)), //nolint:gosec // G115: weight is CRD-validated to 0..1000 (FrontDoorBackendSpec.Weight), always fits int32.
 			SharedPrivateLinkResource: &armcdn.SharedPrivateLinkResourceProperties{
 				PrivateLink: &armcdn.ResourceReference{
 					ID: ptr.To(plsResourceID),

@@ -1643,10 +1643,10 @@ func (c *fakePrivateLinkServicesClient) List(_ context.Context, _ string) ([]*ar
 
 func TestSetAzureRelatedPrivateLinkInformation(t *testing.T) {
 	const (
-		validPLSName        = "pls1"
-		altResourceGroup    = "custom-pls-rg"
-		validPLSResourceID  = "/subscriptions/sub1/resourceGroups/valid-rg/providers/Microsoft.Network/privateLinkServices/pls1"
-		altPLSResourceID    = "/subscriptions/sub1/resourceGroups/custom-pls-rg/providers/Microsoft.Network/privateLinkServices/pls1"
+		validPLSName       = "pls1"
+		altResourceGroup   = "custom-pls-rg"
+		validPLSResourceID = "/subscriptions/sub1/resourceGroups/valid-rg/providers/Microsoft.Network/privateLinkServices/pls1"
+		altPLSResourceID   = "/subscriptions/sub1/resourceGroups/custom-pls-rg/providers/Microsoft.Network/privateLinkServices/pls1"
 	)
 	tests := []struct {
 		name           string
@@ -1756,10 +1756,10 @@ func TestSetAzureRelatedPrivateLinkInformation(t *testing.T) {
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						objectmeta.ServiceAnnotationAzureLoadBalancerInternal:  "true",
-						objectmeta.ServiceAnnotationAzurePLSCreate:             "true",
-						objectmeta.ServiceAnnotationAzurePLSName:               validPLSName,
-						objectmeta.ServiceAnnotationAzurePLSResourceGroup:      altResourceGroup,
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+						objectmeta.ServiceAnnotationAzurePLSResourceGroup:     altResourceGroup,
 					},
 				},
 				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},

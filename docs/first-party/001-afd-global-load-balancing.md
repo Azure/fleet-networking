@@ -278,7 +278,7 @@ order:
    `Service` and infers `L7-FrontDoor` when **all** of the
    following AKS cloud-provider annotations are present
    (documented at <https://learn.microsoft.com/azure/aks/internal-lb>
-   and <https://learn.microsoft.com/azure/aks/private-link-service>):
+   and <https://learn.microsoft.com/azure/aks/internal-lb#create-a-private-link-service>):
 
    ```
    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
@@ -905,6 +905,6 @@ prerequisite and is tracked in Proposal 003 §2.4.
 * AKS internal load balancer —
   <https://learn.microsoft.com/azure/aks/internal-lb>
 * AKS Private Link Service integration —
-  <https://learn.microsoft.com/azure/aks/private-link-service>
+  <https://learn.microsoft.com/azure/aks/internal-lb#create-a-private-link-service>
 * Existing ATM design in this repo —
   [`docs/concepts/DNSBasedGlobalLoadBalancing/README.md`](../concepts/DNSBasedGlobalLoadBalancing/README.md)

@@ -49,18 +49,19 @@ const (
 	// syntactically invalid (typo, empty string, unsupported value). The
 	// export is halted until the operator corrects it.
 	svcExportInvalidExportModeReason = "ServiceExportInvalidExportModeAnnotation"
-	// svcExportExportModeServiceMismatchReason is set when the requested
-	// export mode is incompatible with the underlying Service shape — e.g.
-	// L7-FrontDoor asked for on a Service that isn't an internal LB with
-	// PLS annotations. Matches the "ExportModeAnnotationServiceMismatch"
-	// name used in docs/first-party/002-afd-implementation-plan.md §11.
-	svcExportExportModeServiceMismatchReason = "ExportModeAnnotationServiceMismatch"
 	// svcExportPLSPendingReason is set while the Private Link Service is
 	// still being provisioned by cloud-provider-azure (ARM Get returns
 	// NotFound / nil). Mirrors the "public IP is in the progressing"
 	// branch — we return without requeuing and let the Service status
 	// update re-trigger reconciliation.
 	svcExportPLSPendingReason = "PrivateLinkServicePending"
+
+	// annotationValueTrue is the case-sensitive "true" literal expected by
+	// cloud-provider-azure boolean annotations (e.g. azure-load-balancer-internal,
+	// azure-pls-create). Extracted to a const to satisfy goconst and to keep the
+	// three call-sites in sync with upstream's exact string comparison:
+	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
+	annotationValueTrue = "true"
 
 	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that
 	// a ServiceExport can only be deleted after its corresponding Service has been unexported from the hub cluster.
@@ -418,7 +419,7 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	}
 	// The annotation value is case-sensitive.
 	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
-	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == annotationValueTrue
 	if hubSvcExport.Spec.IsInternalLoadBalancer {
 		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
 		return nil
@@ -506,13 +507,13 @@ func (r *Reconciler) setAzureRelatedPrivateLinkInformation(ctx context.Context,
 	// The annotation value is case-sensitive; mirror the check used for
 	// the ATM path so a Service that is publicly-facing cannot be exported
 	// through the FrontDoor / PLS path by mistake.
-	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == annotationValueTrue
 	if !hubSvcExport.Spec.IsInternalLoadBalancer {
 		return fmt.Errorf("L7-FrontDoor export requires an internal LoadBalancer (annotation %q must be \"true\")",
 			objectmeta.ServiceAnnotationAzureLoadBalancerInternal)
 	}
 
-	if service.Annotations[objectmeta.ServiceAnnotationAzurePLSCreate] != "true" {
+	if service.Annotations[objectmeta.ServiceAnnotationAzurePLSCreate] != annotationValueTrue {
 		return fmt.Errorf("L7-FrontDoor export requires annotation %q to be \"true\"",
 			objectmeta.ServiceAnnotationAzurePLSCreate)
 	}

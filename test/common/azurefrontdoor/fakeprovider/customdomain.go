@@ -27,7 +27,7 @@ const CustomDomainResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/provid
 // but is sufficient for asserting that
 // FrontDoorCustomDomainStatus.DNSValidationToken is populated from
 // AFDDomainProperties.ValidationProperties.
-const FakeValidationToken = "fleet-fake-dns-validation-token"
+const FakeValidationToken = "fleet-fake-dns-validation-token" //nolint:gosec // G101: synthetic value used by the fake AFD server to populate AFDDomainProperties.ValidationProperties.ValidationToken; not a real credential.
 
 // customDomainKey scopes state by (profile, domain) pair.
 type customDomainKey struct {

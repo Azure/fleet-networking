@@ -140,7 +140,7 @@ code changes in this pass.
 - Checklist 003: `docs/first-party/003-pre-implementation-checklist.md` (Open)
 - Existing Fleet-specific annotation precedent: `networking.fleet.azure.com/weight` on `ServiceExport` (see `pkg/common/objectmeta`).
 - AKS internal LB annotations: <https://learn.microsoft.com/azure/aks/internal-lb>
-- AKS PLS annotations: <https://learn.microsoft.com/azure/aks/private-link-service>
+- AKS PLS annotations: <https://learn.microsoft.com/azure/aks/internal-lb#create-a-private-link-service>
 
 ---
 
