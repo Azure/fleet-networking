@@ -1,0 +1,235 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: frontdoorcustomdomains.networking.fleet.azure.com
+spec:
+  group: networking.fleet.azure.com
+  names:
+    categories:
+    - fleet-networking
+    kind: FrontDoorCustomDomain
+    listKind: FrontDoorCustomDomainList
+    plural: frontdoorcustomdomains
+    shortNames:
+    - afdcd
+    singular: frontdoorcustomdomain
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.hostname
+      name: Hostname
+      type: string
+    - jsonPath: .status.validationState
+      name: Validation
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Programmed')].status
+      name: Is-Programmed
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          FrontDoorCustomDomain represents a custom domain attached to a FrontDoorProfile,
+          including the DNS-based ownership validation and the TLS binding.
+          https://learn.microsoft.com/en-us/azure/frontdoor/domain
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: The desired state of FrontDoorCustomDomain.
+            properties:
+              hostname:
+                description: |-
+                  Hostname is the fully qualified custom domain name (e.g. www.contoso.com).
+                  Immutable after creation.
+                maxLength: 253
+                minLength: 1
+                pattern: ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$
+                type: string
+                x-kubernetes-validations:
+                - message: hostname is immutable
+                  rule: self == oldSelf
+              profileRef:
+                description: |-
+                  ProfileRef references the FrontDoorProfile that owns this custom domain.
+                  The referenced profile must exist in the same namespace as this resource.
+                  Immutable after creation.
+                properties:
+                  name:
+                    description: |-
+                      Name of the target FrontDoorProfile. Must exist in the same namespace as
+                      this FrontDoorCustomDomain (per breadcrumb D4: same-namespace only).
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+                x-kubernetes-validations:
+                - message: profileRef is immutable
+                  rule: self == oldSelf
+              tls:
+                description: TLS configures the certificate binding for this custom
+                  domain.
+                properties:
+                  keyVaultCertificate:
+                    description: KeyVaultCertificate references the certificate to
+                      bind when Mode is BYOC.
+                    properties:
+                      certificateName:
+                        description: CertificateName is the name of the certificate
+                          in the Key Vault.
+                        maxLength: 127
+                        minLength: 1
+                        type: string
+                      vaultURI:
+                        description: VaultURI is the base URI of the Key Vault, e.g.
+                          https://myvault.vault.azure.net.
+                        minLength: 1
+                        pattern: ^https://[a-zA-Z0-9-]+\.vault\.azure\.net/?$
+                        type: string
+                      version:
+                        description: |-
+                          Version optionally pins a specific certificate version. When omitted,
+                          the controller tracks the latest version and re-binds on rotation.
+                        type: string
+                    required:
+                    - certificateName
+                    - vaultURI
+                    type: object
+                  mode:
+                    description: Mode selects the source of the TLS certificate.
+                    enum:
+                    - Managed
+                    - BYOC
+                    type: string
+                required:
+                - mode
+                type: object
+                x-kubernetes-validations:
+                - message: keyVaultCertificate is required when mode is BYOC
+                  rule: self.mode != 'BYOC' || has(self.keyVaultCertificate)
+                - message: keyVaultCertificate must not be set when mode is Managed
+                  rule: self.mode != 'Managed' || !has(self.keyVaultCertificate)
+            required:
+            - hostname
+            - profileRef
+            - tls
+            type: object
+          status:
+            description: The observed status of FrontDoorCustomDomain.
+            properties:
+              conditions:
+                description: Current custom domain status.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              dnsValidationExpiry:
+                description: |-
+                  DNSValidationExpiry is the time at which the current validation token
+                  expires. Azure issues a new token periodically; the controller refreshes
+                  status before expiry.
+                format: date-time
+                type: string
+              dnsValidationToken:
+                description: |-
+                  DNSValidationToken is the token that must be published as a TXT record on
+                  the customer's DNS zone to prove ownership. The expected TXT record name
+                  is `_dnsauth.<hostname>`, and the value is this token.
+                type: string
+              resourceID:
+                description: |-
+                  ResourceID is the fully qualified Azure resource ID of the custom domain.
+                  Example: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Cdn/profiles/{profile}/customDomains/{name}
+                type: string
+              validationState:
+                description: ValidationState is the current DNS ownership validation
+                  state reported by Azure.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: metadata.name max length is 63
+          rule: size(self.metadata.name) < 64
+    served: true
+    storage: true
+    subresources:
+      status: {}
