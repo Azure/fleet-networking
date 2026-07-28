@@ -65,5 +65,5 @@
 ## References
 
 - Existing workflow: `.github/workflows/trivy.yml`
-- [Copilot coding agent docs](https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent)
+- [Copilot coding agent docs](https://docs.github.com/en/copilot/using-github-copilot/using-copilot-to-fix-issues)
 - [Trivy action](https://github.com/aquasecurity/trivy-action)
