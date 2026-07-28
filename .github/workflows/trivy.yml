@@ -1,5 +1,7 @@
 name: Trivy Vulnerability Scanner
 on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6:00 AM UTC
   push:
     branches:
       - main
@@ -11,6 +13,7 @@ on:
 permissions:
   contents: read
   packages: write
+  issues: write
 
 env:
   REGISTRY: ghcr.io
@@ -67,8 +70,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
-          format: 'table'
-          exit-code: '1'
+          format: 'json'
+          output: 'trivy-hub-net.json'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
@@ -76,15 +79,14 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db 
-
+          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db
 
       - name: Scan ${{ env.REGISTRY }}/${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
-          format: 'table'
-          exit-code: '1'
+          format: 'json'
+          output: 'trivy-member-net.json'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
@@ -92,14 +94,14 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db 
+          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db
 
       - name: Scan ${{ env.REGISTRY }}/${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.MCS_CONTROLLER_MANAGER_IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
-          format: 'table'
-          exit-code: '1'
+          format: 'json'
+          output: 'trivy-mcs.json'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
@@ -107,4 +109,93 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db 
+          TRIVY_DB_REPOSITORY: mcr.microsoft.com/mirror/ghcr/aquasecurity/trivy-db
+
+      - name: Check for vulnerabilities
+        id: check-vulns
+        run: |
+          has_vulns=false
+          for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
+            count=$(jq '[.Results[]? | .Vulnerabilities[]?] | length' "$file")
+            if [ "$count" -gt 0 ]; then
+              has_vulns=true
+              break
+            fi
+          done
+          echo "has_vulns=$has_vulns" >> "$GITHUB_OUTPUT"
+
+      - name: Fail on vulnerabilities (non-scheduled runs)
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule'
+        run: |
+          echo "::error::Vulnerabilities found. See trivy scan output."
+          for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
+            echo "--- $file ---"
+            jq -r '.Results[]? | .Vulnerabilities[]? | "\(.VulnerabilityID) \(.Severity) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion)"' "$file"
+          done
+          exit 1
+
+      - name: Build vulnerability summary
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
+        id: vuln-summary
+        run: |
+          {
+            echo 'body<<EOF'
+            echo "## Trivy CVE Scan - $(date -u +%Y-%m-%d)"
+            echo ""
+            echo "The daily vulnerability scan found **HIGH/CRITICAL** CVEs in our container images."
+            echo "Please update the affected Go dependencies in \`go.mod\` to the fixed versions listed below,"
+            echo "then run \`go mod tidy\` and verify the build passes with \`make build\`."
+            echo ""
+            echo "### Vulnerabilities"
+            echo ""
+            echo "| CVE | Severity | Package | Installed | Fixed | Image |"
+            echo "|-----|----------|---------|-----------|-------|-------|"
+            for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
+              image=$(echo "$file" | sed 's/trivy-//;s/.json//')
+              jq -r --arg img "$image" \
+                '.Results[]? | .Vulnerabilities[]? | "| \(.VulnerabilityID) | \(.Severity) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion) | \($img) |"' \
+                "$file"
+            done | sort -u
+            echo ""
+            echo "### Instructions"
+            echo ""
+            echo "1. For each Go library CVE, run: \`go get <package>@<fixed_version>\`"
+            echo "2. Run \`go mod tidy\` to clean up dependencies."
+            echo "3. Run \`make build\` to verify the build passes."
+            echo "4. Run \`make test\` to verify tests pass."
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create issue for Copilot
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            const title = `fix: address trivy CVEs found on ${today}`;
+
+            // Check if an open issue already exists for today
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,trivy',
+              per_page: 10
+            });
+            const alreadyExists = existing.data.some(i => i.title === title);
+            if (alreadyExists) {
+              console.log('Issue already exists for today, skipping.');
+              return;
+            }
+
+            const body = process.env.ISSUE_BODY;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'trivy'],
+              assignees: ['copilot']
+            });
+        env:
+          ISSUE_BODY: ${{ steps.vuln-summary.outputs.body }}
