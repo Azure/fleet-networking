@@ -12,6 +12,9 @@
     },
     {
       "pattern": "^https://eng\\.ms/"
+    },
+    {
+      "pattern": "^https://github\\.com/kubernetes/perf-tests/blob/master/clusterloader2/docs/GETTING_STARTED\\.md$"
     }
   ],
   "timeout": "20s"
