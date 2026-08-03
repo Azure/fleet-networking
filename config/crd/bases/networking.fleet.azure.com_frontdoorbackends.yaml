@@ -47,8 +47,8 @@ spec:
             - Spec.Profile  → parent FrontDoorProfile (same namespace)
             - Spec.Backend  → ServiceImport (same namespace)
             - Spec.Weight   → aggregate traffic weight, distributed across
-                              per-export weights the same way as ATM (see the
-                              TrafficManagerBackendSpec.Weight formula).
+              per-export weights the same way as ATM (see the
+              TrafficManagerBackendSpec.Weight formula).
 
           Design references:
             - docs/first-party/001-afd-global-load-balancing.md §4 (backend model)

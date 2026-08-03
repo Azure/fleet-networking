@@ -171,10 +171,6 @@ func generateMetrics(
 
 // validateEmittedEvents validates the events emitted for a trafficManagerBackend.
 func validateEmittedEvents(backend *fleetnetv1beta1.TrafficManagerBackend, want []corev1.Event) {
-	var got corev1.EventList
-	Expect(k8sClient.List(ctx, &got, client.InNamespace(testNamespace),
-		client.MatchingFieldsSelector{Selector: fields.OneTermEqualSelector("involvedObject.name", backend.Name)})).Should(Succeed())
-
 	cmpOptions := []cmp.Option{
 		cmpopts.SortSlices(func(a, b corev1.Event) bool {
 			return a.LastTimestamp.Before(&b.LastTimestamp) // sort by time
@@ -183,8 +179,17 @@ func validateEmittedEvents(backend *fleetnetv1beta1.TrafficManagerBackend, want 
 			return a.Reason == b.Reason && a.Type == b.Type && a.ReportingController == b.ReportingController
 		}),
 	}
-	diff := cmp.Diff(got.Items, want, cmpOptions...)
-	Expect(diff).To(BeEmpty(), "Event list mismatch (-got, +want):\n%s, %v", diff, got.Items)
+	Eventually(func() error {
+		var got corev1.EventList
+		if err := k8sClient.List(ctx, &got, client.InNamespace(testNamespace),
+			client.MatchingFieldsSelector{Selector: fields.OneTermEqualSelector("involvedObject.name", backend.Name)}); err != nil {
+			return fmt.Errorf("failed to list events: %w", err)
+		}
+		if diff := cmp.Diff(got.Items, want, cmpOptions...); diff != "" {
+			return fmt.Errorf("event list mismatch (-got, +want):\n%s", diff)
+		}
+		return nil
+	}, timeout, interval).Should(Succeed())
 }
 
 var _ = Describe("Test TrafficManagerBackend Controller", func() {
