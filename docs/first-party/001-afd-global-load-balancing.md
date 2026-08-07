@@ -72,27 +72,48 @@ origins, routes, and security policies via the `armcdn` SDK.
 
 ### Competitive context (industry parity)
 
-Peer clouds already ship a first-party controller that programs a
-global L7 edge from a Kubernetes-native surface, with WAF/bot rules
-that travel with the workload manifest instead of a side-car IaC
-pipeline. Today AKS/Fleet does not:
+This comparison describes product and operating models, not exact
+feature parity. The broader external-customer, public-origin, API, and
+multi-region decisions are tracked in the
+[cross-team AFD global ingress RFC](https://github.com/rchincha/fleet-networking/blob/rchinchani/afd-global-ingress-rfc/docs/design/afd-global-ingress-rfc.md).
+This proposal remains focused on the first-party AFD Premium + WAF +
+PLS implementation slice.
 
-| Cloud Provider    | Controller Engine                 | Edge Routing Layer                                 | Native Bot/WAF Security Product                              | Native Bot/WAF Hook?                       | Layer-7 Controller Maturity                    |
-| :---------------- | :-------------------------------- | :------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------- | :--------------------------------------------- |
-| **GCP (GKE)**     | Multi-Cluster Gateway Controller  | Global External Application Load Balancer          | **Google Cloud Armor** (with reCAPTCHA Enterprise)           | **Yes** (via `GCPBackendPolicy`)           | Highly mature, production-standard             |
-| **AWS (EKS)**     | AWS Load Balancer Controller      | Application Load Balancer (ALB) & VPC Lattice      | **AWS WAF** (with AWS Managed Rules Bot Control)             | **Yes** (via resource annotations)         | Gateway API implementation reached GA in early 2026 |
-| **Azure (Fleet)** | Azure Kubernetes Fleet Manager    | **Azure Front Door (Premium)** — this proposal     | **Azure Web Application Firewall** (with Bot Manager Rule Set) | **No today**; must manage AFD outside K8s | **ATM only (L4 DNS)**; L7 requires Terraform/ASO |
+| Dimension | GKE | Amazon EKS | AKS Fleet direction |
+|---|---|---|---|
+| Multi-cluster control | GKE fleets with a central config cluster and Google-hosted ingress/Gateway controllers | No single equivalent global-ingress control plane; cluster and global traffic services are commonly managed separately | Fleet Manager membership and placement with fleet-networking global-ingress reconciliation |
+| Kubernetes API | `MultiClusterIngress`/`MultiClusterService`, or multi-cluster Gateway API with MCS `ServiceImport` backends | AWS Load Balancer Controller manages per-cluster Ingress, Service, and Gateway resources | PR #373 introduces Azure-specific AFD CRDs; Gateway API and MCS integration remain cross-team design questions |
+| Global traffic | Global external multi-cluster Application Load Balancer; multi-cluster Gateway also exposes regional and cross-regional internal classes | Regional ALB/NLB endpoints are commonly combined with Route 53 or Global Accelerator | AFD for HTTP(S); ATM remains available for public DNS and non-HTTP scenarios |
+| Private application connectivity | Internal multi-cluster GatewayClasses, subject to project, VPC, and class restrictions | Private ALB/NLB patterns or VPC Lattice across VPCs and accounts | AFD Premium Private Link to a PLS-backed AKS internal load balancer |
+| WAF | Cloud Armor on compatible Application Load Balancer backend services | AWS WAF on supported resources such as regional ALBs or global CloudFront distributions | AFD WAF; mandatory in Prevention mode for this proposal's SFI-NS253 policy |
+| Operating model | Integrated, hosted, and fleet-aware | Composable services assembled around per-cluster controllers | Target is an integrated Fleet experience while preserving explicit AFD/ATM provider choice |
 
-The AKS/Fleet row is what this proposal changes. `FrontDoorProfile`
-carries the WAF hook via `.spec.wafPolicy` (§4.1.1) and
-`FrontDoorBackend` (§4.1.2) makes per-workload origin programming a
-CR mutation instead of a Terraform plan — bringing AKS/Fleet to
-functional parity with `GCPBackendPolicy` on GKE and the WAF
-annotations on the AWS Load Balancer Controller, with the added
-SFI-NS253 guarantee that origins are reached exclusively over
-Private Link (§2.1). It also unblocks the migration path away from
-the L4-only Traffic Manager surface documented in §2.2 without
-forcing the workload owner to leave Kubernetes YAML.
+GKE provides the closest architectural precedent:
+
+- clusters join one fleet;
+- a central Kubernetes API hosts multi-cluster networking intent;
+- hosted controllers program shared load-balancing infrastructure;
+- Gateway API and MCS `ServiceImport` provide role-oriented and
+  multi-cluster abstractions; and
+- documented GatewayClasses make topology capabilities explicit.
+
+Amazon EKS illustrates a more composable model:
+
+- AWS Load Balancer Controller provisions an ALB for an Ingress or
+  Gateway and an NLB for a `LoadBalancer` Service in one cluster;
+- Route 53 provides DNS routing policies;
+- Global Accelerator directs traffic to healthy regional ALB, NLB,
+  EC2, or Elastic IP endpoints; and
+- VPC Lattice addresses application networking across VPCs and
+  accounts.
+
+The Fleet product should learn from both approaches: provide the
+coherent placement-to-ingress status demonstrated by GKE, while
+retaining explicit AFD and ATM provider choices instead of forcing
+one global data plane. PR #373 contributes reusable AFD SDK,
+reconciliation, WAF, domain, origin-group, chart, and test
+foundations; it does not by itself settle the broader public-origin
+or shared-ingress architecture.
 
 ### 2.1 SFI-NS253 in one paragraph
 
@@ -906,5 +927,23 @@ prerequisite and is tracked in Proposal 003 §2.4.
   <https://learn.microsoft.com/azure/aks/internal-lb>
 * AKS Private Link Service integration —
   <https://learn.microsoft.com/azure/aks/internal-lb#create-a-private-link-service>
+* GKE Multi Cluster Ingress —
+  <https://cloud.google.com/kubernetes-engine/docs/concepts/multi-cluster-ingress>
+* GKE multi-cluster Gateway environment and GatewayClasses —
+  <https://cloud.google.com/kubernetes-engine/docs/how-to/enabling-multi-cluster-gateways>
+* GKE Gateway API —
+  <https://cloud.google.com/kubernetes-engine/docs/concepts/gateway-api>
+* Google Cloud Armor integration —
+  <https://cloud.google.com/armor/docs/integrating-cloud-armor>
+* AWS Load Balancer Controller for Amazon EKS —
+  <https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html>
+* AWS Global Accelerator standard accelerators —
+  <https://docs.aws.amazon.com/global-accelerator/latest/dg/about-accelerators.html>
+* Amazon Route 53 routing policies —
+  <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html>
+* Amazon VPC Lattice —
+  <https://docs.aws.amazon.com/vpc-lattice/latest/ug/what-is-vpc-lattice.html>
+* AWS WAF protected resources —
+  <https://docs.aws.amazon.com/waf/latest/developerguide/how-aws-waf-works-resources.html>
 * Existing ATM design in this repo —
   [`docs/concepts/DNSBasedGlobalLoadBalancing/README.md`](../concepts/DNSBasedGlobalLoadBalancing/README.md)
