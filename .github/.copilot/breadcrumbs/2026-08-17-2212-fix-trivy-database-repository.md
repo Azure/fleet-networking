@@ -32,7 +32,7 @@
 - [x] **Task 3.1: Validate the workflow change.**
   - Re-run the configuration assertion and inspect the resulting diff.
   - Success criteria: the workflow contains exactly three official repository references and no unrelated changes.
-- [ ] **Task 3.2: Commit and create the pull request.**
+- [x] **Task 3.2: Commit and create the pull request.**
   - Commit the workflow and breadcrumb updates, push the branch, and open a GitHub pull request.
   - Success criteria: the pull request clearly explains the stale database root cause and durable fix.
 
@@ -41,7 +41,7 @@
 - [x] Phase 1 / Task 1.1 completed.
 - [x] Phase 2 / Task 2.1 completed.
 - [x] Phase 3 / Task 3.1 completed.
-- [ ] Phase 3 / Task 3.2 completed.
+- [x] Phase 3 / Task 3.2 completed.
 
 ### Overall success criteria
 
@@ -61,6 +61,7 @@
 - Phase 1 confirmed that lines 79, 95, and 110 of `.github/workflows/trivy.yml` independently use the stale mirror.
 - Phase 2 updated the hub, member, and MCS controller image scans to use the official MCR Trivy database repository.
 - Phase 3 validation counted three official repository references and zero stale mirror references; the diff contains only the intended workflow substitutions and this breadcrumb.
+- Phase 3 published the fix in GitHub pull request #1.
 
 ## Changes Made
 
@@ -68,6 +69,7 @@
 - Verified the pre-change workflow contains exactly three stale database repository references.
 - Replaced all three stale mirror references with the official MCR repository.
 - Verified the final repository reference counts and reviewed the focused diff.
+- Committed the fix and opened GitHub pull request #1.
 
 ## Before/After Comparison
 
@@ -77,6 +79,7 @@
 ## References
 
 - `.github/workflows/trivy.yml`: Current image-scanning workflow and scan policy.
+- GitHub pull request #1: Publishes the durable database repository fix.
 - Repository domain knowledge: no files were present under `.github/.copilot/domain_knowledge`.
 - Repository specifications: no files were present under `.github/.copilot/specifications`.
 - User-provided scan evidence: establishes that the stale database, rather than image scanning, caused missed findings.
