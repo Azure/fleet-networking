@@ -44,7 +44,7 @@
 - [x] **Task 4.2: Retain the official Trivy database repository.**
   - Resolve `.github/workflows/trivy.yml` so all three image scans use `mcr.microsoft.com/oss/v2/aquasecurity/trivy-db`.
   - Success criteria: exactly three official references and zero stale mirror references remain.
-- [ ] **Task 4.3: Validate and publish the conflict resolution.**
+- [x] **Task 4.3: Validate and publish the conflict resolution.**
   - Inspect the merge diff, push the merge commit, and verify upstream PR #399 is mergeable.
   - Success criteria: GitHub reports no merge conflict and the PR contains both upstream workflow behavior and the intended database fix.
 
@@ -56,7 +56,7 @@
 - [x] Phase 3 / Task 3.2 completed.
 - [x] Phase 4 / Task 4.1 completed.
 - [x] Phase 4 / Task 4.2 completed.
-- [ ] Phase 4 / Task 4.3 completed.
+- [x] Phase 4 / Task 4.3 completed.
 
 ### Overall success criteria
 
@@ -81,6 +81,7 @@
 - Conflict inspection found only `.github/workflows/trivy.yml`; upstream added scheduled JSON scanning and automated issue creation after this branch diverged.
 - Phase 4 merged upstream `main` at `556170bd5cdbf36270f05bc9c67317fb03061480` and resolved the workflow conflict without dropping upstream behavior.
 - The resolved workflow contains three official repository references, zero stale mirror references, and zero conflict markers.
+- GitHub reports upstream pull request #399 as mergeable; its `BLOCKED` state reflects remaining checks or review requirements rather than merge conflicts.
 
 ## Changes Made
 
@@ -90,6 +91,7 @@
 - Verified the final repository reference counts and reviewed the focused diff.
 - Committed the fix and opened upstream GitHub pull request Azure/fleet-networking#399.
 - Preserved upstream's daily JSON scans, vulnerability checks, summaries, and issue creation while resolving the database repository values.
+- Pushed the merge resolution and confirmed GitHub no longer reports a conflict.
 
 ## Before/After Comparison
 
