@@ -38,10 +38,10 @@
 
 ### Phase 4: Resolve upstream merge conflict
 
-- [ ] **Task 4.1: Merge the current upstream `main` branch.**
+- [x] **Task 4.1: Merge the current upstream `main` branch.**
   - Preserve upstream's daily JSON scan, vulnerability summary, and issue-creation workflow changes.
   - Success criteria: the branch contains upstream commit `556170bd5cdbf36270f05bc9c67317fb03061480` and has no unresolved files.
-- [ ] **Task 4.2: Retain the official Trivy database repository.**
+- [x] **Task 4.2: Retain the official Trivy database repository.**
   - Resolve `.github/workflows/trivy.yml` so all three image scans use `mcr.microsoft.com/oss/v2/aquasecurity/trivy-db`.
   - Success criteria: exactly three official references and zero stale mirror references remain.
 - [ ] **Task 4.3: Validate and publish the conflict resolution.**
@@ -54,8 +54,8 @@
 - [x] Phase 2 / Task 2.1 completed.
 - [x] Phase 3 / Task 3.1 completed.
 - [x] Phase 3 / Task 3.2 completed.
-- [ ] Phase 4 / Task 4.1 completed.
-- [ ] Phase 4 / Task 4.2 completed.
+- [x] Phase 4 / Task 4.1 completed.
+- [x] Phase 4 / Task 4.2 completed.
 - [ ] Phase 4 / Task 4.3 completed.
 
 ### Overall success criteria
@@ -77,8 +77,10 @@
 - Phase 1 confirmed that lines 79, 95, and 110 of `.github/workflows/trivy.yml` independently use the stale mirror.
 - Phase 2 updated the hub, member, and MCS controller image scans to use the official MCR Trivy database repository.
 - Phase 3 validation counted three official repository references and zero stale mirror references; the diff contains only the intended workflow substitutions and this breadcrumb.
-- Phase 3 published the fix in GitHub pull request #1.
+- Phase 3 published the fix in upstream GitHub pull request Azure/fleet-networking#399; the mistakenly opened fork pull request #1 was closed.
 - Conflict inspection found only `.github/workflows/trivy.yml`; upstream added scheduled JSON scanning and automated issue creation after this branch diverged.
+- Phase 4 merged upstream `main` at `556170bd5cdbf36270f05bc9c67317fb03061480` and resolved the workflow conflict without dropping upstream behavior.
+- The resolved workflow contains three official repository references, zero stale mirror references, and zero conflict markers.
 
 ## Changes Made
 
@@ -86,7 +88,8 @@
 - Verified the pre-change workflow contains exactly three stale database repository references.
 - Replaced all three stale mirror references with the official MCR repository.
 - Verified the final repository reference counts and reviewed the focused diff.
-- Committed the fix and opened GitHub pull request #1.
+- Committed the fix and opened upstream GitHub pull request Azure/fleet-networking#399.
+- Preserved upstream's daily JSON scans, vulnerability checks, summaries, and issue creation while resolving the database repository values.
 
 ## Before/After Comparison
 
@@ -96,7 +99,7 @@
 ## References
 
 - `.github/workflows/trivy.yml`: Current image-scanning workflow and scan policy.
-- GitHub pull request #1: Publishes the durable database repository fix.
+- GitHub pull request Azure/fleet-networking#399: Publishes the durable database repository fix.
 - Repository domain knowledge: no files were present under `.github/.copilot/domain_knowledge`.
 - Repository specifications: no files were present under `.github/.copilot/specifications`.
 - User-provided scan evidence: establishes that the stale database, rather than image scanning, caused missed findings.

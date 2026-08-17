@@ -17,7 +17,7 @@ env:
   # `public` indicates images to MCR wil be publicly available, and will be removed in the final MCR images
   REGISTRY_REPO: public/aks/fleet
 
-  GO_VERSION: '1.24.13'
+  GO_VERSION: '1.25.12'
 
 jobs:
   prepare-variables:
@@ -25,19 +25,21 @@ jobs:
     outputs:
       release_tag: ${{ steps.vars.outputs.release_tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: 'Set output variables'
         id: vars
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.releaseTag }}
         run: |
           # set the image version
-          RELEASE_TAG=${{ inputs.releaseTag }}
+          RELEASE_TAG="$RELEASE_TAG_INPUT"
           if [ -z "$RELEASE_TAG" ]; then
             RELEASE_TAG=`git describe --tags $(git rev-list --tags --max-count=1)`
             echo "The user input release tag is empty, will use the latest tag $RELEASE_TAG."
           fi
-          echo "::set-output name=release_tag::$RELEASE_TAG"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
           # NOTE(mainred): As exporting a variable from a secret is not possible, the shared variable registry obtained
           # from AZURE_REGISTRY secret is not exported from here.
@@ -48,10 +50,10 @@ jobs:
     needs: prepare-variables
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-variables.outputs.release_tag }}
       - name: 'Login the ACR'
@@ -77,10 +79,10 @@ jobs:
     needs: prepare-variables
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-variables.outputs.release_tag }}
       - name: 'Install the Azure CLI'
