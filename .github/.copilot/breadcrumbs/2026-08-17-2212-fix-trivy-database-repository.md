@@ -36,12 +36,27 @@
   - Commit the workflow and breadcrumb updates, push the branch, and open a GitHub pull request.
   - Success criteria: the pull request clearly explains the stale database root cause and durable fix.
 
+### Phase 4: Resolve upstream merge conflict
+
+- [ ] **Task 4.1: Merge the current upstream `main` branch.**
+  - Preserve upstream's daily JSON scan, vulnerability summary, and issue-creation workflow changes.
+  - Success criteria: the branch contains upstream commit `556170bd5cdbf36270f05bc9c67317fb03061480` and has no unresolved files.
+- [ ] **Task 4.2: Retain the official Trivy database repository.**
+  - Resolve `.github/workflows/trivy.yml` so all three image scans use `mcr.microsoft.com/oss/v2/aquasecurity/trivy-db`.
+  - Success criteria: exactly three official references and zero stale mirror references remain.
+- [ ] **Task 4.3: Validate and publish the conflict resolution.**
+  - Inspect the merge diff, push the merge commit, and verify upstream PR #399 is mergeable.
+  - Success criteria: GitHub reports no merge conflict and the PR contains both upstream workflow behavior and the intended database fix.
+
 ### Detailed checklist
 
 - [x] Phase 1 / Task 1.1 completed.
 - [x] Phase 2 / Task 2.1 completed.
 - [x] Phase 3 / Task 3.1 completed.
 - [x] Phase 3 / Task 3.2 completed.
+- [ ] Phase 4 / Task 4.1 completed.
+- [ ] Phase 4 / Task 4.2 completed.
+- [ ] Phase 4 / Task 4.3 completed.
 
 ### Overall success criteria
 
@@ -55,6 +70,7 @@
 - Update all three scan steps because each independently configures the Trivy database repository.
 - Do not change severity or unfixed-vulnerability filtering because those settings intentionally exclude `GO-2026-5932`.
 - Use a direct configuration assertion because the change is isolated to workflow environment values.
+- Resolve the conflict by preserving all newer upstream workflow behavior and applying only the database repository change on top.
 
 ## Implementation Details
 
@@ -62,6 +78,7 @@
 - Phase 2 updated the hub, member, and MCS controller image scans to use the official MCR Trivy database repository.
 - Phase 3 validation counted three official repository references and zero stale mirror references; the diff contains only the intended workflow substitutions and this breadcrumb.
 - Phase 3 published the fix in GitHub pull request #1.
+- Conflict inspection found only `.github/workflows/trivy.yml`; upstream added scheduled JSON scanning and automated issue creation after this branch diverged.
 
 ## Changes Made
 
