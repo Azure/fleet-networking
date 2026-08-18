@@ -175,7 +175,7 @@ jobs:
 
       - name: Create issue for Copilot
         if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || github.ref_name == env.TRIVY_ISSUE_TEST_BRANCH || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const today = new Date().toISOString().split('T')[0];
@@ -189,20 +189,20 @@ jobs:
               labels: 'security,trivy',
               per_page: 10
             });
-            const alreadyExists = existing.data.some(i => i.title === title);
-            if (alreadyExists) {
-              console.log('Issue already exists for today, skipping.');
-              return;
+            let issue = existing.data.find(i => i.title === title);
+            if (issue) {
+              console.log('Issue already exists for today, reusing it for Copilot assignment.');
+            } else {
+              const body = process.env.ISSUE_BODY;
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'trivy']
+              });
+              issue = created.data;
             }
-
-            const body = process.env.ISSUE_BODY;
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['security', 'trivy']
-            });
 
             // Assigning the issue to Copilot requires the GraphQL API since the
             // Copilot coding agent is not a regular user and cannot be set via
@@ -215,7 +215,9 @@ jobs:
                     suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
                       nodes {
                         login
-                        id
+                        ... on Bot {
+                          id
+                        }
                       }
                     }
                   }
@@ -223,7 +225,7 @@ jobs:
                 { owner: context.repo.owner, repo: context.repo.repo }
               );
               const copilotActor = suggested.repository.suggestedActors.nodes.find(
-                (actor) => actor.login.toLowerCase() === 'copilot'
+                (actor) => actor.login.toLowerCase() === 'copilot-swe-agent' && actor.id
               );
               if (copilotActor) {
                 await github.graphql(
@@ -232,7 +234,7 @@ jobs:
                       clientMutationId
                     }
                   }`,
-                  { assignableId: issue.data.node_id, actorIds: [copilotActor.id] }
+                  { assignableId: issue.node_id, actorIds: [copilotActor.id] }
                 );
               } else {
                 console.log('Copilot is not a suggested assignee for this repository, skipping assignment.');
