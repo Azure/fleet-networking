@@ -28,6 +28,7 @@ env:
   MCS_CONTROLLER_MANAGER_IMAGE_NAME: mcs-controller-manager
 
   GO_VERSION: '1.25.12'
+  TRIVY_ISSUE_TEST_BRANCH: britaniar-test-pr-401-workflow
 
 jobs:
   export-registry:
@@ -131,7 +132,7 @@ jobs:
           echo "has_vulns=$has_vulns" >> "$GITHUB_OUTPUT"
 
       - name: Fail on vulnerabilities (non-scheduled runs)
-        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule' && !(github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true)
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule' && github.ref_name != env.TRIVY_ISSUE_TEST_BRANCH && !(github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true)
         run: |
           echo "::error::Vulnerabilities found. See trivy scan output."
           for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
@@ -141,7 +142,7 @@ jobs:
           exit 1
 
       - name: Build vulnerability summary
-        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
+        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || github.ref_name == env.TRIVY_ISSUE_TEST_BRANCH || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
         id: vuln-summary
         run: |
           {
@@ -173,7 +174,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create issue for Copilot
-        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
+        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || github.ref_name == env.TRIVY_ISSUE_TEST_BRANCH || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
         uses: actions/github-script@v7
         with:
           script: |
