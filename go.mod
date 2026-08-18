@@ -4,6 +4,8 @@ go 1.25.12
 
 require go.goms.io/fleet v0.14.0
 
+require sigs.k8s.io/gateway-api v1.2.1
+
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
