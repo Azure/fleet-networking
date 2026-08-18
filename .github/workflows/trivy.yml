@@ -189,13 +189,49 @@ jobs:
             }
 
             const body = process.env.ISSUE_BODY;
-            await github.rest.issues.create({
+            const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: title,
               body: body,
-              labels: ['security', 'trivy'],
-              assignees: ['copilot']
+              labels: ['security', 'trivy']
             });
+
+            // Assigning the issue to Copilot requires the GraphQL API since the
+            // Copilot coding agent is not a regular user and cannot be set via
+            // the REST "assignees" field.
+            try {
+              const suggested = await github.graphql(
+                `query($owner: String!, $repo: String!) {
+                  repository(owner: $owner, name: $repo) {
+                    id
+                    suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
+                      nodes {
+                        login
+                        id
+                      }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo }
+              );
+              const copilotActor = suggested.repository.suggestedActors.nodes.find(
+                (actor) => actor.login.toLowerCase() === 'copilot'
+              );
+              if (copilotActor) {
+                await github.graphql(
+                  `mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                    replaceActorsForAssignable(input: { assignableId: $assignableId, actorIds: $actorIds }) {
+                      clientMutationId
+                    }
+                  }`,
+                  { assignableId: issue.data.node_id, actorIds: [copilotActor.id] }
+                );
+              } else {
+                console.log('Copilot is not a suggested assignee for this repository, skipping assignment.');
+              }
+            } catch (error) {
+              console.log(`Failed to assign Copilot to the issue: ${error.message}`);
+            }
         env:
           ISSUE_BODY: ${{ steps.vuln-summary.outputs.body }}
