@@ -177,6 +177,7 @@ jobs:
         if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || github.ref_name == env.TRIVY_ISSUE_TEST_BRANCH || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
         uses: actions/github-script@v9
         with:
+          github-token: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
           script: |
             const today = new Date().toISOString().split('T')[0];
             const title = `fix: address trivy CVEs found on ${today}`;
@@ -207,40 +208,34 @@ jobs:
             // Assigning the issue to Copilot requires the GraphQL API since the
             // Copilot coding agent is not a regular user and cannot be set via
             // the REST "assignees" field.
-            try {
-              const suggested = await github.graphql(
-                `query($owner: String!, $repo: String!) {
-                  repository(owner: $owner, name: $repo) {
-                    id
-                    suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
-                      nodes {
-                        login
-                        ... on Bot {
-                          id
-                        }
+            const suggested = await github.graphql(
+              `query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
+                    nodes {
+                      login
+                      ... on Bot {
+                        id
                       }
                     }
                   }
-                }`,
-                { owner: context.repo.owner, repo: context.repo.repo }
-              );
-              const copilotActor = suggested.repository.suggestedActors.nodes.find(
-                (actor) => actor.login.toLowerCase() === 'copilot-swe-agent' && actor.id
-              );
-              if (copilotActor) {
-                await github.graphql(
-                  `mutation($assignableId: ID!, $actorIds: [ID!]!) {
-                    replaceActorsForAssignable(input: { assignableId: $assignableId, actorIds: $actorIds }) {
-                      clientMutationId
-                    }
-                  }`,
-                  { assignableId: issue.node_id, actorIds: [copilotActor.id] }
-                );
-              } else {
-                console.log('Copilot is not a suggested assignee for this repository, skipping assignment.');
-              }
-            } catch (error) {
-              console.log(`Failed to assign Copilot to the issue: ${error.message}`);
+                }
+              }`,
+              { owner: context.repo.owner, repo: context.repo.repo }
+            );
+            const copilotActor = suggested.repository.suggestedActors.nodes.find(
+              (actor) => actor.login.toLowerCase() === 'copilot-swe-agent' && actor.id
+            );
+            if (!copilotActor) {
+              throw new Error('Copilot is not a suggested assignee for this repository.');
             }
+            await github.graphql(
+              `mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                replaceActorsForAssignable(input: { assignableId: $assignableId, actorIds: $actorIds }) {
+                  clientMutationId
+                }
+              }`,
+              { assignableId: issue.node_id, actorIds: [copilotActor.id] }
+            );
         env:
           ISSUE_BODY: ${{ steps.vuln-summary.outputs.body }}
