@@ -8,13 +8,7 @@ on:
   create:
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
-  workflow_dispatch:
-    inputs:
-      simulate_schedule:
-        description: 'Simulate a scheduled run (test issue creation/Copilot assignment on vulnerabilities)'
-        type: boolean
-        default: false
-        required: false
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -131,7 +125,7 @@ jobs:
           echo "has_vulns=$has_vulns" >> "$GITHUB_OUTPUT"
 
       - name: Fail on vulnerabilities (non-scheduled runs)
-        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule' && !(github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true)
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule'
         run: |
           echo "::error::Vulnerabilities found. See trivy scan output."
           for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
@@ -141,7 +135,7 @@ jobs:
           exit 1
 
       - name: Build vulnerability summary
-        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
         id: vuln-summary
         run: |
           {
@@ -172,13 +166,15 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create issue for Copilot
-        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
-        uses: actions/github-script@v7
+      - name: Create or update security issue
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
+        uses: actions/github-script@v9
         with:
           script: |
             const today = new Date().toISOString().split('T')[0];
             const title = `fix: address trivy CVEs found on ${today}`;
+            const securityTeam = '@Azure/fleet-networking-security';
+            const body = `${process.env.ISSUE_BODY}\n\n### Security owners\n${securityTeam}`;
 
             // Check if an open issue already exists for today
             const existing = await github.rest.issues.listForRepo({
@@ -188,56 +184,23 @@ jobs:
               labels: 'security,trivy',
               per_page: 10
             });
-            const alreadyExists = existing.data.some(i => i.title === title);
-            if (alreadyExists) {
-              console.log('Issue already exists for today, skipping.');
-              return;
-            }
-
-            const body = process.env.ISSUE_BODY;
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['security', 'trivy']
-            });
-
-            // Assigning the issue to Copilot requires the GraphQL API since the
-            // Copilot coding agent is not a regular user and cannot be set via
-            // the REST "assignees" field.
-            try {
-              const suggested = await github.graphql(
-                `query($owner: String!, $repo: String!) {
-                  repository(owner: $owner, name: $repo) {
-                    id
-                    suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
-                      nodes {
-                        login
-                        id
-                      }
-                    }
-                  }
-                }`,
-                { owner: context.repo.owner, repo: context.repo.repo }
-              );
-              const copilotActor = suggested.repository.suggestedActors.nodes.find(
-                (actor) => actor.login.toLowerCase() === 'copilot'
-              );
-              if (copilotActor) {
-                await github.graphql(
-                  `mutation($assignableId: ID!, $actorIds: [ID!]!) {
-                    replaceActorsForAssignable(input: { assignableId: $assignableId, actorIds: $actorIds }) {
-                      clientMutationId
-                    }
-                  }`,
-                  { assignableId: issue.data.node_id, actorIds: [copilotActor.id] }
-                );
-              } else {
-                console.log('Copilot is not a suggested assignee for this repository, skipping assignment.');
-              }
-            } catch (error) {
-              console.log(`Failed to assign Copilot to the issue: ${error.message}`);
+            const issue = existing.data.find(i => i.title === title);
+            if (issue) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: body
+              });
+              console.log('Updated the existing issue with the current scan and security team mention.');
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'trivy']
+              });
             }
         env:
           ISSUE_BODY: ${{ steps.vuln-summary.outputs.body }}
