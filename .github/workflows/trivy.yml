@@ -8,7 +8,13 @@ on:
   create:
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      simulate_schedule:
+        description: 'Simulate a scheduled run (test issue creation/Copilot assignment on vulnerabilities)'
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -125,7 +131,7 @@ jobs:
           echo "has_vulns=$has_vulns" >> "$GITHUB_OUTPUT"
 
       - name: Fail on vulnerabilities (non-scheduled runs)
-        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule'
+        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name != 'schedule' && !(github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true)
         run: |
           echo "::error::Vulnerabilities found. See trivy scan output."
           for file in trivy-hub-net.json trivy-member-net.json trivy-mcs.json; do
@@ -135,7 +141,7 @@ jobs:
           exit 1
 
       - name: Build vulnerability summary
-        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
+        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
         id: vuln-summary
         run: |
           {
@@ -167,7 +173,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create issue for Copilot
-        if: steps.check-vulns.outputs.has_vulns == 'true' && github.event_name == 'schedule'
+        if: steps.check-vulns.outputs.has_vulns == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_schedule == true))
         uses: actions/github-script@v7
         with:
           script: |
