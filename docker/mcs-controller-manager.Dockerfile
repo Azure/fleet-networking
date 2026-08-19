@@ -1,5 +1,5 @@
 # Build the mcs-controller-manager binary
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.13 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.26.6 AS builder
 
 ARG GOOS=linux
 ARG GOARCH=amd64
