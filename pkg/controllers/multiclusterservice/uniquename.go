@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -59,6 +60,14 @@ func (r *Reconciler) uniqueDerivedServiceName(mcs *fleetnetv1alpha1.MultiCluster
 	nameSegMaxLen := 24
 	mcsNamespace := mcs.Namespace
 	mcsName := mcs.Name
+
+	// Remove all dots from the namespace and name segments, and prefix the namespace with "ns-" if it
+	// starts with a numeric character, so that the derived service name remains a valid Kubernetes name.
+	mcsNamespace = strings.ReplaceAll(mcsNamespace, ".", "")
+	mcsName = strings.ReplaceAll(mcsName, ".", "")
+	if len(mcsNamespace) > 0 && mcsNamespace[0] >= '0' && mcsNamespace[0] <= '9' {
+		mcsNamespace = "ns-" + mcsNamespace
+	}
 
 	if len(mcsNamespace) > nameSegMaxLen {
 		mcsNamespace = mcsNamespace[:nameSegMaxLen]

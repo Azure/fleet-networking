@@ -59,6 +59,34 @@ func TestUniqueDerivedServiceName(t *testing.T) {
 			uid:        "55555555-5555-5555-5555-555555555555",
 			wantPrefix: "shortns-" + strings.Repeat("b", 24),
 		},
+		{
+			name:       "removes dots from namespace and name",
+			namespace:  "my.name.space",
+			mcsName:    "my.service",
+			uid:        "66666666-6666-6666-6666-666666666666",
+			wantPrefix: "mynamespace-myservice",
+		},
+		{
+			name:       "prefixes numeric-leading namespace with ns-",
+			namespace:  "0namespace",
+			mcsName:    "myservice",
+			uid:        "77777777-7777-7777-7777-777777777777",
+			wantPrefix: "ns-0namespace-myservice",
+		},
+		{
+			name:       "prefixes numeric-leading namespace after removing dots",
+			namespace:  "9.namespace",
+			mcsName:    "myservice",
+			uid:        "88888888-8888-8888-8888-888888888888",
+			wantPrefix: "ns-9namespace-myservice",
+		},
+		{
+			name:       "trims numeric-leading namespace to its quota after prefixing",
+			namespace:  "1" + strings.Repeat("a", 62),
+			mcsName:    "myservice",
+			uid:        "99999999-9999-9999-9999-999999999999",
+			wantPrefix: ("ns-1" + strings.Repeat("a", 62))[:24] + "-myservice",
+		},
 	}
 
 	for _, tc := range tests {
