@@ -1,0 +1,396 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: azurefrontdoorbackendattachments.networking.fleet.azure.com
+spec:
+  group: networking.fleet.azure.com
+  names:
+    categories:
+    - fleet-networking
+    kind: AzureFrontDoorBackendAttachment
+    listKind: AzureFrontDoorBackendAttachmentList
+    plural: azurefrontdoorbackendattachments
+    shortNames:
+    - afdba
+    singular: azurefrontdoorbackendattachment
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.gatewayRef.name
+      name: Gateway
+      type: string
+    - jsonPath: .spec.backendRef.name
+      name: Backend
+      type: string
+    - jsonPath: .spec.backendRef.port
+      name: Port
+      type: integer
+    - jsonPath: .status.conditions[?(@.type=='Accepted')].status
+      name: Accepted
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AzureFrontDoorBackendAttachment binds one Gateway to one ServiceImport
+          port.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AzureFrontDoorBackendAttachmentSpec configures one Gateway
+              consumption of one ServiceImport port.
+            properties:
+              backendRef:
+                description: BackendRef identifies a ServiceImport port in the attachment
+                  namespace.
+                properties:
+                  group:
+                    description: |-
+                      Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                      When unspecified or empty string, core API group is inferred.
+                    maxLength: 253
+                    pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                    type: string
+                  kind:
+                    description: Kind is kind of the referent. For example "HTTPRoute"
+                      or "Service".
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                    type: string
+                  name:
+                    description: Name is the name of the referent.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                  port:
+                    description: Port is the ServiceImport service port consumed by
+                      the Gateway.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                required:
+                - group
+                - kind
+                - name
+                - port
+                type: object
+                x-kubernetes-validations:
+                - message: spec.backendRef is immutable
+                  rule: self == oldSelf
+              connectivity:
+                description: Connectivity selects public or Private Link origins.
+                properties:
+                  mode:
+                    description: Mode selects public or Private Link origins.
+                    enum:
+                    - Public
+                    - PrivateLink
+                    type: string
+                  privateLink:
+                    description: PrivateLink configures Private Link origin behavior.
+                    properties:
+                      approval:
+                        default: Manual
+                        description: Approval is Manual in the initial API.
+                        enum:
+                        - Manual
+                        type: string
+                      regionSelection:
+                        default: ClosestSupported
+                        description: RegionSelection determines how the managed private
+                          endpoint region is selected.
+                        enum:
+                        - MemberRegion
+                        - ClosestSupported
+                        type: string
+                    type: object
+                required:
+                - mode
+                type: object
+              gatewayRef:
+                description: GatewayRef identifies the Gateway that consumes this
+                  backend.
+                properties:
+                  group:
+                    description: |-
+                      Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                      When unspecified or empty string, core API group is inferred.
+                    maxLength: 253
+                    pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                    type: string
+                  kind:
+                    description: Kind is kind of the referent. For example "HTTPRoute"
+                      or "Service".
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                    type: string
+                  name:
+                    description: Name is the name of the referent.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                required:
+                - group
+                - kind
+                - name
+                type: object
+                x-kubernetes-validations:
+                - message: spec.gatewayRef is immutable
+                  rule: self == oldSelf
+              healthProbe:
+                default:
+                  intervalSeconds: 30
+                  method: HEAD
+                  path: /healthz
+                  protocol: HTTPS
+                  sampleSize: 4
+                  successfulSamplesRequired: 3
+                description: HealthProbe configures AFD origin health evaluation.
+                properties:
+                  intervalSeconds:
+                    default: 30
+                    description: IntervalSeconds is the interval between probes.
+                    enum:
+                    - 30
+                    - 60
+                    - 120
+                    - 180
+                    - 240
+                    format: int32
+                    type: integer
+                  method:
+                    default: HEAD
+                    description: Method is the probe method.
+                    enum:
+                    - GET
+                    - HEAD
+                    type: string
+                  path:
+                    default: /healthz
+                    description: Path is an absolute HTTP path.
+                    maxLength: 1024
+                    pattern: ^/
+                    type: string
+                  protocol:
+                    default: HTTPS
+                    description: Protocol is the probe protocol.
+                    enum:
+                    - HTTP
+                    - HTTPS
+                    type: string
+                  sampleSize:
+                    default: 4
+                    description: SampleSize is the number of recent samples used for
+                      health evaluation.
+                    format: int32
+                    maximum: 255
+                    minimum: 1
+                    type: integer
+                  successfulSamplesRequired:
+                    default: 3
+                    description: SuccessfulSamplesRequired is the minimum successful
+                      sample count.
+                    format: int32
+                    maximum: 255
+                    minimum: 1
+                    type: integer
+                type: object
+                x-kubernetes-validations:
+                - message: successfulSamplesRequired cannot exceed sampleSize
+                  rule: self.successfulSamplesRequired <= self.sampleSize
+              memberFailurePolicy:
+                default: Partial
+                description: MemberFailurePolicy controls whether invalid members
+                  block all origins.
+                enum:
+                - All
+                - Partial
+                type: string
+              origin:
+                description: Origin configures AFD-to-origin connections.
+                properties:
+                  certificateSubjectNameCheck:
+                    default: true
+                    description: CertificateSubjectNameCheck enables origin certificate
+                      name validation.
+                    type: boolean
+                  hostHeader:
+                    description: HostHeader is the HTTP Host header sent to the origin.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                  protocol:
+                    default: HTTPS
+                    description: Protocol is the origin connection protocol.
+                    enum:
+                    - HTTP
+                    - HTTPS
+                    type: string
+                required:
+                - hostHeader
+                type: object
+              traffic:
+                default:
+                  defaultPriority: 1
+                  defaultWeight: 1000
+                description: Traffic configures defaults for member-cluster origins.
+                properties:
+                  defaultPriority:
+                    default: 1
+                    description: DefaultPriority is the origin priority.
+                    format: int32
+                    maximum: 5
+                    minimum: 1
+                    type: integer
+                  defaultWeight:
+                    default: 1000
+                    description: DefaultWeight is the origin weight.
+                    format: int32
+                    maximum: 1000
+                    minimum: 1
+                    type: integer
+                type: object
+            required:
+            - backendRef
+            - connectivity
+            - gatewayRef
+            - origin
+            type: object
+          status:
+            description: AzureFrontDoorBackendAttachmentStatus describes reference
+              resolution and acceptance.
+            properties:
+              backend:
+                description: Backend records the resolved ServiceImport identity.
+                properties:
+                  name:
+                    description: Name is the referenced object's name.
+                    type: string
+                  uid:
+                    description: UID distinguishes a recreated object from the object
+                      originally resolved.
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
+              conditions:
+                description: Conditions describe the current reconciliation state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              gateway:
+                description: Gateway records the resolved Gateway identity.
+                properties:
+                  name:
+                    description: Name is the referenced object's name.
+                    type: string
+                  uid:
+                    description: UID distinguishes a recreated object from the object
+                      originally resolved.
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: spec.gatewayRef must reference a Gateway
+          rule: self.spec.gatewayRef.group == 'gateway.networking.k8s.io' && self.spec.gatewayRef.kind
+            == 'Gateway'
+        - message: spec.backendRef must reference a ServiceImport
+          rule: self.spec.backendRef.group == 'networking.fleet.azure.com' && self.spec.backendRef.kind
+            == 'ServiceImport'
+        - message: privateLink must be set only when connectivity mode is PrivateLink
+          rule: 'self.spec.connectivity.mode == ''PrivateLink'' ? has(self.spec.connectivity.privateLink)
+            : !has(self.spec.connectivity.privateLink)'
+        - message: Private Link HTTPS origins require certificate subject-name validation
+          rule: self.spec.connectivity.mode != 'PrivateLink' || self.spec.origin.protocol
+            != 'HTTPS' || self.spec.origin.certificateSubjectNameCheck == true
+    served: true
+    storage: true
+    subresources:
+      status: {}

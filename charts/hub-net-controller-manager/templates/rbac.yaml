@@ -202,6 +202,33 @@ rules:
     - patch
     - update
 {{- end }}
+{{- if .Values.enableAzureFrontDoorGatewayAPI }}
+- apiGroups:
+    - gateway.networking.k8s.io
+  resources:
+    - gateways
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - azurefrontdoorbackendattachments
+    - azurefrontdoorgatewaypolicies
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - azurefrontdoorbackendattachments/status
+  verbs:
+    - get
+    - patch
+    - update
+{{- end }}
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
