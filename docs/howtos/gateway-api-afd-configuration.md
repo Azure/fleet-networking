@@ -25,18 +25,27 @@ later implementation phase.
 
 ## Common prerequisites
 
+> [!IMPORTANT]
+> This integration requires a Fleet Manager with a managed hub. Hubless Fleet Manager resources
+> do not have the Kubernetes configuration plane or hub-side `ServiceImport` aggregation used by
+> the Gateway controller. Upgrade a hubless Fleet Manager by enabling its hub and reconciling
+> existing members before following this guide. The upgrade cannot be reversed.
+
 Before configuring either topology:
 
-1. Register every workload cluster as a healthy member of the same Fleet.
-2. Install the Fleet hub and member networking controllers.
-3. Install Gateway API `v1.2.1` CRDs in the Fleet hub.
-4. Install the proposed `hub-gateway-controller-manager` in the Fleet hub.
-5. Configure the controller with:
+1. Confirm that the Fleet Manager has a managed hub. For a hubless Fleet Manager, follow the
+   [hub upgrade guidance](https://learn.microsoft.com/azure/kubernetes-fleet/upgrade-hub-cluster-type)
+   and reconcile its existing members.
+2. Register every workload cluster as a healthy member of the same Fleet.
+3. Install the Fleet hub and member networking controllers.
+4. Install Gateway API `v1.2.1` CRDs in the Fleet hub.
+5. Install the proposed `hub-gateway-controller-manager` in the Fleet hub.
+6. Configure the controller with:
    - An Azure subscription.
    - A controller-wide AFD resource group.
    - An approved workload or managed identity.
    - Permission to manage AFD resources in the configured resource group.
-6. Confirm the platform-installed GatewayClass is accepted:
+7. Confirm the platform-installed GatewayClass is accepted:
 
    ```bash
    kubectl get gatewayclass azure-fleet-afd
