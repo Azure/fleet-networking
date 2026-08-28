@@ -19,6 +19,8 @@
 7. Keep AFD in a separate hub controller manager.
 8. Fail explicitly through Gateway API conditions; never silently downgrade requested behavior.
 9. Keep each implementation pull request independently reviewable and testable.
+10. Require a Fleet Manager managed hub; hubless Fleet Manager resources need a separate
+    architecture.
 
 ## Phase 0: Confirm API and dependency baselines
 

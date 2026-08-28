@@ -187,7 +187,13 @@ group or translate the reference outside this design.
 
 ### Hub cluster
 
-The Fleet hub acts as the Gateway API configuration cluster. It contains:
+This architecture requires an Azure Kubernetes Fleet Manager resource with a managed hub. A
+hubless Fleet Manager provides an ARM management boundary but does not provide the Kubernetes
+configuration cluster, hub-side `ServiceImport` aggregation, or controller placement required by
+this design. Hubless fleets must be upgraded to a managed hub before enabling Gateway API
+integration; managed-hub to hubless downgrade is not supported.
+
+The managed Fleet hub acts as the Gateway API configuration cluster. It contains:
 
 - One platform-managed `GatewayClass` for the AFD implementation.
 - One or more user-created `Gateway` resources.
@@ -231,6 +237,8 @@ requirements.
 
 ### Fleet and hub requirements
 
+- The Fleet Manager has a managed hub. Hubless Fleet Manager resources are unsupported by this
+  architecture.
 - All target AKS clusters are registered as healthy members of the same Fleet.
 - Fleet member and hub networking controllers are installed and healthy.
 - Gateway API CRDs for the selected supported version are installed on the hub.
@@ -238,6 +246,11 @@ requirements.
 - The GatewayClass reports `Accepted=True` before users create Gateways.
 - The hub has a durable lifecycle and backup/recovery process because it is the configuration
   cluster.
+
+To upgrade an existing hubless Fleet Manager, enable its managed hub and then reconcile existing
+members as described in the
+[Fleet hub upgrade guidance](https://learn.microsoft.com/azure/kubernetes-fleet/upgrade-hub-cluster-type).
+The upgrade is one-way: a Fleet Manager with a managed hub cannot be converted back to hubless.
 
 ### Member-cluster requirements
 
