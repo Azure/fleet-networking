@@ -130,15 +130,25 @@ var _ = BeforeSuite(func() {
 		},
 	}
 
+	// Fake PLS client seeded with the resource the L7-FrontDoor integration
+	// spec expects to find. Keyed on "<rg>/<name>" matching
+	// fakePrivateLinkServicesClient.Get.
+	privateLinkServiceGetResponses := map[string]*armnetwork.PrivateLinkService{
+		validResourceGroup + "/" + testPrivateLinkServiceName: {
+			ID: ptr.To(testPrivateLinkServiceResourceID),
+		},
+	}
+
 	err = (&Reconciler{
-		MemberClusterID:             memberClusterID,
-		MemberClient:                memberClient,
-		HubClient:                   hubClient,
-		HubNamespace:                hubNSForMember,
-		Recorder:                    ctrlMgr.GetEventRecorderFor(ControllerName),
-		AzurePublicIPAddressClient:  &fakePublicIPAddressClient{ListResponse: publicIPAddressListResponse},
-		ResourceGroupName:           validResourceGroup,
-		EnableTrafficManagerFeature: true,
+		MemberClusterID:                memberClusterID,
+		MemberClient:                   memberClient,
+		HubClient:                      hubClient,
+		HubNamespace:                   hubNSForMember,
+		Recorder:                       ctrlMgr.GetEventRecorderFor(ControllerName),
+		AzurePublicIPAddressClient:     &fakePublicIPAddressClient{ListResponse: publicIPAddressListResponse},
+		AzurePrivateLinkServicesClient: &fakePrivateLinkServicesClient{GetResponses: privateLinkServiceGetResponses},
+		ResourceGroupName:              validResourceGroup,
+		EnableTrafficManagerFeature:    true,
 	}).SetupWithManager(ctrlMgr)
 	Expect(err).NotTo(HaveOccurred())
 

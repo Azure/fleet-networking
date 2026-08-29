@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/privatelinkserviceclient"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +45,23 @@ const (
 	svcExportInvalidIneligibleCondReason     = "ServiceIneligible"
 	svcExportPendingConflictResolutionReason = "ServicePendingConflictResolution"
 	svcExportInvalidWeightAnnotationReason   = "ServiceExportInvalidWeightAnnotation"
+	// svcExportInvalidExportModeReason is set when the export-mode annotation is
+	// syntactically invalid (typo, empty string, unsupported value). The
+	// export is halted until the operator corrects it.
+	svcExportInvalidExportModeReason = "ServiceExportInvalidExportModeAnnotation"
+	// svcExportPLSPendingReason is set while the Private Link Service is
+	// still being provisioned by cloud-provider-azure (ARM Get returns
+	// NotFound / nil). Mirrors the "public IP is in the progressing"
+	// branch — we return without requeuing and let the Service status
+	// update re-trigger reconciliation.
+	svcExportPLSPendingReason = "PrivateLinkServicePending"
+
+	// annotationValueTrue is the case-sensitive "true" literal expected by
+	// cloud-provider-azure boolean annotations (e.g. azure-load-balancer-internal,
+	// azure-pls-create). Extracted to a const to satisfy goconst and to keep the
+	// three call-sites in sync with upstream's exact string comparison:
+	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
+	annotationValueTrue = "true"
 
 	// svcExportCleanupFinalizer is the finalizer ServiceExport controllers adds to mark that
 	// a ServiceExport can only be deleted after its corresponding Service has been unexported from the hub cluster.
@@ -64,6 +82,11 @@ type Reconciler struct {
 
 	ResourceGroupName          string // default resource group name to create public IP address
 	AzurePublicIPAddressClient publicipaddressclient.Interface
+	// AzurePrivateLinkServicesClient is used by the L7-FrontDoor export
+	// path to look up the Private Link Service that cloud-provider-azure
+	// provisioned for an internal LoadBalancer Service. Parallel to
+	// AzurePublicIPAddressClient (which serves the ATM path).
+	AzurePrivateLinkServicesClient privatelinkserviceclient.Interface
 
 	EnableTrafficManagerFeature bool
 }
@@ -196,6 +219,33 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
 	}
 
+	// Get the export mode from the annotation. Absent → default L4-TrafficManager
+	// (backward compatible). Invalid values are a hard reject: silently
+	// falling back to a default would let a Helm-typo like "L7-Frontdoor"
+	// mask user intent and route traffic through the wrong control plane.
+	exportMode, err := objectmeta.ExtractExportModeFromServiceExport(&svcExport)
+	if err != nil {
+		// Same pattern as invalid-weight: don't unexport (would drop
+		// live traffic on a good pre-existing export), don't requeue
+		// (annotation edits re-trigger reconcile), just surface the
+		// condition and stop.
+		klog.ErrorS(controller.NewUserError(err), "service export has invalid export-mode annotation", "service", svcRef)
+		curValidCond := meta.FindStatusCondition(svcExport.Status.Conditions, string(fleetnetv1beta1.ServiceExportValid))
+		expectedValidCond := metav1.Condition{
+			Type:               string(fleetnetv1beta1.ServiceExportValid),
+			Status:             metav1.ConditionFalse,
+			Reason:             svcExportInvalidExportModeReason,
+			ObservedGeneration: svcExport.Generation,
+			Message:            fmt.Sprintf("serviceExport %s/%s has an invalid export-mode annotation, err = %s", svcExport.Namespace, svcExport.Name, err),
+		}
+		if condition.EqualConditionWithMessage(curValidCond, &expectedValidCond) {
+			return ctrl.Result{}, nil
+		}
+		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, svcExportInvalidExportModeReason, "ServiceExport %s has invalid export-mode value in the annotation", svc.Name)
+		meta.SetStatusCondition(&svcExport.Status.Conditions, expectedValidCond)
+		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
+	}
+
 	if exportWeight == 0 {
 		// The weight is 0, unexport the service.
 		klog.V(2).InfoS("Service has weight 0; unexport the service", "service", svcRef)
@@ -250,11 +300,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Export the Service or update the exported Service.
-	return r.exportService(ctx, &svcExport, &svc, exportedSince, exportWeight)
+	return r.exportService(ctx, &svcExport, &svc, exportedSince, exportWeight, exportMode)
 }
 
 func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1beta1.ServiceExport, svc *corev1.Service,
-	exportedSince time.Time, exportWeight int64) (ctrl.Result, error) {
+	exportedSince time.Time, exportWeight int64, exportMode string) (ctrl.Result, error) {
 	svcRef := klog.KObj(svc)
 	// Create or update the InternalServiceExport object.
 	internalSvcExport := fleetnetv1alpha1.InternalServiceExport{
@@ -295,12 +345,36 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 		internalSvcExport.Spec.Ports = svcExportPorts
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
 
-		if r.EnableTrafficManagerFeature {
-			klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
-			internalSvcExport.Spec.Weight = ptr.To(exportWeight)
-			if err := r.setAzureRelatedInformation(ctx, svc, &internalSvcExport); err != nil {
-				klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature in the internal service export", "service", svcRef)
+		// Propagate the resolved export mode to the hub. Hub reconcilers
+		// (TrafficManagerBackend for L4, FrontDoorBackend for L7) branch
+		// on this field to decide which control plane consumes the export.
+		// We deliberately leave the field empty for the L4-TrafficManager
+		// default so that (a) existing v1alpha1 objects retain their
+		// wire shape on upgrade and (b) the InternalServiceExport CRD
+		// contract "absent == L4-TrafficManager" is honoured on the wire,
+		// not just semantically.
+		if exportMode != objectmeta.ExportModeValueTrafficManager {
+			internalSvcExport.Spec.ExportMode = exportMode
+		} else {
+			internalSvcExport.Spec.ExportMode = ""
+		}
+
+		switch exportMode {
+		case objectmeta.ExportModeValueFrontDoor:
+			klog.V(2).InfoS("Collecting Front Door / Private Link Service information for the internal service export", "service", svcRef)
+			if err := r.setAzureRelatedPrivateLinkInformation(ctx, svc, &internalSvcExport); err != nil {
+				klog.ErrorS(err, "Failed to populate the Private Link Service information for the Front Door feature in the internal service export", "service", svcRef)
 				return err
+			}
+		default:
+			// L4-TrafficManager (default) path — preserves today's behaviour.
+			if r.EnableTrafficManagerFeature {
+				klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
+				internalSvcExport.Spec.Weight = ptr.To(exportWeight)
+				if err := r.setAzureRelatedInformation(ctx, svc, &internalSvcExport); err != nil {
+					klog.ErrorS(err, "Failed to populate the Azure information for the Traffic Manager feature in the internal service export", "service", svcRef)
+					return err
+				}
 			}
 		}
 		return nil
@@ -345,7 +419,7 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	}
 	// The annotation value is case-sensitive.
 	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
-	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == annotationValueTrue
 	if hubSvcExport.Spec.IsInternalLoadBalancer {
 		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
 		return nil
@@ -402,8 +476,101 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	return nil
 }
 
-// TODO: can improve the performance by caching the public IP address resource ID.
-// Note: we don't support "service.beta.kubernetes.io/azure-pip-prefix-id" annotation, and public ip cannot be found in
+// setAzureRelatedPrivateLinkInformation populates the InternalServiceExport
+// fields required by the L7-FrontDoor export path. Symmetric with
+// setAzureRelatedInformation (ATM path) but resolves a Private Link Service
+// (PLS) instead of a Public IP.
+//
+// Preconditions the underlying Service must satisfy (surfaced via
+// ExportModeAnnotationServiceMismatch when violated):
+//   - Type == LoadBalancer AND is an internal LB.
+//   - Annotation "service.beta.kubernetes.io/azure-pls-create" == "true"
+//     so cloud-provider-azure actually provisions a PLS.
+//   - Annotation "service.beta.kubernetes.io/azure-pls-name" is set
+//     explicitly. We deliberately do not derive a default name from
+//     cloud-provider-azure internals: the derivation rules are private
+//     API surface and drift between upstream releases would silently
+//     point the reconciler at the wrong resource.
+//
+// PLS lookup uses the Get(rg, name) form (parallel with the PIP client)
+// rather than List+filter — PLS has no ingress-IP style discriminator, so
+// the annotation is the only stable identifier.
+func (r *Reconciler) setAzureRelatedPrivateLinkInformation(ctx context.Context,
+	service *corev1.Service,
+	hubSvcExport *fleetnetv1alpha1.InternalServiceExport) error {
+	hubSvcExport.Spec.Type = service.Spec.Type
+	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		// FrontDoor path only makes sense for LoadBalancer Services; other
+		// types would have nowhere to attach a PLS.
+		return fmt.Errorf("L7-FrontDoor export requires Service type LoadBalancer, got %q", service.Spec.Type)
+	}
+	// The annotation value is case-sensitive; mirror the check used for
+	// the ATM path so a Service that is publicly-facing cannot be exported
+	// through the FrontDoor / PLS path by mistake.
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == annotationValueTrue
+	if !hubSvcExport.Spec.IsInternalLoadBalancer {
+		return fmt.Errorf("L7-FrontDoor export requires an internal LoadBalancer (annotation %q must be \"true\")",
+			objectmeta.ServiceAnnotationAzureLoadBalancerInternal)
+	}
+
+	if service.Annotations[objectmeta.ServiceAnnotationAzurePLSCreate] != annotationValueTrue {
+		return fmt.Errorf("L7-FrontDoor export requires annotation %q to be \"true\"",
+			objectmeta.ServiceAnnotationAzurePLSCreate)
+	}
+	plsName := strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationAzurePLSName])
+	if plsName == "" {
+		return fmt.Errorf("L7-FrontDoor export requires an explicit PLS name via annotation %q",
+			objectmeta.ServiceAnnotationAzurePLSName)
+	}
+	// PLS RG resolution mirrors PIP RG resolution: dedicated PLS-RG
+	// annotation, then the shared LB-RG annotation, then the controller's
+	// default resource group. Keeping the fallback chain matched avoids
+	// operators having to duplicate annotations for the two paths.
+	rg := strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationAzurePLSResourceGroup])
+	if rg == "" {
+		rg = strings.TrimSpace(service.Annotations[objectmeta.ServiceAnnotationLoadBalancerResourceGroup])
+	}
+	if rg == "" {
+		rg = r.ResourceGroupName
+	}
+
+	serviceKObj := klog.KObj(service)
+	pls, err := r.AzurePrivateLinkServicesClient.Get(ctx, rg, plsName, nil)
+	if err != nil {
+		// Treat NotFound as "still provisioning" (mirrors the PIP nil
+		// branch below). cloud-provider-azure may not have created the
+		// PLS yet even though the Service exists; a Service status
+		// update or the annotation edit will re-trigger reconcile.
+		if isAzureNotFoundError(err) {
+			klog.V(2).InfoS("The Private Link Service is not created yet", "service", serviceKObj, "resourceGroup", rg, "name", plsName, "reason", svcExportPLSPendingReason)
+			return nil
+		}
+		klog.ErrorS(err, "Failed to get Azure Private Link Service", "service", serviceKObj, "resourceGroup", rg, "name", plsName)
+		return err
+	}
+	if pls == nil || pls.ID == nil {
+		// Defensive: some ARM SDK error paths surface (nil, nil).
+		klog.V(2).InfoS("The Private Link Service resource ID is not populated yet", "service", serviceKObj, "resourceGroup", rg, "name", plsName, "reason", svcExportPLSPendingReason)
+		return nil
+	}
+	hubSvcExport.Spec.PrivateLinkServiceResourceID = pls.ID
+	return nil
+}
+
+// isAzureNotFoundError returns true when the error corresponds to an ARM
+// 404 response. Kept as a small local helper (rather than pulling in
+// azcore.ResponseError) to minimise imports; upgrade to azcore matching
+// when we add richer error handling in Phase 4.
+func isAzureNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "ResourceNotFound") ||
+		strings.Contains(msg, "NotFound") ||
+		strings.Contains(msg, "StatusCode=404")
+}
+
 // this case.
 func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Context, service *corev1.Service) (*armnetwork.PublicIPAddress, error) {
 	// The customer can specify the resource group for the public IP address in the service annotation.
