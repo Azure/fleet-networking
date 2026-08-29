@@ -36,6 +36,42 @@ type InternalServiceExportSpec struct {
 	// If unspecified, weight defaults to 1.
 	// The value is from serviceExport "networking.fleet.azure.com/weight" annotation and should be in the range [0, 1000].
 	Weight *int64 `json:"weight,omitempty"`
+
+	// ExportMode selects which fleet-networking control plane on the hub
+	// consumes this export:
+	//   - "L4-TrafficManager" (default): the TrafficManagerBackend
+	//     reconciler picks it up and programs an Azure Traffic Manager
+	//     endpoint (today's behaviour).
+	//   - "L7-FrontDoor": the FrontDoorBackend reconciler (Phase 4) picks
+	//     it up and programs an Azure Front Door origin backed by the
+	//     Private Link Service referenced in PrivateLinkServiceResourceID.
+	//
+	// Sourced from the member ServiceExport's
+	// "networking.fleet.azure.com/export-mode" annotation (see
+	// objectmeta.ExtractExportModeFromServiceExport). The field is
+	// populated by the member serviceexport reconciler; hub controllers
+	// treat it as read-only. Absent value is equivalent to
+	// "L4-TrafficManager" so existing v1alpha1 objects (which pre-date
+	// this field) continue to route through ATM.
+	//
+	// +optional
+	// +kubebuilder:validation:Enum=L4-TrafficManager;L7-FrontDoor
+	ExportMode string `json:"exportMode,omitempty"`
+
+	// PrivateLinkServiceResourceID is the Azure Resource URI of the
+	// Private Link Service (PLS) provisioned by cloud-provider-azure for
+	// the exported Service's internal load balancer. Populated only when
+	// ExportMode == "L7-FrontDoor" AND the Service carries the
+	// "service.beta.kubernetes.io/azure-pls-*" annotations that trigger
+	// PLS creation. The hub FrontDoorBackend reconciler wires this ID as
+	// an AFD private-link origin so global traffic can reach the ILB
+	// without traversing a public IP.
+	//
+	// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/
+	//         Microsoft.Network/privateLinkServices/{name}
+	//
+	// +optional
+	PrivateLinkServiceResourceID *string `json:"privateLinkServiceResourceID,omitempty"`
 }
 
 // InternalServiceExportStatus contains the current status of an InternalServiceExport.
