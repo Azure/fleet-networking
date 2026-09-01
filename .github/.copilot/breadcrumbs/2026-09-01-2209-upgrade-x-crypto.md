@@ -23,7 +23,7 @@
 
 3. [x] Run the relevant Go formatting, vetting, and test targets.
    - Success criteria: validation passes without regressions caused by the dependency update.
-4. [ ] Scan modified files for secrets and perform a security review.
+4. [x] Scan modified files for secrets and perform a security review.
    - Success criteria: no actionable secret-scanning or security findings remain.
 
 ## Decisions
@@ -36,6 +36,7 @@
 
 - Updated `go.mod` and `go.sum` using `go get golang.org/x/crypto@v0.55.0` followed by `go mod tidy`.
 - `go vet ./...`, the local unit-test target, and the integration suites passed. The full test command could not run environment-dependent e2e and performance suites because this environment has no kubeconfig. `make lint` could not run because the pinned linter is built with Go 1.24, which does not support the repository's Go 1.26.6 target.
+- Secret scanning found no secrets. CodeQL found no analyzable code changes.
 
 ## Changes Made
 
