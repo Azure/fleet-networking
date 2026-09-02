@@ -317,6 +317,26 @@ fi
 
 # Helm install charts for hub cluster.
 kubectl config use-context $HUB_CLUSTER-admin
+# Install the Gateway API standard channel CRDs at the version selected in go.mod.
+GATEWAY_API_CRD_DIR="$(go list -m -f '{{.Dir}}' sigs.k8s.io/gateway-api)/config/crd/standard"
+if [ ! -d "$GATEWAY_API_CRD_DIR" ]; then
+  echo "error: Gateway API standard CRD directory not found: $GATEWAY_API_CRD_DIR"
+  exit 1
+fi
+GATEWAY_API_CRDS=(
+  gateway.networking.k8s.io_gatewayclasses.yaml
+  gateway.networking.k8s.io_gateways.yaml
+  gateway.networking.k8s.io_httproutes.yaml
+  gateway.networking.k8s.io_referencegrants.yaml
+)
+for crd in "${GATEWAY_API_CRDS[@]}"; do
+  kubectl apply --server-side -f "$GATEWAY_API_CRD_DIR/$crd"
+done
+kubectl wait --for=condition=Established --timeout=60s \
+  crd/gatewayclasses.gateway.networking.k8s.io \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  crd/referencegrants.gateway.networking.k8s.io
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.14.0/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml

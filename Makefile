@@ -183,8 +183,13 @@ generate: $(CONTROLLER_GEN)
 .PHONY: build
 build: generate fmt vet ## Build binaries.
 	go build -o bin/hub-net-controller-manager cmd/hub-net-controller-manager/main.go
+	go build -o bin/hub-gateway-controller-manager cmd/hub-gateway-controller-manager/main.go
 	go build -o bin/member-net-controller-manager cmd/member-net-controller-manager/main.go
 	go build -o bin/mcs-controller-manager cmd/mcs-controller-manager/main.go
+
+.PHONY: run-hub-gateway-controller-manager
+run-hub-gateway-controller-manager: manifests generate fmt vet ## Run the hub Gateway controller from your host.
+	go run ./cmd/hub-gateway-controller-manager/main.go
 
 .PHONY: run-hub-net-controller-manager
 run-hub-net-controller-manager: manifests generate fmt vet ## Run a controllers from your host.
