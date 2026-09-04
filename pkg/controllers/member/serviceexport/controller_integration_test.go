@@ -43,6 +43,14 @@ const (
 
 	testIngressIP          = "1.2.3.4"
 	testPublicIPResourceID = "/subscriptions/sub1/resourceGroups/valid-rg/providers/Microsoft.Network/publicIPAddresses/pip"
+
+	// L7-FrontDoor path fixtures. testPrivateLinkServiceName mirrors the
+	// value the integration spec sets on the Service's
+	// "service.beta.kubernetes.io/azure-pls-name" annotation; the fake PLS
+	// client in suite_test.go is seeded with a matching entry so the
+	// happy-path lookup returns testPrivateLinkServiceResourceID.
+	testPrivateLinkServiceName       = "pls1"
+	testPrivateLinkServiceResourceID = "/subscriptions/sub1/resourceGroups/valid-rg/providers/Microsoft.Network/privateLinkServices/pls1"
 )
 
 // clusterIPService returns a Service of ClusterIP type.
@@ -108,6 +116,47 @@ func publicLoadBalancerService() *corev1.Service {
 					Port:       svcPort,
 					TargetPort: intstr.FromInt32(targetPort),
 				},
+			},
+		},
+	}
+}
+
+// internalLoadBalancerServiceWithPLS returns an internal LoadBalancer Service
+// annotated so that cloud-provider-azure would provision a Private Link
+// Service — the shape the L7-FrontDoor export path requires. The suite fake
+// PLS client is seeded to match ServiceAnnotationAzurePLSName.
+func internalLoadBalancerServiceWithPLS() *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: memberUserNS,
+			Name:      svcName,
+			Annotations: map[string]string{
+				objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+				objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+				objectmeta.ServiceAnnotationAzurePLSName:              testPrivateLinkServiceName,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeLoadBalancer,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       svcPort,
+					TargetPort: intstr.FromInt32(targetPort),
+				},
+			},
+		},
+	}
+}
+
+// frontDoorServiceExport returns a ServiceExport annotated to opt into the
+// L7-FrontDoor export path.
+func frontDoorServiceExport() *fleetnetv1beta1.ServiceExport {
+	return &fleetnetv1beta1.ServiceExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: memberUserNS,
+			Name:      svcName,
+			Annotations: map[string]string{
+				objectmeta.ServiceExportAnnotationExportMode: objectmeta.ExportModeValueFrontDoor,
 			},
 		},
 	}
@@ -975,6 +1024,66 @@ var _ = Describe("serviceexport controller", func() {
 		It("should mark the service export as valid + should export the service", func() {
 			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 			Eventually(serviceIsExportedToHubActual(svc.Spec.Type, true, ptr.To(int64(1))), eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+	})
+
+	// L7-FrontDoor export path: the ServiceExport is annotated with
+	// export-mode=L7-FrontDoor and the Service opts into PLS provisioning
+	// via the standard cloud-provider-azure annotations. The reconciler
+	// should propagate ExportMode + PrivateLinkServiceResourceID (resolved
+	// via the fake PLS client) onto the hub InternalServiceExport, and
+	// crucially must NOT populate any of the ATM-only fields.
+	Context("export internal load balancer service via L7-FrontDoor mode", func() {
+		var svc *corev1.Service
+		var svcExport *fleetnetv1beta1.ServiceExport
+
+		BeforeEach(func() {
+			svc = internalLoadBalancerServiceWithPLS()
+			Expect(memberClient.Create(ctx, svc)).Should(Succeed())
+
+			svcExport = frontDoorServiceExport()
+			Expect(memberClient.Create(ctx, svcExport)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(memberClient.Delete(ctx, svcExport)).Should(Succeed())
+			Expect(memberClient.Delete(ctx, svc)).Should(Succeed())
+
+			Eventually(serviceIsNotExportedActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceExportIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Eventually(serviceIsAbsentActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
+		It("should mark the service export as valid + should populate ExportMode and PrivateLinkServiceResourceID", func() {
+			Eventually(serviceIsExportedFromMemberActual, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+
+			Eventually(func() error {
+				internalSvcExport := &fleetnetv1alpha1.InternalServiceExport{}
+				if err := hubClient.Get(ctx, internalSvcExportKey, internalSvcExport); err != nil {
+					return fmt.Errorf("internalServiceExport Get(%+v), got %w, want no error", internalSvcExportKey, err)
+				}
+				if internalSvcExport.Spec.ExportMode != objectmeta.ExportModeValueFrontDoor {
+					return fmt.Errorf("internalServiceExport.Spec.ExportMode = %q, want %q",
+						internalSvcExport.Spec.ExportMode, objectmeta.ExportModeValueFrontDoor)
+				}
+				if internalSvcExport.Spec.PrivateLinkServiceResourceID == nil ||
+					*internalSvcExport.Spec.PrivateLinkServiceResourceID != testPrivateLinkServiceResourceID {
+					return fmt.Errorf("internalServiceExport.Spec.PrivateLinkServiceResourceID = %v, want %q",
+						internalSvcExport.Spec.PrivateLinkServiceResourceID, testPrivateLinkServiceResourceID)
+				}
+				// L7 path must not touch the ATM-only fields — leaving these
+				// populated would confuse the hub TrafficManagerBackend
+				// reconciler, which today keys off Weight/PublicIPResourceID.
+				if internalSvcExport.Spec.PublicIPResourceID != nil {
+					return fmt.Errorf("internalServiceExport.Spec.PublicIPResourceID = %v, want nil (L7 path)",
+						internalSvcExport.Spec.PublicIPResourceID)
+				}
+				if internalSvcExport.Spec.Weight != nil {
+					return fmt.Errorf("internalServiceExport.Spec.Weight = %v, want nil (L7 path)",
+						internalSvcExport.Spec.Weight)
+				}
+				return nil
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 	})
 })
