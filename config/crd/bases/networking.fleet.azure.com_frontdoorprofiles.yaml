@@ -1,0 +1,241 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: frontdoorprofiles.networking.fleet.azure.com
+spec:
+  group: networking.fleet.azure.com
+  names:
+    categories:
+    - fleet-networking
+    kind: FrontDoorProfile
+    listKind: FrontDoorProfileList
+    plural: frontdoorprofiles
+    shortNames:
+    - afdp
+    singular: frontdoorprofile
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.endpointHostname
+      name: Endpoint
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Programmed')].status
+      name: Is-Programmed
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          FrontDoorProfile manages an Azure Front Door profile and its default endpoint
+          using the cloud-native (Kubernetes) API. It is the L7 counterpart to
+          TrafficManagerProfile.
+          https://learn.microsoft.com/en-us/azure/frontdoor/front-door-overview
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: The desired state of FrontDoorProfile.
+            properties:
+              complianceMode:
+                default: None
+                description: |-
+                  ComplianceMode declares the security/compliance regime this profile
+                  (and its backends) must satisfy. See docs/first-party/001-afd-global-load-balancing.md
+                  §2.1 for the design and docs/first-party/003-pre-implementation-checklist.md §1.2
+                  for the operational requirements.
+
+                  Effects of the value:
+                    - "None" (default): no additional constraints beyond the structural
+                      ones. Suitable for dev/test tenants that don't need SFI-NS253
+                      compliance, and lets the profile be created without a WAF policy
+                      attach (WAFPolicy stays optional).
+                    - "SFI-NS253":
+                        * spec.wafPolicy is REQUIRED (enforced by the cross-field CEL
+                          rule on this Spec — see below).
+                        * The FrontDoorProfile reconciler additionally verifies that the
+                          referenced WAF policy exists and is in Prevention mode
+                          (surfaced as Programmed=False with
+                          Reason=WAFPolicyNotFound / WAFPolicyNotInPreventionMode).
+                        * Every FrontDoorBackend that references this profile must have
+                          spec.privateLink.enabled = true (enforced in the backend
+                          reconciler, surfaced as Accepted=False,
+                          Reason=SFIComplianceViolation).
+
+                  Immutable after creation: switching a live profile out of SFI-NS253
+                  would silently weaken guarantees the operator relied on when
+                  creating the profile — recreate the profile if the compliance regime
+                  legitimately needs to change.
+                enum:
+                - None
+                - SFI-NS253
+                type: string
+                x-kubernetes-validations:
+                - message: complianceMode is immutable
+                  rule: self == oldSelf
+              resourceGroup:
+                description: |-
+                  ResourceGroup is the name of the Azure resource group in which the
+                  underlying Front Door profile will be created. Immutable after creation.
+                maxLength: 90
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: resourceGroup is immutable
+                  rule: self == oldSelf
+              sku:
+                default: Premium_AzureFrontDoor
+                description: |-
+                  Sku selects the Front Door SKU. Premium is the only supported value
+                  (see the FrontDoorProfileSkuName type comment for the SFI-NS253
+                  rationale). Retained as an explicit field — even though the enum is
+                  currently single-valued — so future SKUs (if AFD ever ships a
+                  compliance-equivalent alternative) can be introduced additively
+                  without a schema break. Immutable after creation because AFD does
+                  not support in-place SKU upgrades on an existing profile.
+                enum:
+                - Premium_AzureFrontDoor
+                type: string
+                x-kubernetes-validations:
+                - message: sku is immutable
+                  rule: self == oldSelf
+              wafPolicy:
+                description: |-
+                  WAFPolicy attaches a Web Application Firewall policy to the profile.
+
+                  Required when ComplianceMode is "SFI-NS253"; optional otherwise (dev/test
+                  tenants may run without a WAF attach). The cross-field CEL rule below
+                  rejects any object that violates this at admission time so that a
+                  misconfigured SFI-NS253 profile never even reaches the reconciler.
+                properties:
+                  resourceID:
+                    description: |-
+                      ResourceID is the fully qualified ARM resource ID of an existing
+                      Microsoft.Network/frontdoorwebapplicationfirewallpolicies resource.
+
+                      Format:
+                        /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/frontdoorwebapplicationfirewallpolicies/{name}
+
+                      The policy may live in a different subscription/RG from the AFD
+                      profile; cross-subscription references are supported at the Azure
+                      level, subject to the AFD controller's managed identity having
+                      Microsoft.Network/frontDoorWebApplicationFirewallPolicies/read on
+                      the policy's scope. Cross-sub RBAC failures surface as
+                      Programmed=False, Reason=WAFPolicyNotFound with the exact ID in the
+                      message (per docs/first-party/002-afd-implementation-plan.md §11).
+                    minLength: 1
+                    pattern: ^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Network/frontdoorwebapplicationfirewallpolicies/[^/]+$
+                    type: string
+                required:
+                - resourceID
+                type: object
+            required:
+            - resourceGroup
+            - sku
+            type: object
+          status:
+            description: The observed status of FrontDoorProfile.
+            properties:
+              conditions:
+                description: Current profile status.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              endpointHostname:
+                description: |-
+                  EndpointHostname is the default *.azurefd.net hostname assigned by Azure
+                  to the profile's default endpoint. Populated once the endpoint is programmed.
+                type: string
+              resourceID:
+                description: |-
+                  ResourceID is the fully qualified Azure resource ID of the Front Door profile.
+                  Example: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Cdn/profiles/{name}
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: metadata.name max length is 63
+          rule: size(self.metadata.name) < 64
+        - message: spec.wafPolicy is required when spec.complianceMode is SFI-NS253
+          rule: self.spec.complianceMode != 'SFI-NS253' || has(self.spec.wafPolicy)
+    served: true
+    storage: true
+    subresources:
+      status: {}
