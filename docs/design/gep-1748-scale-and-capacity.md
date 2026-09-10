@@ -15,6 +15,65 @@ with optional Web Application Firewall (WAF).
 > admission policy, support targets, and tests in this document are requirements for subsequent
 > implementation; they are not claims about behavior in the current PR.
 
+```mermaid
+flowchart LR
+    subgraph Hub["Fleet hub cluster - planned control plane"]
+        GC["GatewayClass<br/>fleet-azure-frontdoor"]
+        GW["Gateway"]
+        HR["HTTPRoute"]
+        RG["ReferenceGrant"]
+        SI["ServiceImport"]
+        ISE["InternalServiceExport<br/>per service and member"]
+        MODEL["Normalized GlobalGateway<br/>and capacity preflight"]
+        CTRL["Gateway and AFD reconcilers<br/>not yet registered in PR #400"]
+
+        GC --> GW
+        GW --> HR
+        RG -. authorizes .-> HR
+        HR --> SI
+        ISE --> SI
+        GW --> MODEL
+        HR --> MODEL
+        SI --> MODEL
+        MODEL --> CTRL
+    end
+
+    subgraph AzureEdge["Azure global edge"]
+        PROFILE["AFD Premium profile<br/>one per Gateway"]
+        ENDPOINT["AFD endpoint"]
+        DOMAIN["Domains, routes,<br/>rules and certificates"]
+        WAF["Optional WAF<br/>security policy"]
+        OG["Origin group<br/>one per ServiceImport"]
+        ORIGIN["Origin<br/>one per member export"]
+        MPE["AFD-managed<br/>private endpoint"]
+
+        PROFILE --> ENDPOINT
+        ENDPOINT --> DOMAIN
+        WAF --> DOMAIN
+        DOMAIN --> OG
+        OG --> ORIGIN
+        ORIGIN --> MPE
+    end
+
+    subgraph Members["Fleet member clusters"]
+        SVCEXP["ServiceExport"]
+        SVC["Internal LoadBalancer<br/>Service"]
+        PLS["Private Link Service<br/>and NAT IPs"]
+        ILB["Standard internal<br/>Load Balancer frontend"]
+        POD["Ready workload pods"]
+
+        SVCEXP --> ISE
+        SVCEXP --> SVC
+        SVC --> PLS
+        PLS --> ILB
+        ILB --> POD
+    end
+
+    CTRL -. ARM desired state .-> PROFILE
+    MPE --> PLS
+    CLIENT["Clients"] --> PROFILE
+```
+
 All limits are one of:
 
 - **Hard:** a documented Azure, AKS, or Kubernetes ceiling.
@@ -96,6 +155,29 @@ every applicable row.
 | Existing sustained performance test | Repository test workload | 300 EndpointSlices per exporting member cluster, three exporting clusters, 10 workers, 20-minute mutation interval | Exercises existing MCS churn, not Gateway-to-AFD convergence | Baseline only, not a support claim | Same as above | Extend with Gateway, route, origin, ARM, and failure scenarios | `test/perftest/latency/sustained/latency_test.go` |
 
 ## Capacity model
+
+```mermaid
+flowchart TB
+    SUB["Azure subscription"]
+    SUB --> G["G Gateways<br/>G AFD profiles"]
+    G --> SG["Per profile: S_g ServiceImports<br/>target 100, hard 200 origin groups"]
+    G --> OG["Per profile: O_g = sum(C_s) origins<br/>target 160, hard 200"]
+    G --> RG["Per profile: R_g routes<br/>target 160, hard 200"]
+    G --> DG["Per profile: D_g domains<br/>target 160, hard 500"]
+    G --> QG["Per profile: Q_g composite routing<br/>target 4,000, hard 5,000"]
+    SG --> CS["Per ServiceImport: C_s member origins<br/>target 40, hard 50"]
+
+    MEMBER["Each member cluster"]
+    MEMBER --> EM["Per shared SLB: E_m PLS-backed exports<br/>target 6, hard 8"]
+    MEMBER --> LM["Per backend NIC: L_m = sum(P_s) rules<br/>target 240, hard 300"]
+    MEMBER --> PN["Per frontend: P_s x N_m backend configurations<br/>target 8,000, hard 10,000"]
+
+    TRAFFIC["Independent traffic envelope"]
+    TRAFFIC --> RPS["AFD profile: 100,000 RPS"]
+    TRAFFIC --> POP["AFD PoP: 5,000 RPS by default"]
+    TRAFFIC --> PLRPS["Private Link regional cluster:<br/>7,200 RPS per profile"]
+    TRAFFIC --> APP["WAF, PLS NAT, ILB, nodes,<br/>pods and application capacity"]
+```
 
 For each managed Gateway `g` and referenced ServiceImport `s`:
 
@@ -287,14 +369,53 @@ for performance testing and operational dashboards, but not for admission of one
 
 The planned dependency graph is:
 
-```text
-GatewayClass
-  -> Gateway
-     -> attached HTTPRoutes and ReferenceGrants
-        -> referenced ServiceImports
-           -> contributing InternalServiceExports/member Services
-              -> normalized GlobalGateway
-                 -> AFD/WAF/Private Link desired-state diff
+```mermaid
+flowchart LR
+    subgraph Watch["Indexed Kubernetes watches"]
+        GC["GatewayClass"]
+        GW["Gateway"]
+        HR["HTTPRoute"]
+        GRANT["ReferenceGrant"]
+        SI["ServiceImport"]
+        ISE["InternalServiceExport"]
+        SVC["Member Service and ServiceExport"]
+
+        GC --> GW
+        GW --> HR
+        GRANT -. authorizes .-> HR
+        HR --> SI
+        SVC --> ISE
+        ISE --> SI
+    end
+
+    SI --> QUEUE["Coalesced, bounded<br/>model work queue"]
+    GW --> QUEUE
+    HR --> QUEUE
+    QUEUE --> MODEL["Build, normalize and<br/>deduplicate GlobalGateway"]
+    MODEL --> PREFLIGHT{"References, topology<br/>and all quotas valid?"}
+    PREFLIGHT -- No --> STATUS["Conditions, warning event<br/>and stable metrics"]
+    PREFLIGHT -- Yes --> DIFF["Idempotent Azure<br/>desired-state diff"]
+
+    subgraph AzureQueues["Bounded Azure work queues"]
+        PARENT["Profile and endpoint"]
+        ROUTING["Domains, routes,<br/>rules and WAF"]
+        ORIGINS["Origin groups<br/>and origins"]
+        PRIVATE["Private endpoint<br/>approval polling"]
+    end
+
+    DIFF --> PARENT
+    DIFF --> ROUTING
+    DIFF --> ORIGINS
+    DIFF --> PRIVATE
+    PARENT --> OBSERVE["Observe eventual consistency<br/>and update status"]
+    ROUTING --> OBSERVE
+    ORIGINS --> OBSERVE
+    PRIVATE --> OBSERVE
+    OBSERVE --> STATUS
+    THROTTLE["ARM or Microsoft.Network<br/>429, conflict or delay"] -. "Retry-After, backoff and jitter" .-> PARENT
+    THROTTLE -. "Retry-After, backoff and jitter" .-> ROUTING
+    THROTTLE -. "Retry-After, backoff and jitter" .-> ORIGINS
+    THROTTLE -. "Retry-After, backoff and jitter" .-> PRIVATE
 ```
 
 The controller must not list every object on every reconciliation. Required indexes include:
@@ -367,15 +488,26 @@ appear short.
 
 ### Data-plane path
 
-```text
-Client
-  -> AFD edge
-  -> optional WAF policy
-  -> AFD managed private endpoint
-  -> member PLS NAT
-  -> internal Standard Load Balancer frontend
-  -> Kubernetes Service
-  -> ready pod
+```mermaid
+flowchart LR
+    CLIENT["Client requests"] --> POP["AFD edge PoP<br/>5,000 RPS/profile default"]
+    POP --> PROFILE["AFD profile<br/>100,000 RPS and 75 Gbps"]
+    PROFILE --> WAF{"WAF enabled?"}
+    WAF -- Yes --> INSPECT["WAF inspection"]
+    WAF -- No --> ROUTE["AFD route"]
+    INSPECT --> ROUTE
+    ROUTE --> OG["Origin group<br/>one ServiceImport"]
+    OG --> ORIGIN["Selected member origin"]
+    ORIGIN --> REGIONAL["AFD Private Link<br/>regional cluster<br/>7,200 RPS/profile"]
+    REGIONAL --> MPE["Managed private endpoint"]
+    MPE --> PLS["Member PLS<br/>NAT IP and connection capacity"]
+    PLS --> ILB["Internal Standard LB<br/>frontend, rule and backend pool"]
+    ILB --> SVC["Kubernetes Service"]
+    SVC --> POD["Ready pod<br/>application capacity"]
+    POD --> CLIENT
+
+    PROBE["AFD edge health probes"] -. same private path .-> REGIONAL
+    PROBE -. HEAD health check .-> POD
 ```
 
 The main independent boundaries are:
@@ -411,6 +543,23 @@ all origins when all are unhealthy, overload controls and application retries re
 
 ### Churn and failure storms
 
+```mermaid
+flowchart LR
+    TRIGGER["Cluster join/leave, region outage,<br/>ServiceExport burst, restart,<br/>WAF/certificate change or migration"]
+    TRIGGER --> K8S["Kubernetes watch fan-out"]
+    K8S --> MODEL["Affected Gateway models"]
+    MODEL --> ARM["AFD, WAF, Private Link<br/>and network operations"]
+    ARM --> PROP["Eventually consistent<br/>Azure propagation"]
+    PROP --> HEALTH["Probe and origin-health changes"]
+    HEALTH --> TRAFFIC["Traffic shifts to<br/>remaining origins"]
+    TRAFFIC --> APP["Backend load and<br/>noisy-neighbor pressure"]
+
+    INDEX["Reverse indexes and<br/>semantic diffing"] -. constrain .-> K8S
+    QUEUE["Coalescing, bounded queues,<br/>backoff and Retry-After"] -. constrain .-> ARM
+    HEADROOM["20% quota and<br/>backend capacity reserve"] -. absorb .-> TRAFFIC
+    STATIC["Last known good,<br/>no partial programming"] -. protect .-> PROP
+```
+
 | Trigger | Amplification | Expected risk | Required mitigation |
 |---|---|---|---|
 | Member cluster join/leave | Every referenced ServiceImport and Gateway using that member may change | Origin and status write burst | Reverse indexes, work coalescing, bounded Azure writers |
@@ -427,6 +576,39 @@ all origins when all are unhealthy, overload controls and application retries re
 Several teams can share one member AKS cluster, but namespace isolation does not isolate AFD
 quotas, Standard Load Balancer resources, PLS resources, subnets, nodes, Kubernetes API capacity,
 controller queues, Azure identities, costs, or failure domains.
+
+```mermaid
+flowchart TB
+    PLATFORM["Platform owner<br/>GatewayClass, policy and Azure identity"]
+
+    subgraph Edge["Preferred edge isolation"]
+        GWA["Tenant A Gateway<br/>AFD profile, WAF, domains and quotas"]
+        GWB["Tenant B Gateway<br/>AFD profile, WAF, domains and quotas"]
+    end
+
+    subgraph SharedAKS["Shared member AKS cluster"]
+        NSA["Tenant A namespace<br/>RBAC, HTTPRoute, ServiceExport"]
+        NSB["Tenant B namespace<br/>RBAC, HTTPRoute, ServiceExport"]
+        API["Shared API server,<br/>controllers and upgrade boundary"]
+        SLB["Shared Standard Load Balancer<br/>rules, frontends and 8 PLS hard limit"]
+        NODES["Shared nodes, subnet,<br/>pods and application capacity"]
+    end
+
+    PLATFORM --> GWA
+    PLATFORM --> GWB
+    PLATFORM --> API
+    GWA --> NSA
+    GWB --> NSB
+    NSA --> SLB
+    NSB --> SLB
+    SLB --> NODES
+    API --> NSA
+    API --> NSB
+
+    ISOLATE["Escalate when trust, compliance,<br/>PLS capacity, SLO or blast radius differs"]
+    ISOLATE --> SHARD["Dedicated ingress/LB shard<br/>when generally available"]
+    ISOLATE --> CLUSTER["Dedicated member cluster<br/>and Gateway/profile"]
+```
 
 ### Supported patterns
 
@@ -493,6 +675,20 @@ Use a dedicated cluster when any of these are true:
 
 ## Split and sharding guidance
 
+```mermaid
+flowchart TD
+    START["Capacity, ownership or SLO pressure"] --> SCOPE{"Where is the<br/>binding boundary?"}
+    SCOPE -- "Tenant, environment, WAF,<br/>domain, profile quota or traffic" --> PROFILE["Create another Gateway<br/>and AFD profile"]
+    SCOPE -- "One ServiceImport<br/>approaches 40 origins" --> SERVICE{"Can the logical service<br/>be explicitly partitioned?"}
+    SERVICE -- Yes --> PARTITION["Partition ServiceImports<br/>with explicit routing semantics"]
+    SERVICE -- No --> TOPOLOGY["Adopt reviewed regional ingress<br/>aggregation or hierarchical routing"]
+    SCOPE -- "Member LB: 6 PLS exports,<br/>240 rules or slow updates" --> INGRESS["Use a dedicated supported<br/>LB/ingress shard or cluster"]
+    SCOPE -- "Subscription profile, WAF,<br/>PLS or ARM budget" --> SUB["Use another subscription<br/>aligned to ownership and region"]
+    SCOPE -- "Private Link regional RPS,<br/>latency or correlated failure" --> REGION["Correct region placement and<br/>split independent origins/profiles"]
+
+    PROFILE -. "Does not raise the 50-origin<br/>limit for one ServiceImport" .-> TOPOLOGY
+```
+
 | Trigger | Correct split | Why |
 |---|---|---|
 | Another tenant, environment, WAF owner, compliance scope, or independent traffic SLO | New Gateway and therefore new AFD profile | Creates an edge ownership, quota, and blast-radius boundary |
@@ -514,6 +710,28 @@ cost, and traffic semantics.
 ### Preflight order
 
 Before creating or updating any Azure resource:
+
+```mermaid
+flowchart TD
+    EVENT["Relevant Kubernetes or<br/>periodic quota event"] --> RESOLVE["Resolve Gateway, routes, grants,<br/>ports, ServiceImports and origins"]
+    RESOLVE --> MODEL["Build normalized model"]
+    MODEL --> DEDUPE["Deduplicate planned<br/>Azure resources"]
+    DEDUPE --> COUNT["Calculate every capacity<br/>and connectivity dimension"]
+    COUNT --> USAGE["Merge cached external<br/>Azure quota usage"]
+    USAGE --> VALID{"Desired state supported<br/>and within quota?"}
+
+    VALID -- No --> STATIC["Keep last known good<br/>Azure configuration"]
+    STATIC --> REJECT["Programmed=False,<br/>CapacityExceeded"]
+    REJECT --> SIGNAL["Actionable warning event<br/>and stable metric"]
+    SIGNAL --> WAIT["Wait for relevant state or<br/>controlled quota recheck"]
+    WAIT --> EVENT
+
+    VALID -- Yes --> DIFF["Apply idempotent<br/>desired-state diff"]
+    DIFF --> READY{"Provisioned, approved<br/>and healthy?"}
+    READY -- Pending or transient --> RETRY["Truthful pending condition;<br/>Retry-After, backoff and jitter"]
+    RETRY --> READY
+    READY -- Yes --> SUCCESS["Programmed=True<br/>clear capacity warning"]
+```
 
 1. Resolve listeners, routes, `ReferenceGrant`s, backend ports, ServiceImports, member origins, and
    connectivity modes.
@@ -570,6 +788,20 @@ use a reviewed regional aggregation or explicit service-partition topology.
 
 All proposed support values require repeatable tests. Gates should be measured at p50, p95, p99,
 and maximum where applicable, with Azure request count and throttling by operation.
+
+```mermaid
+flowchart LR
+    MODEL["Local model benchmark<br/>100 services, 160 origins and routes"] --> CONTROL["Control-plane scale<br/>cache, watches, ARM and restart"]
+    CONTROL --> MEMBER["Member infrastructure<br/>PLS, ILB, ports and nodes"]
+    MEMBER --> DATA["Data-plane load<br/>AFD, WAF, Private Link and app"]
+    DATA --> FAILURE["Failure and churn<br/>region, approval, 429 and migration"]
+    FAILURE --> TENANT["Multitenant isolation<br/>noisy neighbor and offboarding"]
+    TENANT --> REVIEW{"All p50, p95, p99,<br/>correctness and recovery gates pass?"}
+    REVIEW -- No --> TUNE["Lower envelope or fix<br/>architecture/controller"]
+    TUNE --> MODEL
+    REVIEW -- Yes --> SERVICE["Azure service-team review<br/>and concrete SLO selection"]
+    SERVICE --> PUBLISH["Publish supported RPS,<br/>latency and convergence envelope"]
+```
 
 | Scenario | Required topology/workload | Measurements | Provisional release gate |
 |---|---|---|---|

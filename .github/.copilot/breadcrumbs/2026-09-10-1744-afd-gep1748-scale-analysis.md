@@ -22,6 +22,9 @@
 - Analyze multitenant member clusters where several teams, applications, or customer groups share
   one AKS cluster but require independent global ingress, policy, quota, ownership, and failure
   boundaries.
+- Add Mermaid summary diagrams to the relevant sections so readers can follow the complete
+  Kubernetes, Fleet, Azure control-plane, data-plane, capacity, tenancy, admission, and validation
+  chains without relying only on dense prose and tables.
 
 ## Additional comments from user
 
@@ -40,6 +43,8 @@
   member clusters than one AFD origin group supports.
 - The scale document should include commentary on whether and how multiple groups can safely share
   the same member cluster.
+- The diagrams should include all important pieces chained together and act as summaries rather
+  than replace the detailed limits and rationale.
 
 ## Plan
 
@@ -162,6 +167,19 @@
   - Success criteria: repository references, formulas, links, and recommendations are checked;
     no unimplemented behavior is presented as working.
 
+### Phase 8: Add visual summaries
+
+- [x] **Task 8.1: Add end-to-end and capacity Mermaid diagrams.**
+  - Success criteria: readers can see the Kubernetes-to-Azure resource mapping and the nested
+    capacity scopes before reading the formulas and tables.
+- [x] **Task 8.2: Add operational Mermaid diagrams.**
+  - Success criteria: control-plane reconciliation, request/probe flow, shared-cluster tenancy,
+    sharding decisions, capacity admission, recovery, and release validation are each summarized
+    visually in their relevant sections.
+- [x] **Task 8.3: Validate Mermaid blocks and document consistency.**
+  - Success criteria: diagrams use portable Mermaid syntax, agree with the prose and tables, and
+    do not present planned reconciliation as implemented behavior.
+
 ### Detailed checklist
 
 - [x] Phase 1 / Task 1.1 completed.
@@ -191,6 +209,9 @@
 - [x] Phase 7 / Task 7.3 completed.
 - [x] Phase 7 / Task 7.4 completed.
 - [x] Phase 7 / Task 7.5 completed.
+- [x] Phase 8 / Task 8.1 completed.
+- [x] Phase 8 / Task 8.2 completed.
+- [x] Phase 8 / Task 8.3 completed.
 
 ### Overall success criteria
 
@@ -236,6 +257,9 @@
 - Propose six PLS-backed exported Services per shared member Load Balancer because Azure permits
   eight PLS resources per Standard Load Balancer and two slots are reserved for migration and
   repair.
+- Use one comprehensive end-to-end diagram plus focused diagrams in the relevant sections rather
+  than duplicating the entire architecture in every section.
+- Keep diagrams as visual summaries; formulas, tables, and prose remain authoritative.
 
 ## Implementation Details
 
@@ -254,6 +278,10 @@
 - Cross-referenced the scale document from `docs/design/gep-1748-gateway-api.md`.
 - Validated relative links, reference-style links, table-of-contents anchors, trailing whitespace,
   and the tracked diff.
+- Added nine Mermaid diagrams covering the complete resource chain, capacity scopes,
+  control-plane reconciliation, data-plane requests and probes, failure amplification,
+  shared-cluster tenancy, split decisions, admission and recovery, and performance qualification.
+- Rendered all nine Mermaid blocks locally with Mermaid CLI to verify parser compatibility.
 
 ## Changes Made
 
@@ -265,6 +293,8 @@
   document.
 - Added the standalone scale and capacity document and linked it from the architecture RFC.
 - Completed the approved analysis plan and validation checklist.
+- Added and locally rendered visual summaries for every major architectural and operational
+  decision section.
 
 ## Before/After Comparison
 
@@ -274,6 +304,9 @@
   reviewable initial support envelope, explains multitenant and sharding boundaries, and defines
   admission and release-validation requirements without claiming that PR #400 provisions Azure
   resources.
+- **Visual improvement:** Readers can now follow the complete control-plane and request path,
+  understand nested quota scopes, and choose an isolation or sharding response from Mermaid
+  diagrams before consulting the detailed tables.
 
 ## References
 
