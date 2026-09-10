@@ -923,9 +923,15 @@ tradeoff.
 4. Should one Gateway always own one AFD profile, or should profile sharing be designed later?
 5. What mixed-version compatibility window is required for internal PLS transport fields?
 
+Detailed quotas, capacity formulas, the proposed initial support envelope, multitenancy guidance,
+and release-validation scenarios are maintained in
+[GEP-1748 Azure Front Door scale and capacity](./gep-1748-scale-and-capacity.md). Those proposed
+values do not describe implemented behavior in the current controller-foundation release.
+
 ## References
 
 - [Configure Gateway API with Azure Front Door](../howtos/gateway-api-afd-configuration.md)
+- [GEP-1748 Azure Front Door scale and capacity](./gep-1748-scale-and-capacity.md)
 - [GEP-1748: Gateway API Interaction with Multi-Cluster Services](https://gateway-api.sigs.k8s.io/geps/gep-1748/)
 - [Gateway API v1.2.1 type definitions](https://github.com/kubernetes-sigs/gateway-api/blob/v1.2.1/apis/v1/gateway_types.go)
 - [Gateway API cross-namespace routing](https://gateway-api.sigs.k8s.io/guides/multiple-ns/)
