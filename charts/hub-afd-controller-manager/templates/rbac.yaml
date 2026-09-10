@@ -1,0 +1,119 @@
+{{/*
+Least-privilege ClusterRole for the hub-afd-controller-manager.
+
+Scope is deliberately narrow: only the AFD-owned CRDs, plus the minimum
+Kubernetes primitives every controller-runtime manager needs
+(leases for leader election, events for the Recorder). Notably ABSENT:
+  * No verbs on ATM CRDs (trafficmanagerprofiles / trafficmanagerbackends).
+    The AFD binary does not import their packages; granting perms would
+    weaken the SFI-NS253 §7 identity split at the K8s RBAC layer too.
+  * No verbs on MCS CRDs (serviceimports, endpointsliceexports, etc.).
+  * No cluster.kubernetes-fleet.io/memberclusters — the AFD controller
+    does not enumerate member clusters (backend selection lands with
+    FrontDoorBackend in Phase 4, at which point this ClusterRole
+    is extended, not the ATM binary's).
+  * No apiextensions.k8s.io/customresourcedefinitions — CRD install is
+    handled by the shared net-crd-installer job attached to the hub-net
+    chart, not by this chart.
+
+The verbs mirror the +kubebuilder:rbac markers on the FrontDoorProfile
+and FrontDoorCustomDomain reconcilers exactly, so config/rbac/role.yaml
+regenerations from controller-gen match this template semantically.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "hub-afd-controller-manager.fullname" . }}-role
+  labels:
+    {{- include "hub-afd-controller-manager.labels" . | nindent 4 }}
+rules:
+# Leader election: coordination.k8s.io leases in the leader-election namespace.
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+# Event recorder: needed by both reconcilers (they call
+# mgr.GetEventRecorderFor(...) and emit Normal/Warning events).
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+# FrontDoorProfile CRUD.
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorprofiles
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorprofiles/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorprofiles/finalizers
+  verbs:
+  - get
+  - update
+# FrontDoorCustomDomain CRUD.
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorcustomdomains
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorcustomdomains/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - frontdoorcustomdomains/finalizers
+  verbs:
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "hub-afd-controller-manager.fullname" . }}-role-binding
+  labels:
+    {{- include "hub-afd-controller-manager.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "hub-afd-controller-manager.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "hub-afd-controller-manager.fullname" . }}-sa
+    namespace: {{ .Values.fleetSystemNamespace }}

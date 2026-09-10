@@ -56,6 +56,9 @@ rules:
   resources:
   - endpointsliceexports
   - endpointsliceimports
+  - frontdoorbackends
+  - frontdoorcustomdomains
+  - frontdoorprofiles
   - internalserviceexports
   - internalserviceimports
   - multiclusterservices
@@ -74,13 +77,22 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - internalserviceexports/finalizers
-  - serviceexports/finalizers
+  - frontdoorbackends/finalizers
+  - frontdoorcustomdomains/finalizers
+  - frontdoorprofiles/finalizers
+  - multiclusterservices/finalizers
+  - serviceimports/finalizers
+  - trafficmanagerbackends/finalizers
+  - trafficmanagerprofiles/finalizers
   verbs:
+  - get
   - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:
+  - frontdoorbackends/status
+  - frontdoorcustomdomains/status
+  - frontdoorprofiles/status
   - internalserviceexports/status
   - multiclusterservices/status
   - serviceexports/status
@@ -94,10 +106,7 @@ rules:
 - apiGroups:
   - networking.fleet.azure.com
   resources:
-  - multiclusterservices/finalizers
-  - serviceimports/finalizers
-  - trafficmanagerbackends/finalizers
-  - trafficmanagerprofiles/finalizers
+  - internalserviceexports/finalizers
+  - serviceexports/finalizers
   verbs:
-  - get
   - update

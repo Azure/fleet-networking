@@ -1,0 +1,239 @@
+---
+# Source: hub-net-controller-manager/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hub-net-hub-net-controller-manager-sa
+  namespace: fleet-system
+  labels:
+    helm.sh/chart: hub-net-controller-manager-0.1.0
+    app.kubernetes.io/name: hub-net-controller-manager
+    app.kubernetes.io/instance: hub-net
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+
+---
+# Source: hub-net-controller-manager/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: hub-net-hub-net-controller-manager-role
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+  - list
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceexports
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+    - cluster.kubernetes-fleet.io
+  resources:
+    - memberclusters
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: hub-net-controller-manager/templates/rbac.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hub-net-hub-net-controller-manager-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hub-net-hub-net-controller-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: hub-net-hub-net-controller-manager-sa
+    namespace: fleet-system
+
+---
+# Source: hub-net-controller-manager/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hub-net-hub-net-controller-manager
+  namespace: fleet-system
+  labels:
+    helm.sh/chart: hub-net-controller-manager-0.1.0
+    app.kubernetes.io/name: hub-net-controller-manager
+    app.kubernetes.io/instance: hub-net
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hub-net-controller-manager
+      app.kubernetes.io/instance: hub-net
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hub-net-controller-manager
+        app.kubernetes.io/instance: hub-net
+    spec:
+      serviceAccountName:  hub-net-hub-net-controller-manager-sa
+      containers:
+        - name: hub-net-controller-manager
+          image: "ghcr.io/azure/fleet-networking/hub-net-controller-manager:v0.1.0"
+          imagePullPolicy: Always
+          args:
+            - --leader-election-namespace=fleet-system
+            - --v=2
+            - --add_dir_header
+            - --force-delete-wait-time=2m0s
+            - --enable-traffic-manager-feature=false
+          ports:
+          - name: metrics
+            containerPort: 8080
+            protocol: TCP
+          - name: healthz
+            containerPort: 8081
+            protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
