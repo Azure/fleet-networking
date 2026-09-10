@@ -52,6 +52,37 @@ rules:
   - update
   - watch
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - azurefrontdoorbackendattachments
+  - azurefrontdoorgatewaypolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - azurefrontdoorbackendattachments/status
+  - internalserviceexports/status
+  - multiclusterservices/status
+  - serviceexports/status
+  - serviceimports/status
+  - trafficmanagerbackends/status
+  - trafficmanagerprofiles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.fleet.azure.com
   resources:
   - endpointsliceexports
@@ -77,19 +108,6 @@ rules:
   - internalserviceexports/finalizers
   - serviceexports/finalizers
   verbs:
-  - update
-- apiGroups:
-  - networking.fleet.azure.com
-  resources:
-  - internalserviceexports/status
-  - multiclusterservices/status
-  - serviceexports/status
-  - serviceimports/status
-  - trafficmanagerbackends/status
-  - trafficmanagerprofiles/status
-  verbs:
-  - get
-  - patch
   - update
 - apiGroups:
   - networking.fleet.azure.com
