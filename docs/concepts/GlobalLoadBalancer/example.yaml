@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mclb-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-deployment
+  namespace: mclb-demo
+spec:
+  selector:
+    matchLabels:
+      app: helloworld
+  template:
+    metadata:
+      labels:
+        app: helloworld
+    spec:
+      containers:
+        - name: helloworld
+          image: docker.io/istio/examples-helloworld-v1:1.0
+          ports:
+          - containerPort: 5000
+            protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloworld
+  namespace: mclb-demo
+spec:
+  selector:
+    app: helloworld
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+---
+apiVersion: networking.fleet.azure.com/v1beta1
+kind: ServiceExport
+metadata:
+  name: helloworld
+  namespace: mclb-demo
+---
+apiVersion: placement.kubernetes-fleet.io/v1
+kind: ClusterResourcePlacement
+metadata:
+  name: crp-mclb-demo
+spec:
+  policy:
+    placementType: PickAll
+  resourceSelectors:
+  - group: ""
+    kind: Namespace
+    name: mclb-demo
+    version: v1
+---
+apiVersion: networking.fleet.azure.com/v1alpha1
+kind: MultiClusterLoadBalancer
+metadata:
+  name: helloworld
+  namespace: mclb-demo
