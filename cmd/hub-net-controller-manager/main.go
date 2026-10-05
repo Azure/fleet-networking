@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/klog/v2"
@@ -37,12 +38,20 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
+	"go.goms.io/fleet/pkg/utils"
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/apiclient"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/globalserviceexport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/membercluster"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/serviceimport"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerbackend"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/trafficmanagerprofile"
 )
 
 var (
@@ -136,22 +145,22 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	// klog.V(1).InfoS("Start to setup EndpointsliceExport controller")
-	// if err := (&endpointsliceexport.Reconciler{
-	// 	HubClient: mgr.GetClient(),
-	// }).SetupWithManager(ctx, mgr); err != nil {
-	// 	klog.ErrorS(err, "Unable to create EndpointsliceExport controller")
-	// 	exitWithErrorFunc()
-	// }
+	klog.V(1).InfoS("Start to setup EndpointsliceExport controller")
+	if err := (&endpointsliceexport.Reconciler{
+		HubClient: mgr.GetClient(),
+	}).SetupWithManager(ctx, mgr); err != nil {
+		klog.ErrorS(err, "Unable to create EndpointsliceExport controller")
+		exitWithErrorFunc()
+	}
 
-	// klog.V(1).InfoS("Start to setup InternalServiceExport controller")
-	// if err := (&internalserviceexport.Reconciler{
-	// 	Client:        mgr.GetClient(),
-	// 	RetryInternal: *internalServiceExportRetryInterval,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	klog.ErrorS(err, "Unable to create InternalServiceExport controller")
-	// 	exitWithErrorFunc()
-	// }
+	klog.V(1).InfoS("Start to setup InternalServiceExport controller")
+	if err := (&internalserviceexport.Reconciler{
+		Client:        mgr.GetClient(),
+		RetryInternal: *internalServiceExportRetryInterval,
+	}).SetupWithManager(mgr); err != nil {
+		klog.ErrorS(err, "Unable to create InternalServiceExport controller")
+		exitWithErrorFunc()
+	}
 
 	klog.V(1).InfoS("Start to setup GlobalService controller")
 
@@ -175,84 +184,84 @@ func main() {
 	r := globalserviceexport.NewReconciler(client, dc, rc, cloudConfig.ResourceGroup, mgr.GetEventRecorderFor(globalserviceexport.ControllerName))
 	mgr.Add(r)
 
-	// klog.V(1).InfoS("Start to setup InternalServiceImport controller")
-	// if err := (&internalserviceimport.Reconciler{
-	// 	HubClient: mgr.GetClient(),
-	// }).SetupWithManager(ctx, mgr); err != nil {
-	// 	klog.ErrorS(err, "Unable to create InternalServiceImport controller")
-	// 	exitWithErrorFunc()
-	// }
+	klog.V(1).InfoS("Start to setup InternalServiceImport controller")
+	if err := (&internalserviceimport.Reconciler{
+		HubClient: mgr.GetClient(),
+	}).SetupWithManager(ctx, mgr); err != nil {
+		klog.ErrorS(err, "Unable to create InternalServiceImport controller")
+		exitWithErrorFunc()
+	}
 
-	// klog.V(1).InfoS("Start to setup ServiceImport controller")
-	// if err := (&serviceimport.Reconciler{
-	// 	Client:   mgr.GetClient(),
-	// 	Recorder: mgr.GetEventRecorderFor(serviceimport.ControllerName),
-	// }).SetupWithManager(ctx, mgr); err != nil {
-	// 	klog.ErrorS(err, "Unable to create ServiceImport controller")
-	// 	exitWithErrorFunc()
-	// }
+	klog.V(1).InfoS("Start to setup ServiceImport controller")
+	if err := (&serviceimport.Reconciler{
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor(serviceimport.ControllerName),
+	}).SetupWithManager(ctx, mgr); err != nil {
+		klog.ErrorS(err, "Unable to create ServiceImport controller")
+		exitWithErrorFunc()
+	}
 
-	// discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
-	// if *enableV1Beta1APIs {
-	// 	gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
-	// 	if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
-	// 		klog.V(1).InfoS("Start to setup MemberCluster controller")
-	// 		if err := (&membercluster.Reconciler{
-	// 			Client:              mgr.GetClient(),
-	// 			Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
-	// 			ForceDeleteWaitTime: *forceDeleteWaitTime,
-	// 		}).SetupWithManager(mgr); err != nil {
-	// 			klog.ErrorS(err, "Unable to create MemberCluster controller")
-	// 			exitWithErrorFunc()
-	// 		}
-	// 	}
-	// }
-	// if *enableTrafficManagerFeature {
-	// 	klog.V(1).InfoS("Traffic manager feature is enabled, checking the required CRDs")
-	// 	for _, gvk := range trafficManagerFeatureRequiredGVKs {
-	// 		if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
-	// 			klog.ErrorS(err, "Unable to find the required CRD", "GVK", gvk)
-	// 			exitWithErrorFunc()
-	// 		}
-	// 	}
+	discoverClient := discovery.NewDiscoveryClientForConfigOrDie(hubConfig)
+	if *enableV1Beta1APIs {
+		gvk := clusterv1beta1.GroupVersion.WithKind(clusterv1beta1.MemberClusterKind)
+		if utils.CheckCRDInstalled(discoverClient, gvk) == nil {
+			klog.V(1).InfoS("Start to setup MemberCluster controller")
+			if err := (&membercluster.Reconciler{
+				Client:              mgr.GetClient(),
+				Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+				ForceDeleteWaitTime: *forceDeleteWaitTime,
+			}).SetupWithManager(mgr); err != nil {
+				klog.ErrorS(err, "Unable to create MemberCluster controller")
+				exitWithErrorFunc()
+			}
+		}
+	}
+	if *enableTrafficManagerFeature {
+		klog.V(1).InfoS("Traffic manager feature is enabled, checking the required CRDs")
+		for _, gvk := range trafficManagerFeatureRequiredGVKs {
+			if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
+				klog.ErrorS(err, "Unable to find the required CRD", "GVK", gvk)
+				exitWithErrorFunc()
+			}
+		}
 
-	// 	klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
-	// 	cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
-	// 	if err != nil {
-	// 		klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
-	// 		exitWithErrorFunc()
-	// 	}
-	// 	cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
-	// 	klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
+		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
+		cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
+		if err != nil {
+			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
+			exitWithErrorFunc()
+		}
+		cloudConfig.SetUserAgent("fleet-hub-net-controller-manager")
+		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-	// 	profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig)
-	// 	if err != nil {
-	// 		klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
-	// 		exitWithErrorFunc()
-	// 	}
-	// 	klog.V(1).InfoS("Start to setup TrafficManagerProfile controller")
-	// 	if err := (&trafficmanagerprofile.Reconciler{
-	// 		Client:         mgr.GetClient(),
-	// 		ProfilesClient: profilesClient,
-	// 		Recorder:       mgr.GetEventRecorderFor(trafficmanagerprofile.ControllerName),
-	// 	}).SetupWithManager(mgr); err != nil {
-	// 		klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
-	// 		exitWithErrorFunc()
-	// 	}
+		profilesClient, endpointsClient, err := initAzureTrafficManagerClients(cloudConfig)
+		if err != nil {
+			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
+			exitWithErrorFunc()
+		}
+		klog.V(1).InfoS("Start to setup TrafficManagerProfile controller")
+		if err := (&trafficmanagerprofile.Reconciler{
+			Client:         mgr.GetClient(),
+			ProfilesClient: profilesClient,
+			Recorder:       mgr.GetEventRecorderFor(trafficmanagerprofile.ControllerName),
+		}).SetupWithManager(mgr); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
 
-	// 	klog.V(1).InfoS("Start to setup TrafficManagerBackend controller")
-	// 	if err := (&trafficmanagerbackend.Reconciler{
-	// 		Client:          mgr.GetClient(),
-	// 		ProfilesClient:  profilesClient,
-	// 		EndpointsClient: endpointsClient,
-	// 		Recorder:        mgr.GetEventRecorderFor(trafficmanagerbackend.ControllerName),
-	// 		// serviceImport controller has already enabled the internalServiceExportIndexer.
-	// 		// Therefore, no need to setup it again.
-	// 	}).SetupWithManager(ctx, mgr, true); err != nil {
-	// 		klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
-	// 		exitWithErrorFunc()
-	// 	}
-	// }
+		klog.V(1).InfoS("Start to setup TrafficManagerBackend controller")
+		if err := (&trafficmanagerbackend.Reconciler{
+			Client:          mgr.GetClient(),
+			ProfilesClient:  profilesClient,
+			EndpointsClient: endpointsClient,
+			Recorder:        mgr.GetEventRecorderFor(trafficmanagerbackend.ControllerName),
+			// serviceImport controller has already enabled the internalServiceExportIndexer.
+			// Therefore, no need to setup it again.
+		}).SetupWithManager(ctx, mgr, true); err != nil {
+			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
+	}
 
 	klog.V(1).InfoS("Starting ServiceExportImport controller manager")
 	if err := mgr.Start(ctx); err != nil {
