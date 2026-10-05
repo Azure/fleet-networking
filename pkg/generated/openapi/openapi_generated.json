@@ -1,0 +1,2080 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "fleet-networking",
+    "version": "unversioned"
+  },
+  "paths": {},
+  "definitions": {
+    "io.goms.go.fleet-networking.api.v1alpha1.ClusterStatus": {
+      "description": "ClusterStatus contains service configuration mapped to a specific source cluster.",
+      "type": "object",
+      "required": [
+        "cluster"
+      ],
+      "properties": {
+        "cluster": {
+          "description": "cluster is the name of the exporting cluster. Must be a valid RFC-1123 DNS label.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.Endpoint": {
+      "description": "Endpoint includes all exported addresses from a logical backend.",
+      "type": "object",
+      "required": [
+        "addresses"
+      ],
+      "properties": {
+        "addresses": {
+          "description": "Addresses of the Endpoint. Addresses should be interpreted per its owner EndpointSliceExport's addressType field. This field contains at least one address and at maximum 100; for more information about this constraint, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#endpoint-v1beta1-discovery-k8s-io.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExport": {
+      "description": "EndpointSliceExport is a data transport type that member clusters in the fleet use to upload the spec of an EndpointSlice to the hub cluster.",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExportSpec"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExportList": {
+      "description": "EndpointSliceExportList contains a list of EndpointSliceExports.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExportSpec": {
+      "description": "EndpointSliceExportSpec specifies the spec of an exported EndpointSlice.",
+      "type": "object",
+      "required": [
+        "addressType",
+        "endpoints",
+        "endpointSliceReference",
+        "ownerServiceReference"
+      ],
+      "properties": {
+        "addressType": {
+          "description": "The type of addresses carried by this EndpointSliceExport. At this stage only IPv4 addresses are supported.\n\nPossible enum values:\n - `\"FQDN\"` represents a FQDN.\n - `\"IPv4\"` represents an IPv4 Address.\n - `\"IPv6\"` represents an IPv6 Address.",
+          "type": "string",
+          "default": "",
+          "enum": [
+            "FQDN",
+            "IPv4",
+            "IPv6"
+          ]
+        },
+        "endpointSliceReference": {
+          "description": "The reference to the source EndpointSlice.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ExportedObjectReference"
+        },
+        "endpoints": {
+          "description": "A list of unique endpoints in the exported EndpointSlice.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.Endpoint"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "ownerServiceReference": {
+          "description": "The reference to the owner Service.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.OwnerServiceReference"
+        },
+        "ports": {
+          "description": "The list of ports exported by each endpoint in this EndpointSliceExport. Each port must have a unique name. When the field is empty, it indicates that there are no defined ports. When a port is defined with a nil port value, it indicates that all ports are exported. Each slice may include a maximum of 100 ports.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.discovery.v1.EndpointPort"
+          },
+          "x-kubernetes-list-type": "atomic"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceImport": {
+      "description": "EndpointSliceImport is a data transport type that hub cluster uses to distribute exported EndpointSlices to member clusters.",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceExportSpec"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceImportList": {
+      "description": "EndpointSliceImportList contains a list of EndpointSliceExports.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.EndpointSliceImport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ExportedObjectReference": {
+      "description": "ExportedObjectReference helps operators identify the source of an exported object, e.g. an EndpointSliceExport.",
+      "type": "object",
+      "required": [
+        "clusterId",
+        "kind",
+        "namespace",
+        "name",
+        "resourceVersion",
+        "generation",
+        "uid",
+        "namespacedName"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "The API version of the referred object.",
+          "type": "string"
+        },
+        "clusterId": {
+          "description": "The ID of the cluster where the object is exported.",
+          "type": "string",
+          "default": ""
+        },
+        "exportedSince": {
+          "description": "The timestamp from a local clock when the generation of the object is exported. This field is marked as optional for backwards compatibility reasons.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+        },
+        "generation": {
+          "description": "The generation of the referred object.",
+          "type": "integer",
+          "format": "int64",
+          "default": 0
+        },
+        "kind": {
+          "description": "The kind of the referred object.",
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "description": "The name of the referred object.",
+          "type": "string",
+          "default": ""
+        },
+        "namespace": {
+          "description": "The namespace of the referred object.",
+          "type": "string",
+          "default": ""
+        },
+        "namespacedName": {
+          "description": "The namespaced name of the referred object.",
+          "type": "string",
+          "default": ""
+        },
+        "resourceVersion": {
+          "description": "The resource version of the referred object.",
+          "type": "string",
+          "default": ""
+        },
+        "uid": {
+          "description": "The UID of the referred object.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "x-kubernetes-map-type": "atomic"
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.FromCluster": {
+      "description": "FromCluster contains service configuration mapped to a specific source cluster.",
+      "type": "object",
+      "required": [
+        "cluster"
+      ],
+      "properties": {
+        "cluster": {
+          "description": "cluster is the name of the exporting cluster. Must be a valid RFC-1123 DNS label.",
+          "type": "string",
+          "default": ""
+        },
+        "weight": {
+          "description": "Weight defines the weight configured in the serviceExport from the source cluster. Possible values are from 0 to 1000.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExport": {
+      "description": "InternalServiceExport is a data transport type that member clusters in the fleet use to upload the spec of exported Service to the hub cluster.",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExportSpec"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExportStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExportList": {
+      "description": "InternalServiceExportList contains a list of InternalServiceExports.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExportSpec": {
+      "description": "InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an exported Service are sync'd.",
+      "type": "object",
+      "required": [
+        "ports",
+        "serviceReference"
+      ],
+      "properties": {
+        "isDNSLabelConfigured": {
+          "description": "IsDNSLabelConfigured determines if the Service has a DNS label configured. A valid DNS label should be configured when the public IP address of the Service is configured as an Azure Traffic Manager endpoint. Reference link: * https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/ * https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types#azure-endpoints",
+          "type": "boolean"
+        },
+        "isInternalLoadBalancer": {
+          "description": "IsInternalLoadBalancer determines if the Service is an internal load balancer type.",
+          "type": "boolean"
+        },
+        "ports": {
+          "description": "A list of ports exposed by the exported Service.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServicePort"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "publicIPResourceID": {
+          "description": "PublicIPResourceID is the Azure Resource URI of public IP. This is only applicable for Load Balancer type Services.",
+          "type": "string"
+        },
+        "serviceReference": {
+          "description": "The reference to the source Service.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ExportedObjectReference"
+        },
+        "type": {
+          "description": "Type is the type of the Service in each cluster.\n\nPossible enum values:\n - `\"ClusterIP\"` means a service will only be accessible inside the cluster, via the cluster IP.\n - `\"ExternalName\"` means a service consists of only a reference to an external name that kubedns or equivalent will return as a CNAME record, with no exposing or proxying of any pods involved.\n - `\"LoadBalancer\"` means a service will be exposed via an external load balancer (if the cloud provider supports it), in addition to 'NodePort' type.\n - `\"NodePort\"` means a service will be exposed on one port of every node, in addition to 'ClusterIP' type.",
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "ExternalName",
+            "LoadBalancer",
+            "NodePort"
+          ]
+        },
+        "weight": {
+          "description": "Weight is the weight of the ServiceExport. If unspecified, weight defaults to 1. The value is from serviceExport \"networking.fleet.azure.com/weight\" annotation and should be in the range [0, 1000].",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceExportStatus": {
+      "description": "InternalServiceExportStatus contains the current status of an InternalServiceExport.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceImport": {
+      "description": "InternalServiceImport is used by the MCS controller to import the Service to a single cluster manually, while ServiceImport is logical identifiers for a Service that exists in another cluster or that stretches across multiple clusters and it will be automatically created in the hub cluster when exporting service.",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.InternalServiceImportSpec"
+        },
+        "status": {
+          "description": "status contains information about the exported services that form the multi-cluster service referenced by this ServiceImport.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceImportStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceImportList": {
+      "description": "InternalServiceImportList represents a list of InternalServiceImport.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "description": "List of InternalServiceImport.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.InternalServiceImport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Standard list metadata.",
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.InternalServiceImportSpec": {
+      "description": "InternalServiceImportSpec specifies the spec of InternalServiceImport.",
+      "type": "object",
+      "required": [
+        "serviceImportReference"
+      ],
+      "properties": {
+        "serviceImportReference": {
+          "description": "The reference to the source ServiceImport.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ExportedObjectReference"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MonitorConfig": {
+      "description": "MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-monitoring",
+      "type": "object",
+      "properties": {
+        "customHeaders": {
+          "description": "Custom headers used for probing endpoints, such as Host headers.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MonitorConfigCustomHeader"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "intervalInSeconds": {
+          "description": "The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health of each endpoint in this profile. You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "path": {
+          "description": "The path relative to the endpoint domain name used to probe for endpoint health.",
+          "type": "string"
+        },
+        "port": {
+          "description": "The TCP port used to probe for endpoint health.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "protocol": {
+          "description": "The protocol (HTTP, HTTPS or TCP) used to probe for endpoint health.",
+          "type": "string"
+        },
+        "timeoutInSeconds": {
+          "description": "The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile to response to the health check. * If the IntervalInSeconds is set to 30 seconds, then you can set the Timeout value between 5 and 10 seconds.\n  If no value is specified, it uses a default value of 10 seconds.\n* If the IntervalInSeconds is set to 10 seconds, then you can set the Timeout value between 5 and 9 seconds.\n  If no Timeout value is specified, it uses a default value of 9 seconds.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "toleratedNumberOfFailures": {
+          "description": "The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile Degraded after the next failed health check.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MonitorConfigCustomHeader": {
+      "description": "MonitorConfigCustomHeader defines a custom header for endpoint monitoring.",
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name of the header",
+          "type": "string",
+          "default": ""
+        },
+        "value": {
+          "description": "Value of the header",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterLoadBalancer": {
+      "description": "MultiClusterService is the Schema for creating north-south L4 load balancer to consume services across clusters.",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "status": {
+          "description": "Spec defines the desired state of MultiClusterLoadBalancer Spec MultiClusterLoadBalancerSpec `json:\"spec,omitempty\"` Status represents the current status of MultiClusterLoadBalancer",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MultiClusterLoadBalancerStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterLoadBalancerList": {
+      "description": "MultiClusterLoadBalancerList contains a list of MultiClusterLoadBalancer.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MultiClusterLoadBalancer"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterLoadBalancerStatus": {
+      "description": "MultiClusterLoadBalancerStatus contains the current status of an export.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "loadBalancer": {
+          "description": "LoadBalancer contains the current status of the load-balancer, if one is present.",
+          "default": {},
+          "$ref": "#/definitions/io.k8s.api.core.v1.LoadBalancerStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterService": {
+      "description": "MultiClusterService is the Schema for creating north-south L4 load balancer to consume services across clusters.",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MultiClusterServiceSpec"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MultiClusterServiceStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterServiceList": {
+      "description": "MultiClusterServiceList contains a list of MultiClusterService.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MultiClusterService"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterServiceSpec": {
+      "description": "MultiClusterServiceSpec defines the desired state of MultiClusterService.",
+      "type": "object",
+      "properties": {
+        "serviceImport": {
+          "description": "ServiceImport is the reference to the Service with the same name exported in the member clusters.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceImportRef"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.MultiClusterServiceStatus": {
+      "description": "MultiClusterServiceStatus represents the current status of a multi-cluster service.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Current service state",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "loadBalancer": {
+          "description": "LoadBalancerStatus represents the status of a load-balancer. if one is present.",
+          "default": {},
+          "$ref": "#/definitions/io.k8s.api.core.v1.LoadBalancerStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.OwnerServiceReference": {
+      "description": "OwnerServiceReference points to the Service that owns the exported EndpointSlice.",
+      "type": "object",
+      "required": [
+        "namespace",
+        "name",
+        "namespacedName"
+      ],
+      "properties": {
+        "name": {
+          "description": "The name of the owner Service.",
+          "type": "string",
+          "default": ""
+        },
+        "namespace": {
+          "description": "The namespace of the owner Service.",
+          "type": "string",
+          "default": ""
+        },
+        "namespacedName": {
+          "description": "The namespaced name (key) of the owner Service.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceExport": {
+      "description": "ServiceExport declares that the associated service should be exported to other clusters. The annotation \"networking.fleet.azure.com/weight\" specifies the proportion of requests forwarded to the cluster within a serviceImport. The actual value is the ceiling value of a number computed as weight/(sum of all weights in the serviceImport). If weight is set to 0, no traffic should be forwarded for this entry. If unspecified, weight defaults to 1. The value should be in the range [0, 1000].",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceExportStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceExportList": {
+      "description": "ServiceExportList contains a list of ServiceExport.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceExport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceExportStatus": {
+      "description": "ServiceExportStatus contains the current status of an export.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceImport": {
+      "description": "ServiceImport describes a service imported from clusters in a ClusterSet.",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "status": {
+          "description": "status contains information about the exported services that form the multi-cluster service referenced by this ServiceImport.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceImportStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceImportList": {
+      "description": "ServiceImportList contains a list of ServiceImport.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "description": "List of ServiceImport.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServiceImport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Standard list metadata.",
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceImportRef": {
+      "description": "ServiceImportRef is the reference to the ServiceImport. To consume multi-cluster service, users are expected to use ServiceImport. When mcs controller sees the MCS definition, the ServiceImport will be created in the importing cluster to represent the multi-cluster service.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the name of the referent.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceImportStatus": {
+      "description": "ServiceImportStatus describes derived state of an imported service.",
+      "type": "object",
+      "properties": {
+        "clusters": {
+          "description": "clusters is the list of exporting clusters from which this service was derived.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ClusterStatus"
+          },
+          "x-kubernetes-list-map-keys": [
+            "cluster"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "cluster",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "ips": {
+          "description": "ip will be used as the VIP for this service when type is ClusterSetIP.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.ServicePort"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "sessionAffinity": {
+          "description": "Supports \"ClientIP\" and \"None\". Used to maintain session affinity. Enable client IP based session affinity. Must be ClientIP or None. Defaults to None. Ignored when type is Headless More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\n\nPossible enum values:\n - `\"ClientIP\"` is the Client IP based.\n - `\"None\"` - no session affinity.",
+          "type": "string",
+          "enum": [
+            "ClientIP",
+            "None"
+          ]
+        },
+        "sessionAffinityConfig": {
+          "description": "sessionAffinityConfig contains session affinity configuration.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.SessionAffinityConfig"
+        },
+        "type": {
+          "description": "type defines the type of this service. Must be ClusterSetIP or Headless.",
+          "type": "string"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServiceInUseBy": {
+      "description": "ServiceInUseBy describes the member clusters that have requested to import a Service from the hub cluster. This object is not provided directly as a part of fleet networking API, but provided as a contract for marshaling/unmarshaling ServiceImport annotations, specifically for\n  - the InternalServiceImport controller to annotate on a ServiceImport which member clusters have requested to\n    import the Service; and\n  - the EndpointSliceExport controller to find out from annotations on a ServiceImport which member clusters\n    have requested to import the Service.",
+      "type": "object",
+      "required": [
+        "MemberClusters"
+      ],
+      "properties": {
+        "MemberClusters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.ServicePort": {
+      "description": "ServicePort represents the port on which the service is exposed.",
+      "type": "object",
+      "required": [
+        "port"
+      ],
+      "properties": {
+        "appProtocol": {
+          "description": "The application protocol for this port. This field follows standard Kubernetes label syntax. Un-prefixed names are reserved for IANA standard service names (as per RFC-6335 and http://www.iana.org/assignments/service-names). Non-standard protocols should use prefixed names such as mycompany.com/my-custom-protocol. Field can be enabled with ServiceAppProtocol feature gate.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of this port within the service. This must be a DNS_LABEL. All ports within a ServiceSpec must have unique names. When considering the endpoints for a Service, this must match the 'name' field in the EndpointPort. Optional if only one ServicePort is defined on this service.",
+          "type": "string"
+        },
+        "port": {
+          "description": "The port that will be exposed by this service.",
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "protocol": {
+          "description": "The IP protocol for this port. Supports \"TCP\", \"UDP\", and \"SCTP\". Default is TCP.\n\nPossible enum values:\n - `\"SCTP\"` is the SCTP protocol.\n - `\"TCP\"` is the TCP protocol.\n - `\"UDP\"` is the UDP protocol.",
+          "type": "string",
+          "enum": [
+            "SCTP",
+            "TCP",
+            "UDP"
+          ]
+        },
+        "targetPort": {
+          "description": "The port to access on the pods targeted by the service.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.util.intstr.IntOrString"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackend": {
+      "description": "TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way. A backend contains one or more endpoints. Therefore, the controller may create multiple endpoints under the Traffic Manager Profile. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "description": "The desired state of TrafficManagerBackend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendSpec"
+        },
+        "status": {
+          "description": "The observed status of TrafficManagerBackend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendList": {
+      "description": "TrafficManagerBackendList contains a list of TrafficManagerBackend.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackend"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendRef": {
+      "description": "TrafficManagerBackendRef is the reference to a backend. Currently, we only support one backend type: ServiceImport.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the reference to the ServiceImport in the same namespace as the TrafficManagerBackend object.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendSpec": {
+      "type": "object",
+      "required": [
+        "profile",
+        "backend"
+      ],
+      "properties": {
+        "backend": {
+          "description": "The reference to a backend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendRef"
+        },
+        "profile": {
+          "description": "Which TrafficManagerProfile the backend should be attached to.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileRef"
+        },
+        "weight": {
+          "description": "The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method. Possible values are from 0 to 1000. By default, the routing method is 'Weighted'. If weight is set to 0, all the endpoints behind the serviceImport will be removed from the profile. The actual weight of each endpoint is the ceiling value of a number computed as weight/(sum of all weights behind the serviceImport) * weight of serviceExport. For example, if the weight is 500 and there are two serviceExports from cluster-1 (weight: 100) and cluster-2 (weight: 200) behind serviceImport. As a result, two endpoints will be created. The weight of endpoint from cluster-1 is 100/(100+200)*500 = 167, and the weight of cluster-2 is 200/(100+200)*500 = 334. There may be slight deviations from the exact proportions defined in the serviceExports due to ceiling calculations.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerBackendStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Current backend status.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "endpoints": {
+          "description": "Endpoints contains a list of accepted Azure endpoints which are created or updated under the traffic manager Profile.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerEndpointStatus"
+          }
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerEndpointStatus": {
+      "description": "TrafficManagerEndpointStatus is the status of Azure Traffic Manager endpoint which is successfully accepted under the traffic manager Profile.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "from": {
+          "description": "From is where the endpoint is exported from.",
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.FromCluster"
+        },
+        "name": {
+          "description": "Name of the endpoint.",
+          "type": "string",
+          "default": ""
+        },
+        "resourceID": {
+          "description": "ResourceID is the fully qualified Azure resource Id for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}/azureEndpoints/{name}",
+          "type": "string"
+        },
+        "target": {
+          "description": "The fully-qualified DNS name or IP address of the endpoint.",
+          "type": "string"
+        },
+        "weight": {
+          "description": "The weight of this endpoint when using the 'Weighted' traffic routing method. Possible values are from 0 to 1000.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfile": {
+      "description": "TrafficManagerProfile is used to manage a simple Azure Traffic Manager Profile using cloud native way. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "description": "The desired state of TrafficManagerProfile.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileSpec"
+        },
+        "status": {
+          "description": "The observed status of TrafficManagerProfile.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileList": {
+      "description": "TrafficManagerProfileList contains a list of TrafficManagerProfile.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfile"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileRef": {
+      "description": "TrafficManagerProfileRef is a reference to a trafficManagerProfile object in the same namespace as the TrafficManagerBackend object.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the name of the referenced trafficManagerProfile.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileSpec": {
+      "description": "TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile. For now, only the \"Weighted\" traffic routing method is supported.",
+      "type": "object",
+      "required": [
+        "resourceGroup"
+      ],
+      "properties": {
+        "monitorConfig": {
+          "description": "The endpoint monitoring settings of the Traffic Manager profile.",
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1alpha1.MonitorConfig"
+        },
+        "resourceGroup": {
+          "description": "The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile. When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted in the specified resource group. Reference link: https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftresources",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1alpha1.TrafficManagerProfileStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Current profile status.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "dnsName": {
+          "description": "DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile. It consists of profile name and the DNS domain name used by Azure Traffic Manager to form the fully-qualified domain name (FQDN) of the profile. For example, \"\u003cTrafficManagerProfileNamespace\u003e-\u003cTrafficManagerProfileName\u003e.trafficmanager.net\"",
+          "type": "string"
+        },
+        "resourceID": {
+          "description": "ResourceID is the fully qualified Azure resource Id for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{resourceName}",
+          "type": "string"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.ClusterStatus": {
+      "description": "ClusterStatus contains service configuration mapped to a specific source cluster.",
+      "type": "object",
+      "required": [
+        "cluster"
+      ],
+      "properties": {
+        "cluster": {
+          "description": "cluster is the name of the exporting cluster. Must be a valid RFC-1123 DNS label.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.FromCluster": {
+      "description": "FromCluster contains service configuration mapped to a specific source cluster.",
+      "type": "object",
+      "required": [
+        "cluster"
+      ],
+      "properties": {
+        "cluster": {
+          "description": "cluster is the name of the exporting cluster. Must be a valid RFC-1123 DNS label.",
+          "type": "string",
+          "default": ""
+        },
+        "weight": {
+          "description": "Weight defines the weight configured in the serviceExport from the source cluster. Possible values are from 0 to 1000.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.MonitorConfig": {
+      "description": "MonitorConfig defines the endpoint monitoring settings of the Traffic Manager profile. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-monitoring",
+      "type": "object",
+      "properties": {
+        "customHeaders": {
+          "description": "Custom headers used for probing endpoints, such as Host headers.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.MonitorConfigCustomHeader"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "intervalInSeconds": {
+          "description": "The monitor interval for endpoints in this profile. This is the interval at which Traffic Manager will check the health of each endpoint in this profile. You can specify two values here: 30 seconds (normal probing) and 10 seconds (fast probing).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "path": {
+          "description": "The path relative to the endpoint domain name used to probe for endpoint health.",
+          "type": "string"
+        },
+        "port": {
+          "description": "The TCP port used to probe for endpoint health.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "protocol": {
+          "description": "The protocol (HTTP, HTTPS or TCP) used to probe for endpoint health.",
+          "type": "string"
+        },
+        "timeoutInSeconds": {
+          "description": "The monitor timeout for endpoints in this profile. This is the time that Traffic Manager allows endpoints in this profile to response to the health check. * If the IntervalInSeconds is set to 30 seconds, then you can set the Timeout value between 5 and 10 seconds.\n  If no value is specified, it uses a default value of 10 seconds.\n* If the IntervalInSeconds is set to 10 seconds, then you can set the Timeout value between 5 and 9 seconds.\n  If no Timeout value is specified, it uses a default value of 9 seconds.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "toleratedNumberOfFailures": {
+          "description": "The number of consecutive failed health check that Traffic Manager tolerates before declaring an endpoint in this profile Degraded after the next failed health check.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.MonitorConfigCustomHeader": {
+      "description": "MonitorConfigCustomHeader defines a custom header for endpoint monitoring.",
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name of the header",
+          "type": "string",
+          "default": ""
+        },
+        "value": {
+          "description": "Value of the header",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.ServiceExport": {
+      "description": "ServiceExport declares that the associated service should be exported to other clusters. The annotation \"networking.fleet.azure.com/weight\" specifies the proportion of requests forwarded to the cluster within a serviceImport. The actual value is the ceiling value of a number computed as weight/(sum of all weights in the serviceImport). If weight is set to 0, no traffic should be forwarded for this entry. If unspecified, weight defaults to 1. The value should be in the range [0, 1000].",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.ServiceExportStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.ServiceExportList": {
+      "description": "ServiceExportList contains a list of ServiceExport.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.ServiceExport"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.ServiceExportStatus": {
+      "description": "ServiceExportStatus contains the current status of an export.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackend": {
+      "description": "TrafficManagerBackend is used to manage the Azure Traffic Manager Endpoints using cloud native way. A backend contains one or more endpoints. Therefore, the controller may create multiple endpoints under the Traffic Manager Profile. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-endpoint-types",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "description": "The desired state of TrafficManagerBackend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendSpec"
+        },
+        "status": {
+          "description": "The observed status of TrafficManagerBackend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendList": {
+      "description": "TrafficManagerBackendList contains a list of TrafficManagerBackend.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackend"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendRef": {
+      "description": "TrafficManagerBackendRef is the reference to a backend. Currently, we only support one backend type: ServiceImport.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the reference to the ServiceImport in the same namespace as the TrafficManagerBackend object.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendSpec": {
+      "type": "object",
+      "required": [
+        "profile",
+        "backend"
+      ],
+      "properties": {
+        "backend": {
+          "description": "The reference to a backend.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendRef"
+        },
+        "profile": {
+          "description": "Which TrafficManagerProfile the backend should be attached to.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileRef"
+        },
+        "weight": {
+          "description": "The total weight of endpoints behind the serviceImport when using the 'Weighted' traffic routing method. Possible values are from 0 to 1000. By default, the routing method is 'Weighted'. If weight is set to 0, all the endpoints behind the serviceImport will be removed from the profile. The actual weight of each endpoint is the ceiling value of a number computed as weight/(sum of all weights behind the serviceImport) * weight of serviceExport. For example, if the weight is 500 and there are two serviceExports from cluster-1 (weight: 100) and cluster-2 (weight: 200) behind serviceImport. As a result, two endpoints will be created. The weight of endpoint from cluster-1 is 100/(100+200)*500 = 167, and the weight of cluster-2 is 200/(100+200)*500 = 334. There may be slight deviations from the exact proportions defined in the serviceExports due to ceiling calculations.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerBackendStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Current backend status.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "endpoints": {
+          "description": "Endpoints contains a list of accepted Azure endpoints which are created or updated under the traffic manager Profile.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerEndpointStatus"
+          }
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerEndpointStatus": {
+      "description": "TrafficManagerEndpointStatus is the status of Azure Traffic Manager endpoint which is successfully accepted under the traffic manager Profile.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "from": {
+          "description": "From is where the endpoint is exported from.",
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.FromCluster"
+        },
+        "name": {
+          "description": "Name of the endpoint.",
+          "type": "string",
+          "default": ""
+        },
+        "resourceID": {
+          "description": "ResourceID is the fully qualified Azure resource Id for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}/azureEndpoints/{name}",
+          "type": "string"
+        },
+        "target": {
+          "description": "The fully-qualified DNS name or IP address of the endpoint.",
+          "type": "string"
+        },
+        "weight": {
+          "description": "The weight of this endpoint when using the 'Weighted' traffic routing method. Possible values are from 0 to 1000.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfile": {
+      "description": "TrafficManagerProfile is used to manage a simple Azure Traffic Manager Profile using cloud native way. https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview",
+      "type": "object",
+      "required": [
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+        },
+        "spec": {
+          "description": "The desired state of TrafficManagerProfile.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileSpec"
+        },
+        "status": {
+          "description": "The observed status of TrafficManagerProfile.",
+          "default": {},
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileStatus"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileList": {
+      "description": "TrafficManagerProfileList contains a list of TrafficManagerProfile.",
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfile"
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileRef": {
+      "description": "TrafficManagerProfileRef is a reference to a trafficManagerProfile object in the same namespace as the TrafficManagerBackend object.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name is the name of the referenced trafficManagerProfile.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileSpec": {
+      "description": "TrafficManagerProfileSpec defines the desired state of TrafficManagerProfile. For now, only the \"Weighted\" traffic routing method is supported.",
+      "type": "object",
+      "required": [
+        "resourceGroup"
+      ],
+      "properties": {
+        "monitorConfig": {
+          "description": "The endpoint monitoring settings of the Traffic Manager profile.",
+          "$ref": "#/definitions/io.goms.go.fleet-networking.api.v1beta1.MonitorConfig"
+        },
+        "resourceGroup": {
+          "description": "The name of the resource group to contain the Azure Traffic Manager resource corresponding to this profile. When this profile is created, updated, or deleted, the corresponding traffic manager with the same name will be created, updated, or deleted in the specified resource group. Reference link: https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftresources",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.goms.go.fleet-networking.api.v1beta1.TrafficManagerProfileStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Current profile status.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "type",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "dnsName": {
+          "description": "DNSName is the fully-qualified domain name (FQDN) of the Traffic Manager profile. It consists of profile name and the DNS domain name used by Azure Traffic Manager to form the fully-qualified domain name (FQDN) of the profile. For example, \"\u003cTrafficManagerProfileNamespace\u003e-\u003cTrafficManagerProfileName\u003e.trafficmanager.net\"",
+          "type": "string"
+        },
+        "resourceID": {
+          "description": "ResourceID is the fully qualified Azure resource Id for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{resourceName}",
+          "type": "string"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.ClientIPConfig": {
+      "description": "ClientIPConfig represents the configurations of Client IP based session affinity.",
+      "type": "object",
+      "properties": {
+        "timeoutSeconds": {
+          "description": "timeoutSeconds specifies the seconds of ClientIP type session sticky time. The value must be \u003e0 \u0026\u0026 \u003c=86400(for 1 day) if ServiceAffinity == \"ClientIP\". Default value is 10800(for 3 hours).",
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.LoadBalancerIngress": {
+      "description": "LoadBalancerIngress represents the status of a load-balancer ingress point: traffic intended for the service should be sent to an ingress point.",
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "description": "Hostname is set for load-balancer ingress points that are DNS based (typically AWS load-balancers)",
+          "type": "string"
+        },
+        "ip": {
+          "description": "IP is set for load-balancer ingress points that are IP based (typically GCE or OpenStack load-balancers)",
+          "type": "string"
+        },
+        "ipMode": {
+          "description": "IPMode specifies how the load-balancer IP behaves, and may only be specified when the ip field is specified. Setting this to \"VIP\" indicates that traffic is delivered to the node with the destination set to the load-balancer's IP and port. Setting this to \"Proxy\" indicates that traffic is delivered to the node or pod with the destination set to the node's IP and node port or the pod's IP and port. Service implementations may use this information to adjust traffic routing.",
+          "type": "string"
+        },
+        "ports": {
+          "description": "Ports is a list of records of service ports If used, every port defined in the service should have an entry in it",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.PortStatus"
+          },
+          "x-kubernetes-list-type": "atomic"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.LoadBalancerStatus": {
+      "description": "LoadBalancerStatus represents the status of a load-balancer.",
+      "type": "object",
+      "properties": {
+        "ingress": {
+          "description": "Ingress is a list containing ingress points for the load-balancer. Traffic intended for the service should be sent to these ingress points.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.LoadBalancerIngress"
+          },
+          "x-kubernetes-list-type": "atomic"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.PortStatus": {
+      "description": "PortStatus represents the error condition of a service port",
+      "type": "object",
+      "required": [
+        "port",
+        "protocol"
+      ],
+      "properties": {
+        "error": {
+          "description": "Error is to record the problem with the service port The format of the error shall comply with the following rules: - built-in error values shall be specified in this file and those shall use\n  CamelCase names\n- cloud provider specific error values must have names that comply with the\n  format foo.example.com/CamelCase.",
+          "type": "string"
+        },
+        "port": {
+          "description": "Port is the port number of the service port of which status is recorded here",
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "protocol": {
+          "description": "Protocol is the protocol of the service port of which status is recorded here The supported values are: \"TCP\", \"UDP\", \"SCTP\"\n\nPossible enum values:\n - `\"SCTP\"` is the SCTP protocol.\n - `\"TCP\"` is the TCP protocol.\n - `\"UDP\"` is the UDP protocol.",
+          "type": "string",
+          "default": "",
+          "enum": [
+            "SCTP",
+            "TCP",
+            "UDP"
+          ]
+        }
+      }
+    },
+    "io.k8s.api.core.v1.SessionAffinityConfig": {
+      "description": "SessionAffinityConfig represents the configurations of session affinity.",
+      "type": "object",
+      "properties": {
+        "clientIP": {
+          "description": "clientIP contains the configurations of Client IP based session affinity.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.ClientIPConfig"
+        }
+      }
+    },
+    "io.k8s.api.discovery.v1.EndpointPort": {
+      "description": "EndpointPort represents a Port used by an EndpointSlice",
+      "type": "object",
+      "properties": {
+        "appProtocol": {
+          "description": "The application protocol for this port. This is used as a hint for implementations to offer richer behavior for protocols that they understand. This field follows standard Kubernetes label syntax. Valid values are either:\n\n* Un-prefixed protocol names - reserved for IANA standard service names (as per RFC-6335 and https://www.iana.org/assignments/service-names).\n\n* Kubernetes-defined prefixed names:\n  * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior-\n  * 'kubernetes.io/ws'  - WebSocket over cleartext as described in https://www.rfc-editor.org/rfc/rfc6455\n  * 'kubernetes.io/wss' - WebSocket over TLS as described in https://www.rfc-editor.org/rfc/rfc6455\n\n* Other protocols should use implementation-defined prefixed names such as mycompany.com/my-custom-protocol.",
+          "type": "string"
+        },
+        "name": {
+          "description": "name represents the name of this port. All ports in an EndpointSlice must have a unique name. If the EndpointSlice is derived from a Kubernetes service, this corresponds to the Service.ports[].name. Name must either be an empty string or pass DNS_LABEL validation: * must be no more than 63 characters long. * must consist of lower case alphanumeric characters or '-'. * must start and end with an alphanumeric character. Default is empty string.",
+          "type": "string"
+        },
+        "port": {
+          "description": "port represents the port number of the endpoint. If the EndpointSlice is derived from a Kubernetes service, this must be set to the service's target port. EndpointSlices used for other purposes may have a nil port.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "protocol": {
+          "description": "protocol represents the IP protocol for this port. Must be UDP, TCP, or SCTP. Default is TCP.\n\nPossible enum values:\n - `\"SCTP\"` is the SCTP protocol.\n - `\"TCP\"` is the TCP protocol.\n - `\"UDP\"` is the UDP protocol.",
+          "type": "string",
+          "enum": [
+            "SCTP",
+            "TCP",
+            "UDP"
+          ]
+        }
+      },
+      "x-kubernetes-map-type": "atomic"
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.Condition": {
+      "description": "Condition contains details for one aspect of the current state of this API Resource.",
+      "type": "object",
+      "required": [
+        "type",
+        "status",
+        "lastTransitionTime",
+        "reason",
+        "message"
+      ],
+      "properties": {
+        "lastTransitionTime": {
+          "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+        },
+        "message": {
+          "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+          "type": "string",
+          "default": ""
+        },
+        "observedGeneration": {
+          "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "reason": {
+          "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+          "type": "string",
+          "default": ""
+        },
+        "status": {
+          "description": "status of the condition, one of True, False, Unknown.",
+          "type": "string",
+          "default": ""
+        },
+        "type": {
+          "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.FieldsV1": {
+      "description": "FieldsV1 stores a set of fields in a data structure like a Trie, in JSON format.\n\nEach key is either a '.' representing the field itself, and will always map to an empty set, or a string representing a sub-field or item. The string will follow one of these four formats: 'f:\u003cname\u003e', where \u003cname\u003e is the name of a field in a struct, or key in a map 'v:\u003cvalue\u003e', where \u003cvalue\u003e is the exact json formatted value of a list item 'i:\u003cindex\u003e', where \u003cindex\u003e is position of a item in a list 'k:\u003ckeys\u003e', where \u003ckeys\u003e is a map of  a list item's key fields to their unique values If a key maps to an empty Fields value, the field that key represents is part of the set.\n\nThe exact format is defined in sigs.k8s.io/structured-merge-diff",
+      "type": "object"
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta": {
+      "description": "ListMeta describes metadata that synthetic resources must have, including lists and various status objects. A resource may have only one of {ObjectMeta, ListMeta}.",
+      "type": "object",
+      "properties": {
+        "continue": {
+          "description": "continue may be set if the user set a limit on the number of items returned, and indicates that the server has more data available. The value is opaque and may be used to issue another request to the endpoint that served this list to retrieve the next set of available objects. Continuing a consistent list may not be possible if the server configuration has changed or more than a few minutes have passed. The resourceVersion field returned when using this continue value will be identical to the value in the first response, unless you have received this token from an error message.",
+          "type": "string"
+        },
+        "remainingItemCount": {
+          "description": "remainingItemCount is the number of subsequent items in the list which are not included in this list response. If the list request contained label or field selectors, then the number of remaining items is unknown and the field will be left unset and omitted during serialization. If the list is complete (either because it is not chunking or because this is the last chunk), then there are no more remaining items and this field will be left unset and omitted during serialization. Servers older than v1.15 do not set this field. The intended use of the remainingItemCount is *estimating* the size of a collection. Clients should not rely on the remainingItemCount to be set or to be exact.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "resourceVersion": {
+          "description": "String that identifies the server's internal version of this object that can be used by clients to determine when objects have changed. Value must be treated as opaque by clients and passed unmodified back to the server. Populated by the system. Read-only. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
+          "type": "string"
+        },
+        "selfLink": {
+          "description": "Deprecated: selfLink is a legacy read-only field that is no longer populated by the system.",
+          "type": "string"
+        }
+      }
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.ManagedFieldsEntry": {
+      "description": "ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource that the fieldset applies to.",
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the version of this resource that this field set applies to. The format is \"group/version\" just like the top-level APIVersion field. It is necessary to track the version of a field set because it cannot be automatically converted.",
+          "type": "string"
+        },
+        "fieldsType": {
+          "description": "FieldsType is the discriminator for the different fields format and version. There is currently only one possible value: \"FieldsV1\"",
+          "type": "string"
+        },
+        "fieldsV1": {
+          "description": "FieldsV1 holds the first JSON version format as described in the \"FieldsV1\" type.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.FieldsV1"
+        },
+        "manager": {
+          "description": "Manager is an identifier of the workflow managing these fields.",
+          "type": "string"
+        },
+        "operation": {
+          "description": "Operation is the type of operation which lead to this ManagedFieldsEntry being created. The only valid values for this field are 'Apply' and 'Update'.",
+          "type": "string"
+        },
+        "subresource": {
+          "description": "Subresource is the name of the subresource used to update that object, or empty string if the object was updated through the main resource. The value of this field is used to distinguish between managers, even if they share the same name. For example, a status update will be distinct from a regular update using the same manager name. Note that the APIVersion field is not related to the Subresource field and it always corresponds to the version of the main resource.",
+          "type": "string"
+        },
+        "time": {
+          "description": "Time is the timestamp of when the ManagedFields entry was added. The timestamp will also be updated if a field is added, the manager changes any of the owned fields value or removes a field. The timestamp does not update when a field is removed from the entry because another manager took it over.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+        }
+      }
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta": {
+      "description": "ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.",
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "description": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "creationTimestamp": {
+          "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+        },
+        "deletionGracePeriodSeconds": {
+          "description": "Number of seconds allowed for this object to gracefully terminate before it will be removed from the system. Only set when deletionTimestamp is also set. May only be shortened. Read-only.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "deletionTimestamp": {
+          "description": "DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This field is set by the server when a graceful deletion is requested by the user, and is not directly settable by a client. The resource is expected to be deleted (no longer visible from resource lists, and not reachable by name) after the time in this field, once the finalizers list is empty. As long as the finalizers list contains items, deletion is blocked. Once the deletionTimestamp is set, this value may not be unset or be set further into the future, although it may be shortened or the resource may be deleted prior to this time. For example, a user may request that a pod is deleted in 30 seconds. The Kubelet will react by sending a graceful termination signal to the containers in the pod. After that 30 seconds, the Kubelet will send a hard termination signal (SIGKILL) to the container and after cleanup, remove the pod from the API. In the presence of network partitions, this object may still exist after this timestamp, until an administrator or automated process can determine the resource is fully terminated. If not set, graceful deletion of the object has not been requested.\n\nPopulated by the system when a graceful deletion is requested. Read-only. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
+        },
+        "finalizers": {
+          "description": "Must be empty before the object is deleted from the registry. Each entry is an identifier for the responsible component that will remove the entry from the list. If the deletionTimestamp of the object is non-nil, entries in this list can only be removed. Finalizers may be processed and removed in any order.  Order is NOT enforced because it introduces significant risk of stuck finalizers. finalizers is a shared field, any actor with permission can reorder it. If the finalizer list is processed in order, then this can lead to a situation in which the component responsible for the first finalizer in the list is waiting for a signal (field value, external system, or other) produced by a component responsible for a finalizer later in the list, resulting in a deadlock. Without enforced ordering finalizers are free to order amongst themselves and are not vulnerable to ordering changes in the list.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          },
+          "x-kubernetes-list-type": "set",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "generateName": {
+          "description": "GenerateName is an optional prefix, used by the server, to generate a unique name ONLY IF the Name field has not been provided. If this field is used, the name returned to the client will be different than the name passed. This value will also be combined with a unique suffix. The provided value has the same validation rules as the Name field, and may be truncated by the length of the suffix required to make the value unique on the server.\n\nIf this field is specified and the generated name exists, the server will return a 409.\n\nApplied only if Name is not specified. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency",
+          "type": "string"
+        },
+        "generation": {
+          "description": "A sequence number representing a specific generation of the desired state. Populated by the system. Read-only.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "labels": {
+          "description": "Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "managedFields": {
+          "description": "ManagedFields maps workflow-id and version to the set of fields that are managed by that workflow. This is mostly for internal housekeeping, and users typically shouldn't need to set or understand this field. A workflow can be the user's name, a controller's name, or the name of a specific apply path like \"ci-cd\". The set of fields is always in the version that the workflow used when modifying the object.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ManagedFieldsEntry"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "name": {
+          "description": "Name must be unique within a namespace. Is required when creating resources, although some resources may allow a client to request the generation of an appropriate name automatically. Name is primarily intended for creation idempotence and configuration definition. Cannot be updated. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace defines the space within which each name must be unique. An empty namespace is equivalent to the \"default\" namespace, but \"default\" is the canonical representation. Not all objects are required to be scoped to a namespace - the value of this field for those objects will be empty.\n\nMust be a DNS_LABEL. Cannot be updated. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces",
+          "type": "string"
+        },
+        "ownerReferences": {
+          "description": "List of objects depended by this object. If ALL objects in the list have been deleted, this object will be garbage collected. If this object is managed by a controller, then an entry in this list will point to this controller, with the controller field set to true. There cannot be more than one managing controller.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.OwnerReference"
+          },
+          "x-kubernetes-list-map-keys": [
+            "uid"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "uid",
+          "x-kubernetes-patch-strategy": "merge"
+        },
+        "resourceVersion": {
+          "description": "An opaque value that represents the internal version of this object that can be used by clients to determine when objects have changed. May be used for optimistic concurrency, change detection, and the watch operation on a resource or set of resources. Clients must treat these values as opaque and passed unmodified back to the server. They may only be valid for a particular resource or set of resources.\n\nPopulated by the system. Read-only. Value must be treated as opaque by clients and . More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
+          "type": "string"
+        },
+        "selfLink": {
+          "description": "Deprecated: selfLink is a legacy read-only field that is no longer populated by the system.",
+          "type": "string"
+        },
+        "uid": {
+          "description": "UID is the unique in time and space value for this object. It is typically generated by the server on successful creation of a resource and is not allowed to change on PUT operations.\n\nPopulated by the system. Read-only. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#uids",
+          "type": "string"
+        }
+      }
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.OwnerReference": {
+      "description": "OwnerReference contains enough information to let you identify an owning object. An owning object must be in the same namespace as the dependent, or be cluster-scoped, so there is no namespace field.",
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind",
+        "name",
+        "uid"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "API version of the referent.",
+          "type": "string",
+          "default": ""
+        },
+        "blockOwnerDeletion": {
+          "description": "If true, AND if the owner has the \"foregroundDeletion\" finalizer, then the owner cannot be deleted from the key-value store until this reference is removed. See https://kubernetes.io/docs/concepts/architecture/garbage-collection/#foreground-deletion for how the garbage collector interacts with this field and enforces the foreground deletion. Defaults to false. To set this field, a user needs \"delete\" permission of the owner, otherwise 422 (Unprocessable Entity) will be returned.",
+          "type": "boolean"
+        },
+        "controller": {
+          "description": "If true, this reference points to the managing controller.",
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names",
+          "type": "string",
+          "default": ""
+        },
+        "uid": {
+          "description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#uids",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "x-kubernetes-map-type": "atomic"
+    },
+    "io.k8s.apimachinery.pkg.apis.meta.v1.Time": {
+      "description": "Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "io.k8s.apimachinery.pkg.util.intstr.IntOrString": {
+      "description": "IntOrString is a type that can hold an int32 or a string.  When used in JSON or YAML marshalling and unmarshalling, it produces or consumes the inner type.  This allows you to have, for example, a JSON field that can accept a name or number.",
+      "type": "string",
+      "format": "int-or-string"
+    }
+  }
+}

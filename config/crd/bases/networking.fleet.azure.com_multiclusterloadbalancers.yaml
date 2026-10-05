@@ -4,29 +4,29 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.0
-  name: multiclusterservices.networking.fleet.azure.com
+  name: multiclusterloadbalancers.networking.fleet.azure.com
 spec:
   group: networking.fleet.azure.com
   names:
     categories:
     - fleet-networking
-    kind: MultiClusterService
-    listKind: MultiClusterServiceList
-    plural: multiclusterservices
+    kind: MultiClusterLoadBalancer
+    listKind: MultiClusterLoadBalancerList
+    plural: multiclusterloadbalancers
     shortNames:
-    - mcs
-    singular: multiclusterservice
+    - mclb
+    singular: multiclusterloadbalancer
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.serviceImport.name
-      name: Service-Import
-      type: string
     - jsonPath: .status.loadBalancer.ingress[0].ip
       name: External-IP
       type: string
     - jsonPath: .status.conditions[?(@.type=='Valid')].status
       name: Is-Valid
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Deployed')].status
+      name: Is-Deployed
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -54,28 +54,13 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: MultiClusterServiceSpec defines the desired state of MultiClusterService.
-            properties:
-              serviceImport:
-                description: ServiceImport is the reference to the Service with the
-                  same name exported in the member clusters.
-                properties:
-                  name:
-                    description: Name is the name of the referent.
-                    maxLength: 63
-                    pattern: ^([a-z]([-a-z0-9]*[a-z0-9])?)$
-                    type: string
-                required:
-                - name
-                type: object
-            type: object
           status:
-            description: MultiClusterServiceStatus represents the current status of
-              a multi-cluster service.
+            description: |-
+              Spec defines the desired state of MultiClusterLoadBalancer
+              Spec MultiClusterLoadBalancerSpec `json:"spec,omitempty"`
+              Status represents the current status of MultiClusterLoadBalancer
             properties:
               conditions:
-                description: Current service state
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -136,7 +121,7 @@ spec:
                 x-kubernetes-list-type: map
               loadBalancer:
                 description: |-
-                  LoadBalancerStatus represents the status of a load-balancer.
+                  LoadBalancer contains the current status of the load-balancer,
                   if one is present.
                 properties:
                   ingress:
@@ -209,8 +194,6 @@ spec:
                     x-kubernetes-list-type: atomic
                 type: object
             type: object
-        required:
-        - spec
         type: object
         x-kubernetes-validations:
         - message: metadata.name max length is 63
