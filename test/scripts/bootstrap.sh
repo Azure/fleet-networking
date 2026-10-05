@@ -68,17 +68,17 @@ export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NA
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
   echo "Creating aks cluster: ${HUB_CLUSTER}"
-#   az aks create \
-#        --location $LOCATION \
-#        --resource-group $RESOURCE_GROUP \
-#        --name $HUB_CLUSTER \
-#        --node-count $NODE_COUNT \
-#        --node-vm-size Standard_A2_v2 \
-#        --generate-ssh-keys \
-#        --enable-aad \
-#        --enable-azure-rbac \
-#        --network-plugin azure \
-#        --no-wait
+  az aks create \
+       --location $LOCATION \
+       --resource-group $RESOURCE_GROUP \
+       --name $HUB_CLUSTER \
+       --node-count $NODE_COUNT \
+       --node-vm-size Standard_A2_v2 \
+       --generate-ssh-keys \
+       --enable-aad \
+       --enable-azure-rbac \
+       --network-plugin azure \
+       --no-wait
 else
   # Create aks identity
   echo "Creating hub control-plane identity: ${HUB_CLUSTER_AKS_ID_NAME}"
@@ -93,18 +93,18 @@ else
 
   echo "Creating aks cluster: ${HUB_CLUSTER}"
   # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
-#   az aks create \
-#          --location $LOCATION \
-#          --resource-group $RESOURCE_GROUP \
-#          --name $HUB_CLUSTER \
-#          --node-count $NODE_COUNT \
-#          --node-vm-size Standard_A2_v2 \
-#          --generate-ssh-keys \
-#          --enable-aad \
-#          --enable-azure-rbac \
-#          --network-plugin azure \
-#          --enable-managed-identity --assign-identity ${HUB_CLUSTER_AKS_IDENTITY_ID} --assign-kubelet-identity ${HUB_CLUSTER_AKS_KUBELET_IDENTITY_ID} \
-#          --no-wait
+  az aks create \
+         --location $LOCATION \
+         --resource-group $RESOURCE_GROUP \
+         --name $HUB_CLUSTER \
+         --node-count $NODE_COUNT \
+         --node-vm-size Standard_A2_v2 \
+         --generate-ssh-keys \
+         --enable-aad \
+         --enable-azure-rbac \
+         --network-plugin azure \
+         --enable-managed-identity --assign-identity ${HUB_CLUSTER_AKS_IDENTITY_ID} --assign-kubelet-identity ${HUB_CLUSTER_AKS_KUBELET_IDENTITY_ID} \
+         --no-wait
 
   # Create aks identity for member-1
   echo "Creating member-1 control-plane identity: ${MEMBER_CLUSTER_1_AKS_ID_NAME}"
@@ -181,8 +181,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ]; then
   AKS_HUB_CLUSTER_NODE_RESOURCE_GROUP=$(echo ${AKS_HUB_CLUSTER} | jq -r '. | .nodeResourceGroup')
 
   echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the resourceGroup of the hub cluster"
-  echo az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
-  read
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/hub_azure_config.yaml
@@ -200,12 +199,10 @@ EOF
   AKS_MEMBER_1_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_1} | jq -r '. | .nodeResourceGroup')
 
   echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the MC_resourceGroup of the member cluster"
-  echo az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
-  read
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
 
   echo "Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster"
-  echo az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
-  read
+  az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/member_1_azure_config.yaml
@@ -224,12 +221,10 @@ EOF
   AKS_MEMBER_2_NODE_RESOURCE_GROUP=$(echo ${AKS_MEMBER_2} | jq -r '. | .nodeResourceGroup')
 
   echo "Assigning Azure Kubernetes Fleet Manager Hub Agent Role to hub kubelet identity on the MC_resourceGroup of the member cluster"
-  echo az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
-  read
+  az role assignment create --role "de2b316d-7a2c-4143-b4cd-c148f6a355a1" --assignee ${HUB_CLUSTER_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
 
   echo "Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster"
-  echo az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
-  read
+  az role assignment create --role "Network Contributor" --assignee ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/member_2_azure_config.yaml

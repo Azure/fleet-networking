@@ -48,18 +48,18 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
     --no-wait
-# else
-  # az aks create \
-  #    --location $MEMBER_1_LOCATION \
-  #    --resource-group $RESOURCE_GROUP \
-  #    --name $MEMBER_CLUSTER_1 \
-  #    --node-count $NODE_COUNT \
-  #    --node-vm-size Standard_A2_v2 \
-  #    --generate-ssh-keys \
-  #    --network-plugin azure \
-  #    --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
-  #    --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_1_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID} \
-  #    --no-wait
+else
+  az aks create \
+     --location $MEMBER_1_LOCATION \
+     --resource-group $RESOURCE_GROUP \
+     --name $MEMBER_CLUSTER_1 \
+     --node-count $NODE_COUNT \
+     --node-vm-size Standard_A2_v2 \
+     --generate-ssh-keys \
+     --network-plugin azure \
+     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
+     --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_1_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID} \
+     --no-wait
 fi
 
 # Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
@@ -74,16 +74,16 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
     --no-wait
-# else
-  # az aks create \
-  #     --location $MEMBER_2_LOCATION \
-  #     --resource-group $RESOURCE_GROUP \
-  #     --name $MEMBER_CLUSTER_2 \
-  #     --node-count $NODE_COUNT \
-  #     --node-vm-size Standard_A2_v2 \
-  #     --generate-ssh-keys \
-  #     --network-plugin azure \
-  #     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
-  #     --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_2_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID} \
-  #     --no-wait
+else
+  az aks create \
+      --location $MEMBER_2_LOCATION \
+      --resource-group $RESOURCE_GROUP \
+      --name $MEMBER_CLUSTER_2 \
+      --node-count $NODE_COUNT \
+      --node-vm-size Standard_A2_v2 \
+      --generate-ssh-keys \
+      --network-plugin azure \
+      --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
+      --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_2_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID} \
+      --no-wait
 fi
