@@ -286,18 +286,26 @@ func TestHandleUpdate(t *testing.T) {
 		serviceLabelMCSNamespace: testNamespace,
 	}
 
+	// generatedDerivedServiceName is the hash-suffixed name assigned when the mcs has no derived service label yet.
+	generatedDerivedService, err := (&Reconciler{FleetSystemNamespace: systemNamespace}).uniqueDerivedServiceName(multiClusterServiceForTest())
+	if err != nil {
+		t.Fatalf("failed to generate derived service name: %v", err)
+	}
+	generatedDerivedServiceName := generatedDerivedService.Name
+
 	tests := []struct {
-		name                string
-		labels              map[string]string
-		annotations         map[string]string
-		status              *fleetnetv1alpha1.MultiClusterServiceStatus
-		serviceImport       *fleetnetv1alpha1.ServiceImport
-		hasOldServiceImport bool
-		service             *corev1.Service
-		want                ctrl.Result
-		wantServiceImport   *fleetnetv1alpha1.ServiceImport
-		wantDerivedService  *corev1.Service
-		wantMCS             *fleetnetv1alpha1.MultiClusterService
+		name                   string
+		labels                 map[string]string
+		annotations            map[string]string
+		status                 *fleetnetv1alpha1.MultiClusterServiceStatus
+		serviceImport          *fleetnetv1alpha1.ServiceImport
+		hasOldServiceImport    bool
+		service                *corev1.Service
+		want                   ctrl.Result
+		wantServiceImport      *fleetnetv1alpha1.ServiceImport
+		wantDerivedService     *corev1.Service
+		wantDerivedServiceName string
+		wantMCS                *fleetnetv1alpha1.MultiClusterService
 	}{
 		{
 			name: "no service import and its label", // mcs is just created
@@ -626,9 +634,10 @@ func TestHandleUpdate(t *testing.T) {
 					},
 				},
 			},
+			wantDerivedServiceName: generatedDerivedServiceName,
 			wantDerivedService: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      derivedServiceName,
+					Name:      generatedDerivedServiceName,
 					Namespace: systemNamespace,
 					Labels:    serviceLabel,
 				},
@@ -644,7 +653,7 @@ func TestHandleUpdate(t *testing.T) {
 					Namespace: testNamespace,
 					Labels: map[string]string{
 						multiClusterServiceLabelServiceImport:             testServiceName,
-						objectmeta.MultiClusterServiceLabelDerivedService: derivedServiceName,
+						objectmeta.MultiClusterServiceLabelDerivedService: generatedDerivedServiceName,
 					},
 				},
 				Spec: fleetnetv1alpha1.MultiClusterServiceSpec{
@@ -1023,7 +1032,11 @@ func TestHandleUpdate(t *testing.T) {
 			}
 
 			service := corev1.Service{}
-			name = types.NamespacedName{Namespace: systemNamespace, Name: derivedServiceName}
+			wantSvcName := tc.wantDerivedServiceName
+			if wantSvcName == "" {
+				wantSvcName = derivedServiceName
+			}
+			name = types.NamespacedName{Namespace: systemNamespace, Name: wantSvcName}
 			if err := fakeClient.Get(ctx, name, &service); err != nil {
 				if tc.wantDerivedService != nil || !errors.IsNotFound(err) {
 					t.Fatalf("ServiceImport Get() got error %v, want no error", err)

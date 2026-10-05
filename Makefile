@@ -14,6 +14,31 @@ MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
 NET_CRD_INSTALLER_IMAGE_NAME ?= net-crd-installer
 
+TARGET_OS ?= linux
+TARGET_ARCH ?= amd64
+AUTO_DETECT_ARCH ?= TRUE
+
+# Auto-detect system architecture if it is allowed and the necessary commands are available on the system.
+ifeq ($(AUTO_DETECT_ARCH), TRUE)
+ARCH_CMD_INSTALLED := $(shell command -v arch 2>/dev/null)
+ifdef ARCH_CMD_INSTALLED
+TARGET_ARCH := $(shell arch)
+# The arch command may return arch strings that are aliases of expected TARGET_ARCH values;
+# do the mapping here.
+ifeq ($(TARGET_ARCH),$(filter $(TARGET_ARCH),x86_64))
+	TARGET_ARCH := amd64
+else ifeq ($(TARGET_ARCH),$(filter $(TARGET_ARCH),aarch64 arm))
+	TARGET_ARCH := arm64
+endif
+$(info Auto-detected system architecture: $(TARGET_ARCH))
+endif
+endif
+
+# Note (chenyu1): switch to the `plain` progress type to see the full outputs in the docker build
+# progress.
+BUILDKIT_PROGRESS_TYPE ?= auto
+
+
 # Directories
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOOLS_DIR := hack/tools
@@ -22,7 +47,7 @@ TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
 # Binaries
 # Note: Need to use abspath so we can invoke these from subdirectories
 
-CONTROLLER_GEN_VER := v0.16.0
+CONTROLLER_GEN_VER := v0.20.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 
@@ -38,7 +63,7 @@ OPENAPI_GEN_VER := v0.0.0-20250814151709-d7b6acb124c3
 OPENAPI_GEN_BIN := openapi-gen
 OPENAPI_GEN := $(abspath $(TOOLS_BIN_DIR)/$(OPENAPI_GEN_BIN)-$(OPENAPI_GEN_VER))
 
-STATICCHECK_VER := 2025.1.1
+STATICCHECK_VER := master
 STATICCHECK_BIN := staticcheck
 STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/$(STATICCHECK_BIN)-$(STATICCHECK_VER))
 
@@ -51,10 +76,10 @@ GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.28.x
+ENVTEST_K8S_VERSION = 1.33.0
 # ENVTEST_VER is the version of the ENVTEST binary
 # Use a fixed version to avoid Go version conflicts.
-ENVTEST_VER = v0.0.0-20240317073005-bd9ea79e8d18
+ENVTEST_VER = release-0.22
 ENVTEST_BIN := setup-envtest
 ENVTEST :=  $(abspath $(TOOLS_BIN_DIR)/$(ENVTEST_BIN)-$(ENVTEST_VER))
 
@@ -242,9 +267,9 @@ BUILDX_BUILDER_NAME ?= img-builder
 QEMU_VERSION ?= 7.2.0-1
 BUILDKIT_VERSION ?= v0.18.1
 
-.PHONY: vendor
-vendor:
-	go mod tidy && go mod vendor
+.PHONY: tidy
+tidy:
+	go mod tidy
 
 .PHONY: image
 image:
@@ -256,48 +281,73 @@ push:
 
 # By default, docker buildx create will pull image moby/buildkit:buildx-stable-1 and hit the too many requests error.
 .PHONY: docker-buildx-builder
+# Note (chenyu1): the step below sets up emulation for building/running non-native binaries on the host. The original
+# setup assumes that the Makefile is always run on an x86_64 platform, and adds support for non-x86_64 hosts. Here
+# we keep the original setup if the build target is x86_64 platforms (default) for compatibility reasons, but will switch to
+# a more general setup for non-x86_64 hosts.
+#
+# On some systems the emulation setup might not work at all (e.g., macOS on Apple Silicon -> Rosetta 2 will be used 
+# by Docker Desktop as the default emulation option for AMD64 on ARM64 container compatibility).
 docker-buildx-builder:
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
-		docker run --rm --privileged mcr.microsoft.com/mirror/docker/multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
-		docker buildx create --driver-opt image=mcr.microsoft.com/oss/v2/moby/buildkit:v0.18.1 --name img-builder --use; \
+		if [ "$(TARGET_ARCH)" = "amd64" ] ; then \
+			echo "The target is an x86_64 platform; setting up emulation for other known architectures"; \
+			docker run --rm --privileged mcr.microsoft.com/mirror/docker/multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
+		else \
+			echo "Setting up emulation for known architectures"; \
+			docker run --rm --privileged tonistiigi/binfmt --install all; \
+		fi ;\
+		docker buildx create --driver-opt image=mcr.microsoft.com/oss/v2/moby/buildkit:$(BUILDKIT_VERSION) --name $(BUILDX_BUILDER_NAME) --use; \
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
 
 .PHONY: docker-build-hub-net-controller-manager
-docker-build-hub-net-controller-manager: docker-buildx-builder vendor
+docker-build-hub-net-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
-		--tag $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
+		--tag $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-member-net-controller-manager
-docker-build-member-net-controller-manager: docker-buildx-builder vendor
+docker-build-member-net-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
-		--tag $(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) .
+		--tag $(REGISTRY)/$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-mcs-controller-manager
-docker-build-mcs-controller-manager: docker-buildx-builder vendor
+docker-build-mcs-controller-manager: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
-		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) .
+		--tag $(REGISTRY)/$(MCS_CONTROLLER_MANAGER_IMAGE_NAME):$(MCS_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
 
 .PHONY: docker-build-net-crd-installer
-docker-build-net-crd-installer: docker-buildx-builder vendor
+docker-build-net-crd-installer: docker-buildx-builder tidy
 	docker buildx build \
 		--file docker/$(NET_CRD_INSTALLER_IMAGE_NAME).Dockerfile \
 		--output=$(OUTPUT_TYPE) \
-		--platform="linux/amd64" \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
-		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) .
+		--tag $(REGISTRY)/$(NET_CRD_INSTALLER_IMAGE_NAME):$(NET_CRD_INSTALLER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
 
 ## -----------------------------------
 ## Cleanup

@@ -122,7 +122,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 
 	// delete derived service in the fleet-system namespace
 	serviceName := r.derivedServiceFromLabel(mcs)
-	if err := r.deleteDerivedService(ctx, serviceName); err != nil {
+	if err := r.deleteDerivedService(ctx, serviceName, mcs); err != nil {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj)
 		if !errors.IsNotFound(err) {
 			return ctrl.Result{}, err
@@ -146,17 +146,31 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) deleteDerivedService(ctx context.Context, serviceName *types.NamespacedName) error {
+func (r *Reconciler) deleteDerivedService(ctx context.Context, serviceName *types.NamespacedName, mcs *fleetnetv1alpha1.MultiClusterService) error {
 	if serviceName == nil {
 		return nil
 	}
-	service := corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: serviceName.Namespace,
-			Name:      serviceName.Name,
-		},
+
+	// Retrieve the service first.
+	derivedSvc := &corev1.Service{}
+	if err := r.Client.Get(ctx, *serviceName, derivedSvc); err != nil {
+		return fmt.Errorf("failed to get derived service: %w", err)
 	}
-	return r.Client.Delete(ctx, &service)
+
+	// Note that here the controller only checks for the presence of the owner object namespace label as the two labels
+	// are always set together when the derived service is created/updated.
+	ownerMCSNamespace, foundOwnerNS := derivedSvc.GetLabels()[serviceLabelMCSNamespace]
+	ownerMCSName := derivedSvc.GetLabels()[serviceLabelMCSName]
+	if foundOwnerNS && (ownerMCSNamespace != mcs.Namespace || ownerMCSName != mcs.Name) {
+		// The derived service is owned by another MCS, which signals a name collision situation. No action needs
+		// to be taken on the linked derived service any more, as it is managed by a different MCS.
+		klog.V(2).InfoS("The derived service is owned by another MCS, no cleanup needed",
+			"multiClusterService", klog.KObj(mcs),
+			"derivedService", klog.KRef(serviceName.Namespace, serviceName.Name),
+			"ownerMCS", klog.KRef(ownerMCSNamespace, ownerMCSName))
+		return nil
+	}
+	return r.Client.Delete(ctx, derivedSvc)
 }
 
 func (r *Reconciler) deleteServiceImport(ctx context.Context, serviceImportName *types.NamespacedName) error {
@@ -247,11 +261,59 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
-		serviceName = r.generateDerivedServiceName(mcs)
-		klog.V(4).InfoS("Generated derived service name", "multiClusterService", mcsKObj, "service", serviceName)
+		var err error
+		serviceName, err = r.uniqueDerivedServiceName(mcs)
+		if err != nil {
+			klog.ErrorS(err, "Failed to generate a unique derived service name for mcs", "multiClusterService", mcsKObj)
+			return ctrl.Result{}, fmt.Errorf("failed to generate a unique derived service name: %w", err)
+		}
+		klog.V(4).InfoS("Generated derived service name", "multiClusterService", mcsKObj, "derivedService", *serviceName)
 	}
 	// update mcs service label first to prevent the controller abort before we create the resource
 	if err := r.updateMultiClusterLabel(ctx, mcs, objectmeta.MultiClusterServiceLabelDerivedService, serviceName.Name); err != nil {
+		klog.ErrorS(err, "Failed to update MCS with derived service name labels", "multiClusterService", mcsKObj, "derivedService", *serviceName)
+		return ctrl.Result{}, fmt.Errorf("failed to update MCS with derived service name labels: %w", err)
+	}
+
+	// To address a name collision issue, the controller has been updated to generate derived service names differently,
+	// from the format [MCS-NAMESPACE]-[MCS-NAME] to [MCS-NAMESPACE]-[MCS-NAME]-[HASH-SUFFIX].
+	//
+	// However, there might be existing MCS that were created before this change, which already had a derived service
+	// created in the old format. To ensure that such MCS continues to function with no interruption, here the controller
+	// performs an extra round of check: if the MCS has been linked with a derived service, we check if the derived service
+	// has been labeled with the namespace and name of the owner MCS; should the labels exist but do not match with that of the current
+	// MCS, we know that a name collision has occurred, and the MCS being reconciled will be assigned a new derived service
+	// using the new name format. Otherwise the MCS will continue to use the existing derived service.
+	res, err := r.verifyDerivedServiceOwnership(ctx, mcs, serviceName.Name)
+	if err != nil {
+		klog.ErrorS(err, "Failed to verify derived service ownership", "multiClusterService", mcsKObj, "derivedService", *serviceName)
+		return ctrl.Result{}, fmt.Errorf("failed to verify derived service ownership: %w", err)
+	}
+	switch res {
+	case derivedSvcOwnerVeriResNotFound:
+		// The derived service has not been created yet; no further action to take here, as the following
+		// createOrUpdate step will create the derived service.
+	case derivedSvcOwnerVeriResOrphaned:
+		// The derived service exists but is missing owner information; let the following createOrUpdate step to overwrite
+		// it with the correct owner information. This normally wouldn't happen.
+		klog.V(2).InfoS("Derived service has no owner information set", "multiClusterService", mcsKObj, "derivedService", *serviceName)
+	case derivedSvcOwnerVeriResOwnedByOthers:
+		// The derived service is owned by another MCS, which signals a name collision situation. Remove the current
+		// derived service name label and requeue the request to let the controller generate a new derived service name
+		// for the MCS being reconciled.
+		klog.V(2).InfoS("A name collision has been found; correct the situation by removing the current derived service name label and requeue", "multiClusterService", mcsKObj, "derivedService", *serviceName)
+		delete(mcs.GetLabels(), objectmeta.MultiClusterServiceLabelDerivedService)
+		if err := r.Client.Update(ctx, mcs); err != nil {
+			klog.ErrorS(err, "Failed to remove the derived service name label", "multiClusterService", mcsKObj, "derivedService", *serviceName)
+			return ctrl.Result{}, fmt.Errorf("failed to remove the derived service name label: %w", err)
+		}
+		return ctrl.Result{Requeue: true}, nil
+	case derivedSvcOwnerVeriResSelfOwned:
+		// The derived service is owned by the MCS being reconciled, which is the expected case; no further action needed.
+	default:
+		// An unexpected result is found.
+		err := fmt.Errorf("unexpected result when verifying derived service ownership: %s", res)
+		klog.ErrorS(err, "", "multiClusterService", mcsKObj, "derivedService", *serviceName, "result", res)
 		return ctrl.Result{}, err
 	}
 
@@ -309,7 +371,7 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 		return nil // do nothing
 	}
 	svcKRef := klog.KRef(serviceName.Namespace, serviceName.Name)
-	if err := r.deleteDerivedService(ctx, serviceName); err != nil && !errors.IsNotFound(err) {
+	if err := r.deleteDerivedService(ctx, serviceName, mcs); err != nil && !errors.IsNotFound(err) {
 		klog.ErrorS(err, "Failed to remove derived service of mcs", "multiClusterService", mcsKObj, "service", svcKRef)
 		return err
 	}
@@ -352,7 +414,61 @@ func configureInternalLoadBalancer(mcs *fleetnetv1alpha1.MultiClusterService, se
 	service.Annotations[serviceAnnotationInternalLoadBalancer] = "true"
 }
 
+type derivedSvcOwnerVeriRes string
+
+const (
+	derivedSvcOwnerVeriResNotFound      derivedSvcOwnerVeriRes = "NotFound"
+	derivedSvcOwnerVeriResOrphaned      derivedSvcOwnerVeriRes = "Orphaned"
+	derivedSvcOwnerVeriResOwnedByOthers derivedSvcOwnerVeriRes = "OwnedByOthers"
+	derivedSvcOwnerVeriResSelfOwned     derivedSvcOwnerVeriRes = "SelfOwned"
+	derivedSvcOwnerVeriResUnknown       derivedSvcOwnerVeriRes = "Unknown"
+)
+
+func (r *Reconciler) verifyDerivedServiceOwnership(
+	ctx context.Context, mcs *fleetnetv1alpha1.MultiClusterService, derivedServiceName string) (derivedSvcOwnerVeriRes, error) {
+	derivedService := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: derivedServiceName}, derivedService); err != nil {
+		if errors.IsNotFound(err) {
+			return derivedSvcOwnerVeriResNotFound, nil
+		}
+		return derivedSvcOwnerVeriResUnknown, fmt.Errorf("failed to get derived service: %w", err)
+	}
+
+	// Note that here the controller only checks for the presence of the owner object namespace label as the two labels
+	// are always set together when the derived service is created/updated.
+	ownerMCSNamespace, foundOwnerNS := derivedService.GetLabels()[serviceLabelMCSNamespace]
+	ownerMCSName := derivedService.GetLabels()[serviceLabelMCSName]
+	switch {
+	case !foundOwnerNS:
+		// The owner information is missing, this normally wouldn't happen, as the derived service is created in one go
+		// with the owner information set as labels. Still, the controller handles this by letting the following createOrUpdate
+		// step to overwrite the derived service with the correct owner information.
+		return derivedSvcOwnerVeriResOrphaned, nil
+	case ownerMCSNamespace != mcs.Namespace || ownerMCSName != mcs.Name:
+		// The derived service is owned by another MCS, which signals a name collision situation. Set the controller to re-gen
+		// a new derived service name for the MCS being reconciled.
+		return derivedSvcOwnerVeriResOwnedByOthers, nil
+	default:
+		// The derived service is owned by the MCS being reconciled, which is the expected case.
+		return derivedSvcOwnerVeriResSelfOwned, nil
+	}
+}
+
 func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport, service *corev1.Service) error {
+	// Verify the owner reference; throw an error if the controller is trying to update a derived service
+	// that is owned by another MCS.
+	//
+	// Note that here the controller only checks for the presence of the owner object namespace label as the two labels
+	// are always set together when the derived service is created/updated.
+	ownerMCSNamespace, foundOwnerNS := service.GetLabels()[serviceLabelMCSNamespace]
+	ownerMCSName := service.GetLabels()[serviceLabelMCSName]
+	if foundOwnerNS && (ownerMCSNamespace != mcs.Namespace || ownerMCSName != mcs.Name) {
+		// The derived service is owned by another MCS, which signals a name collision situation. Fail the createOrUpdate
+		// step now.
+		return fmt.Errorf("the derived service %s/%s is owned by another MCS %s/%s (expected %s/%s); there might be a name collision",
+			service.Namespace, service.Name, ownerMCSNamespace, ownerMCSName, mcs.Namespace, mcs.Name)
+	}
+
 	svcPorts := make([]corev1.ServicePort, len(serviceImport.Status.Ports))
 	for i, importPort := range serviceImport.Status.Ports {
 		svcPorts[i] = importPort.ToServicePort()
@@ -368,14 +484,6 @@ func (r *Reconciler) ensureDerivedService(mcs *fleetnetv1alpha1.MultiClusterServ
 	service.Labels[serviceLabelMCSNamespace] = mcs.Namespace
 	configureInternalLoadBalancer(mcs, service)
 	return nil
-}
-
-// generateDerivedServiceName appends multiclusterservice name and namespace as the derived service name since a service
-// import may be exported by the multiple MCSs.
-// It makes sure the service name is unique and less than 63 characters.
-func (r *Reconciler) generateDerivedServiceName(mcs *fleetnetv1alpha1.MultiClusterService) *types.NamespacedName {
-	// TODO make sure the service name is unique and less than 63 characters.
-	return &types.NamespacedName{Namespace: r.FleetSystemNamespace, Name: fmt.Sprintf("%v-%v", mcs.Namespace, mcs.Name)}
 }
 
 // updateMultiClusterServiceStatus updates mcs condition and status based on the service import and service status.

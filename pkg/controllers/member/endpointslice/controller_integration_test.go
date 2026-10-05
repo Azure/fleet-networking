@@ -29,7 +29,7 @@ import (
 const (
 	ipv4Addr             = "1.2.3.4"
 	altIPv4Addr          = "2.3.4.5"
-	ipv6Addr             = "2001:db8:1::ab9:C0A8:102"
+	ipv6Addr             = "2001:db8:1::ab9:c0a8:102"
 	altEndpointSliceName = "app-endpointslice-2"
 
 	eventuallyTimeout    = time.Second * 10

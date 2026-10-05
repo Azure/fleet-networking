@@ -7,6 +7,7 @@ package v1beta1
 
 import (
 	"context"
+	"flag"
 	"go/build"
 	"log"
 	"os"
@@ -23,7 +24,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
@@ -68,8 +68,14 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	klog.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	By("Setup klog")
+	var err error
+	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	Expect(fs.Parse([]string{"--v", "5", "-add_dir_header", "true"})).Should(Succeed())
+	klog.InitFlags(flag.CommandLine)
+	flag.Parse()
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrap the test environment")

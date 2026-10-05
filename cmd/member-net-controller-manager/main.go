@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -49,7 +50,6 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointslice"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/endpointsliceimport"
-	imcv1alpha1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1alpha1"
 	imcv1beta1 "go.goms.io/fleet-networking/pkg/controllers/member/internalmembercluster/v1beta1"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/member/internalserviceimport"
@@ -71,8 +71,9 @@ var (
 	tlsClientInsecure    = flag.Bool("tls-insecure", false, "Enable TLSClientConfig.Insecure property. Enabling this will make the connection inSecure (should be 'true' for testing purpose only.)")
 	fleetSystemNamespace = flag.String("fleet-system-namespace", "fleet-system", "The reserved system namespace used by fleet.")
 
-	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", true, "If set, the agents will watch for the v1alpha1 APIs.")
-	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", false, "If set, the agents will watch for the v1beta1 APIs.")
+	// TODO(weiweng): remove fleet v1alpha1 flag after references was removed elsewhere.
+	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", false, "If set, the agents will watch for the v1alpha1 APIs. This flag is deprecated and will be removed in future releases.")
+	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 
@@ -276,17 +277,9 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	memberClient := memberMgr.GetClient()
 	hubClient := hubMgr.GetClient()
 
-	// Always setup heartbeat controllers regardless of networking features flag
 	if *isV1Alpha1APIEnabled {
-		klog.V(1).InfoS("Create internalmembercluster (v1alpha1 API) reconciler")
-		if err := (&imcv1alpha1.Reconciler{
-			MemberClient: memberClient,
-			HubClient:    hubClient,
-			AgentType:    fleetv1alpha1.ServiceExportImportAgent,
-		}).SetupWithManager(hubMgr); err != nil {
-			klog.ErrorS(err, "Unable to create internalmembercluster (v1alpha1 API) reconciler")
-			return err
-		}
+		klog.Error("Fleet v1alpha1 flag is set to true, but this flag is deprecated and will be removed in future releases")
+		return errors.New("v1alpha1 APIs are deprecated and no longer supported, please use v1beta1 APIs instead")
 	}
 
 	if *isV1Beta1APIEnabled {
