@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=svcimport
 // +kubebuilder:subresource:status
@@ -117,7 +118,7 @@ type ServiceImportStatus struct {
 	// +patchMergeKey=cluster
 	// +listType=map
 	// +listMapKey=cluster
-	Clusters []ClusterStatus `json:"clusters,omitempty"`
+	Clusters []ClusterStatus `json:"clusters,omitempty" patchStrategy:"merge" patchMergeKey:"cluster"`
 }
 
 // ClusterStatus contains service configuration mapped to a specific source cluster.

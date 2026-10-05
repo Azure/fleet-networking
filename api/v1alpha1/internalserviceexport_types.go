@@ -48,6 +48,7 @@ type InternalServiceExportStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
+// +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={fleet-networking},shortName=internalsvcexport
 // +kubebuilder:subresource:status
