@@ -1026,6 +1026,9 @@ func TestHandleUpdate(t *testing.T) {
 			options := []cmp.Option{
 				cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
 				cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
+				// Objects fetched via fakeClient.Get() never have TypeMeta populated,
+				// matching real client-go/API server behavior for typed clients.
+				cmpopts.IgnoreFields(metav1.TypeMeta{}, "Kind", "APIVersion"),
 			}
 			if diff := cmp.Diff(tc.wantServiceImport, &serviceImport, options...); diff != "" {
 				t.Errorf("serviceImport Get() mismatch (-want, +got):\n%s", diff)

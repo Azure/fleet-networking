@@ -341,9 +341,14 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 }
 
 func isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+	// mcs.TypeMeta (APIVersion/Kind) is not guaranteed to be populated: client-go typed
+	// clients (including the fake client used in tests) strip TypeMeta from objects
+	// returned by Get/List, matching real API server behavior. Compare against the
+	// well-known GroupVersionKind for MultiClusterService instead of mcs.APIVersion/mcs.Kind.
+	mcsGVK := fleetnetv1alpha1.GroupVersion.WithKind("MultiClusterService")
 	for _, owner := range serviceImport.OwnerReferences {
-		if owner.APIVersion == mcs.APIVersion &&
-			owner.Kind == mcs.Kind &&
+		if owner.APIVersion == mcsGVK.GroupVersion().String() &&
+			owner.Kind == mcsGVK.Kind &&
 			owner.Controller != nil && *owner.Controller &&
 			owner.Name != mcs.Name {
 			return true
