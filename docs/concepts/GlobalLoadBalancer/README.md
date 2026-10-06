@@ -23,7 +23,7 @@ Behind the scenes, Fleet-Networking uses the `InternalServiceExport` objects, wh
 ## Example
 
 [example.yaml](./example.yaml) contains namespace 'mclb-demo', a deployment and LoadBalancer service called 'helloworld', and a ServiceExport and ClusterResourcePlacement to distribute them to all member clusters. 
-For more information on these resources see [Exporting A Service](../ExportingService/README.md) and [ClusterResourcePlacement](TODO).  
+For more information on these resources see [Exporting A Service](../ExportingService/README.md) and [ClusterResourcePlacement](https://github.com/Azure/fleet/blob/main/apis/placement/v1beta1/clusterresourceplacement_types.go).  
 Create these prerequisite resources on your hub cluster by downloading the file and running `kubectl apply -f example.yaml`.
 
 Next, create a MulticlusterLoadBalancer named 'helloworld' like so:
