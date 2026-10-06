@@ -85,7 +85,7 @@ func main() {
 	}
 	raw = append(raw, '\n')
 
-	if err := os.WriteFile(*outputFile, raw, 0o644); err != nil {
+	if err := os.WriteFile(*outputFile, raw, 0o600); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write openapi schema file: %v\n", err)
 		os.Exit(1)
 	}

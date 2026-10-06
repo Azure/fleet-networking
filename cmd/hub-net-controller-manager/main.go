@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -182,7 +181,10 @@ func main() {
 		exitWithErrorFunc()
 	}
 	r := globalserviceexport.NewReconciler(client, dc, rc, cloudConfig.ResourceGroup, mgr.GetEventRecorderFor(globalserviceexport.ControllerName))
-	mgr.Add(r)
+	if err := mgr.Add(r); err != nil {
+		klog.ErrorS(err, "Unable to add GlobalServiceExport controller to manager")
+		exitWithErrorFunc()
+	}
 
 	klog.V(1).InfoS("Start to setup InternalServiceImport controller")
 	if err := (&internalserviceimport.Reconciler{
@@ -268,23 +270,6 @@ func main() {
 		klog.ErrorS(err, "Problem running manager")
 		exitWithErrorFunc()
 	}
-}
-
-func structureWatcher(watcher watch.Interface, objType runtime.Object) watch.Interface {
-	outChan := make(chan watch.Event)
-	result := watch.NewProxyWatcher(outChan)
-	go func() {
-		defer close(outChan)
-		for event := range watcher.ResultChan() {
-			if event.Type != watch.Error {
-				newObj := objType.DeepCopyObject()
-				runtime.DefaultUnstructuredConverter.FromUnstructured(event.Object.(runtime.Unstructured).UnstructuredContent(), newObj)
-				event.Object = newObj
-			}
-			outChan <- event
-		}
-	}()
-	return result
 }
 
 // initAzureTrafficManagerClients initializes the Azure Traffic Manager profiles and endpoints clients.

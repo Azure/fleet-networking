@@ -17,6 +17,7 @@ package globalserviceexport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -52,6 +53,10 @@ const (
 	globalAnnotation        = "globalLBName"
 	targetGatewayAnnotation = "targetGateway"
 	fieldManagerName        = "globalserviceexport-controller"
+	// mclbFinalizer is the finalizer this controller places on
+	// MultiClusterLoadBalancer objects so it can clean up the deployed
+	// Azure resources before the object is removed.
+	mclbFinalizer = "mclb"
 	// statusFieldManagerName is used for all status-subresource Apply calls.
 	// It is intentionally distinct from fieldManagerName (used for the
 	// finalizer, a main-resource field): a field manager's Apply call
@@ -177,8 +182,7 @@ func NewReconciler(c apiclient.Client, dc *armdeploymentstacks.Client, rc *armre
 				return nil
 			}
 			// remove finalizer
-			r.RemoveFinalizer(mclb)
-			if err != nil {
+			if err := r.RemoveFinalizer(mclb); err != nil {
 				klog.ErrorS(err, "Failed to remove mclb finalizer", "name", mclb.Name, "namespace", mclb.Namespace)
 				kctx.DiscardResult()
 			}
@@ -215,7 +219,9 @@ func NewReconciler(c apiclient.Client, dc *armdeploymentstacks.Client, rc *armre
 			// Add finalizer if not present. This must run synchronously
 			// (not in its own goroutine) so it cannot race with the worker
 			// pool's later ApplyStatusDeployed call on the same object.
-			r.ApplyFinalizer(mclb)
+			if err := r.ApplyFinalizer(mclb); err != nil {
+				klog.ErrorS(err, "Failed to apply mclb finalizer", "name", mclb.Name, "namespace", mclb.Namespace)
+			}
 		}
 		return out
 	})
@@ -359,11 +365,10 @@ func (r *Reconciler) deleteDeployment(name, rg string) error {
 		return err
 	}
 	_, err = p.PollUntilDone(context.Background(), nil)
-	if respErr, ok := err.(*azcore.ResponseError); ok {
-		if respErr.StatusCode == 404 {
-			// already deleted
-			return nil
-		}
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == 404 {
+		// already deleted
+		return nil
 	}
 	return err
 }
@@ -408,7 +413,7 @@ func (r *Reconciler) writeDeployment(params parameters) (string, error) {
 func (r *Reconciler) RemoveFinalizer(mclb *v1alpha1.MultiClusterLoadBalancer) error {
 	index := -1
 	for i, f := range mclb.Finalizers {
-		if f == "mclb" {
+		if f == mclbFinalizer {
 			index = i
 			break
 		}
@@ -429,14 +434,14 @@ func (r *Reconciler) RemoveFinalizer(mclb *v1alpha1.MultiClusterLoadBalancer) er
 
 func (r *Reconciler) ApplyFinalizer(mclb *v1alpha1.MultiClusterLoadBalancer) error {
 	for _, f := range mclb.Finalizers {
-		if f == "mclb" {
+		if f == mclbFinalizer {
 			// Already present; skip the Apply call to avoid re-triggering
 			// our own watch (see statusUpToDate).
 			return nil
 		}
 	}
 	x := ac.MultiClusterLoadBalancer(mclb.Name, mclb.Namespace).
-		WithFinalizers("mclb")
+		WithFinalizers(mclbFinalizer)
 	_, err := r.client.Networking().NetworkingV1alpha1().MultiClusterLoadBalancers(mclb.Namespace).Apply(
 		context.Background(),
 		x,

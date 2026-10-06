@@ -269,7 +269,7 @@ func TestReconciler_ValidBackendDeploysGlobalLoadBalancer(t *testing.T) {
 			return false, nil //nolint:nilerr
 		}
 		for _, f := range obj.Finalizers {
-			if f == "mclb" {
+			if f == mclbFinalizer {
 				return true, nil
 			}
 		}
@@ -376,7 +376,7 @@ func TestReconciler_DeploymentFailureReportsFailedStatus(t *testing.T) {
 }
 
 func TestReconciler_DeletionRemovesFinalizerAndDeletesStack(t *testing.T) {
-	mclb := newMCLB(testServiceName, testNamespace, true, "mclb")
+	mclb := newMCLB(testServiceName, testNamespace, true, mclbFinalizer)
 
 	client := newTestAPIClient(t, nil, mclb)
 	rc := fakeResourcesClient(t, func(string) (map[string]interface{}, error) {
@@ -419,7 +419,7 @@ func TestReconciler_DeletionRemovesFinalizerAndDeletesStack(t *testing.T) {
 			return false, nil //nolint:nilerr
 		}
 		for _, f := range obj.Finalizers {
-			if f == "mclb" {
+			if f == mclbFinalizer {
 				return false, nil
 			}
 		}
