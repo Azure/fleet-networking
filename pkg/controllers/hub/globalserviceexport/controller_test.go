@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -384,10 +385,10 @@ func TestReconciler_DeletionRemovesFinalizerAndDeletesStack(t *testing.T) {
 		return nil, nil
 	})
 
-	var deleteCalled bool
+	var deleteCalled atomic.Bool
 	srv := armdsfake.Server{
 		BeginDeleteAtResourceGroup: func(_ context.Context, resourceGroupName string, deploymentStackName string, _ *armdeploymentstacks.ClientBeginDeleteAtResourceGroupOptions) (resp azfake.PollerResponder[armdeploymentstacks.ClientDeleteAtResourceGroupResponse], errResp azfake.ErrorResponder) {
-			deleteCalled = true
+			deleteCalled.Store(true)
 			if resourceGroupName != testResourceGroup {
 				t.Errorf("unexpected resource group %q, want %q", resourceGroupName, testResourceGroup)
 			}
@@ -428,7 +429,7 @@ func TestReconciler_DeletionRemovesFinalizerAndDeletesStack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("timed out waiting for finalizer removal: %v", err)
 	}
-	if !deleteCalled {
+	if !deleteCalled.Load() {
 		t.Fatal("expected the deployment stack to be deleted")
 	}
 }
