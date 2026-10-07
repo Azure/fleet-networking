@@ -1,0 +1,7 @@
+coverage:
+  ignore:
+    - "api/**/zz_generated.deepcopy.go"
+    - "config/crd/bases/*.yaml"
+    - "pkg/applyconfigurations/**/*.go"
+    - "pkg/generated/**/*.go"
+    - "pkg/generated/**/*.json"
