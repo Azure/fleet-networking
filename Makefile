@@ -51,6 +51,18 @@ CONTROLLER_GEN_VER := v0.20.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 
+CLIENT_GEN_VER := v0.34.1
+CLIENT_GEN_BIN := client-gen
+CLIENT_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CLIENT_GEN_BIN)-$(CLIENT_GEN_VER))
+
+AC_GEN_VER := v0.34.1
+AC_GEN_BIN := applyconfiguration-gen
+AC_GEN := $(abspath $(TOOLS_BIN_DIR)/$(AC_GEN_BIN)-$(AC_GEN_VER))
+
+OPENAPI_GEN_VER := v0.0.0-20250910181357-589584f1c912
+OPENAPI_GEN_BIN := openapi-gen
+OPENAPI_GEN := $(abspath $(TOOLS_BIN_DIR)/$(OPENAPI_GEN_BIN)-$(OPENAPI_GEN_VER))
+
 STATICCHECK_VER := master
 STATICCHECK_BIN := staticcheck
 STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/$(STATICCHECK_BIN)-$(STATICCHECK_VER))
@@ -83,6 +95,15 @@ $(GOLANGCI_LINT):
 
 $(CONTROLLER_GEN):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-tools/cmd/controller-gen $(CONTROLLER_GEN_BIN) $(CONTROLLER_GEN_VER)
+
+$(CLIENT_GEN):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/code-generator/cmd/client-gen $(CLIENT_GEN_BIN) $(CLIENT_GEN_VER)
+
+$(AC_GEN):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/code-generator/cmd/applyconfiguration-gen $(AC_GEN_BIN) $(AC_GEN_VER)
+
+$(OPENAPI_GEN):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/kube-openapi/cmd/openapi-gen $(OPENAPI_GEN_BIN) $(OPENAPI_GEN_VER)
 
 # Style checks
 $(STATICCHECK):
@@ -172,9 +193,48 @@ manifests: $(CONTROLLER_GEN)
 		$(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Generate code
-generate: $(CONTROLLER_GEN)
+generate: $(CONTROLLER_GEN) $(CLIENT_GEN) $(AC_GEN) $(OPENAPI_GEN)
 	$(CONTROLLER_GEN) \
-		object:headerFile="hack/boilerplate.go.txt" paths="./..."
+		object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
+	$(OPENAPI_GEN) \
+		--output-pkg "go.goms.io/fleet-networking/pkg/generated/openapi" \
+		--output-dir "pkg/generated/openapi" \
+		--output-file "zz_generated.openapi.go" \
+		--go-header-file "hack/boilerplate.go.txt" \
+		--report-filename "-" \
+		-v 5 \
+		"go.goms.io/fleet-networking/api/v1alpha1" \
+		"go.goms.io/fleet-networking/api/v1beta1" \
+		"k8s.io/apimachinery/pkg/apis/meta/v1" \
+		"k8s.io/apimachinery/pkg/runtime" \
+		"k8s.io/apimachinery/pkg/util/intstr" \
+		"k8s.io/apimachinery/pkg/api/resource" \
+		"k8s.io/api/core/v1" \
+		"k8s.io/api/discovery/v1"
+	go run ./hack/tools/openapi-schema-gen \
+		--output-file "pkg/generated/openapi/openapi_generated.json"
+	$(AC_GEN) \
+		"go.goms.io/fleet-networking/api/v1beta1" \
+		--output-pkg "go.goms.io/fleet-networking/pkg/applyconfigurations" \
+		--go-header-file "hack/boilerplate.go.txt" \
+		--output-dir "pkg/applyconfigurations" \
+		--openapi-schema "pkg/generated/openapi/openapi_generated.json" \
+		-v 5
+	$(AC_GEN) \
+		"go.goms.io/fleet-networking/api/v1alpha1" \
+		--output-pkg "go.goms.io/fleet-networking/pkg/applyconfigurations" \
+		--go-header-file "hack/boilerplate.go.txt" \
+		--output-dir "pkg/applyconfigurations" \
+		--openapi-schema "pkg/generated/openapi/openapi_generated.json" \
+		-v 5
+	$(CLIENT_GEN) \
+		--apply-configuration-package "go.goms.io/fleet-networking/pkg/applyconfigurations" \
+		--input-base "go.goms.io/fleet-networking/" \
+		--input "api/v1alpha1,api/v1beta1" \
+		--output-pkg "go.goms.io/fleet-networking/pkg/generated/clientset" \
+		--output-dir "pkg/generated/clientset" \
+		--go-header-file "hack/boilerplate.go.txt" \
+		-v 5
 
 ## --------------------------------------
 ## Build
