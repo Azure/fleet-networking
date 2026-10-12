@@ -6,7 +6,7 @@ This repo contains networking components and controllers for the Fleet project. 
 
 - Use @terminal when answering questions about Git.
 - If you're waiting for my confirmation ("OK"), proceed without further prompting.
-- Follow the [Go Style Guide](https://go.dev/wiki/Style) and [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) if possible. If there are any conflicts, follow the Go Style Guide.
+- Follow the [Go Style Guide](https://go.dev/wiki/Style) and [Uber Go Style Guide](https://raw.githubusercontent.com/uber-go/guide/master/style.md) if possible. If there are any conflicts, follow the Go Style Guide.
 - Favor using the standard library over third-party libraries.
 - Run goimports on save.
 - Run golint and go vet to check for errors.
