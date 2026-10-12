@@ -1,8 +1,8 @@
-This folder contains a list of [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/docs/GETTING_STARTED.md) configuration manifests for large scale testing.
+This folder contains a list of [clusterloader2](https://raw.githubusercontent.com/kubernetes/perf-tests/master/clusterloader2/docs/GETTING_STARTED.md) configuration manifests for large scale testing.
 
 ## Prerequisites
 
-Follow [clusterloader2 GETTING STARTED](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/docs/GETTING_STARTED.md) to clone the `perf-tests` repository.
+Follow [clusterloader2 GETTING STARTED](https://raw.githubusercontent.com/kubernetes/perf-tests/master/clusterloader2/docs/GETTING_STARTED.md) to clone the `perf-tests` repository.
 
 ## Execute Tests
 
