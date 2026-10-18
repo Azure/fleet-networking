@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/policy/ratelimit"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/privatelinkserviceclient"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -354,6 +355,12 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	}
 
 	var azurePublicIPAddressClient publicipaddressclient.Interface
+	// azurePrivateLinkServicesClient is required for L7-FrontDoor exports; it
+	// is constructed alongside the PIP client whenever the Traffic Manager
+	// feature is enabled today, since both paths share the same cloud
+	// config and auth chain. Once the FrontDoor feature-gate lands
+	// (Phase 4) we may key this on its own toggle instead.
+	var azurePrivateLinkServicesClient privatelinkserviceclient.Interface
 	var resourceGroupName string
 	if *enableTrafficManagerFeature {
 		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
@@ -365,9 +372,9 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
 		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
 
-		azurePublicIPAddressClient, err = initAzureNetworkClients(cloudConfig)
+		azurePublicIPAddressClient, azurePrivateLinkServicesClient, err = initAzureNetworkClients(cloudConfig)
 		if err != nil {
-			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
+			klog.ErrorS(err, "Unable to create Azure network clients")
 			return err
 		}
 
@@ -376,14 +383,15 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
 	if err := (&serviceexport.Reconciler{
-		MemberClient:                memberClient,
-		HubClient:                   hubClient,
-		MemberClusterID:             mcName,
-		HubNamespace:                mcHubNamespace,
-		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
-		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
-		ResourceGroupName:           resourceGroupName,
-		AzurePublicIPAddressClient:  azurePublicIPAddressClient,
+		MemberClient:                   memberClient,
+		HubClient:                      hubClient,
+		MemberClusterID:                mcName,
+		HubNamespace:                   mcHubNamespace,
+		Recorder:                       memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
+		EnableTrafficManagerFeature:    *enableTrafficManagerFeature,
+		ResourceGroupName:              resourceGroupName,
+		AzurePublicIPAddressClient:     azurePublicIPAddressClient,
+		AzurePrivateLinkServicesClient: azurePrivateLinkServicesClient,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
@@ -404,11 +412,15 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	return nil
 }
 
-// initAzureNetworkClients initializes the Azure network resource clients, currently only publicIPAddressClient.
-func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, error) {
+// initAzureNetworkClients initializes the Azure network resource clients used
+// by the serviceexport reconciler: publicIPAddressClient (ATM / L4 path) and
+// privateLinkServicesClient (Front Door / L7 path). Both share the same auth
+// provider and rate-limit policy since they always run in the same
+// subscription against the same cloud config.
+func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, privatelinkserviceclient.Interface, error) {
 	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
+		return nil, nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
 	}
 
 	factoryConfig := &azclient.ClientFactoryConfig{
@@ -417,7 +429,7 @@ func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddresscli
 	}
 	options, err := azclient.GetDefaultResourceClientOption(&cloudConfig.ARMClientConfig, factoryConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get default resource client option: %w", err)
+		return nil, nil, fmt.Errorf("failed to get default resource client option: %w", err)
 	}
 
 	if rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config); rateLimitPolicy != nil {
@@ -426,8 +438,13 @@ func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddresscli
 
 	pipClient, err := publicipaddressclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure PublicIPAddress client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create Azure PublicIPAddress client: %w", err)
 	}
 
-	return pipClient, nil
+	plsClient, err := privatelinkserviceclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Azure PrivateLinkService client: %w", err)
+	}
+
+	return pipClient, plsClient, nil
 }
