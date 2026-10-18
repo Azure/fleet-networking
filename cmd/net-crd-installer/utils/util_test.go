@@ -53,11 +53,24 @@ func runTest(t *testing.T, crdPath string) {
 		wantError      bool
 	}{
 		{
+			// Hub mode installs every CRD found in config/crd/bases (see CollectCRDs
+			// in util.go: no explicit hub allow-list). This deliberately includes CRDs
+			// whose reconciler runs in a sibling pod on the same hub cluster — e.g.
+			// FrontDoorProfile and FrontDoorCustomDomain are managed by the
+			// hub-afd-controller-manager binary (see cmd/hub-afd-controller-manager and
+			// charts/hub-afd-controller-manager). The AFD/ATM controller-identity split
+			// required by SFI-NS253 is enforced at the pod/ServiceAccount layer via
+			// separate ClusterRoles per chart, NOT by withholding CRDs from the hub.
+			// Keep this list in sync with the set of *.yaml files in config/crd/bases
+			// that carry group "networking.fleet.azure.com".
 			name: "hub mode excludes MultiClusterService CRD",
 			mode: "hub",
 			wantedCRDNames: []string{
 				"endpointsliceexports.networking.fleet.azure.com",
 				"endpointsliceimports.networking.fleet.azure.com",
+				"frontdoorbackends.networking.fleet.azure.com",
+				"frontdoorcustomdomains.networking.fleet.azure.com",
+				"frontdoorprofiles.networking.fleet.azure.com",
 				"internalserviceexports.networking.fleet.azure.com",
 				"internalserviceimports.networking.fleet.azure.com",
 				"serviceexports.networking.fleet.azure.com",
