@@ -36,6 +36,7 @@ helm upgrade hub-net-controller-manager ./charts/hub-net-controller-manager/
 | leaderElectionNamespace | The namespace in which the leader election resource will be created. | `fleet-system` |
 | fleetSystemNamespace | The namespace that this Helm chart is installed on and reserved by fleet. | `fleet-system` |
 | enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
+| enableAzureFrontDoorGatewayAPI | Enable the read-only Azure Front Door Gateway API attachment controller. Requires the Gateway API and Fleet AFD CRDs. | `false` |
 | resources | The resource request/limits for the container image | limits: 500m CPU, 1Gi, requests: 100m CPU, 128Mi |
 | podAnnotations | Pod Annotations | `{}` |
 | affinity | The node affinity to use for pod scheduling | `{}` |

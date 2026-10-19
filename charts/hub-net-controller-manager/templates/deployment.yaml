@@ -40,6 +40,7 @@ spec:
             - --add_dir_header
             - --force-delete-wait-time={{ .Values.forceDeleteWaitTime }}
             - --enable-traffic-manager-feature={{ .Values.enableTrafficManagerFeature }}
+            - --enable-azure-front-door-gateway-api={{ .Values.enableAzureFrontDoorGatewayAPI }}
             {{- if .Values.enableTrafficManagerFeature }}
             - --cloud-config=/etc/kubernetes/provider/azure.json
             {{- end }}
