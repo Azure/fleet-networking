@@ -35,6 +35,23 @@ const (
 	// to make sure that the controller can react to backend deletions if necessary.
 	TrafficManagerBackendFinalizer = fleetNetworkingPrefix + "traffic-manager-backend-cleanup"
 
+	// FrontDoorProfileFinalizer is a finalizer added by the FrontDoorProfile controller to
+	// FrontDoorProfile resources so the controller can delete the underlying Azure Front Door
+	// profile before the Kubernetes object is removed.
+	FrontDoorProfileFinalizer = fleetNetworkingPrefix + "frontdoor-profile-cleanup"
+
+	// FrontDoorBackendFinalizer is a finalizer added by the FrontDoorBackend
+	// controller to every FrontDoorBackend CR so the reconciler can
+	// guarantee the corresponding Azure Front Door OriginGroup (and its
+	// child Origins, which cascade with the OriginGroup) is deleted before
+	// the CR is removed from etcd. Naming mirrors FrontDoorProfileFinalizer.
+	FrontDoorBackendFinalizer = fleetNetworkingPrefix + "frontdoor-backend-cleanup"
+
+	// FrontDoorCustomDomainFinalizer is a finalizer added by the FrontDoorCustomDomain
+	// controller to FrontDoorCustomDomain resources so the controller can unbind and delete the
+	// underlying Azure Front Door custom domain before the Kubernetes object is removed.
+	FrontDoorCustomDomainFinalizer = fleetNetworkingPrefix + "frontdoor-custom-domain-cleanup"
+
 	// MetricsFinalizer is the finalizer added by the controller to clean up all metrics.
 	MetricsFinalizer = fleetNetworkingPrefix + "metrics-cleanup"
 )
@@ -59,6 +76,33 @@ const (
 	// ServiceExportAnnotationWeight is an annotation that marks the weight of the ServiceExport.
 	ServiceExportAnnotationWeight = fleetNetworkingPrefix + "weight"
 
+	// ServiceExportAnnotationExportMode is an annotation on a ServiceExport that
+	// selects which fleet-networking control plane consumes the export:
+	//   - ExportModeValueTrafficManager (default when the annotation is absent):
+	//     the export flows to the Traffic Manager path (today's behaviour).
+	//   - ExportModeValueFrontDoor: the export flows to the Front Door path
+	//     (Phase 4 work; requires the underlying Service to be an internal
+	//     load balancer with the Azure PLS annotations set).
+	//
+	// Modeled as an annotation rather than a Spec field to avoid diverging
+	// from the upstream mcs-api (KEP-1645) ServiceExport shape — see
+	// docs/first-party/002-afd-implementation-plan.md #3.4 and the breadcrumb
+	// 2026-07-20-1108-afd-export-mode-mcs-parity.md for the parity rationale.
+	// The annotation is deliberately opt-in: absence keeps every existing
+	// manifest working unchanged.
+	ServiceExportAnnotationExportMode = fleetNetworkingPrefix + "export-mode"
+
+	// ExportModeValueTrafficManager routes the export through the ATM
+	// (L4 / DNS-based) control plane. Default when the annotation is absent.
+	ExportModeValueTrafficManager = "L4-TrafficManager"
+
+	// ExportModeValueFrontDoor routes the export through the AFD
+	// (L7 / anycast) control plane. Requires the Service to be an internal
+	// load balancer with Azure PLS provisioning enabled — the reconciler
+	// verifies this and surfaces ExportModeAnnotationServiceMismatch when
+	// the Service shape is incompatible.
+	ExportModeValueFrontDoor = "L7-FrontDoor"
+
 	// ServiceAnnotationAzureLoadBalancerInternal is an annotation that marks the Service as an internal load balancer by cloud-provider-azure.
 	ServiceAnnotationAzureLoadBalancerInternal = "service.beta.kubernetes.io/azure-load-balancer-internal"
 
@@ -71,6 +115,30 @@ const (
 	// before v1.15.10/v1.16.7/v1.17.3, the DNS label on PIP would also be deleted if the annotation is not specified.
 	// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
 	ServiceAnnotationAzureDNSLabelName = "service.beta.kubernetes.io/azure-dns-label-name"
+
+	// ServiceAnnotationAzurePLSCreate opts an internal LoadBalancer Service into
+	// Private Link Service provisioning by cloud-provider-azure. The AFD
+	// L7 export mode (ExportModeValueFrontDoor) requires the referenced
+	// Service to have this annotation set to "true" so that the member
+	// serviceexport reconciler can look up the resulting PLS by name.
+	// Docs: https://cloud-provider-azure.sigs.k8s.io/topics/pls-integration/
+	ServiceAnnotationAzurePLSCreate = "service.beta.kubernetes.io/azure-pls-create"
+
+	// ServiceAnnotationAzurePLSName is the explicit PLS resource name the
+	// operator asked cloud-provider-azure to create for this Service. We
+	// require this annotation (instead of deriving a default from
+	// cloud-provider-azure internals) so the reconciler's ARM Get lookup
+	// is unambiguous and stable across upstream default-name changes.
+	// Missing this annotation on an L7-FrontDoor export surfaces
+	// ExportModeAnnotationServiceMismatch.
+	ServiceAnnotationAzurePLSName = "service.beta.kubernetes.io/azure-pls-name"
+
+	// ServiceAnnotationAzurePLSResourceGroup optionally overrides the
+	// resource group that hosts the PLS. When absent, the reconciler
+	// falls back to the same resource-group resolution used for PIPs
+	// (ServiceAnnotationLoadBalancerResourceGroup, then the controller's
+	// default ResourceGroupName), keeping ATM and AFD paths symmetric.
+	ServiceAnnotationAzurePLSResourceGroup = "service.beta.kubernetes.io/azure-pls-resource-group"
 )
 
 // Azure Resource Tags
@@ -102,4 +170,33 @@ func ExtractWeightFromServiceExport(svcExport *fleetnetv1beta1.ServiceExport) (i
 		return -1, err
 	}
 	return int64(weight), nil
+}
+
+// ExtractExportModeFromServiceExport returns the effective export mode for a
+// ServiceExport. Absence of the annotation returns the default
+// (ExportModeValueTrafficManager) with no error, preserving today's
+// behaviour for every existing manifest. Any value other than the two
+// documented enum members is a hard rejection — silent fallback would let a
+// typo (e.g. "L4-Trafficmanager") mask the intent, so we require the caller
+// to surface the error as a status condition.
+//
+// Returned value is always non-empty on nil error; callers may compare
+// directly against ExportModeValueTrafficManager / ExportModeValueFrontDoor.
+func ExtractExportModeFromServiceExport(svcExport *fleetnetv1beta1.ServiceExport) (string, error) {
+	raw, found := svcExport.Annotations[ServiceExportAnnotationExportMode]
+	if !found {
+		return ExportModeValueTrafficManager, nil
+	}
+	switch raw {
+	case ExportModeValueTrafficManager, ExportModeValueFrontDoor:
+		return raw, nil
+	default:
+		// Empty string is deliberately treated as invalid rather than as
+		// "default" so operators immediately notice a mis-templated
+		// annotation (e.g. a Helm value that resolved to "").
+		err := fmt.Errorf("the export-mode annotation %q is not one of %q, %q",
+			raw, ExportModeValueTrafficManager, ExportModeValueFrontDoor)
+		klog.ErrorS(err, "Invalid export-mode annotation", "serviceExport", klog.KObj(svcExport))
+		return "", err
+	}
 }

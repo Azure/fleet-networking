@@ -68,6 +68,15 @@ var (
 
 	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 
+	// NOTE: the Azure Front Door feature used to be gated here behind
+	// --enable-frontdoor-feature. It has been moved to a dedicated binary
+	// (cmd/hub-afd-controller-manager) to satisfy the SFI-NS253 §7
+	// identity-split requirement — the AFD controllers must run under a
+	// distinct Workload-Identity federated subject from the ATM controllers,
+	// and a Kubernetes pod projects exactly one WI token. See:
+	//   - docs/first-party/001-afd-global-load-balancing.md §7
+	//   - docs/first-party/003-pre-implementation-checklist.md §2.4
+
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
 

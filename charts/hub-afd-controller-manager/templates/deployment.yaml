@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hub-afd-controller-manager.fullname" . }}
+  namespace: {{ .Values.fleetSystemNamespace }}
+  labels:
+    {{- include "hub-afd-controller-manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "hub-afd-controller-manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "hub-afd-controller-manager.selectorLabels" . | nindent 8 }}
+        # Pod-level label required by the azure-workload-identity webhook —
+        # without it, no federated token is projected even if the
+        # ServiceAccount is annotated. Belt-and-braces with the
+        # ServiceAccount label; both are required in current AKS versions.
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ include "hub-afd-controller-manager.fullname" . }}-sa
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
+            - --v={{ .Values.logVerbosity }}
+            - --add_dir_header
+          env:
+            # AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_FEDERATED_TOKEN_FILE
+            # are auto-injected by the azure-workload-identity mutating webhook
+            # from the ServiceAccount annotations. AZURE_SUBSCRIPTION_ID is
+            # NOT part of Workload Identity and must be supplied explicitly.
+            - name: AZURE_SUBSCRIPTION_ID
+              value: {{ required "azure.subscriptionID is required" .Values.azure.subscriptionID | quote }}
+          ports:
+            # Distinct from hub-net-controller-manager (:8080 / :8081) so
+            # both binaries can run on the same node without collision when
+            # hostNetwork is enabled or ports are exposed on a Service.
+            - name: metrics
+              containerPort: 8082
+              protocol: TCP
+            - name: healthz
+              containerPort: 8083
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
