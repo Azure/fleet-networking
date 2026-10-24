@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -66,6 +67,10 @@ type Reconciler struct {
 	AzurePublicIPAddressClient publicipaddressclient.Interface
 
 	EnableTrafficManagerFeature bool
+
+	EnablePrivateLinkOriginDiscovery bool
+	AzureLoadBalancerClient          OriginLoadBalancerClient
+	AzurePrivateLinkServiceClient    OriginPrivateLinkServiceClient
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -264,6 +269,11 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 		},
 	}
 	svcExportPorts := extractServicePorts(svc)
+	var privateOrigin *fleetnetv1alpha1.PrivateLinkOrigin
+	var discoveryErr error
+	if r.EnablePrivateLinkOriginDiscovery {
+		privateOrigin, discoveryErr = r.discoverPrivateLinkOrigin(ctx, svc)
+	}
 	klog.V(2).InfoS("Export the service or update the exported service",
 		"service", svcExport,
 		"internalServiceExport", klog.KObj(&internalSvcExport))
@@ -294,6 +304,14 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 
 		internalSvcExport.Spec.Ports = svcExportPorts
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
+		// Replace even with nil/failed discovery so old private readiness cannot survive drift or disablement.
+		internalSvcExport.Spec.PrivateLinkOrigin = privateOrigin
+
+		if r.EnablePrivateLinkOriginDiscovery {
+			internalSvcExport.Spec.Type = svc.Spec.Type
+			internalSvcExport.Spec.IsInternalLoadBalancer = svc.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == internalLoadBalancerEnabled
+			internalSvcExport.Spec.Weight = ptr.To(exportWeight)
+		}
 
 		if r.EnableTrafficManagerFeature {
 			klog.V(2).InfoS("Collecting Traffic Manager related information and set to the internal service export", "service", svcRef)
@@ -333,6 +351,20 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 			"op", createOrUpdateOp)
 		return ctrl.Result{}, err
 	}
+	if discoveryErr != nil {
+		// Publish the baseline export and failed discovery before returning a retryable Azure error.
+		klog.ErrorS(discoveryErr, "Private origin discovery failed; baseline service export was preserved", "service", svcRef)
+		if r.Recorder != nil {
+			r.Recorder.Eventf(svcExport, corev1.EventTypeWarning, azureDiscoveryFailedReason, "Private ingress discovery failed; see member controller logs")
+		}
+		return ctrl.Result{}, discoveryErr
+	}
+	if r.EnablePrivateLinkOriginDiscovery {
+		if !privateOrigin.Ready && r.Recorder != nil {
+			r.Recorder.Eventf(svcExport, corev1.EventTypeWarning, privateOrigin.Reason, "Private ingress origin is not ready: %s", privateOrigin.Reason)
+		}
+		return ctrl.Result{RequeueAfter: wait.Jitter(privateOriginRediscoveryInterval, 0.2)}, nil
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -345,7 +377,7 @@ func (r *Reconciler) setAzureRelatedInformation(ctx context.Context,
 	}
 	// The annotation value is case-sensitive.
 	// https://github.com/kubernetes-sigs/cloud-provider-azure/blob/release-1.31/pkg/provider/azure_loadbalancer.go#L3559
-	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == "true"
+	hubSvcExport.Spec.IsInternalLoadBalancer = service.Annotations[objectmeta.ServiceAnnotationAzureLoadBalancerInternal] == internalLoadBalancerEnabled
 	if hubSvcExport.Spec.IsInternalLoadBalancer {
 		// no need to populate the PublicIPResourceID and IsDNSLabelConfigured which are only applicable for external load balancer
 		return nil
