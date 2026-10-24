@@ -4,6 +4,9 @@ set -o nounset
 set -o pipefail
 set -x
 
+# shellcheck source=test/scripts/e2e-config.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
+
 # Check required variables.
 [[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
@@ -19,6 +22,16 @@ export ENABLE_TRAFFIC_MANAGER=${ENABLE_TRAFFIC_MANAGER:-"false"}
 if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ] && [ "$AZURE_NETWORK_SETTING" != "shared-vnet" ]; then
   echo "error: setting up traffic manager testing env is not supported when AZURE_NETWORK_SETTING is not shared-vnet"
   exit 1
+fi
+
+if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+  for tool in az jq helm kubectl go docker; do
+    if ! command -v "$tool" >/dev/null; then
+      echo "error: AFD setup requires $tool" >&2
+      exit 1
+    fi
+  done
+  AFD_VALIDATE_LOCAL_TOOLS=true go test -count=1 ./test/scripts
 fi
 
 az account set -s ${AZURE_SUBSCRIPTION_ID}
@@ -47,7 +60,7 @@ az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source
 az acr update --name $REGISTRY_NAME --anonymous-pull-enabled -g $RESOURCE_GROUP
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
-export TAG=$(git rev-parse --short=7 HEAD)
+export TAG="${TAG:-$(git rev-parse --short=7 HEAD)}"
 make push
 
 # Create hub and member clusters and wait until all clusters are ready.
@@ -248,7 +261,8 @@ then
     az aks get-credentials --name $MEMBER_CLUSTER_3 -g $RESOURCE_GROUP --admin --overwrite-existing
     az aks get-credentials --name $MEMBER_CLUSTER_4 -g $RESOURCE_GROUP --admin --overwrite-existing
 fi
-export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
+HUB_URL="$(kubectl --context "$HUB_CLUSTER-admin" config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+export HUB_URL
 
 # Setup hub cluster credentials.
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
@@ -406,6 +420,8 @@ if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
 then
     export APP_IMAGE=$REGISTRY/app
     docker build --platform linux/amd64 -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+    # Refresh the three-hour ACR token after provisioning and building the app.
+    az acr login -n "$REGISTRY_NAME"
     docker push $APP_IMAGE
 fi
 
@@ -457,4 +473,8 @@ fi
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
     bash test/scripts/prometheus.sh
+fi
+
+if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+    bash test/scripts/install-afd.sh
 fi

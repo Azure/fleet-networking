@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.vars.outputs.release_tag }}
+      gateway_image: ${{ steps.vars.outputs.gateway_image }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,10 +37,23 @@ jobs:
           # set the image version
           RELEASE_TAG="$RELEASE_TAG_INPUT"
           if [ -z "$RELEASE_TAG" ]; then
-            RELEASE_TAG=`git describe --tags $(git rev-list --tags --max-count=1)`
+            RELEASE_TAG="$(git describe --tags "$(git rev-list --tags --max-count=1)")"
             echo "The user input release tag is empty, will use the latest tag $RELEASE_TAG."
           fi
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+          # Older releases may have the Dockerfile without publishing the image.
+          release_makefile="$(git show "${RELEASE_TAG}:Makefile")"
+          push_recipe="$(printf '%s\n' "$release_makefile" | sed -n '/^push:/,/^$/p')"
+          if [ -z "$push_recipe" ]; then
+            echo "::error::Selected release has no push target"
+            exit 1
+          fi
+          gateway_image=false
+          if [[ "$push_recipe" == *docker-build-hub-gateway-controller-manager* ]]; then
+            gateway_image=true
+          fi
+          echo "gateway_image=$gateway_image" >> "$GITHUB_OUTPUT"
 
           # NOTE(mainred): As exporting a variable from a secret is not possible, the shared variable registry obtained
           # from AZURE_REGISTRY secret is not exported from here.
@@ -67,6 +81,7 @@ jobs:
           TAG: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
           HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
+          HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
           MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
           MCS_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
           NET_CRD_INSTALLER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-amd64
@@ -118,9 +133,9 @@ jobs:
         run: |
           sudo groupadd docker || true
           echo "Adding $USER to the docker group"
-          sudo usermod -aG docker $USER
+          sudo usermod -aG docker "$USER"
           newgrp docker
-          sudo setfacl --modify user:$USER:rw /var/run/docker.sock 
+          sudo setfacl --modify "user:$USER:rw" /var/run/docker.sock
       - name: 'Login the ACR'
         run: |
           az login --identity 
@@ -136,6 +151,7 @@ jobs:
           TAG: ${{ needs.prepare-variables.outputs.release_tag }}
           REGISTRY: ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}
           HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-arm64
+          HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-arm64
           MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-arm64
           MCS_CONTROLLER_MANAGER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-arm64
           NET_CRD_INSTALLER_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.release_tag }}-arm64
@@ -170,6 +186,24 @@ jobs:
           -t ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-net-controller-manager:${{ needs.prepare-variables.outputs.release_tag }} \
           ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-net-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-amd64 \
           ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-net-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-arm64
+    - name: 'Pull the Gateway controller images from ACR'
+      if: needs.prepare-variables.outputs.gateway_image == 'true'
+      run: |
+        docker pull --platform linux/amd64 ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-amd64
+        docker pull --platform linux/arm64 ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-arm64
+    - name: 'Create and push multi-arch image manifests for the Gateway controller image'
+      if: needs.prepare-variables.outputs.gateway_image == 'true'
+      run: |
+        docker buildx imagetools create \
+          -t ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }} \
+          ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-amd64 \
+          ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }}-arm64
+    - name: 'Verify both Linux architectures in the Gateway image manifest'
+      if: needs.prepare-variables.outputs.gateway_image == 'true'
+      run: |
+        docker buildx imagetools inspect --raw \
+          ${{ secrets.AZURE_REGISTRY }}/${{ env.REGISTRY_REPO}}/hub-gateway-controller-manager:${{ needs.prepare-variables.outputs.release_tag }} \
+          | jq -e '[.manifests[].platform | select(.os == "linux" and (.architecture == "amd64" or .architecture == "arm64")) | .architecture] | sort == ["amd64", "arm64"]'
     - name: 'Pull the member networking agent images from ACR'
       # Note (chenyu1): must set the target platform explictly.
       run: |

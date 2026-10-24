@@ -81,6 +81,12 @@ Before enabling AFD, the platform operator must:
    Kubernetes RBAC does not grant Azure access; credential construction is not an
    authentication/authorization proof. Use an exclusively controller-managed
    profile; sequential ARM reads do not exclude competing external writers.
+   The hub identity also needs `Microsoft.Network/privateLinkServices/read` on
+   each linked member PLS. AFD resource-group permissions do not cover those
+   linked resources. An authorized platform owner can grant Reader at each
+   actual PLS resource scope once it exists, before origin provisioning; the
+   chart does not create these Azure role assignments. This is distinct from
+   member discovery permissions and does not authorize connection approval.
 4. Enable member `enablePrivateLinkOriginDiscovery` explicitly, independently of
    Traffic Manager, with its required Azure read permissions. The corresponding
    binary flag is `--enable-private-link-origin-discovery=true`; see the existing
