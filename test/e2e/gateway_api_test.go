@@ -8,10 +8,12 @@ Licensed under the MIT license.
 package e2e
 
 import (
+	"os"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -24,7 +26,7 @@ import (
 
 const gatewayControllerName = gatewayv1.GatewayController("networking.fleet.azure.com/afd")
 
-// This suite validates the live API contract only; AFD reconciliation is not implemented yet.
+// The optional controller checks use synthetic backends, not real AFD traffic.
 var _ = Describe("Gateway API contract", Ordered, func() {
 	var (
 		backendNamespace string
@@ -78,30 +80,16 @@ var _ = Describe("Gateway API contract", Ordered, func() {
 		return serviceImport
 	}
 
-	annotateServiceImport := func(key types.NamespacedName, desired map[string]string) {
-		GinkgoHelper()
-		Eventually(func() error {
-			serviceImport := &fleetnetv1alpha1.ServiceImport{}
-			if err := hubCluster.Client().Get(ctx, key, serviceImport); err != nil {
-				return err
-			}
-			if serviceImport.Annotations == nil {
-				serviceImport.Annotations = make(map[string]string, len(desired))
-			}
-			for annotation, value := range desired {
-				serviceImport.Annotations[annotation] = value
-			}
-			return hubCluster.Client().Update(ctx, serviceImport)
-		}, framework.PollTimeout, framework.PollInterval).Should(Succeed(), "Failed to annotate ServiceImport %s", key)
-	}
-
 	BeforeAll(func() {
 		backendNamespace = framework.UniqueTestNamespace()
 		gatewayClassName = "afd-" + backendNamespace
 		createWithCleanup(framework.Namespace(backendNamespace))
 	})
 
-	It("round-trips Gateway API resources with Fleet ServiceImport backends", func() {
+	DescribeTable("Fleet ServiceImport backends", func(checkControllers bool) {
+		if checkControllers && os.Getenv("ENABLE_GATEWAY_API") != "true" {
+			Skip("Set ENABLE_GATEWAY_API=true and run the hub Gateway manager to check controller status")
+		}
 		gatewayClass := framework.GatewayClass(gatewayClassName, gatewayControllerName)
 		createWithCleanup(gatewayClass)
 
@@ -111,18 +99,12 @@ var _ = Describe("Gateway API contract", Ordered, func() {
 		gateway := framework.Gateway(testNamespace, gatewayName, gatewayClassName, "store.example.com", gatewayAnnotations)
 		createWithCleanup(gateway)
 
-		serviceImportAnnotations := map[string]string{
-			annotations.AFDOriginConnectivityAnnotation: string(annotations.ConnectivityPrivateLink),
-			annotations.AFDHealthProbePathAnnotation:    "/healthz",
-			annotations.AFDOriginHostHeaderAnnotation:   "store.internal.example.com",
-		}
 		sameNamespaceExport := framework.InternalServiceExport(
 			testNamespace, "store-same-export", testNamespace, "store-same", memberClusterNames[0], 8080,
 		)
 		createExportWithCleanup(sameNamespaceExport)
 		sameNamespaceServiceImportKey := types.NamespacedName{Namespace: testNamespace, Name: "store-same"}
 		sameNamespaceServiceImport := waitForServiceImport(sameNamespaceServiceImportKey)
-		annotateServiceImport(sameNamespaceServiceImportKey, serviceImportAnnotations)
 
 		crossNamespaceExport := framework.InternalServiceExport(
 			backendNamespace, "store-cross-export", backendNamespace, "store-cross", memberClusterNames[1], 8080,
@@ -130,7 +112,6 @@ var _ = Describe("Gateway API contract", Ordered, func() {
 		createExportWithCleanup(crossNamespaceExport)
 		crossNamespaceServiceImportKey := types.NamespacedName{Namespace: backendNamespace, Name: "store-cross"}
 		crossNamespaceServiceImport := waitForServiceImport(crossNamespaceServiceImportKey)
-		annotateServiceImport(crossNamespaceServiceImportKey, serviceImportAnnotations)
 
 		sameNamespaceRoute := framework.HTTPRouteToFleetServiceImport(
 			testNamespace, "store-same", gatewayName, "", sameNamespaceServiceImport.Name, 8080, 70,
@@ -185,7 +166,7 @@ var _ = Describe("Gateway API contract", Ordered, func() {
 		)).To(Succeed())
 		assertFleetServiceImportBackend(gotCrossNamespaceRoute, gatewayName, backendNamespace, crossNamespaceServiceImport.Name, 8080, 30)
 
-		By("validating the Fleet ServiceImport API version and annotations")
+		By("validating the Fleet ServiceImport API version without customer AFD annotations")
 		var serviceImportCRD apiextensionsv1.CustomResourceDefinition
 		Expect(hubCluster.Client().Get(
 			ctx,
@@ -201,10 +182,15 @@ var _ = Describe("Gateway API contract", Ordered, func() {
 
 		var gotServiceImport fleetnetv1alpha1.ServiceImport
 		Expect(hubCluster.Client().Get(ctx, crossNamespaceServiceImportKey, &gotServiceImport)).To(Succeed())
-		for annotation, value := range serviceImportAnnotations {
-			Expect(gotServiceImport.Annotations).To(HaveKeyWithValue(annotation, value))
+		Expect(annotations.ValidateServiceImportAnnotations(gotServiceImport.Annotations)).To(Succeed())
+		Expect(annotations.ValidateServiceImportAnnotations(sameNamespaceServiceImport.Annotations)).To(Succeed())
+		if checkControllers {
+			assertGatewayControlPlane(gatewayClass, gateway, sameNamespaceRoute, crossNamespaceRoute, referenceGrant)
 		}
-	})
+	},
+		Entry("API round trips", false),
+		Entry("controller status and grant revocation", true),
+	)
 })
 
 func assertFleetServiceImportBackend(
