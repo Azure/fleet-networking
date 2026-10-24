@@ -10,22 +10,38 @@ plan for the direct-origin architecture described in
 `LoadBalancer` `Service` -> Azure Private Link Service (PLS) -> Azure Front Door (AFD) Premium
 with optional Web Application Firewall (WAF).
 
-> **Implementation status:** PR #400 is a controller foundation. Its manager validates AFD
-> configuration but deliberately registers no Gateway or Azure reconcilers. The resource mappings,
-> admission policy, support targets, and tests in this document are requirements for subsequent
-> implementation; they are not claims about behavior in the current PR.
+This is the **Zero-Public-Exposure Ingress** product topology: AFD Premium is the
+public edge, while all member origins are private. AFD Standard and public member
+origins are not supported. Customers do not configure generated ServiceImports.
+Private Link approval is asynchronous; manual authorized approval is the initial
+workflow, with automation an open action item for the AFD and PLS teams.
+
+> **Implementation status:** The enabled manager reconciles GatewayClass, Gateway and HTTPRoute
+> configuration/status, but does not provision Azure resources. The backend-only planner validates
+> private origin inventory and shared-target HTTP-port safety. Full route/rule/domain lowering,
+> Azure lifecycle and measured support targets remain subsequent work, not current capabilities.
+
+The Gateway's pure backend preflight tests the provisional 100-origin-group,
+160-total-origin and 40-origins-per-group boundaries, counting distinct
+ServiceImport ports separately. It also rejects different HTTP ports sharing one
+PLS/Private Link region in a profile. This is status evaluation, not API admission
+or Azure mutation; `Programmed` remains false.
+Generated AFD route/rule/domain accounting and measured scale remain outstanding.
+Backend request construction uses the stable AFD SDK/API and is covered by
+serialized private-origin/probe request fixtures. It still performs no Azure
+mutation and does not validate region availability, routing behavior or throughput.
 
 ```mermaid
 flowchart LR
-    subgraph Hub["Fleet hub cluster - planned control plane"]
-        GC["GatewayClass<br/>fleet-azure-frontdoor"]
+    subgraph Hub["Fleet hub cluster - control plane"]
+        GC["GatewayClass<br/>azure-fleet-afd"]
         GW["Gateway"]
         HR["HTTPRoute"]
         RG["ReferenceGrant"]
         SI["ServiceImport"]
         ISE["InternalServiceExport<br/>per service and member"]
         MODEL["Normalized GlobalGateway<br/>and capacity preflight"]
-        CTRL["Gateway and AFD reconcilers<br/>not yet registered in PR #400"]
+        CTRL["Gateway reconcilers registered when enabled<br/>Azure provider not yet implemented"]
 
         GC --> GW
         GW --> HR
@@ -43,7 +59,7 @@ flowchart LR
         ENDPOINT["AFD endpoint"]
         DOMAIN["Domains, routes,<br/>rules and certificates"]
         WAF["Optional WAF<br/>security policy"]
-        OG["Origin group<br/>one per ServiceImport"]
+        OG["Origin group<br/>one per ServiceImport port"]
         ORIGIN["Origin<br/>one per member export"]
         MPE["AFD-managed<br/>private endpoint"]
 
@@ -101,18 +117,18 @@ the owning Azure service teams review the resulting ARM and data-plane measureme
 
 ## Comprehensive limits summary
 
-`S_g`, `C_s`, `O_g`, `R_g`, `D_g`, `Q_g`, `P_s`, and `E_m` are defined in
+`S_g`, `B_g`, `C_s`, `O_g`, `R_g`, `D_g`, `Q_g`, `P_s`, and `E_m` are defined in
 [Capacity model](#capacity-model). Limits apply independently; a topology fits only if it satisfies
 every applicable row.
 
 | Component/resource | Quota scope | Documented limit or behavior | PR consumption model | Proposed target | Exhaustion symptom | Split or mitigation | Source |
 |---|---|---|---|---|---|---|---|
-| AFD Standard/Premium profiles | Subscription | 500 profiles | One profile per managed `Gateway` | Keep all managed and unmanaged profiles below 80% of quota | Profile creation fails | Use another subscription for a separate failure and quota domain | [AFD limits] |
+| AFD Premium profiles | Subscription | 500 profiles | One Premium profile per managed `Gateway`; include other SKUs when accounting for shared quota | Keep all managed and unmanaged profiles below 80% of quota | Profile creation fails | Use another subscription for a separate failure and quota domain | [AFD limits] |
 | AFD endpoints | Profile | 25 endpoints | Initial design uses one endpoint per `Gateway` | One managed endpoint per profile | Endpoint creation fails | A new `Gateway` creates another profile; do not add endpoints merely to bypass origin limits | [AFD limits] |
 | AFD custom domains | Profile | 500 domains | At most one domain per unique attached listener/route hostname; `D_g` after deduplication | `D_g <= 160` until hostname and certificate convergence is tested higher | Domain or association creation fails; certificate rollout stalls | Split domains across Gateways/profiles by tenant, environment, or portfolio | [AFD limits] |
-| AFD origin groups | Profile | 200 origin groups | One origin group per distinct referenced `ServiceImport`; `S_g` | `S_g <= 100` | New service backend cannot be programmed | Create another Gateway/profile for different services | [AFD limits] |
+| AFD origin groups | Profile | 200 origin groups | One origin group per distinct referenced `ServiceImport` namespace/name/port; `B_g` | `B_g <= 100` | New service-port backend cannot be programmed | Create another Gateway/profile for different services | [AFD limits] |
 | AFD origins | Origin group | 50 origins | One origin per contributing member cluster; `C_s` | `C_s <= 40` | A service cannot add another member-cluster origin | A new profile does **not** help the same service; change topology or explicitly partition the service | [AFD limits] |
-| AFD origins | Profile | 200 origins | `O_g = sum(C_s)` over distinct ServiceImport-cluster pairs | `O_g <= 160` | Profile cannot add an origin even if each group is below 50 | Move independent services to another Gateway/profile | [AFD limits] |
+| AFD origins | Profile | 200 origins | `O_g = sum(C_s)` over distinct ServiceImport-port groups; a member consumes an origin in each referenced port group | `O_g <= 160` | Profile cannot add an origin even if each group is below 50 | Move independent services to another Gateway/profile | [AFD limits] |
 | AFD routes | Profile | 200 routes | `R_g` generated after listener, hostname, match, and backend expansion | `R_g <= 160` | Route programming fails or only part of desired routing can be represented | Reject before mutation; split route portfolios across profiles | [AFD limits] |
 | AFD composite routing metric | Profile | 5,000, calculated per route as `(HTTP domains * HTTP paths) + (HTTPS domains * HTTPS paths)` and summed across routes | `Q_g` from the exact generated AFD routes, domains, protocols, and paths | `Q_g <= 4,000` | A profile with individually valid route/domain counts is rejected | Prefer HTTPS, wildcard domains where ownership permits, or split route portfolios across profiles | [AFD routing limits] |
 | AFD rule sets | Profile | 200 rule sets | Depends on provider lowering of `HTTPRoute` filters and policies | At most 160 generated rule sets; prefer reuse and deterministic deduplication | Filter/policy changes cannot be programmed | Deduplicate rules; move independent routes to another profile | [AFD limits] |
@@ -124,9 +140,9 @@ every applicable row.
 | AFD WebSockets | Profile | 3,000 concurrent connections by default | All WebSocket routes in a Gateway/profile share the limit | Do not claim WebSocket scale until separately tested | New or existing connections fail | Dedicated profile and support review for WebSocket workloads | [AFD limits] |
 | AFD Private Link protection | Profile and AFD regional cluster | 7,200 requests/second | Private-origin traffic routed through the same AFD regional cluster shares protection capacity | Alert at 70%; validate region placement and request distribution | HTTP 429 from AFD Private Link protection | Use supported Private Link regions near origins; distribute independent origins/profiles; engage AFD for higher scale | [AFD Private Link] |
 | AFD managed private endpoints | Profile + resource ID + group ID + Private Link region tuple | One managed private endpoint is created or reused for each unique tuple | Reusing one PLS tuple within one profile avoids duplicates; another profile creates another approval lifecycle | Minimize unique tuples and track approval state explicitly | Pending approval, duplicate approvals, slow convergence | Standardize PLS and region metadata; automate owner notification, not approval bypass | [AFD Private Link] |
-| Public/private origin mixing | Origin group | Public and private origins cannot coexist in one origin group | Every member origin for one `ServiceImport` must use a compatible connectivity mode | Require a homogeneous connectivity mode per `ServiceImport` attachment | Origin group cannot be represented | Reject mixed topology or migrate all origins before switching mode | [AFD Private Link] |
+| Private-only origin policy | Origin group | Public and private origins cannot coexist in one origin group | Every member origin must use Private Link | Reject public or mixed topology; no connectivity selector | Origin group cannot be represented | Fix missing or invalid private-origin discovery; never fall back to public | [AFD Private Link] |
 | WAF policies | Subscription | 100 policies | Policies may be shared or dedicated by tenant/security boundary | Keep managed and unmanaged policies below 80% of quota | WAF policy creation fails | Reuse only across the same owner and security lifecycle; otherwise split subscriptions | [Azure networking limits] |
-| AFD health probes | Origin and AFD edge location | Each edge location can probe an origin; approximate probes per minute are `active edge locations * 60 / interval` | Probe load grows with `O_g`, active regions, and probe frequency | Use `HEAD`, a dedicated constant-time path, and no interval shorter than justified by the SLO; disable probes for a single-origin group unless monitoring value justifies them | Origin CPU/network load, false unhealthy state, control-loop instability | Increase interval, optimize endpoint, and capacity-test probes separately from user traffic | [AFD health probes] |
+| AFD health probes | Origin and AFD edge location | Each edge location can probe an origin; approximate probes per minute are `active edge locations * 60 / interval` | Probe load grows with `O_g`, active regions, and probe frequency | Approved preview policy is HTTP GET `/` every 30 seconds; measure aggregate load before changing policy | Origin CPU/network load, false unhealthy state, control-loop instability | Optimize endpoint and capacity-test probes separately; HEAD/dedicated-path tuning requires a separately reviewed platform policy | [AFD health probes] |
 | AFD origin health | Origin group | Only HTTP 200 is healthy; when all origins are unhealthy AFD round-robins across all origins | Application and network failure can produce fail-open-like distribution to unhealthy origins | Alert on all-origin-unhealthy and make probes representative | Requests continue to unhealthy origins instead of failing closed | Provide application-level overload protection and test total-origin failure | [AFD health probes] |
 | Private endpoint connections | PLS | 1,000 connections | Each AFD profile referencing the PLS can create a separate managed private endpoint connection | Keep below 800 and reserve capacity for migration and diagnostics | New private endpoint connection cannot be approved/created | Allocate another PLS/frontend or cluster; remove stale connections | [Azure networking limits] |
 | PLS resources | Standard Load Balancer | 8 PLS resources | Normally one PLS-backed exported `LoadBalancer` Service consumes one frontend and one PLS; `E_m` | `E_m <= 6` per shared Load Balancer for the direct private-origin design | Seventh-to-ninth tenant/service collides with migration or hard quota | Use a dedicated cluster/Load Balancer where production multiple-SLB support is unavailable, or adopt a reviewed shared-ingress topology | [Azure networking limits] |
@@ -160,7 +176,7 @@ every applicable row.
 flowchart TB
     SUB["Azure subscription"]
     SUB --> G["G Gateways<br/>G AFD profiles"]
-    G --> SG["Per profile: S_g ServiceImports<br/>target 100, hard 200 origin groups"]
+    G --> SG["Per profile: B_g ServiceImport ports<br/>target 100, hard 200 origin groups"]
     G --> OG["Per profile: O_g = sum(C_s) origins<br/>target 160, hard 200"]
     G --> RG["Per profile: R_g routes<br/>target 160, hard 200"]
     G --> DG["Per profile: D_g domains<br/>target 160, hard 500"]
@@ -183,8 +199,10 @@ For each managed Gateway `g` and referenced ServiceImport `s`:
 
 - `G`: number of managed Gateways and therefore AFD profiles.
 - `S_g`: number of distinct ServiceImports referenced by accepted routes attached to Gateway `g`.
+- `B_g`: number of distinct ServiceImport namespace/name/port backends; `B_g >= S_g`.
+  Each consumes an origin group because the destination HTTP port is fixed per AFD origin.
 - `C_s`: number of member clusters currently contributing an eligible origin to ServiceImport `s`.
-- `O_g = sum(C_s)`: number of distinct ServiceImport-cluster origin pairs resolved by Gateway `g`.
+- `O_g = sum(C_s)` over the `B_g` backend groups: number of distinct ServiceImport-port-cluster origins resolved by Gateway `g`.
   If multiple routes reference the same ServiceImport and port, the provider must deduplicate the
   origin group and origins rather than count them again.
 - `R_g`: number of AFD routes generated after listener, hostname, match, filter, and backend
@@ -203,7 +221,7 @@ The direct private-origin model must satisfy at least:
 
 ```text
 For every ServiceImport s:  C_s <= 50 hard, <= 40 proposed supported
-For every Gateway g:        S_g <= 200 hard, <= 100 proposed supported
+For every Gateway g:        B_g <= 200 hard, <= 100 proposed supported
                               O_g <= 200 hard, <= 160 proposed supported
                               R_g <= 200 hard, <= 160 proposed supported
                               D_g <= 500 hard, <= 160 proposed supported
@@ -225,8 +243,8 @@ Private Link regions, and traffic.
 | One managed `Gateway` | One AFD Premium profile and one endpoint | Adds one independent profile quota and blast-radius boundary |
 | Unique listener/route hostname | AFD custom domain and route association | Consumes domain, route, certificate, and possibly security-policy capacity |
 | Generated route representation | AFD route and optionally rule set/rules | Expansion can make `R_g` larger than the `HTTPRoute` count |
-| One distinct `ServiceImport` referenced by a Gateway | One AFD origin group | Consumes `S_g`; references from multiple routes must be deduplicated |
-| One eligible member cluster in that ServiceImport | One AFD origin | Consumes both `C_s` and `O_g` |
+| One distinct `ServiceImport` namespace/name/port referenced by a Gateway | One AFD origin group | Consumes `B_g`; references from multiple routes must be deduplicated |
+| One eligible member cluster in that ServiceImport-port group | One AFD origin | Consumes both `C_s` and `O_g`; a second port consumes another origin |
 | One private member backend | Internal LB frontend and PLS | Consumes cluster LB, PLS, subnet, private endpoint, and ARM capacity |
 | Another AFD profile referencing the same PLS | Another profile-scoped managed private endpoint lifecycle | Does not consume another PLS resource but does consume another PLS connection and approval |
 
@@ -239,8 +257,8 @@ resources, unrelated subscription resources, and delayed cleanup.
 | Dimension controlled by this integration | Proposed supported value | Hard ceiling | Required behavior |
 |---|---:|---:|---|
 | Contributing member clusters per attached ServiceImport (`C_s`) | 40 | 50 AFD origins/origin group | Reject attachment before ARM mutation when the resolved set exceeds 40 |
-| Resolved ServiceImport-cluster pairs per Gateway (`O_g`) | 160 | 200 AFD origins/profile | Reject the new/changed attachment atomically; preserve last known good profile |
-| Distinct referenced ServiceImports per Gateway (`S_g`) | 100 | 200 AFD origin groups/profile | Enforce together with `O_g`; do not advertise 100 if route expansion exceeds another limit |
+| Resolved ServiceImport-port-cluster origins per Gateway (`O_g`) | 160 | 200 AFD origins/profile | Reject the new/changed attachment atomically; preserve last known good profile |
+| Distinct referenced ServiceImport ports per Gateway (`B_g`) | 100 | 200 AFD origin groups/profile | Enforce together with `O_g`; 100 ServiceImports is possible only when each contributes one referenced port |
 | Generated AFD routes per Gateway (`R_g`) | 160 | 200 AFD routes/profile | Compute from normalized desired state before Azure writes |
 | Unique generated custom domains per Gateway (`D_g`) | 160 | 500 AFD domains/profile | Retain conservative certificate and association convergence headroom |
 | AFD composite routing metric per Gateway (`Q_g`) | 4,000 | 5,000 | Calculate from the exact generated domain, protocol, and path associations |
@@ -260,6 +278,9 @@ latency, response size, and traffic geography determine the actual envelope. Tra
 be published only after the data-plane tests below.
 
 ## Worked examples
+
+These examples assume one referenced port per ServiceImport (`B_g = S_g`).
+Referencing another port consumes another origin group and its member origins.
 
 ### Same 200-origin hard limit, different service layouts
 
@@ -330,11 +351,11 @@ watch fan-out, ARM update duration, probe load, failover behavior, and origin co
 ### One hundred ServiceImports and 160 origins per Gateway
 
 AFD allows 200 origin groups, 200 origins, and 200 routes per profile. A 160-origin target reserves
-20% of the tightest aggregate quota. Limiting distinct ServiceImports to 100 provides additional
+20% of the tightest aggregate quota. Limiting distinct ServiceImport ports to 100 provides additional
 space for route expansion, policy associations, portfolio growth, and blue-green movement while
 still supporting the common two-origin-per-service layout at 80 services.
 
-`S_g <= 100` does not supersede `O_g <= 160`. A profile with 100 services at two clusters each is
+`B_g <= 100` does not supersede `O_g <= 160`. With one port per service, a profile with 100 services at two clusters each is
 over capacity, while 80 services at two clusters each fits exactly.
 
 ### Six private exported Services per member shared Load Balancer
@@ -537,9 +558,12 @@ rather than hard-code this estimate. At 30 seconds, each active edge can produce
 probes per origin per minute. Multiplying by 160 origins can create meaningful always-on traffic
 before any user request arrives.
 
-Use `HEAD`, avoid authentication and expensive dependency fan-out, return HTTP 200 only when the
+The approved HTTP preview uses GET `/` every 30 seconds, not a customer-selected path.
+Avoid authentication and expensive dependency fan-out, return HTTP 200 only when the
 origin should receive traffic, and test regional and all-origin failure. Because AFD routes across
 all origins when all are unhealthy, overload controls and application retries remain necessary.
+HEAD or dedicated-path tuning requires a separate platform-policy review rather than a new
+ServiceImport annotation.
 
 ### Churn and failure storms
 
@@ -837,9 +861,9 @@ controller gate, not an Azure propagation SLO.
   supported cardinalities.
 - Decide the exact lowering of `HTTPRoute` matches and filters so `R_g`, rule-set, and rule counts
   are deterministic before admission.
-- Confirm whether one ServiceImport referenced on multiple ports requires one origin group per
-  service or per service-port in the provider representation. If per-port, replace `S_g` with the
-  number of unique ServiceImport-port tuples and reduce the published service envelope.
+- Verify provider fixtures and live programming preserve the selected per-service-port origin
+  groups and deduplication. Backend preflight now counts `B_g`, not just `S_g`, with exact
+  100-group/160-origin/40-origins-per-group tests; the public support envelope remains provisional.
 - Validate the actual Standard Load Balancer backend IP configuration accounting for the selected
   AKS backend-pool mode instead of relying only on `P_s * N_m` planning multiplication.
 - Measure PLS NAT IP/SNAT requirements for expected request concurrency and connection reuse.
