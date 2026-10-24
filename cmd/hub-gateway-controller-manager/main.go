@@ -29,6 +29,10 @@ import (
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/gateway"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayclass"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayresolver"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/httproute"
 )
 
 var (
@@ -38,7 +42,7 @@ var (
 	enableLeaderElection    = flag.Bool("leader-elect", true, "Enable leader election for the controller manager.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace used for leader election.")
 
-	enableAFD        = flag.Bool("enable-afd", false, "Enable Azure Front Door reconciliation.")
+	enableAFD        = flag.Bool("enable-afd", false, "Enable Gateway API reconciliation and AFD Premium private HTTP provisioning, observation and owned cleanup; enabling performs Azure writes.")
 	cloudConfigFile  = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The Azure cloud configuration file.")
 	afdResourceGroup = flag.String("afd-resource-group", "", "The resource group in which the controller manages Azure Front Door resources.")
 )
@@ -83,29 +87,27 @@ type managerOptions struct {
 	afdResourceGroup        string
 }
 
-type controllerManager interface {
-	AddHealthzCheck(string, healthz.Checker) error
-	AddReadyzCheck(string, healthz.Checker) error
-	Start(context.Context) error
-}
-
 type dependencies struct {
-	getConfig     func() *rest.Config
-	newManager    func(*rest.Config, ctrl.Options) (controllerManager, error)
-	signalHandler func() context.Context
-	loadAFDConfig func(string, string) (*azure.CloudConfig, error)
-	newScheme     func() (*runtime.Scheme, error)
+	getConfig        func() *rest.Config
+	newManager       func(*rest.Config, ctrl.Options) (ctrl.Manager, error)
+	signalHandler    func() context.Context
+	loadAFDConfig    func(string, string) (*azure.CloudConfig, error)
+	newScheme        func() (*runtime.Scheme, error)
+	newAFDProviders  func(*azure.CloudConfig, string) (afdProviders, error)
+	setupControllers func(context.Context, ctrl.Manager, afdProviders) error
 }
 
 func productionDependencies() dependencies {
 	return dependencies{
 		getConfig: ctrl.GetConfigOrDie,
-		newManager: func(config *rest.Config, options ctrl.Options) (controllerManager, error) {
+		newManager: func(config *rest.Config, options ctrl.Options) (ctrl.Manager, error) {
 			return ctrl.NewManager(config, options)
 		},
-		signalHandler: ctrl.SetupSignalHandler,
-		loadAFDConfig: loadAFDConfiguration,
-		newScheme:     newScheme,
+		signalHandler:    ctrl.SetupSignalHandler,
+		loadAFDConfig:    loadAFDConfiguration,
+		newScheme:        newScheme,
+		newAFDProviders:  initAzureProviders,
+		setupControllers: setupControllers,
 	}
 }
 
@@ -115,13 +117,19 @@ func run(options managerOptions, deps dependencies) error {
 		return fmt.Errorf("register controller schemes: %w", err)
 	}
 
+	var providers afdProviders
 	if options.enableAFD {
-		if _, err := deps.loadAFDConfig(options.cloudConfigFile, options.afdResourceGroup); err != nil {
+		cloudConfig, err := deps.loadAFDConfig(options.cloudConfigFile, options.afdResourceGroup)
+		if err != nil {
 			return fmt.Errorf("load Azure Front Door configuration: %w", err)
 		}
-		// The feature flag intentionally performs configuration validation only
-		// until the Gateway reconcilers are introduced in the next slice.
-		klog.InfoS("Azure Front Door configuration is valid; no reconcilers are registered in the foundation release")
+		providers, err = deps.newAFDProviders(cloudConfig, options.afdResourceGroup)
+		if err != nil {
+			return fmt.Errorf("initialize Azure Front Door providers: %w", err)
+		}
+		if err := providers.validate(); err != nil {
+			return err
+		}
 	} else {
 		klog.InfoS("Azure Front Door reconciliation is disabled")
 	}
@@ -140,6 +148,14 @@ func run(options managerOptions, deps dependencies) error {
 		return fmt.Errorf("create hub Gateway controller manager: %w", err)
 	}
 
+	ctx := deps.signalHandler()
+	if options.enableAFD {
+		if err := deps.setupControllers(ctx, mgr, providers); err != nil {
+			return fmt.Errorf("register Gateway controllers: %w", err)
+		}
+		klog.InfoS("Gateway private HTTP reconciliation, origin observation and owned AFD cleanup registered; Private Link approval is asynchronous")
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		return fmt.Errorf("set up health check: %w", err)
 	}
@@ -148,10 +164,38 @@ func run(options managerOptions, deps dependencies) error {
 	}
 
 	klog.InfoS("Starting hub Gateway controller manager")
-	if err := mgr.Start(deps.signalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		return fmt.Errorf("start hub Gateway controller manager: %w", err)
 	}
 	return nil
+}
+
+func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProviders) error {
+	if err := providers.validate(); err != nil {
+		return err
+	}
+	if err := gatewayresolver.SetupIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
+		return fmt.Errorf("register dependency indexes: %w", err)
+	}
+	controllers := []struct {
+		name  string
+		setup func(ctrl.Manager) error
+	}{
+		{"GatewayClass", (&gatewayclass.Reconciler{Client: mgr.GetClient()}).SetupWithManager},
+		{"Gateway", (&gateway.Reconciler{
+			Client: mgr.GetClient(), APIReader: mgr.GetAPIReader(), ProfileCleanup: providers.cleanup,
+			OriginObserver:  providers.observer,
+			HTTPProvisioner: providers.provisioner,
+			Recorder:        mgr.GetEventRecorderFor("gateway"),
+		}).SetupWithManager},
+		{"HTTPRoute", (&httproute.Reconciler{Client: mgr.GetClient()}).SetupWithManager},
+	}
+	for _, controller := range controllers {
+		if err := controller.setup(mgr); err != nil {
+			return fmt.Errorf("register %s reconciler: %w", controller.name, err)
+		}
+	}
+	return registerGatewayCacheReadiness(ctx, mgr)
 }
 
 func newScheme() (*runtime.Scheme, error) {

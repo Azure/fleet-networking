@@ -18,10 +18,16 @@ import (
 
 const (
 	fleetNetworkingPrefix = "networking.fleet.azure.com/"
+
+	// GatewayAPIControllerName identifies Fleet's Azure Front Door Gateway controller.
+	GatewayAPIControllerName = fleetNetworkingPrefix + "afd"
 )
 
 // Finalizers
 const (
+	// GatewayAFDCleanupFinalizer retains a Gateway until its owned AFD profile is observed absent.
+	GatewayAFDCleanupFinalizer = fleetNetworkingPrefix + "afd-cleanup"
+
 	// InternalServiceExportFinalizer is the finalizer InternalServiceExport controllers adds to mark that a
 	// InternalServiceExport can only be deleted after both ServiceImport label and ServiceExport conflict resolution
 	// result have been updated.
@@ -65,6 +71,11 @@ const (
 	// ServiceAnnotationLoadBalancerResourceGroup is the annotation used on the service to specify the resource group of
 	// load balancer objects that are not in the same resource group as the cluster.
 	ServiceAnnotationLoadBalancerResourceGroup = "service.beta.kubernetes.io/azure-load-balancer-resource-group"
+
+	// ServiceAnnotationPLSResourceGroup overrides the resource group for the Service's PLS.
+	ServiceAnnotationPLSResourceGroup = "service.beta.kubernetes.io/azure-pls-resource-group"
+	// ServiceAnnotationPLSName is the requested name of the Service's PLS.
+	ServiceAnnotationPLSName = "service.beta.kubernetes.io/azure-pls-name"
 
 	// ServiceAnnotationAzureDNSLabelName is the annotation used on the service to Specify the DNS label name for the
 	// service’s public IP address (PIP). If it is set to empty string, DNS in PIP would be deleted. Because of a bug,

@@ -6,6 +6,7 @@ Licensed under the MIT license.
 package annotations
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -16,95 +17,112 @@ func TestParseGatewayConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		defaultSKU  SKU
 		want        GatewayConfig
 		wantErr     string
 	}{
 		{
-			name:       "uses controller default",
-			defaultSKU: SKUPremium,
-			want: GatewayConfig{
-				SKU: SKUPremium,
-			},
+			name: "defaults to Premium without annotations",
+			want: GatewayConfig{SKU: SKUPremium},
 		},
 		{
-			name: "parses explicit supported values",
+			name:        "defaults to Premium with empty annotations",
+			annotations: map[string]string{},
+			want:        GatewayConfig{SKU: SKUPremium},
+		},
+		{
+			name: "accepts explicit Premium and existing WAF policy",
 			annotations: map[string]string{
-				AFDSKUAnnotation:         string(SKUStandard),
+				AFDSKUAnnotation:         string(SKUPremium),
 				AFDWAFPolicyIDAnnotation: validWAFPolicyID,
 			},
-			defaultSKU: SKUStandard,
-			want: GatewayConfig{
-				SKU:         SKUStandard,
-				WAFPolicyID: validWAFPolicyID,
-			},
+			want: GatewayConfig{SKU: SKUPremium, WAFPolicyID: validWAFPolicyID},
 		},
 		{
-			name: "rejects invalid explicit SKU",
+			name: "rejects Standard rather than upgrading silently",
+			annotations: map[string]string{
+				AFDSKUAnnotation: "Standard_AzureFrontDoor",
+			},
+			wantErr: AFDSKUAnnotation,
+		},
+		{
+			name: "rejects empty explicit SKU",
+			annotations: map[string]string{
+				AFDSKUAnnotation: "",
+			},
+			wantErr: AFDSKUAnnotation,
+		},
+		{
+			name: "rejects misspelled explicit SKU",
 			annotations: map[string]string{
 				AFDSKUAnnotation: "premium",
 			},
-			defaultSKU: SKUStandard,
-			wantErr:    AFDSKUAnnotation,
-		},
-		{
-			name:       "rejects invalid controller default",
-			defaultSKU: SKU("invalid"),
-			wantErr:    "default SKU",
+			wantErr: AFDSKUAnnotation,
 		},
 		{
 			name: "rejects malformed WAF resource ID",
 			annotations: map[string]string{
 				AFDWAFPolicyIDAnnotation: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/notWaf/name",
 			},
-			defaultSKU: SKUPremium,
-			wantErr:    AFDWAFPolicyIDAnnotation,
+			wantErr: AFDWAFPolicyIDAnnotation,
+		},
+		{
+			name: "rejects invalid WAF subscription GUID",
+			annotations: map[string]string{
+				AFDWAFPolicyIDAnnotation: strings.Replace(validWAFPolicyID, "00000000-0000-0000-0000-000000000000", "invalid", 1),
+			},
+			wantErr: AFDWAFPolicyIDAnnotation,
+		},
+		{
+			name: "rejects missing WAF policy name",
+			annotations: map[string]string{
+				AFDWAFPolicyIDAnnotation: strings.TrimSuffix(validWAFPolicyID, "store-waf"),
+			},
+			wantErr: AFDWAFPolicyIDAnnotation,
 		},
 		{
 			name: "rejects reserved resource group override",
 			annotations: map[string]string{
 				AFDResourceGroupAnnotation: "application-rg",
 			},
-			defaultSKU: SKUPremium,
-			wantErr:    AFDResourceGroupAnnotation,
+			wantErr: AFDResourceGroupAnnotation,
 		},
 		{
 			name: "rejects unknown reserved annotation",
 			annotations: map[string]string{
 				annotationPrefix + "afd-skku": "Premium_AzureFrontDoor",
 			},
-			defaultSKU: SKUPremium,
-			wantErr:    annotationPrefix + "afd-skku",
+			wantErr: annotationPrefix + "afd-skku",
 		},
 		{
 			name: "rejects backend annotation on Gateway",
 			annotations: map[string]string{
-				AFDOriginConnectivityAnnotation: string(ConnectivityPublic),
+				annotationPrefix + "afd-origin-connectivity": "private-link",
 			},
-			defaultSKU: SKUPremium,
-			wantErr:    AFDOriginConnectivityAnnotation,
+			wantErr: annotationPrefix + "afd-origin-connectivity",
 		},
 		{
-			name: "ignores unrelated annotation",
+			name: "preserves unrelated Fleet and third-party annotations",
 			annotations: map[string]string{
-				"example.com/owner": "team-a",
+				annotationPrefix + "weight": "100",
+				"example.com/owner":         "team-a",
 			},
-			defaultSKU: SKUStandard,
-			want: GatewayConfig{
-				SKU: SKUStandard,
-			},
+			want: GatewayConfig{SKU: SKUPremium},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseGatewayConfig(tt.annotations, tt.defaultSKU)
+			before := copyAnnotations(tt.annotations)
+			got, err := ParseGatewayConfig(tt.annotations)
+			if !reflect.DeepEqual(tt.annotations, before) {
+				t.Fatal("ParseGatewayConfig() mutated annotations")
+			}
 			if tt.wantErr != "" {
-				if err == nil {
-					t.Fatalf("ParseGatewayConfig() error = nil, want containing %q", tt.wantErr)
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ParseGatewayConfig() error = %v, want containing %q", err, tt.wantErr)
 				}
-				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Errorf("ParseGatewayConfig() error = %q, want containing %q", err, tt.wantErr)
+				if got != (GatewayConfig{}) {
+					t.Errorf("ParseGatewayConfig() returned configuration on failure: %#v", got)
 				}
 				return
 			}
@@ -118,60 +136,20 @@ func TestParseGatewayConfig(t *testing.T) {
 	}
 }
 
-func TestParseServiceImportConfig(t *testing.T) {
+func TestValidateServiceImportAnnotations(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		want        ServiceImportConfig
 		wantErr     string
 	}{
+		{name: "requires no annotations"},
+		{name: "accepts empty annotations", annotations: map[string]string{}},
 		{
-			name: "uses defaults",
-			want: ServiceImportConfig{
-				Connectivity:    ConnectivityAuto,
-				HealthProbePath: "/",
-			},
-		},
-		{
-			name: "parses explicit values",
+			name: "preserves unrelated Fleet and third-party annotations",
 			annotations: map[string]string{
-				AFDOriginConnectivityAnnotation: string(ConnectivityPrivateLink),
-				AFDHealthProbePathAnnotation:    "/healthz",
-				AFDOriginHostHeaderAnnotation:   "api.example.com",
+				annotationPrefix + "weight": "100",
+				"example.com/owner":         "team-a",
 			},
-			want: ServiceImportConfig{
-				Connectivity:     ConnectivityPrivateLink,
-				HealthProbePath:  "/healthz",
-				OriginHostHeader: "api.example.com",
-			},
-		},
-		{
-			name: "rejects invalid connectivity",
-			annotations: map[string]string{
-				AFDOriginConnectivityAnnotation: "private",
-			},
-			wantErr: AFDOriginConnectivityAnnotation,
-		},
-		{
-			name: "rejects relative health probe",
-			annotations: map[string]string{
-				AFDHealthProbePathAnnotation: "healthz",
-			},
-			wantErr: AFDHealthProbePathAnnotation,
-		},
-		{
-			name: "rejects health probe query",
-			annotations: map[string]string{
-				AFDHealthProbePathAnnotation: "/healthz?deep=true",
-			},
-			wantErr: AFDHealthProbePathAnnotation,
-		},
-		{
-			name: "rejects invalid origin host header",
-			annotations: map[string]string{
-				AFDOriginHostHeaderAnnotation: "https://api.example.com",
-			},
-			wantErr: AFDOriginHostHeaderAnnotation,
 		},
 		{
 			name: "rejects Gateway annotation on ServiceImport",
@@ -181,91 +159,63 @@ func TestParseServiceImportConfig(t *testing.T) {
 			wantErr: AFDSKUAnnotation,
 		},
 		{
-			name: "ignores existing Fleet weight annotation",
+			name: "rejects unknown reserved annotation",
 			annotations: map[string]string{
-				annotationPrefix + "weight": "100",
+				annotationPrefix + "afd-probe-path": "/healthz",
 			},
-			want: ServiceImportConfig{
-				Connectivity:    ConnectivityAuto,
-				HealthProbePath: "/",
-			},
+			wantErr: annotationPrefix + "afd-probe-path",
 		},
+	}
+	for _, value := range []string{"auto", "public", "private-link", ""} {
+		tests = append(tests, struct {
+			name        string
+			annotations map[string]string
+			wantErr     string
+		}{
+			name:        "rejects retired connectivity " + value,
+			annotations: map[string]string{annotationPrefix + "afd-origin-connectivity": value},
+			wantErr:     annotationPrefix + "afd-origin-connectivity",
+		})
+	}
+	for _, key := range []string{"afd-health-probe-path", "afd-origin-host-header"} {
+		tests = append(tests, struct {
+			name        string
+			annotations map[string]string
+			wantErr     string
+		}{
+			name:        "rejects retired " + key,
+			annotations: map[string]string{annotationPrefix + key: "/healthz"},
+			wantErr:     annotationPrefix + key,
+		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseServiceImportConfig(tt.annotations)
+			before := copyAnnotations(tt.annotations)
+			err := ValidateServiceImportAnnotations(tt.annotations)
+			if !reflect.DeepEqual(tt.annotations, before) {
+				t.Fatal("ValidateServiceImportAnnotations() mutated annotations")
+			}
 			if tt.wantErr != "" {
-				if err == nil {
-					t.Fatalf("ParseServiceImportConfig() error = nil, want containing %q", tt.wantErr)
-				}
-				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Errorf("ParseServiceImportConfig() error = %q, want containing %q", err, tt.wantErr)
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ValidateServiceImportAnnotations() error = %v, want containing %q", err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ParseServiceImportConfig() error = %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("ParseServiceImportConfig() = %#v, want %#v", got, tt.want)
+				t.Fatalf("ValidateServiceImportAnnotations() error = %v", err)
 			}
 		})
 	}
 }
 
-func TestValidateCompatibility(t *testing.T) {
-	tests := []struct {
-		name    string
-		gateway GatewayConfig
-		service ServiceImportConfig
-		wantErr string
-	}{
-		{
-			name: "private link with Premium is valid",
-			gateway: GatewayConfig{
-				SKU: SKUPremium,
-			},
-			service: ServiceImportConfig{
-				Connectivity: ConnectivityPrivateLink,
-			},
-		},
-		{
-			name: "private link with Standard is invalid",
-			gateway: GatewayConfig{
-				SKU: SKUStandard,
-			},
-			service: ServiceImportConfig{
-				Connectivity: ConnectivityPrivateLink,
-			},
-			wantErr: string(SKUPremium),
-		},
-		{
-			name: "public with Standard is valid",
-			gateway: GatewayConfig{
-				SKU: SKUStandard,
-			},
-			service: ServiceImportConfig{
-				Connectivity: ConnectivityPublic,
-			},
-		},
+func copyAnnotations(annotations map[string]string) map[string]string {
+	if annotations == nil {
+		return nil
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateCompatibility(tt.gateway, tt.service)
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("ValidateCompatibility() error = %v", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatalf("ValidateCompatibility() error = nil, want containing %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("ValidateCompatibility() error = %q, want containing %q", err, tt.wantErr)
-			}
-		})
+	result := make(map[string]string, len(annotations))
+	for key, value := range annotations {
+		result[key] = value
 	}
+	return result
 }

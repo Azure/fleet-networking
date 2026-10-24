@@ -1330,7 +1330,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
 					Annotations: map[string]string{
-						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: internalLoadBalancerEnabled,
 					},
 				},
 				Spec: corev1.ServiceSpec{
@@ -1350,7 +1350,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
 					Annotations: map[string]string{
-						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: internalLoadBalancerEnabled,
 					},
 				},
 				Spec: corev1.ServiceSpec{
@@ -1493,7 +1493,7 @@ func TestSetAzureRelatedInformation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: "uid",
 					Annotations: map[string]string{
-						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: internalLoadBalancerEnabled,
 					},
 				},
 				Spec: corev1.ServiceSpec{
