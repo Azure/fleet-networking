@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,6 +61,23 @@ func (c *Cluster) Name() string {
 // Client returns the kubernetes client.
 func (c *Cluster) Client() client.Client {
 	return c.kubeClient
+}
+
+// PodLogs reads pod logs using the caller's container and resource limits.
+func (c *Cluster) PodLogs(ctx context.Context, namespace, name string, options *corev1.PodLogOptions) (string, error) {
+	config, err := c.retrieveRESTConfig()
+	if err != nil {
+		return "", err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", err
+	}
+	data, err := clientset.CoreV1().Pods(namespace).GetLogs(name, options).DoRaw(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read pod logs %s/%s: %w", namespace, name, err)
+	}
+	return string(data), nil
 }
 
 // PrometheusAPIServiceAddress returns the address of the Prometheus API service.

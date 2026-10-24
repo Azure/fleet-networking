@@ -63,6 +63,8 @@ tolerations: []
 affinity: {}
 
 enableTrafficManagerFeature: false
+# Independent of Traffic Manager; requires Azure LB/PLS read permissions.
+enablePrivateLinkOriginDiscovery: false
 enableNetworkingFeatures: true
 
 azureCloudConfig:

@@ -59,3 +59,174 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           ## Comma-separated list of files to upload
           files: ./coverage.xml
+
+  gateway-chart:
+    name: Gateway Chart Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.1
+        with:
+          version: v3.17.3
+
+      - name: Verify chart rendering and strict lint
+        run: go test -count=1 -tags=helm ./test/helm
+
+  gateway-image:
+    name: Gateway Image Smoke (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+    permissions:
+      contents: read
+    env:
+      REGISTRY: fleet-networking
+      TAG: ci
+      TARGET_OS: linux
+      TARGET_ARCH: ${{ matrix.arch }}
+      AUTO_DETECT_ARCH: "FALSE"
+      BUILDX_BUILDER_NAME: default
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify existing image delivery contracts
+        shell: bash
+        run: |
+          trap 'rm -f image.plan push.plan gateway-amd64.plan gateway-arm64.plan gateway-local.plan' EXIT
+          for target in image push; do
+            make --dry-run "$target" > "$target.plan"
+            for component in hub-net-controller-manager hub-gateway-controller-manager member-net-controller-manager mcs-controller-manager net-crd-installer; do
+              grep -q -- "--file docker/$component.Dockerfile" "$target.plan" || {
+                echo "Missing $component from make $target"
+                exit 1
+              }
+            done
+          done
+          grep -q -- '--output=type=docker' image.plan
+          grep -q -- '--output=type=registry' push.plan
+          if grep -q -- '--output=type=registry' image.plan || grep -q -- '--output=type=docker' push.plan; then
+            echo "Image/push bundles used the wrong output type"
+            exit 1
+          fi
+          for arch in amd64 arm64; do
+            make --dry-run docker-build-hub-gateway-controller-manager \
+              OUTPUT_TYPE=type=registry TARGET_ARCH="$arch" \
+              HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION="ci-$arch" > "gateway-$arch.plan"
+            grep -q -- '--output=type=registry' "gateway-$arch.plan"
+            grep -q -- "--platform=linux/$arch" "gateway-$arch.plan"
+            grep -q -- "--tag fleet-networking/hub-gateway-controller-manager:ci-$arch" "gateway-$arch.plan"
+          done
+          make --dry-run image-hub-gateway-controller-manager > gateway-local.plan
+          grep -q -- '--output=type=docker' gateway-local.plan
+          if grep -q -- '--output=type=registry' gateway-local.plan; then
+            echo "Dedicated local image target attempted registry output"
+            exit 1
+          fi
+
+      - name: Build the separate Gateway manager image
+        run: make image-hub-gateway-controller-manager
+
+      - name: Verify nonroot identity and image entrypoint
+        shell: bash
+        run: |
+          image="fleet-networking/hub-gateway-controller-manager:ci"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$TARGET_ARCH"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "65532:65532"
+          docker run --rm --network=none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges "$image" --help 2>&1 | tee gateway-image-help.txt
+          grep -q -- '  -enable-afd$' gateway-image-help.txt
+          grep -q -- '  -afd-resource-group string$' gateway-image-help.txt
+          grep -q -- 'enabling performs Azure writes' gateway-image-help.txt
+
+      - name: Verify default-disabled startup and health probes without a cluster
+        shell: bash
+        run: |
+          kubeconfig="$(mktemp)"
+          container=""
+          trap 'if [ -n "$container" ]; then docker logs "$container"; docker rm -f "$container"; fi; rm -f "$kubeconfig"' EXIT
+          cat > "$kubeconfig" <<'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: offline
+              cluster:
+                server: https://127.0.0.1:1
+          contexts:
+            - name: offline
+              context:
+                cluster: offline
+                user: offline
+          current-context: offline
+          users:
+            - name: offline
+              user: {}
+          EOF
+          chmod 644 "$kubeconfig"
+          container="$(docker run -d --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --mount "type=bind,src=$kubeconfig,dst=/tmp/kubeconfig,readonly" \
+            --env KUBECONFIG=/tmp/kubeconfig --publish 127.0.0.1::8083 \
+            fleet-networking/hub-gateway-controller-manager:ci \
+            --leader-elect=false --metrics-bind-address=0)"
+          address="$(docker port "$container" 8083/tcp)"
+          for path in healthz readyz; do
+            curl --fail --silent --show-error --retry 20 --retry-connrefused \
+              --retry-delay 1 --retry-max-time 30 --connect-timeout 1 --max-time 2 \
+              "http://$address/$path"
+          done
+          docker logs "$container" 2>&1 | grep -q 'Azure Front Door reconciliation is disabled'
+
+      - name: Verify registry export and pull using a loopback-only registry
+        shell: bash
+        run: |
+          registry=""
+          image=""
+          cleanup() {
+            if [ -n "$registry" ]; then
+              docker rm -f "$registry"
+            fi
+            if [ -n "$image" ] && docker image inspect "$image" >/dev/null 2>&1; then
+              docker image rm "$image"
+            fi
+          }
+          trap cleanup EXIT
+          registry="$(docker run -d --publish 127.0.0.1::5000 \
+            --read-only --tmpfs /var/lib/registry --tmpfs /tmp --cap-drop=ALL \
+            --security-opt=no-new-privileges registry:2)"
+          address="$(docker port "$registry" 5000/tcp)"
+          curl --fail --silent --show-error --retry 10 --retry-connrefused \
+            --retry-delay 1 --max-time 2 "http://$address/v2/"
+          image="$address/fleet-networking/hub-gateway-controller-manager:ci-$TARGET_ARCH"
+          # Plain HTTP is limited to this ephemeral loopback-only test registry.
+          make docker-build-hub-gateway-controller-manager \
+            OUTPUT_TYPE=type=registry,registry.insecure=true \
+            REGISTRY="$address/fleet-networking" \
+            HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION="ci-$TARGET_ARCH"
+          docker buildx imagetools inspect --raw "$image" | jq -e '.schemaVersion == 2'
+          docker pull "$image"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$TARGET_ARCH"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "65532:65532"
+          docker run --rm --network=none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges "$image" --help 2>&1 \
+            | grep 'enabling performs Azure writes'

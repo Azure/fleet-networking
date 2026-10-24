@@ -5,11 +5,13 @@ ifndef TAG
 	TAG ?= $(shell git rev-parse --short=7 HEAD)
 endif
 HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
+HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 MCS_CONTROLLER_MANAGER_IMAGE_VERSION ?= $(TAG)
 NET_CRD_INSTALLER_IMAGE_VERSION ?= $(TAG)
 
 HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-net-controller-manager
+HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME ?= hub-gateway-controller-manager
 MEMBER_NET_CONTROLLER_MANAGER_IMAGE_NAME ?= member-net-controller-manager
 MCS_CONTROLLER_MANAGER_IMAGE_NAME ?= mcs-controller-manager
 NET_CRD_INSTALLER_IMAGE_NAME ?= net-crd-installer
@@ -183,8 +185,13 @@ generate: $(CONTROLLER_GEN)
 .PHONY: build
 build: generate fmt vet ## Build binaries.
 	go build -o bin/hub-net-controller-manager cmd/hub-net-controller-manager/main.go
+	go build -o bin/hub-gateway-controller-manager ./cmd/hub-gateway-controller-manager
 	go build -o bin/member-net-controller-manager cmd/member-net-controller-manager/main.go
 	go build -o bin/mcs-controller-manager cmd/mcs-controller-manager/main.go
+
+.PHONY: run-hub-gateway-controller-manager
+run-hub-gateway-controller-manager: manifests generate fmt vet ## Run the hub Gateway controller from your host.
+	go run ./cmd/hub-gateway-controller-manager
 
 .PHONY: run-hub-net-controller-manager
 run-hub-net-controller-manager: manifests generate fmt vet ## Run a controllers from your host.
@@ -213,11 +220,16 @@ tidy:
 
 .PHONY: image
 image:
-	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
+	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-net-controller-manager docker-build-hub-gateway-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
+
+# Build just the Gateway image through the same local-output convention.
+.PHONY: image-hub-gateway-controller-manager
+image-hub-gateway-controller-manager:
+	$(MAKE) OUTPUT_TYPE="type=docker" docker-build-hub-gateway-controller-manager
 
 .PHONY: push
 push:
-	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
+	$(MAKE) OUTPUT_TYPE="type=registry" docker-build-hub-net-controller-manager docker-build-hub-gateway-controller-manager docker-build-member-net-controller-manager docker-build-mcs-controller-manager docker-build-net-crd-installer
 
 # By default, docker buildx create will pull image moby/buildkit:buildx-stable-1 and hit the too many requests error.
 .PHONY: docker-buildx-builder
@@ -249,6 +261,20 @@ docker-build-hub-net-controller-manager: docker-buildx-builder tidy
 		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
 		--pull \
 		--tag $(REGISTRY)/$(HUB_NET_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_NET_CONTROLLER_MANAGER_IMAGE_VERSION) \
+		--progress=$(BUILDKIT_PROGRESS_TYPE) \
+		--build-arg GOARCH=$(TARGET_ARCH) \
+		--build-arg GOOS=$(TARGET_OS) .
+
+# The wrapper/bundle selects local or registry output; no module changes are needed.
+.PHONY: docker-build-hub-gateway-controller-manager
+docker-build-hub-gateway-controller-manager: docker-buildx-builder
+	docker buildx build \
+		--builder $(BUILDX_BUILDER_NAME) \
+		--file docker/$(HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME).Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform=$(TARGET_OS)/$(TARGET_ARCH) \
+		--pull \
+		--tag $(REGISTRY)/$(HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME):$(HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION) \
 		--progress=$(BUILDKIT_PROGRESS_TYPE) \
 		--build-arg GOARCH=$(TARGET_ARCH) \
 		--build-arg GOOS=$(TARGET_OS) .

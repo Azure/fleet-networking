@@ -1,0 +1,42 @@
+replicaCount: 1
+nameOverride: ""
+fullnameOverride: ""
+
+# Select an image explicitly; verify that the chosen release has been published.
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+afd:
+  enabled: false
+  resourceGroup: ""
+  cloudConfigSecret:
+    name: ""
+    key: azure.json
+
+gatewayClass:
+  create: true
+  name: azure-fleet-afd
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+leaderElection: true
+logVerbosity: 2
+podLabels: {}
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
