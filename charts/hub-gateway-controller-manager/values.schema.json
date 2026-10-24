@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "replicaCount": {"type": "integer", "minimum": 1},
+    "leaderElection": {"type": "boolean"},
+    "logVerbosity": {"type": "integer", "minimum": 0},
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string"},
+        "tag": {"type": "string"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "afd": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "resourceGroup": {"type": "string"},
+        "cloudConfigSecret": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "key": {"type": "string"}
+          }
+        }
+      }
+    },
+    "gatewayClass": {
+      "type": "object",
+      "properties": {
+        "create": {"type": "boolean"},
+        "name": {"type": "string"}
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {"type": "boolean"},
+        "name": {"type": "string"},
+        "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "podLabels": {"type": "object", "additionalProperties": {"type": "string"}},
+    "podAnnotations": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}

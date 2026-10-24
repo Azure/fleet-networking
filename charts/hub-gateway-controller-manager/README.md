@@ -2,16 +2,20 @@
 
 This independent chart installs the Fleet hub Gateway manager. **AFD is disabled
 by default.** Explicitly enabling it now connects the complete private HTTP
-provider: create owned disabled Premium resources, wait for asynchronous manual
-Private Link approval, activate the route before the endpoint, maintain the graph,
-and suspend it on confirmed withdrawal/drift. Only current complete enabled-graph
-convergence publishes the observed Azure hostname and Gateway/listener
-`Programmed=True`. Cleanup deletes only the verified owned profile.
+provider: create and verify owned disabled Premium/private resources, enable the
+endpoint then the route, and reconcile eligible member/export origin membership.
+Complete matching enabled configuration with accepted provisioning publishes the
+hostname and Gateway/listener `Programmed=True`; stale AFD approval/deployment
+projections are not positive readiness gates. Private Link approval, propagation
+and application health remain independent. The last eligible origin withdraws
+the owned route/origins while retaining Disabled roots for re-export; Gateway
+deletion cleans up only the verified owned profile.
 
 **Enabled mode is no longer observation-only: it performs AFD writes.** Controller
-code is validated offline; live Azure/identity, approval, traffic, Host/probe,
-withdrawal and cleanup verification remain deferred. No successful live proof
-or production-readiness claim follows from this wiring.
+code is validated offline. An earlier diagnostic served both private members
+after user-performed activation despite null/NotStarted AFD metadata. That is not
+proof of the updated automatic activation/lifecycle or complete E2E; a separately
+authorized live run is still required before operational-readiness claims.
 
 The intended product is **Zero-Public-Exposure Ingress**: AFD Premium reaches
 member internal load balancers only through Private Link. The client-facing AFD
@@ -81,6 +85,12 @@ Before enabling AFD, the platform operator must:
    Kubernetes RBAC does not grant Azure access; credential construction is not an
    authentication/authorization proof. Use an exclusively controller-managed
    profile; sequential ARM reads do not exclude competing external writers.
+   The hub identity also needs `Microsoft.Network/privateLinkServices/read` on
+   each linked member PLS. AFD resource-group permissions do not cover those
+   linked resources. An authorized platform owner can grant Reader at each
+   actual PLS resource scope once it exists, before origin provisioning; the
+   chart does not create these Azure role assignments. This is distinct from
+   member discovery permissions and does not authorize connection approval.
 4. Enable member `enablePrivateLinkOriginDiscovery` explicitly, independently of
    Traffic Manager, with its required Azure read permissions. The corresponding
    binary flag is `--enable-private-link-origin-discovery=true`; see the existing
@@ -264,8 +274,8 @@ Messages omit raw SDK/resource payloads; repeated failures use native recorder
 aggregation/rate limiting. Successful/pending calls emit no attempt-warning event. Separately,
 `AFDPrivateLinkApprovalRequired` and `AFDHTTPProgrammed` Normal Events follow
 persisted current status transitions, not failed status patches or stale results.
-Programmed means observed ARM convergence, not measured application health or a
-successful withdrawal audit.
+Programmed means observed matching enabled ARM configuration, not confirmed
+Private Link approval, edge propagation, application health or withdrawal.
 
 Approval-wait telemetry and deployed Event/RBAC, Azure operation and enforcement
 proof remain separate work. Ownership/authorization checks and finalizer retention

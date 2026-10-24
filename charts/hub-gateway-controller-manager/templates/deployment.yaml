@@ -1,0 +1,91 @@
+{{- include "hub-gateway-controller-manager.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hub-gateway-controller-manager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hub-gateway-controller-manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "hub-gateway-controller-manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- merge (include "hub-gateway-controller-manager.selectorLabels" . | fromYaml) .Values.podLabels | toYaml | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "hub-gateway-controller-manager.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository | trim }}:{{ .Values.image.tag | trim }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --enable-afd={{ .Values.afd.enabled }}
+            - --leader-elect={{ .Values.leaderElection }}
+            - --leader-election-namespace={{ .Release.Namespace }}
+            - --metrics-bind-address=:8082
+            - --health-probe-bind-address=:8083
+            - --v={{ .Values.logVerbosity }}
+            {{- if .Values.afd.enabled }}
+            - --afd-resource-group={{ .Values.afd.resourceGroup | trim }}
+            - --cloud-config=/etc/kubernetes/provider/azure.json
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 8082
+            - name: healthz
+              containerPort: 8083
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.afd.enabled }}
+          volumeMounts:
+            - name: cloud-provider-config
+              mountPath: /etc/kubernetes/provider
+              readOnly: true
+          {{- end }}
+      {{- if .Values.afd.enabled }}
+      volumes:
+        - name: cloud-provider-config
+          secret:
+            secretName: {{ .Values.afd.cloudConfigSecret.name | trim | quote }}
+            items:
+              - key: {{ .Values.afd.cloudConfigSecret.key | trim | quote }}
+                path: azure.json
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
