@@ -115,12 +115,13 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | affinity | The node affinity to use for pod scheduling | `{}` |
 | tolerations | The toleration to use for pod scheduling | `[]` |
 | enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
+| enablePrivateLinkOriginDiscovery | Discover ILB/PLS origins for Zero-Public-Exposure Ingress independently of Traffic Manager. | `false` |
 | enableNetworkingFeatures | Set to true to enable Networking Controllers on member cluster. | `true` |
-| azureCloudConfig | The Azure cloud provider configuration | **required if AzureTrafficManager feature is enabled (enableTrafficManagerFeature == true)** |
+| azureCloudConfig | The Azure cloud provider configuration | **required if Traffic Manager or private-origin discovery is enabled** |
 
 ## Override Azure cloud config
 
-**If AzureTrafficManager feature is enabled, then an Azure cloud configuration is required.** Azure cloud configuration provides resource metadata and credentials for `fleet-hub-net-controller-manager` and `fleet-member-net-controller-manager` to manipulate Azure resources. It's embedded into a Kubernetes secret and mounted to the pods. The values can be modified under `config.azureCloudConfig` section in values.yaml or can be provided as a separate file.
+**If Traffic Manager or private-origin discovery is enabled, an Azure cloud configuration is required.** It is embedded into a Kubernetes secret and mounted to the member controller. Set the top-level `azureCloudConfig` values or supply them in a separate values file. Private-origin discovery reads Azure resources; it does not create or approve them.
 
 | configuration value                                   | description | Remark                                                                               |
 |-------------------------------------------------------| --- |--------------------------------------------------------------------------------------|
@@ -150,5 +151,69 @@ azureCloudConfig:
   resourceGroup: "<resource group name>"
   location: "<resource group location>"
 ```
+
+## Private-origin discovery for Zero-Public-Exposure Ingress
+
+Install the updated hub InternalServiceExport CRD before enabling new members;
+older hub schemas would prune the new optional `spec.privateLinkOrigin` metadata.
+The public ServiceImport CRD is unchanged. Older members omit private metadata
+and remain compatible with baseline networking, but their origins cannot yet
+resolve for private ingress.
+
+Enable discovery independently of Traffic Manager:
+
+```bash
+helm upgrade member-net-controller-manager ./charts/member-net-controller-manager/ \
+    --reuse-values \
+    --set enableTrafficManagerFeature=false \
+    --set enablePrivateLinkOriginDiscovery=true \
+    -f azure.yaml
+```
+
+The binary flag is `--enable-private-link-origin-discovery=true`. Set
+`azureCloudConfig.resourceGroup` to the AKS node resource group containing the
+internal load balancer and, by default, the PLS. The Service's
+`azure-load-balancer-resource-group` and `azure-pls-resource-group` annotations
+can identify different resource groups; the discovered PLS must reference the
+verified internal frontend, not merely have a matching name.
+
+Grant the member controller identity these Azure read operations at the required
+resource-group scopes:
+
+- `Microsoft.Network/loadBalancers/read`
+- `Microsoft.Network/privateLinkServices/read`
+
+No Azure write or private endpoint approval permission is required for discovery.
+Kubernetes permissions are the existing Service read/watch and reserved member
+namespace InternalServiceExport write permissions. Customers do not edit generated
+hub ServiceImports.
+
+Discovery currently supports a single IPv4 load-balancer ingress address. It
+checks the frontend's private subnet association and absence of a public IP,
+then the matching PLS's identity, location and provisioning state. Unknown,
+missing, public, ambiguous or unprovisioned origins are published as not ready,
+without invalidating baseline MCS export.
+
+Each enabled export is rediscovered every two minutes plus up to 20% jitter;
+Service changes still enqueue immediately. Azure discovery calls have a shared
+30-second context deadline and use the existing retry/rate-limit policies.
+Errors are logged and returned for controller retries after publishing a
+not-ready discovery result. Disabling discovery clears private metadata on
+subsequent export reconciliation.
+
+| Discovery reason | Operator action |
+|---|---|
+| `NotInternalLoadBalancer`, `UnsupportedIngress` | Use an internal LoadBalancer Service with one IPv4 ingress address. |
+| `WaitingForLoadBalancer`, `LoadBalancerNotFound`, `LoadBalancerNotReady` | Check AKS LB provisioning, resource-group selection and the Service frontend. |
+| `PrivateLinkServiceNotFound`, `PrivateLinkServiceNotReady` | Check PLS creation and its frontend association/provisioning. |
+| `AmbiguousLoadBalancer`, `AmbiguousPrivateLinkService` | Resolve duplicate/ambiguous associations; discovery will not guess. |
+| `InvalidPrivateLinkService` | Check the PLS resource ID, resource group and Azure location. |
+| `AzureDiscoveryFailed` | Check member controller logs, identity permissions, Azure throttling and configuration. |
+
+`spec.privateLinkOrigin.ready=true` means only that member ILB/PLS discovery is
+ready. It does not mean AFD has been provisioned or an AFD private endpoint
+connection has been approved. **AFD approval remains asynchronous and separately
+owned.** Gateway reconciliation and traffic programming are later implementation
+phases.
 
 ## Contributing Changes

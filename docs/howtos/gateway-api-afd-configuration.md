@@ -1,18 +1,68 @@
-# Configure Gateway API with Azure Front Door
+# Zero-Public-Exposure Ingress with Azure Front Door
 
 > [!IMPORTANT]
 > This guide describes the proposed GEP-1748 implementation on the
 > `rchinchani/gep-1748-gateway-api` branch. The controller is not yet released.
 > The manifests define the intended user contract and will become runnable as
 > the implementation phases are completed.
+> The explicitly enabled manager now reconciles the supported private HTTP
+> graph, requests Private Link connections, waits for authorized manual approval,
+> and activates the route before the endpoint. Current full enabled-graph
+> convergence is required before publishing the observed Azure hostname and
+> Gateway/listener `Programmed=True`; origin approval or accepted writes alone
+> are insufficient. This controller path is validated offline, not live-proven.
+>
+> Initial construction is distinct from deployed readiness: Azure can report a
+> successfully provisioned, disabled empty endpoint as deployment `NotStarted`.
+> A controller-internal ARM activation tag permits bootstrap construction and
+> activation of the verified, approved private graph without that circular
+> prerequisite. It is not a customer annotation or configuration setting.
+> Previously activated endpoints retain deployed-disable requirements, and
+> publishing readiness still requires the complete enabled graph to reach
+> deployment `Succeeded`. The first live attempt exposed this sequencing issue;
+> the corrected path still requires a successful live retry.
+>
+> The approved first Azure execution subset is narrower than the full examples:
+> one HTTP/80 listener with no hostname restriction, root `PathPrefix: /`,
+> and one logical ServiceImport backend port across all rules. Pure request
+> construction now produces this complete graph with both endpoint and route
+> disabled. The enabled manager uses the complete provider lifecycle rather
+> than repeatedly replaying disabled-only staging. AFD remains disabled by
+> default. Live Azure convergence, identity/permissions, private HTTP delivery,
+> Host/probe behavior, withdrawal and cleanup must still be proven in a separately
+> authorized run before release or operational-readiness claims.
+> Hostname/custom-domain routing, Exact/non-root paths, multiple
+> logical backends, filters and WAF association remain outside that execution
+> subset and are explicitly left unprogrammed. The hostname-based examples
+> below still describe the future contract, not a working deployment today.
 
-This guide configures a Fleet multi-cluster HTTP application behind Azure Front
-Door (AFD). It covers two independent backend topologies:
+The Gateway controller shares the platform Azure cloud-config read/write rate
+limits across its AFD clients. Local token exhaustion waits within the existing
+request context instead of repeatedly restarting graph reconciliation; it does
+not raise QPS/bursts or bypass Azure HTTP 429 handling and SDK retries. Cancellation
+or an insufficient request budget returns an error, never a readiness result.
+These locally verified retry/teardown fixes still require a new authorized live
+proof; they do not establish end-to-end ingress readiness.
 
-1. [AFD with public backends](#configure-afd-with-public-backends)
-2. [AFD with Private Link to internal load balancers](#configure-afd-with-private-link-to-internal-load-balancers)
+This guide describes **Zero-Public-Exposure Ingress**, the Fleet product solution
+for multi-cluster application ingress through Azure Front Door (AFD) Premium.
+The only supported origin topology is **AFD with Private Link to internal load
+balancers**:
 
-Both topologies use:
+```text
+Clients -> public AFD Premium edge -> Private Link -> member PLS
+        -> internal Azure Load Balancer -> application
+```
+
+Zero public exposure applies to member application origins: they have no public
+load balancer frontend or public origin endpoint. AFD remains the public
+client-facing edge. Public member origins and AFD Standard are not supported;
+Standard does not support Private Link origins.
+
+<!-- Decision: Private Link is the only supported origin topology and requires
+AFD Premium. Connectivity and SKU are product constraints, not customer choices. -->
+
+The solution uses:
 
 - Gateway API resources in the Fleet hub.
 - A Fleet `ServiceImport` as the only supported `HTTPRoute` backend.
@@ -23,6 +73,14 @@ Both topologies use:
 The examples configure HTTP listeners. HTTPS and certificate lifecycle are a
 later implementation phase.
 
+> [!IMPORTANT]
+> **AFD Private Link approval is asynchronous and is a provisioning dependency.**
+> Creating a Gateway or PLS does not mean traffic is ready. An authorized owner
+> must approve each required connection, then wait for AFD provisioning and
+> Gateway status to converge. Approval automation with the AFD and PLS teams is
+> an open action item, not an available capability. See
+> [Approve the AFD private endpoint connections](#4-approve-the-afd-private-endpoint-connections).
+
 ## Common prerequisites
 
 > [!IMPORTANT]
@@ -31,20 +89,38 @@ later implementation phase.
 > the Gateway controller. Upgrade a hubless Fleet Manager by enabling its hub and reconciling
 > existing members before following this guide. The upgrade cannot be reversed.
 
-Before configuring either topology:
+Before configuring the solution:
 
 1. Confirm that the Fleet Manager has a managed hub. For a hubless Fleet Manager, follow the
    [hub upgrade guidance](https://learn.microsoft.com/azure/kubernetes-fleet/upgrade-hub-cluster-type)
    and reconcile its existing members.
 2. Register every workload cluster as a healthy member of the same Fleet.
 3. Install the Fleet hub and member networking controllers.
+   Install the updated InternalServiceExport CRD on the hub first, then enable
+   member `enablePrivateLinkOriginDiscovery` with Azure read permissions. This
+   setting is independent of Traffic Manager. See the
+   [member chart discovery guide](../../charts/member-net-controller-manager/README.md#private-origin-discovery-for-zero-public-exposure-ingress).
 4. Install Gateway API `v1.2.1` CRDs in the Fleet hub.
-5. Install the proposed `hub-gateway-controller-manager` in the Fleet hub.
+5. Install the proposed `hub-gateway-controller-manager` in the Fleet hub using
+   the [independent chart guide](../../charts/hub-gateway-controller-manager/README.md).
+   The chart requires an explicit image, defaults to AFD disabled, and references
+   an existing platform-owned Azure cloud-config Secret when enabled. It packages
+   the opt-in private HTTP provisioning/observation/owned-cleanup runtime.
+   Enabling it now authorizes controller AFD writes for supported Gateway intent;
+   it is not an observation-only mode and does not itself prove live delivery.
 6. Configure the controller with:
    - An Azure subscription.
    - A controller-wide AFD resource group.
    - An approved workload or managed identity.
    - Permission to manage AFD resources in the configured resource group.
+   - Hub Gateway controller identity permission
+     `Microsoft.Network/privateLinkServices/read` on every linked member PLS.
+     AFD resource-group access alone (for example, CDN Profile Contributor)
+     does not grant this linked-resource permission. For least privilege, an
+     authorized platform owner can assign Reader on each actual PLS resource
+     once it exists, before origin provisioning. This is separate from member
+     discovery permissions and grants no connection-approval capability.
+   - AFD Premium and Private Link-only origins as mandatory product settings.
 7. Confirm the platform-installed GatewayClass is accepted:
 
    ```bash
@@ -83,218 +159,45 @@ origin to the multi-cluster service.
 | Grant AFD and origin-discovery Azure permissions | Azure subscription or resource-group owner | Azure RBAC |
 | Deploy application workload | Application team or Fleet placement controller | Every selected member cluster |
 | Create the application `Service` and `ServiceExport` | Application team or Fleet placement controller | Every selected member cluster |
-| Create the public Load Balancer | AKS cloud provider, in response to the member `Service` | Azure resources associated with each member cluster |
 | Create the internal Load Balancer and PLS | AKS cloud provider, in response to the member `Service` annotations | Azure resources associated with each member cluster |
 | Create and aggregate `ServiceImport` | Fleet networking controllers | Fleet hub |
-| Add AFD backend annotations to `ServiceImport` | Application or networking owner | Existing generated `ServiceImport` in the Fleet hub |
-| Create `Gateway` and `HTTPRoute` | Application ingress owner | Fleet hub |
+| Own Private Link-only origin policy and health-probe configuration | Fleet platform operator | Gateway controller configuration; no customer ServiceImport edits |
+| Create `Gateway` and `HTTPRoute` | Fleet platform operator or authorized ingress owner | Fleet hub |
 | Create and maintain WAF policy | Security owner | Azure |
-| Add the optional WAF policy annotation to `Gateway` | Application ingress owner after authorization from the security owner | Fleet hub |
+| Add the optional WAF policy annotation to `Gateway` | Fleet platform operator or authorized ingress owner after authorization from the security owner | Fleet hub |
 | Create and reconcile AFD resources | Hub Gateway controller | Azure, in the configured AFD resource group |
 | Approve AFD-to-PLS private endpoint connections | Network or security owner | Azure PLS for each member cluster |
 | Create application DNS records | DNS owner | Authoritative public DNS zone |
 
-Users do not create `ServiceImport` directly. Fleet creates it from matching
-member-cluster exports. Users annotate the generated hub object after it
-appears. A production GitOps workflow should use a controller or patch that
-waits for the generated object instead of attempting to own its full manifest.
+Customers do not create or annotate `ServiceImport` directly. Fleet creates it
+from matching member-cluster exports. Application teams need access only to
+their member-cluster resources; the platform operator or an authorized ingress
+owner performs the hub-side steps below.
 
-## Configure AFD with public backends
+Private Link is mandatory without a connectivity annotation. Health-probe
+settings are controller/platform-owned rather than required customer
+configuration on a generated ServiceImport. This guide does not require a
+customer-selected probe path.
 
-In this topology, every member cluster exposes the application through a public
-Azure Load Balancer. AFD connects to those public origins.
+The approved initial HTTP-preview policy is HTTP `GET /` every 30 seconds on the
+selected ServiceImport backend port. Forwarded application requests preserve the
+incoming Host header by omitting the optional ARM `originHostHeader` property,
+as described in [AFD origin host header behavior](https://learn.microsoft.com/azure/frontdoor/origin#origin-host-header).
+An explicit empty string is not equivalent: Azure rejects that request.
+An observed nonempty override remains unready and requires explicit platform
+repair; the controller does not assume an omitted PATCH field clears it.
+Applications must return HTTP 200 to the probes. The controller programs this
+policy from the resolver's desired backend; live request/probe Host behavior
+remains a provider-verification gate. Probes are
+sent from distributed AFD edge locations, so the aggregate rate can exceed one
+request per 30 seconds.
 
-### 1. Create a public Service in each member cluster
-
-**Actor:** Application team or Fleet placement controller
-
-**Target:** Every participating member cluster
-
-Use a unique Azure DNS label in each member cluster. The label gives AFD a
-stable origin hostname and must be unique within the Azure region.
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: store-api
-  namespace: store
-  annotations:
-    service.beta.kubernetes.io/azure-dns-label-name: store-api-member-east
-spec:
-  type: LoadBalancer
-  selector:
-    app: store-api
-  ports:
-  - name: http
-    protocol: TCP
-    port: 8080
-    targetPort: 8080
----
-apiVersion: networking.fleet.azure.com/v1alpha1
-kind: ServiceExport
-metadata:
-  name: store-api
-  namespace: store
-```
-
-Apply the manifest to each member cluster:
-
-```bash
-kubectl --context "${MEMBER_CONTEXT}" apply -f public-backend.yaml
-```
-
-Verify that the Service has a public address and that the export is valid:
-
-```bash
-kubectl --context "${MEMBER_CONTEXT}" \
-  --namespace "${NAMESPACE}" get service "${SERVICE_NAME}"
-
-kubectl --context "${MEMBER_CONTEXT}" \
-  --namespace "${NAMESPACE}" get serviceexport "${SERVICE_NAME}" -o yaml
-```
-
-Do not continue until each `ServiceExport` reports `Valid=True` and
-`Conflict=False`.
-
-### 2. Select public origin connectivity on the ServiceImport
-
-**Actor:** Application or networking owner
-
-**Target:** Generated `ServiceImport` in the Fleet hub
-
-Fleet creates the `ServiceImport` in the hub after at least one valid export is
-observed. Keep its API unchanged and add only the AFD connectivity annotation:
-
-```bash
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" annotate serviceimport "${SERVICE_NAME}" \
-  networking.fleet.azure.com/afd-origin-connectivity=public \
-  networking.fleet.azure.com/afd-health-probe-path=/healthz \
-  --overwrite
-```
-
-The `public` value is explicit: if any member origin lacks a usable public
-endpoint, the route receives `ResolvedRefs=False`. The controller must not
-silently omit the invalid member or switch the backend to Private Link.
-
-### 3. Create the public AFD Gateway and route
-
-**Actor:** Application ingress owner
-
-**Target:** Fleet hub
-
-AFD Standard is sufficient for public origins. Premium is also valid.
-
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: store-global
-  namespace: store
-  annotations:
-    networking.fleet.azure.com/afd-sku: Standard_AzureFrontDoor
-spec:
-  gatewayClassName: azure-fleet-afd
-  listeners:
-  - name: http
-    protocol: HTTP
-    port: 80
-    hostname: store.example.com
-    allowedRoutes:
-      namespaces:
-        from: Same
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: store-api
-  namespace: store
-spec:
-  parentRefs:
-  - name: store-global
-    sectionName: http
-  hostnames:
-  - store.example.com
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /
-    backendRefs:
-    - group: networking.fleet.azure.com
-      kind: ServiceImport
-      name: store-api
-      port: 8080
-      weight: 100
-```
-
-Apply the resources to the hub:
-
-```bash
-kubectl --context "${HUB_CONTEXT}" apply -f public-gateway.yaml
-```
-
-The Fleet group in `backendRefs` is intentional. This implementation follows
-the GEP-1748 behavior while preserving the existing
-`networking.fleet.azure.com/v1alpha1 ServiceImport` API.
-
-### 4. Optionally attach WAF to the public Gateway
-
-**Actors:** Security owner creates and maintains the policy; application
-ingress owner attaches the approved policy
-
-**Targets:** WAF policy in Azure; annotation on the `Gateway` in the Fleet hub
-
-WAF is optional and is attached at the Gateway, not at an individual route.
-The referenced policy must already exist and must be compatible with the
-selected AFD SKU.
-
-```bash
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" annotate gateway store-global \
-  networking.fleet.azure.com/afd-waf-policy-id="${WAF_POLICY_ID}" \
-  --overwrite
-```
-
-The controller creates only the AFD security-policy association. It does not
-create, modify, or delete the external WAF policy.
-
-To remove WAF while retaining the Gateway:
-
-```bash
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" annotate gateway store-global \
-  networking.fleet.azure.com/afd-waf-policy-id-
-```
-
-### 5. Verify the public configuration
-
-**Actor:** Application ingress owner or Fleet platform operator
-
-**Targets:** Gateway API status in the Fleet hub and AFD resources in Azure
-
-```bash
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" get gateway store-global -o yaml
-
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" get httproute store-api -o yaml
-```
-
-Verify:
-
-- Gateway `Accepted=True`.
-- Gateway `Programmed=True`.
-- Listener `Programmed=True`.
-- HTTPRoute parent `Accepted=True`.
-- HTTPRoute parent `ResolvedRefs=True`.
-- Gateway `status.addresses` contains the AFD endpoint hostname.
-
-Create the required public DNS record for `${APP_HOSTNAME}` only after the
-Gateway reports its AFD hostname. DNS ownership and custom-domain validation
-must follow the status and instructions emitted by the controller. The DNS
-owner performs this step in the authoritative public DNS zone.
+<!-- Decision: Do not require afd-origin-connectivity or afd-health-probe-path
+annotations on ServiceImport. Customers may not have access to the hub, and
+Fleet owns these generated resources. Private Link is mandatory. If configurable
+probe settings or other backend settings are needed later, consider a
+platform-owned ConfigMap; its schema, scope, defaults, and reconciliation are
+future design work, not a supported configuration API today. -->
 
 ## Configure AFD with Private Link to internal load balancers
 
@@ -303,10 +206,10 @@ Load Balancer and an Azure Private Link Service (PLS). AFD Premium creates a
 private endpoint connection to each PLS. The member Services are not exposed as
 public origins.
 
-This is the topology intended to support SFI-NS253 because the member workloads
-do not require public IP addresses. The public backend configuration in the
-preceding section is not the SFI-NS253 topology. The current PR documents and
-validates the contract but does not yet implement or certify the complete
+This is the only supported topology for Zero-Public-Exposure Ingress and is
+intended to support SFI-NS253 because the member workloads do not require public
+IP addresses. The current PR provides discovery, private backend resolution and
+control-plane reconcilers; it does not yet implement or certify the complete
 Private Link data path.
 
 ### 1. Create an internal LoadBalancer Service and PLS in each member cluster
@@ -358,6 +261,9 @@ kubectl --context "${MEMBER_CONTEXT}" \
   --namespace "${NAMESPACE}" get serviceexport "${SERVICE_NAME}" -o yaml
 ```
 
+Do not continue until each `ServiceExport` reports `Valid=True` and
+`Conflict=False`.
+
 Also verify that Azure created the PLS in the AKS node resource group:
 
 ```bash
@@ -368,39 +274,25 @@ az network private-link-service show \
   --output yaml
 ```
 
-The AKS cloud provider creates the internal load balancer and PLS. The member
-networking controller then discovers the PLS resource ID, Azure location, and
-readiness and transports them to the hub through internal Fleet networking
-state. These fields are not added to public `ServiceImport.status`.
+The AKS cloud provider creates the internal load balancer and PLS. With private
+origin discovery enabled, the member networking controller discovers the PLS
+resource ID, Azure location, internal IP, and provisioning readiness and
+transports them in `InternalServiceExport.spec.privateLinkOrigin`. These fields
+are not added to public `ServiceImport.status`. Discovery readiness does not
+represent approval of an AFD private endpoint connection.
 
-### 2. Require Private Link connectivity on the ServiceImport
+If any member origin lacks the required PLS state, the route must remain
+unresolved rather than fall back to a public origin. Missing approval is an
+asynchronous provisioning state, not permission to change connectivity.
 
-**Actor:** Application or networking owner
+### 2. Create the Premium AFD Gateway and route
 
-**Target:** Generated `ServiceImport` in the Fleet hub
-
-```bash
-kubectl --context "${HUB_CONTEXT}" \
-  --namespace "${NAMESPACE}" annotate serviceimport "${SERVICE_NAME}" \
-  networking.fleet.azure.com/afd-origin-connectivity=private-link \
-  networking.fleet.azure.com/afd-health-probe-path=/healthz \
-  --overwrite
-```
-
-The explicit `private-link` value prevents unsafe downgrade. If any member
-origin lacks a ready PLS, the route remains unresolved rather than becoming
-public.
-
-All origins represented by one ServiceImport must use the same connectivity
-mode. Public and Private Link origins cannot be mixed in one AFD origin group.
-
-### 3. Create the Premium AFD Gateway and route
-
-**Actor:** Application ingress owner
+**Actor:** Fleet platform operator or authorized ingress owner
 
 **Target:** Fleet hub
 
-Private Link origins require the Premium AFD SKU:
+Only AFD Premium is supported. The explicit SKU below records that mandatory
+setting; Standard is not an alternative:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -451,13 +343,17 @@ Apply the resources to the hub:
 kubectl --context "${HUB_CONTEXT}" apply -f private-gateway.yaml
 ```
 
-Using `private-link` with `Standard_AzureFrontDoor` is invalid and must produce
-an explicit condition rather than a fallback.
+The Fleet group in `backendRefs` is intentional. This implementation follows
+the GEP-1748 behavior while preserving the existing
+`networking.fleet.azure.com/v1alpha1 ServiceImport` API.
 
-### 4. Optionally attach WAF to the private Gateway
+The intended controller must reject an incompatible SKU or origin topology
+explicitly rather than downgrade to public connectivity.
 
-**Actors:** Security owner creates and maintains the policy; application
-ingress owner attaches the approved policy
+### 3. Optionally attach WAF to the private Gateway
+
+**Actors:** Security owner creates and maintains the policy; Fleet platform
+operator or authorized ingress owner attaches the approved policy
 
 **Targets:** WAF policy in Azure; annotation on the `Gateway` in the Fleet hub
 
@@ -470,17 +366,34 @@ kubectl --context "${HUB_CONTEXT}" \
   --overwrite
 ```
 
-As with the public topology, the WAF policy lifecycle remains external to the
-Gateway. Removing the annotation removes only the AFD association.
+WAF is optional and attached at the Gateway, not at an individual route.
+The controller creates only the AFD security-policy association; it does not
+create, modify, or delete the external WAF policy. Removing the annotation
+removes only the AFD association.
 
-### 5. Approve the AFD private endpoint connections
+### 4. Approve the AFD private endpoint connections
 
 **Actor:** Network or security owner
 
 **Target:** Each member cluster's PLS in Azure
 
-AFD Private Link approval is asynchronous. Repeat this process for the PLS in
-every participating member cluster.
+> [!IMPORTANT]
+> **AFD Private Link approval is asynchronous.** AFD must first create a
+> connection request, which can remain pending until the PLS owner approves it.
+> An empty pending-connection list does not prove approval or readiness; the
+> request may not yet be visible. Approval is required for every connection
+> used by the intended topology, followed by AFD provisioning convergence.
+
+**Open action item:** Work with the AFD and PLS teams to automate connection
+approval while preserving PLS-owner authorization. Until that integration is
+implemented and validated, plan for the manual approval step below. Do not
+assume automatic approval is available.
+
+<!-- Decision: Approval automation is an outstanding dependency with the AFD
+and PLS teams. Keep the authorized manual workflow until automation and its
+ownership/trust boundary are defined and validated. -->
+
+Repeat this process for the PLS in every participating member cluster.
 
 Get the PLS resource ID:
 
@@ -513,9 +426,12 @@ az network private-endpoint-connection approve \
 Do not configure broad PLS auto-approval unless the platform security owner has
 approved that trust boundary.
 
-### 6. Verify the private configuration
+After submitting approval, observe the connection state and AFD/Gateway status;
+the approval command succeeding does not mean the data path is ready.
 
-**Actor:** Application ingress owner, network owner, or Fleet platform operator
+### 5. Verify the private configuration
+
+**Actor:** Fleet platform operator, network owner, or authorized ingress owner
 
 **Targets:** Gateway API status in the Fleet hub, AFD resources, and member PLS
 connections in Azure
@@ -528,16 +444,24 @@ kubectl --context "${HUB_CONTEXT}" \
   --namespace "${NAMESPACE}" get httproute store-private-api -o yaml
 ```
 
-During approval, the route can remain `ResolvedRefs=False` or the Gateway can
-remain `Programmed=False` with a reason identifying pending Private Link
-approval. After every required connection is approved, verify:
+During approval, the intended controller must expose pending Private Link
+approval in status and must not report the Gateway as programmed prematurely.
+The route can remain `ResolvedRefs=False` or the Gateway can remain
+`Programmed=False` with a reason identifying pending approval. After every
+required connection is approved and provisioning converges, verify:
 
 - Gateway `Accepted=True`.
 - Gateway `Programmed=True`.
+- Listener `Programmed=True`.
 - HTTPRoute parent `Accepted=True`.
 - HTTPRoute parent `ResolvedRefs=True`.
 - Every AFD origin uses Private Link.
 - No public AFD origin was created for the ServiceImport.
+- Gateway `status.addresses` contains the AFD endpoint hostname.
+
+The DNS owner creates the public DNS record for `${APP_HOSTNAME}` only after
+the Gateway reports its AFD hostname. Follow the controller's status and
+instructions for DNS ownership and custom-domain validation.
 
 ## Configure per-cluster traffic weights
 
@@ -545,7 +469,7 @@ approval. After every required connection is approved, verify:
 
 **Target:** `ServiceExport` in each member cluster
 
-For either topology, the existing ServiceExport annotation controls traffic
+The existing ServiceExport annotation controls traffic
 between member-cluster origins:
 
 ```bash
@@ -564,8 +488,8 @@ Use:
 
 ## Remove the configuration
 
-**Actors:** Application ingress owner removes hub routing; application team or
-Fleet placement controller removes member resources
+**Actors:** Fleet platform operator or authorized ingress owner removes hub
+routing; application team or Fleet placement controller removes member resources
 
 **Order:** Fleet hub first, then member clusters
 

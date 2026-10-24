@@ -4,11 +4,12 @@
 
 - **Status:** Proposed
 - **Date:** 2026-08-17
+- **Product contract updated:** 2026-10-20; Zero-Public-Exposure Ingress
 - **Target repository:** `Azure/fleet-networking`
 - **Primary API:** Kubernetes Gateway API
 - **Gateway API dependency:** `sigs.k8s.io/gateway-api v1.2.1`
 - **Multi-cluster backend API:** `networking.fleet.azure.com/v1alpha1`, kind `ServiceImport`
-- **Initial Azure provider:** Azure Front Door Standard/Premium
+- **Initial Azure provider:** Azure Front Door Premium with mandatory Private Link origins
 
 ## Summary
 
@@ -25,14 +26,332 @@ controller behavior unchanged:
 networking.fleet.azure.com/v1alpha1, kind ServiceImport
 ```
 
-Azure-specific behavior is configured through optional annotations instead of new user-facing
-Front Door CRDs. The portable routing contract remains `GatewayClass`, `Gateway`, `HTTPRoute`, and
+The product solution is **Zero-Public-Exposure Ingress**: the public Azure Front Door Premium edge
+reaches member workloads only through Private Link, PLS, and internal load balancers. Public
+member origins and AFD Standard are not supported. Zero public exposure refers to member origins,
+not the client-facing edge.
+
+Optional Gateway annotations declare Premium or attach WAF instead of introducing user-facing
+Front Door CRDs. Backend settings are platform-owned, not ServiceImport annotations. The portable
+routing contract remains `GatewayClass`, `Gateway`, `HTTPRoute`, and
 `ServiceImport`. When another Gateway implementation ignores the Azure annotations, the portable
 listener and routing intent remains understandable, although the Fleet-specific `ServiceImport`
 group requires explicit support from that implementation.
 
-Azure Front Door (AFD) is the first provider implementation. Web Application Firewall (WAF) and
-Private Link Service (PLS) are optional capabilities layered onto the same Gateway API model.
+Azure Front Door (AFD) Premium is the first provider implementation. Private Link Service (PLS)
+connectivity is mandatory; Web Application Firewall (WAF) remains optional.
+
+### Current implementation boundary
+
+The opt-in hub Gateway manager now registers GatewayClass, Gateway and HTTPRoute
+control-plane reconcilers. They validate the private HTTP-preview subset,
+authorize listener namespaces and cross-namespace ServiceImport references, and
+watch indexed Kubernetes dependencies. Status updates preserve other controllers'
+route parents and retry conflicts against current intent.
+
+This is not a functioning Azure ingress deployment. Gateway/listener `Programmed`
+remain false, no AFD address or supported-feature claims are published, and no
+Private Link connection has been requested. AFD lowering/full capacity preflight,
+Azure creation/update, full-graph readiness, packaging and live traffic
+evidence remain implementation gates. Enabled startup now initializes the owned
+profile cleanup client using the existing hub Azure auth/options/rate-limit policy
+and injects the uncached API reader for trusted hub identity. A deleting Gateway
+already bearing this controller's cleanup finalizer can trigger profile GET/DELETE
+after full ARM-scope and ownership-tag verification; the finalizer remains until
+the profile is observed absent. This cleanup runs before class/backend validation
+and outside status conflict retries. The standard GatewayClass in-use finalizer
+protects classes with referencing Gateways; normal Gateways still acquire no
+Azure finalizer until the create/update lifecycle is integrated.
+
+A metadata-only preparation helper now persists and reobserves the Gateway
+cleanup finalizer against matching uncached intent. It requires an available
+cleanup provider and trusted hub identity, and checks Gateway UID/generation,
+class acceptance, current routes, namespace policy, ReferenceGrants and private
+backends before patching and again before returning ownership. Conflicts retry
+only Kubernetes work and preserve other metadata. Uncached validation explicitly
+lists/filters routes and exports without cache-only field selectors; the normal
+indexed reconciliation path is unchanged. The helper itself makes no Azure calls
+and is not platform/concurrent-writer authorization. Sequential rechecks cannot
+make multi-object intent transactional.
+
+An optional typed disabled-graph stager now invokes that guard before any staging
+call, outside status conflict retries. Its SDK implementation composes root,
+backend and route staging under one 30-second deadline and at most one submitted
+write, stopping until root observations converge before proceeding. Status uses
+only matching Gateway UID/generation and re-resolved intent, remains
+`Programmed=False` without addresses, and polls staging progress with the existing
+30-second plus jitter cadence. Approval diagnostics retain the asynchronous,
+authorized PLS-owner action item. Errors are returned without dropping concurrent
+observation failures. Deletion still takes precedence over staging.
+
+Once the expected disabled route is observed, composed staging rechecks owned
+disabled roots and paginates all endpoints, routes, origin groups and origins in
+the supported graph. Every expected full ARM identity must appear exactly once;
+missing, duplicate, nil or contradictory records fail explicitly. Unexpected
+resources are refused except for the narrowly eligible stale origins below.
+Every supported collection page must contain an explicit resource array.
+Missing/null arrays invalidate completeness even when another page contains all
+expected resources; explicitly empty pages with or without continuation are valid.
+Listed records must also still prove disabled endpoint/route convergence, the
+managed HTTP route and group probe/session policy, and matching approved/deployed
+private origins. A later configuration, deployment or approval change invalidates
+the earlier GET result and returns no partial staging success. Approval regressing
+to pending retains the asynchronous, authorized PLS-owner action item. Unmanaged
+AFD load-balancing defaults and equivalent ARM identity casing remain accepted.
+Origin-group creation explicitly supplies the required load-balancing settings:
+sample size 4, successful samples required 3, and additional latency 50 ms.
+These are creation defaults only; observed load-balancing settings remain
+unmanaged and are not reset by subsequent probe/session-policy updates.
+It also paginates profile custom domains, rule sets, security policies and secrets,
+requiring explicitly empty resource arrays on every page. Missing/null arrays,
+any returned item (including nil records), and SDK errors block verification.
+Only an exact final inventory reports `inventoryVerified=true`. Pending desired
+approvals and provisioning submissions do not trigger these collection reads.
+List failures (including 404) are not interpreted as empty success.
+This verifies supported membership/managed convergence and observed absence of
+unsupported assets, not an atomic configuration snapshot or traffic readiness.
+The inventory clients
+must be initialized before any staging writes; future enablement requires
+profile-scoped read/list access to these collections, not Key Vault secret access
+or external WAF/certificate mutation privileges. These resource features,
+automatic migration and broader stale-resource cleanup remain separate work.
+
+After complete desired convergence and all inventory checks, the injected path
+can prune extra private Fleet-shaped origins only within the single expected
+origin group. Verified profile ARM identity/hub/Gateway tags and full child
+parent identity authorize cleanup; generated name shape is only an additional
+eligibility filter. Public, malformed, unknown or foreign records and any other
+unexpected/unsupported resources still block the operation. Desired origins are
+never candidates. The provider reobserves the selected origin, refuses changed
+configuration/identity, then rechecks owned Premium/disabled roots before one
+DELETE under the same deadline/write bound. In-flight operations are observed,
+not resubmitted. Known failed/rejected stale connectivity does not block removal.
+`staleOriginsPending` remains nonzero until a later complete inventory proves
+absence; a synchronous DELETE, GET 404 or DELETE 404 cannot establish success.
+Only then can `inventoryVerified=true` return. Future integration additionally
+needs profile-scoped origin DELETE permission, not PLS/private-endpoint mutation.
+No groups/routes/profiles or external assets are pruned by this bounded step.
+Replacements that cannot first stage alongside existing origins remain blocked;
+cleanup does not speculate by deleting old bindings to unblock staging.
+The SDK DELETE has no If-Match option: fresh reads are not external-writer
+exclusion, and no live enforcement proof is claimed.
+
+**Manager startup does not construct or inject this stager.** Existing deployments
+therefore still create no AFD resources or new Gateway cleanup finalizers.
+Fake-client/SDK-transport tests exercise the injectable path, not production
+enablement. Platform proofs, disabled-resource deployment semantics and external
+concurrent-writer policy remain mandatory before startup injection. Endpoint/
+route enablement and cleanup of other stale resource types remain unimplemented.
+These are outstanding proof/implementation requirements, not automatic runtime
+gate checks.
+
+Separately, enabled manager `/readyz` requires initial synchronization of every
+watched Gateway/Fleet/Namespace informer and fails for stopped informers or
+manager shutdown. Required informers are initialized before startup without
+waiting for synchronization; probe requests only inspect local state. Standby
+replicas can become ready without leadership. `/healthz` remains independent,
+and disabled mode does not initialize these informers or require Azure config.
+This is process readiness, not an SDK enablement gate, ongoing API-freshness
+check, Private Link approval requirement or dataplane readiness claim.
+
+The manager has a separate Dockerfile and explicit local
+`make image-hub-gateway-controller-manager` target. Native build/run targets
+compile the complete command package, including Azure/readiness helpers.
+The existing image/push bundles now include Gateway; GHCR uses the same
+`make push` path and MCR extends its existing architecture-tag/manifest steps, skipping
+Gateway for historical releases that did not publish it. AFD stays disabled by
+default. Linux CI verifies GNU make dry-run delivery contracts and defines a real
+image build, nonroot-identity check and network-isolated entrypoint `--help`
+smoke. Container/registry verification is pending those executions, not
+established by local Go compilation or dry runs. The independent
+[Gateway chart](../../charts/hub-gateway-controller-manager/README.md) requires an
+explicit image repository/tag and defaults to disabled mode without Azure mounts,
+GatewayClass or cluster-wide permissions. Enabled mode uses an existing platform
+Secret/account, scoped Gateway/Fleet RBAC and an optional `azure-fleet-afd` class.
+Native Helm render/lint tests and a read-only chart CI job verify these contracts,
+not live authorization or informer behavior. Image publishing, live installation
+and controller/datapath proof remain separate.
+
+For a Gateway already bearing the cleanup finalizer, the injected path can now
+suspend the owned endpoint when uncached validation confirms a complete model
+with no effective routes. It does not acquire new ownership for empty intent.
+An independent authorization-only path also suspends the whole already-owned
+endpoint on a freshly confirmed backend `RefNotPermitted` for a currently
+attached, eligible HTTPRoute. This intentionally interrupts permitted routes
+too, even when other routes/backends remain unresolved or unreadable. Mixed
+graphs still produce no complete candidate and never stage a replacement subset.
+The uncached scan reads attachment policy and grants, not ServiceImports/exports.
+A grant-read error alone is not denial evidence; a separate positive denial can
+still authorize withdrawal while observed read failures are returned for retry.
+Hub/Gateway identity, current class acceptance, existing finalizer, route
+identity/specification, attachment and denial are rechecked before suspension.
+Fresh permission blocks stale cached denial. Changed routes/restored permission
+or failed proof reads prevent stale denial diagnostics after the operation.
+If full backend resolution fails, the controller still clears addresses and
+marks Gateway/existing listeners unprogrammed, preserves other previously
+observed status instead of partial counts, and returns the resolution error.
+The SDK operation verifies profile ownership and endpoint identity, GETs only
+those resources, and submits at most one disable-only PATCH under a 30-second
+budget. Missing resources are never created. Submitted disable operations remain
+pending until later provisioning/deployment observations; no hostname or backend
+readiness is required to withdraw. Cleanup metadata is retained. Stale cached
+emptiness, lost identity/ownership and lack of positive evidence prevent suspension, and
+status retries do not replay it. This is not selective stale-resource cleanup or
+complete grant/membership/approval revocation: selective withdrawal, class
+handoff and unresolved intent without a confirmed denial remain open. An observed
+disabled endpoint is not live datapath-enforcement evidence.
+
+The approved initial Azure execution subset is one unrestricted HTTP/80
+listener, only root PathPrefix `/` matches and one logical ServiceImport port
+across all rules, with no filters or WAF. Pure construction now produces one
+Premium profile, one disabled endpoint, one private origin group with the
+selected members and one disabled `/*` HTTP route linked only to the default
+AFD hostname. Caching, HTTPS redirects, rewrites, rule sets and custom domains
+are omitted/disabled; generated resource counts are explicit. Equivalent root
+bindings to the same backend deduplicate without changing Azure identity.
+Unsupported execution intent stays `Programmed=False` with an explicit
+diagnostic rather than changing Kubernetes acceptance or widening traffic.
+This does not complete the broader Exact/PathPrefix/hostname contract or
+authorize Azure writes; supported region, probe Host, member-weight eligibility,
+persisted ownership and operational apply gates remain outstanding.
+
+A callable root provisioner now submits actual SDK profile and disabled-endpoint
+operations, but is not constructed or invoked by the manager. It validates the
+complete supported graph before ARM access, checks profile ownership and waits
+for observed Premium/global Active/Succeeded state before child access. Each
+invocation shares a 30-second budget, submits at most one write and discards LRO
+pollers; even synchronous submissions require a subsequent GET. Owned enabled
+endpoint drift is explicitly disabled, and an Azure hostname is returned only
+after observed disabled-endpoint provisioning/deployment convergence. These
+results are staging progress, not ingress readiness. A prior GET does not
+atomically exclude concurrent external writers; that policy, persisted
+pre-create finalization, platform proofs and remaining graph operations still
+gate production creation.
+
+A separate callable backend provisioner now observes those roots before staging
+the expected origin group and private origins. It never creates/enables roots
+and requires a converged disabled endpoint. Group provisioning precedes origin
+writes; group deployment is tracked separately so an undeployed empty group
+does not block its own origin creation. Each invocation submits at most one
+write under one shared 30-second budget, with fresh GETs required after writes.
+Only controlled probe/affinity and private-origin configuration are updated;
+public or different-PLS origins are refused rather than adopted. Pending
+approval does not block creating later expected origins. Existing correlated
+approval diagnostics are reused, and convergence describes only expected
+backends, not routes, origin health or removal of stale resources. This
+provisioner is also not constructed or invoked by the manager.
+
+A callable route provisioner now composes backend staging and the initially
+disabled HTTP `/*` route. A submitted backend write ends the invocation; route
+GET/create/disable operations require observed expected-backend convergence,
+including approval. The entire call shares one 30-second deadline and submits
+at most one backend or route write. It verifies the full route/endpoint ARM
+identity and the exact approved routing configuration, creates the route
+disabled and disables an otherwise matching enabled route. Other routing drift
+is explicitly refused: omitted PATCH fields are not assumed to clear caching,
+rewrites, rule sets, custom domains or protection. Even synchronous writes need
+fresh GET provisioning/deployment observations. This is callable staging only:
+neither the route nor endpoint is enabled, and production wiring, routing
+migration, complete lifecycle proofs and whole-graph readiness remain open.
+
+Pure private-origin observation now checks an owned profile and each expected
+origin's full ARM identity, desired configuration and Private Link target.
+Approval, provisioning and deployment are distinct: Approved alone is not
+convergence, and missing/unknown states remain unready. Manual-approval
+diagnostics are deduplicated for shared PLS/region targets without inferring one
+origin's status from another's. A callable read-only SDK observer now obtains
+these snapshots with one bounded operation budget: GET the profile, verify
+ownership, then paginate only expected origin groups. Missing profiles are
+explicit, missing groups discard partial pages, and API/identity errors return
+no partial observation. Each invocation starts fresh; sequential ARM reads are
+not transactional. Enabled startup now injects this observer alongside cleanup
+using the same configured credential/options. Gateways within the execution
+subset with accepted, fully resolved nonempty private backend intent recheck
+every 30 seconds plus up to 20%
+jitter, without needing Kubernetes edits for asynchronous approval changes.
+Azure reads run once outside status-conflict retries; diagnostics are applied
+only after re-resolving and matching Gateway UID/generation and normalized
+dependency intent. Observation failures are explicit pending diagnostics and
+retryable errors. Invalid, unresolved, empty and foreign intent is not observed.
+Origin convergence alone does not prove complete AFD graph readiness, origin
+health or traffic, and does not set `Programmed=True` or publish addresses.
+
+The current observation path now uses the manager's standard EventRecorder for
+asynchronous approval instructions, observation failures, problematic origin
+states and origin convergence. Events follow successfully persisted current
+observation-status transitions, outside conflict retries; unchanged polls,
+discarded observations, failed patches and staging-overridden status emit none.
+Fixed messages omit raw SDK payloads/resource IDs, and native client-go event
+aggregation/rate limiting remains in effect. Enabled chart RBAC permits Event
+create/patch in Gateway namespaces; disabled permissions remain unchanged.
+
+Logical origin-observer count/duration metrics use the existing Prometheus
+registry with only fixed `success`/`error`/`throttled` outcome labels. They count
+actual completed observer calls, not each ARM request, approval waits, current
+ready origins or traffic. A completed read can subsequently be discarded for
+changed intent. See the [chart diagnostics reference](../../charts/hub-gateway-controller-manager/README.md#origin-observation-diagnostics).
+Owned-profile finalization also has fixed-outcome logical call count/duration
+metrics and sanitized failure/ownership-conflict events through the same
+registry/recorder. Completion events require observed profile absence and a
+successful cleanup-finalizer removal patch for the matching deleting Gateway.
+Metadata retries do not replay provider calls or count extra samples. An absent
+profile is not proof this controller deleted it, and provider-call success is
+not proof of finalizer persistence. See the
+[cleanup diagnostics reference](../../charts/hub-gateway-controller-manager/README.md#owned-profile-cleanup-diagnostics).
+Existing injected graph staging and both empty-intent/ReferenceGrant-denial
+suspension call sites also expose fixed-operation/outcome call counts and
+durations, plus sanitized failed-call warnings. Calls count once outside status
+retries even if their result becomes stale or later status persistence fails.
+Nil-error calls include pending/absent resources and do not establish readiness
+or successful withdrawal enforcement. The SDK stager remains uninjected by the
+manager, so this telemetry does not enable production writes. See the
+[graph-operation diagnostics reference](../../charts/hub-gateway-controller-manager/README.md#graph-operation-diagnostics).
+Approval-wait telemetry and live event-delivery/enforcement proof remain
+outstanding.
+
+A bounded Ginkgo/envtest lifecycle suite now runs the actual GatewayClass,
+Gateway and HTTPRoute controllers with real API validation, caches/indexes,
+status patches and persisted Events. It covers fake-provider approval progression
+without Kubernetes edits, export-watch discovery invalidation/recovery and
+pending-to-absent cleanup with actual finalizer retention/removal. Focused and
+full Gateway/manager runs passed under WSL with normal teardown; the production
+polling cadence and uninjected SDK stager are unchanged. This is local
+API/controller evidence, not deployed RBAC/identity, real AFD approval, recorder
+rate limits or dataplane enforcement. Native Windows teardown is unsupported by
+this controller-runtime version; use Linux/WSL. Broader lifecycle/provider
+integration remains open; see the
+[integration guide](../../test/README.md#gateway-api-server-integration).
+The same lifecycle now covers a cross-namespace route: ReferenceGrant deletion
+preserves attachment acceptance but sets current `ResolvedRefs=False` with
+`RefNotPermitted` and stops origin observation after denied status settles.
+Denial remains ahead of missing-target lookup; a recreated grant exposes
+`BackendNotFound` until a recreated ServiceImport restores resolution through
+dependency watches. Gateway/HTTPRoute specs and generations stay unchanged.
+This verifies local authorization/status recovery, not transactional cache
+authorization or actual Azure withdrawal/enforcement.
+Export-watch integration also covers a recreated source Service's transported
+UID and a replacement PLS/frontend identity. Each changed export is rejected
+while its unconflicted status belongs to the prior generation; current status
+restores observation of the exact new private origin without Gateway/HTTPRoute
+spec or generation changes. Route reference validity remains independent of
+origin readiness. This is imported-model evidence, not member discovery/transport,
+independent live Service/PLS validation or actual Azure replacement/withdrawal.
+Provider-only `Disconnected` and `Drifted` transitions after convergence also
+exercise production polling: stale convergence diagnostics are replaced,
+matching warning Events are persisted, and restored `Ready` state yields a new
+persisted convergence Event occurrence. Gateway/HTTPRoute intent and backend
+objects remain unchanged; route references remain valid and observed Gateway
+status remains unprogrammed/address-free. This fake-provider evidence does not
+prove SDK classification, real approval withdrawal, configuration repair or
+dataplane enforcement.
+An additional in-flight read case blocks a captured rejection, changes a valid
+private origin and waits for the actual controller cache to observe its current
+export spec/status before release. The old result cannot publish a rejection
+warning; queued observations recover the exact replacement origin and a fresh
+convergence Event occurrence, without Gateway/HTTPRoute intent changes or
+programmed/address-bearing status. Cancellation-safe one-shot test coordination
+does not establish transactional freshness, competing-writer exclusion, actual
+ARM cancellation or Azure mutation safety.
 
 ## Motivation
 
@@ -52,7 +371,7 @@ need a model that supports:
 - Weighted backend references.
 - Edge TLS termination.
 - Optional WAF attachment.
-- Optional private connectivity from AFD to AKS through PLS.
+- Mandatory private connectivity from AFD Premium to AKS through PLS.
 - Standard Gateway API status and ownership behavior.
 
 Creating a second set of Front Door-specific routing CRDs would duplicate concepts already defined
@@ -65,9 +384,9 @@ extensions to annotations.
 2. Allow `HTTPRoute.backendRefs` to target the existing Fleet `ServiceImport`.
 3. Preserve the existing Fleet `ServiceImport` API without schema, group, version, or semantic
    changes.
-4. Implement AFD Standard/Premium as a Gateway controller.
+4. Implement AFD Premium as a Gateway controller for Zero-Public-Exposure Ingress.
 5. Support optional existing WAF policy attachment.
-6. Support optional AFD-to-PLS private origin connectivity.
+6. Require AFD-to-PLS private origin connectivity without public fallback.
 7. Preserve portable Gateway API listener and route configuration.
 8. Report standard Gateway API conditions and actionable validation failures.
 9. Keep Traffic Manager behavior and APIs independent.
@@ -85,6 +404,8 @@ extensions to annotations.
 8. Make Azure Traffic Manager a GatewayClass.
 9. Support arbitrary Azure resource adoption in the initial release.
 10. Support shared per-cluster ingress gateways in the initial release.
+11. Support public member origins, AFD Standard, or selectable origin connectivity.
+12. Require customers to configure generated hub ServiceImports.
 
 ## Compatibility with GEP-1748
 
@@ -196,13 +517,15 @@ integration; managed-hub to hubless downgrade is not supported.
 The managed Fleet hub acts as the Gateway API configuration cluster. It contains:
 
 - One platform-managed `GatewayClass` for the AFD implementation.
-- One or more user-created `Gateway` resources.
-- User-created `HTTPRoute` resources.
+- One or more platform-operator or authorized-ingress-owner-created `Gateway` resources.
+- `HTTPRoute` resources created by the platform operator or authorized ingress owner.
 - Existing Fleet `ServiceImport` resources.
 - `ReferenceGrant` resources when a route references a backend in another namespace.
 
 The initial implementation supports exactly one active configuration plane: the Fleet hub where
 the Gateway controller is installed. Gateway resources are not copied to member clusters.
+Application teams configure member Services and ServiceExports; they need not have hub access
+or edit the generated ServiceImport.
 
 ### Member clusters
 
@@ -211,7 +534,7 @@ Each member cluster contains:
 - The application workload.
 - A Kubernetes `Service`.
 - A Fleet `ServiceExport`.
-- For private origins, an internal `LoadBalancer` Service configured to request PLS creation.
+- An internal `LoadBalancer` Service configured to request PLS creation.
 
 ### Azure
 
@@ -257,8 +580,8 @@ The upgrade is one-way: a Fleet Manager with a managed hub cannot be converted b
 - The Fleet member networking agent is installed and can publish internal export state to the hub.
 - Each multi-cluster backend has a valid `Service` and matching `ServiceExport`.
 - Service names, namespaces, and ports satisfy current Fleet ServiceImport conflict rules.
-- Public-origin Services expose the public endpoint information required by the controller.
-- Private-origin Services use a supported internal load balancer and PLS configuration.
+- All ingress origins use a supported internal load balancer and PLS configuration with no
+  public frontend.
 
 Gateway API CRDs are not required on member clusters for the initial architecture because Gateway
 and HTTPRoute resources live only on the hub.
@@ -270,11 +593,12 @@ and HTTPRoute resources live only on the hub.
 - The controller has an approved managed identity and scoped Azure RBAC.
 - The identity can manage AFD resources in the configured resource group.
 - The identity can read externally managed WAF policies that users attach.
-- The member or hub identity used for origin discovery can read required public IP, load balancer,
-  and PLS state.
+- The member identity used for private-origin discovery can read required load balancer and PLS
+  state independently of Traffic Manager enablement.
 - Subscription and AFD quotas are sufficient for the requested Gateways, routes, origins, custom
   domains, WAF associations, and private endpoints.
-- Private Link origins use supported AFD SKU, origin type, Azure region, and approval topology.
+- Private Link origins use AFD Premium and a supported origin type, Azure region, and approval
+  topology.
 
 ### Enablement and readiness
 
@@ -304,9 +628,9 @@ spec:
   controllerName: networking.fleet.azure.com/afd
 ```
 
-Provider-wide defaults such as subscription, default resource group, identity, tags, and Azure
+Provider-wide configuration such as subscription, resource group, identity, tags, and Azure
 cloud environment are controller deployment configuration. They are not repeated on every
-Gateway.
+Gateway. Premium is mandatory and is used when the SKU annotation is omitted.
 
 ### Gateway without WAF
 
@@ -394,7 +718,7 @@ family. Other Fleet annotations remain unaffected.
 
 | Annotation | Values | Default | Purpose |
 |---|---|---|---|
-| `networking.fleet.azure.com/afd-sku` | `Standard_AzureFrontDoor`, `Premium_AzureFrontDoor` | Controller default | Selects the AFD SKU. |
+| `networking.fleet.azure.com/afd-sku` | `Premium_AzureFrontDoor` only | `Premium_AzureFrontDoor` | Optionally declares the mandatory Premium SKU; Standard is rejected. |
 | `networking.fleet.azure.com/afd-resource-group` | Reserved | None | Rejected until a separate per-Gateway ownership design is approved. |
 | `networking.fleet.azure.com/afd-waf-policy-id` | Full Azure resource ID | None | Attaches an existing AFD WAF policy. |
 
@@ -410,22 +734,27 @@ separate ownership design enables it.
 Annotation keys and values are an implementation API. Existing meanings and defaults cannot change
 in place. A replacement must use a new annotation key, support a documented overlap period, and
 emit deprecation warnings before the old key is removed.
+The earlier multi-SKU and backend annotation contract existed only in the unreleased foundation.
+The private-only product contract replaces it before release; this is not a released-API migration.
 
-### ServiceImport annotations
+### Platform-owned backend settings
 
-| Annotation | Values | Default | Purpose |
-|---|---|---|---|
-| `networking.fleet.azure.com/afd-origin-connectivity` | `auto`, `public`, `private-link` | `auto` | Selects how AFD reaches all member origins for the logical service. |
-| `networking.fleet.azure.com/afd-health-probe-path` | Absolute HTTP path | `/` | Selects the origin-group health probe path. |
-| `networking.fleet.azure.com/afd-origin-host-header` | Valid DNS hostname | Derived endpoint hostname | Overrides the Host header sent to origins. |
+No AFD annotations are accepted on generated ServiceImports. Private Link is mandatory without
+configuration. The approved initial HTTP-preview policy is HTTP GET `/` every 30 seconds on the
+selected backend port, preserving the incoming request Host. The pure backend resolver includes
+this controller-owned policy in desired state. Applications must return HTTP 200 to probes;
+actual probe Host behavior and application responses must be verified before provider enablement.
+This is not an implemented Azure programming or health/readiness claim.
 
-The connectivity annotation belongs on `ServiceImport`, rather than `HTTPRoute`, because:
+The unreleased `afd-origin-connectivity`, `afd-health-probe-path` and `afd-origin-host-header`
+annotations are retired. Remove them from foundation examples or patches. Validation in the AFD
+path rejects them with an actionable error rather than silently consuming or ignoring them.
+Other Fleet annotations remain unaffected, and validation does not mutate the object.
 
-- Multiple routes can share one logical backend.
-- Connectivity is an origin property, not an HTTP match property.
-- The same backend cannot safely be public in one route and private in another while sharing an
-  origin group.
-- Backend-level configuration avoids repeating annotations across routes.
+<!-- Decision: Customers may not have hub access and must not configure generated
+ServiceImports. Private Link is invariant. If backend overrides are required later,
+consider a platform-owned ConfigMap; scope, defaults and reconciliation require a
+separate approved design. No ConfigMap API or customer probe path is introduced here. -->
 
 ### Existing ServiceExport weight annotation
 
@@ -435,8 +764,9 @@ The existing annotation remains the source of per-cluster origin weight:
 networking.fleet.azure.com/weight
 ```
 
-`HTTPRoute.backendRefs[*].weight` controls traffic between logical backends. `ServiceExport`
-weight controls traffic between member-cluster origins behind one logical `ServiceImport`.
+`ServiceExport` weight controls traffic between member-cluster origins behind one logical
+`ServiceImport`. Multiple weighted logical backendRefs require a proven AFD mapping before they
+are advertised; the first preview targets one logical backend per rule.
 
 ## Annotation validation
 
@@ -454,10 +784,10 @@ Examples:
 
 - An unknown SKU sets the Gateway `Accepted` condition to `False`.
 - A malformed WAF policy ID sets `Accepted=False`.
-- `private-link` with a non-compatible SKU sets `Accepted=False`.
+- Standard or another non-Premium SKU sets `Accepted=False`.
+- A retired AFD annotation on ServiceImport produces an explicit backend validation error.
 - A private backend missing PLS information sets the route `ResolvedRefs=False`.
-- A backend containing a mixture of public and private member origins sets
-  `ResolvedRefs=False`.
+- A backend containing a public member origin sets `ResolvedRefs=False`.
 
 The controller must never interpret a malformed value as the default. Defaults apply only when an
 annotation is absent.
@@ -503,7 +833,8 @@ pkg/providers/azure/origin/
 3. It validates the GatewayClass controller name and listener support.
 4. It resolves each accepted `HTTPRoute` backend reference.
 5. A Fleet `ServiceImport` resolves to its contributing member clusters.
-6. Internal export state resolves each member cluster to a public endpoint or PLS.
+6. Internal export state resolves each member cluster to a verified internal LB frontend and PLS;
+   missing discovery never falls back to public-IP metadata.
 7. The controller builds a provider-neutral normalized model.
 8. The AFD provider reconciles the normalized model into Azure resources.
 9. The controller updates Gateway API status only after observing the desired Azure state.
@@ -517,24 +848,40 @@ model separates Kubernetes validation from provider operations:
 GlobalGateway
   listeners[]
   routes[]
-    matches[]
-    filters[]
-    backends[]
-      serviceImport
-      routeWeight
-      origins[]
-        cluster
-        endpoint
-        clusterWeight
-        connectivity
-        privateLinkResourceID
-        privateLinkLocation
-      healthProbe
+    listenerAttachments[]
+    rules[]
+      matches[]
+      filters[]
+      backends[]
+        serviceImportPort
+        routeWeight
+        origins[]
+          cluster
+          endpoint
+          clusterWeight
+          privateLinkResourceID
+          privateLinkLocation
+        platformProbeAndHostPolicy
   wafPolicyID
 ```
 
 The model is internal Go code, not a CRD. It allows deterministic comparison, unit testing, and
 future provider implementations without changing the public API.
+
+The implemented preview model preserves rule boundaries/order, listener-specific hostname
+intersections, route creation time and UID, service-port identity and platform probe/Host settings.
+It rejects HTTPS/non-80 edge listeners, method matching, filters and multiple logical backends per
+rule, and zero logical-backend weights until their provider mappings are implemented. HTTP Exact/PathPrefix data remains
+case-preserving; representing it does not establish that AFD route/rule lowering is correct.
+Reference authorization and parent selection remain controller responsibilities.
+
+Backend preflight counts one origin group per ServiceImport namespace/name/port and one origin
+per active member in each group. Repeated references share these resources; different ports do
+not. The HTTP port is an [AFD origin property](https://learn.microsoft.com/en-us/azure/templates/microsoft.cdn/profiles/origingroups/origins).
+The runtime Gateway reconciler calls this helper only after resolving all attached
+private backends. It checks only backend capacity, not generated AFD route/rule/domain
+counts. Rule and listener attachment fidelity and private-origin validation are
+implemented; provider lowering and complete generated-resource preflight remain pending.
 
 ## ServiceImport resolution
 
@@ -543,8 +890,8 @@ The public `ServiceImport` schema remains unchanged. The Gateway controller uses
 - `ServiceImport.status.ports` to validate the backend port.
 - `ServiceImport.status.clusters` to identify contributing member clusters.
 - `InternalServiceExport.spec.serviceReference` to map an export to its source cluster.
-- Existing member-networking state for public IP information and per-cluster weight.
-- New internal-only PLS discovery fields when Private Link is implemented.
+- Existing per-cluster weights, published independently of Traffic Manager enablement.
+- New internal-only ILB/PLS discovery fields when private discovery is implemented.
 
 Adding PLS information to `InternalServiceExport` or another internal transport resource is allowed
 because this design's compatibility promise applies to the public `ServiceImport` API. Internal
@@ -552,17 +899,18 @@ schema changes must remain backward-compatible during mixed-version upgrades.
 
 ## HTTPRoute behavior
 
-### Initial supported features
+### First preview target features
 
 - Fleet `ServiceImport` is the only supported `backendRef` kind for the multi-cluster GatewayClass.
 - Hostname matching.
 - Exact and path-prefix matching.
-- Header matching supported by AFD.
-- HTTP method matching supported by AFD.
-- Weighted backend references.
-- Request redirects supported by AFD.
-- URL rewrite and header modification where AFD behavior matches Gateway API semantics.
+- One logical backend per rule, with existing per-member ServiceExport weights.
 - Same-namespace and `ReferenceGrant`-authorized cross-namespace ServiceImport references.
+
+These are implementation targets, not current foundation capabilities. Header/method matches,
+multiple weighted backendRefs, redirects, rewrites and header modification require separately
+proven AFD mappings and tests before being advertised. Rule precedence and service-port mapping
+must be resolved before implementing even the initial subset.
 
 ### Unsupported features
 
@@ -584,7 +932,11 @@ A Fleet ServiceImport backend is resolved only when:
 - The object exists and is authorized.
 - The requested port exists in `ServiceImport.status.ports`.
 - At least one valid member origin can be resolved.
-- All origins are compatible with the selected connectivity mode.
+- All contributing origins have valid internal load balancer and PLS discovery state.
+
+Private endpoint approval is observed separately from reference validity. Pending approval keeps
+programming incomplete; a valid reference need not become unresolved solely because approval is
+pending.
 
 ## AFD resource model
 
@@ -592,12 +944,12 @@ The initial mapping is:
 
 | Gateway API concept | AFD resource |
 |---|---|
-| `Gateway` | Profile and endpoint |
+| `Gateway` | Premium profile and endpoint |
 | Gateway listener hostname | Custom domain and route domain association |
 | `HTTPRoute` | One or more AFD routes/rule sets |
-| `ServiceImport` backend | Origin group |
-| Member-cluster export | Origin |
-| `backendRefs.weight` | Logical backend distribution |
+| `ServiceImport` backend | Origin group; service-port identity requires a proven mapping |
+| Member-cluster export | Private Link origin |
+| `backendRefs.weight` | Logical backend distribution only after semantic mapping is proven |
 | `ServiceExport` weight | Per-cluster origin weight |
 | WAF annotation | Security policy association |
 
@@ -605,14 +957,30 @@ One Gateway owns one AFD profile in the initial implementation. This provides a 
 and deletion boundary. Profile sharing can be considered separately after the controller's
 isolation and quota behavior are understood.
 
-All owned Azure resources receive tags containing:
+Owned Azure resources that support tags receive:
 
 - Fleet hub identity.
 - Kubernetes namespace and name.
 - Kubernetes UID.
 - Controller identifier.
 
-The Kubernetes UID, not only the object name, is used for ownership checks.
+The Kubernetes UID, not only the object name, is used for ownership checks. Azure child resources
+without tags use verified parent ownership and stable child identities.
+
+The root-request/ownership helpers now require the hub `kube-system` Namespace UID
+as the stable hub identity. Runtime integration must read this from the trusted hub
+API; it is not a customer-supplied annotation. Profile and endpoint tags use the
+Azure-safe `networking.fleet.azure.com.` prefix with `controller`, `hub-uid`,
+`gateway-namespace`, `gateway-name` and `gateway-uid` suffixes.
+An observed profile must match both its expected subscription/resource-group/root
+ARM ID and every owner tag. Tag keys and ARM IDs are compared case-insensitively;
+owner values are exact, and missing or ambiguous tags fail closed. Configuration
+drift does not relinquish ownership or prevent eventual owned-resource deletion.
+
+Pure root requests select Premium in `global` and start the endpoint Disabled
+without inventing a hostname. These helpers do not establish persisted ownership,
+register finalizers, create Azure resources or authorize child mutations by
+themselves; complete graph validation and runtime lifecycle integration remain open.
 
 ## Optional WAF
 
@@ -656,19 +1024,19 @@ In this topology:
 - AFD is the public edge and reaches every member origin through Private Link.
 - WAF is optional in the API contract; environments that require WAF for SFI or another security
   baseline must enforce an approved policy through platform admission or deployment policy.
-- Explicit `private-link` connectivity cannot silently downgrade to a public origin.
-- A backend remains unresolved until every required PLS and private endpoint connection is ready.
+- Private Link connectivity cannot downgrade to a public origin, even without annotations.
+- Missing required PLS discovery keeps the backend unresolved; pending connection approval keeps
+  the Gateway not programmed without conflating approval with reference authorization.
 
-The public-backend topology described by this design is not the SFI-NS253 topology because member
-Services have public load balancer origins. It remains available only for environments where that
-exposure is permitted.
+Public-backend AFD topology is not supported by this product. Existing Traffic Manager public
+endpoint behavior remains independent and unchanged.
 
 This PR establishes the design, configuration contract, validation primitives, and controller
 foundation. It does not by itself demonstrate SFI-NS253 compliance: PLS discovery, AFD Private Link
 origin reconciliation, policy enforcement, deployment evidence, and end-to-end validation remain
 implementation-plan work.
 
-## Optional Private Link Service connectivity
+## Mandatory Private Link Service connectivity
 
 ### Member Service
 
@@ -694,24 +1062,28 @@ spec:
 
 The matching `ServiceExport` remains unchanged.
 
-### Connectivity modes
+### Connectivity policy
 
-`auto`:
+- AFD Premium and Private Link are mandatory; there is no selectable connectivity mode.
+- Every contributing origin needs a valid internal endpoint, PLS resource ID and location.
+- Missing, mixed or public topology is rejected; no public-IP fallback is allowed.
+- No customer ServiceImport annotation enables or overrides this policy.
 
-- Use Private Link when every valid member origin has discoverable PLS state.
-- Otherwise use public connectivity when every valid member origin has a valid public endpoint.
-- Reject mixed public/private resolution instead of guessing.
+### Asynchronous approval
 
-`public`:
+> [!IMPORTANT]
+> AFD Private Link approval is asynchronous. A request may not yet exist or be visible,
+> may remain pending owner approval, and still require provisioning after approval.
+> Neither an empty pending-request list nor successful approval submission proves readiness.
 
-- Require all valid member origins to expose a usable public endpoint.
-- Ignore PLS state for origin creation.
+The initial milestone requires authorized manual approval and bounded observation of Azure
+state without requiring a Kubernetes edit to trigger progress. Correlate requests to the owned
+AFD origin and distinguish Pending, Approved, Rejected, Disconnected and provisioning failures.
+Do not report `Programmed=True` before the required state has been observed.
 
-`private-link`:
-
-- Require an AFD SKU that supports Private Link origins.
-- Require all valid member origins to expose discoverable PLS resource IDs and locations.
-- Reject the backend until required private endpoint approvals are complete.
+**Open action item:** Work with the AFD and PLS teams on approval automation, including request
+correlation and PLS-owner authorization. This is not an available capability or permission to
+enable broad auto-approval; the manual-approval milestone does not depend on it.
 
 ### Discovery
 
@@ -727,9 +1099,9 @@ not added to public `ServiceImport.status`.
 
 ### Constraints
 
-- Public and Private Link origins are not mixed within one origin group.
-- The controller does not silently downgrade explicitly requested `private-link` connectivity.
-- Private endpoint approval may be asynchronous; status remains not programmed until Azure reports
+- Only Private Link origins are accepted in every origin group.
+- The controller never downgrades to public connectivity.
+- Private endpoint approval is asynchronous; status remains not programmed until Azure reports
   a usable connection.
 - PLS deletion or replacement triggers origin reconciliation without changing the ServiceImport.
 - Direct per-Service origins are the initial model. Shared per-cluster Gateway origins are deferred.
@@ -746,7 +1118,8 @@ reference mechanism and identity permissions. Certificate identifiers must not b
 values in annotations.
 
 HTTPS design completion is required before declaring the feature production ready, but it does not
-block the initial controller and public-origin implementation.
+block the initial private-origin HTTP preview. That preview is not a production HTTPS or
+compliance claim.
 
 ## Status and events
 
@@ -761,7 +1134,7 @@ The implementation follows Gateway API status conventions.
 
 - `Accepted` reflects API, annotation, and listener validation.
 - `Programmed` becomes true only after the AFD profile, endpoint, domains, and required security
-  associations match the desired state.
+  associations match the desired state and required private connections have converged.
 - `addresses` reports the AFD endpoint hostname.
 - Listener conditions report unsupported protocols, hostname conflicts, and route attachment state.
 
@@ -781,7 +1154,7 @@ Warning events are emitted for:
 - Invalid annotations.
 - Unsupported Gateway API features.
 - Missing or incompatible ServiceImport ports.
-- Missing public endpoint or PLS information.
+- Missing internal endpoint or PLS information.
 - Azure authorization or quota failures.
 - Private endpoint approval requirements.
 
@@ -844,7 +1217,7 @@ Traffic Manager remains the DNS-based global routing solution for scenarios such
 - Existing public endpoints.
 - Workloads that do not need an edge proxy, WAF, or HTTP routing.
 
-AFD handles HTTP(S), edge proxying, application routing, WAF, and optional Private Link.
+AFD handles HTTP(S), edge proxying, application routing, optional WAF, and mandatory Private Link.
 
 The controllers are independent. A ServiceImport may be referenced by both products, but each
 controller owns only its Azure resources. The implementation should emit a warning when
@@ -886,7 +1259,6 @@ for Fleet member networking to discover the PLS.
 | GatewayClass/Gateway/HTTPRoute controller | High | Standard controller-runtime integration. |
 | Existing Fleet ServiceImport backend | High | Group is implementation-specific and cannot claim upstream GEP Extended conformance. |
 | GKE-style hub/config-cluster model | High | Fleet hub already provides a central configuration and membership plane. |
-| Public AFD origins | High | Existing internal export state already includes public IP information. |
 | Host/path routing | High | Directly maps to AFD routes and rule sets for a defined supported subset. |
 | Existing WAF policy attachment | High | Requires resource ID validation, permissions, and SKU checks. |
 | PLS discovery | Medium | Internal transport must carry PLS resource ID, location, and readiness. |
@@ -906,14 +1278,18 @@ tradeoff.
 1. Ship the controller and chart behind an explicit feature flag.
 2. Require healthy Fleet membership, Service export/import, managed identity, and Azure provider
    registration before accepting the GatewayClass.
-3. Start with HTTP and public AFD origins.
-4. Add WAF attachment.
-5. Add member PLS discovery and private origins.
+3. Align the Premium/private-only configuration contract and remove customer ServiceImport settings.
+4. Implement member PLS discovery, private origin resolution and Gateway API reconciliation.
+5. Prove the first HTTP/private-origin preview with observed manual approval, packaging and E2E.
 6. Add HTTPS and certificate lifecycle.
 7. Run Gateway API conformance tests for the features applicable to the multi-cluster class.
 8. Publish Fleet ServiceImport behavior as implementation-specific Extended support.
 9. Promote only after upgrade, configuration-plane migration, deletion, Azure throttling, quota,
    and control-plane failure testing.
+
+Optional WAF and additional routing capabilities are independently gated on proven provider
+mappings and tests. Follow the [implementation plan](./gep-1748-implementation-plan.md) for
+dependencies, tests-first tasks and milestone criteria.
 
 ## Open questions
 
@@ -922,6 +1298,8 @@ tradeoff.
 3. How should Private Link approval ownership be represented when manual approval is required?
 4. Should one Gateway always own one AFD profile, or should profile sharing be designed later?
 5. What mixed-version compatibility window is required for internal PLS transport fields?
+6. Does the approved fixed HTTP-preview probe policy work with actual AFD probe Host behavior and target applications?
+7. What exact AFD mapping preserves service-port identity, rule precedence and weighted backends?
 
 Detailed quotas, capacity formulas, the proposed initial support envelope, multitenancy guidance,
 and release-validation scenarios are maintained in
@@ -933,7 +1311,7 @@ values do not describe implemented behavior in the current controller-foundation
 - [Configure Gateway API with Azure Front Door](../howtos/gateway-api-afd-configuration.md)
 - [GEP-1748 Azure Front Door scale and capacity](./gep-1748-scale-and-capacity.md)
 - [GEP-1748: Gateway API Interaction with Multi-Cluster Services](https://gateway-api.sigs.k8s.io/geps/gep-1748/)
-- [Gateway API v1.2.1 type definitions](https://github.com/kubernetes-sigs/gateway-api/blob/v1.2.1/apis/v1/gateway_types.go)
+- [Gateway API v1.2.1 type definitions](https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.1/apis/v1/gateway_types.go)
 - [Gateway API cross-namespace routing](https://gateway-api.sigs.k8s.io/guides/multiple-ns/)
 - [GKE multi-cluster Gateway requirements](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/prepare-environment-multi-cluster-gateways#requirements)
 - [Azure Front Door Private Link](https://learn.microsoft.com/azure/frontdoor/private-link)
