@@ -126,6 +126,7 @@ func Gateway(namespace, name, className, hostname string, annotations map[string
 }
 
 // InternalServiceExport returns the hub-side export used to derive a Fleet ServiceImport.
+// This synthetic API-contract fixture is not a verified private-ingress origin.
 func InternalServiceExport(namespace, name, serviceNamespace, serviceName, clusterID string, port int32) *fleetnetv1alpha1.InternalServiceExport {
 	return &fleetnetv1alpha1.InternalServiceExport{
 		ObjectMeta: metav1.ObjectMeta{
