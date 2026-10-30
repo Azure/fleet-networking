@@ -6,5 +6,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore"
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
     cooldown:
       default-days: 7
