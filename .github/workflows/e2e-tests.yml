@@ -6,7 +6,12 @@ on:
       - main
   create:
     tags: [ 'v*.*.*' ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      enable-afd:
+        description: 'Run live AFD E2E with test-only Private Link auto-approval (creates billable Azure resources)'
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -50,6 +55,10 @@ jobs:
       detect-noop,
     ]
     if: needs.detect-noop.outputs.noop != 'true'
+    env:
+      ENABLE_AZURE_FRONT_DOOR: ${{ github.event_name == 'workflow_dispatch' && inputs.enable-afd && matrix.network-setting == 'shared-vnet' }}
+      ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.enable-afd && matrix.network-setting == 'shared-vnet' }}
+      RETAIN_AFD_E2E_SETUP: 'false'
     steps:
       - name: Set up Go
         uses: actions/setup-go@v7

@@ -173,7 +173,7 @@ case "$kind" in
   "network private-link-service show") required="--subscription --ids"; allowed="$required" ;;
   "role assignment create")
     required="--subscription --role --assignee-object-id --assignee-principal-type --scope"; allowed="$required" ;;
-  "role assignment list") required="--subscription --scope"; allowed="$required --all" ;;
+  "role assignment list") required="--subscription --scope --fill-principal-name"; allowed="$required --all" ;;
   *) echo "unexpected Azure operation: $kind" >&2; exit 1 ;;
 esac
 declare -A options=()
@@ -194,6 +194,10 @@ done
 for key in $required; do
   [[ -n "${options[$key]:-}" ]] || { echo "missing required argument $key" >&2; exit 2; }
 done
+if [[ "$kind" == "role assignment list" && "${options[--fill-principal-name]:-}" != false ]]; then
+  echo "principal-name lookup must be disabled" >&2
+  exit 2
+fi
 [[ "${options[--subscription]}" == test-subscription ]] || { echo "wrong subscription" >&2; exit 2; }
 if [[ "$kind" == "role assignment list" && -n "${options[--all]:-}" && -n "${options[--scope]:-}" ]]; then
   echo "ERROR: group or scope are not required when --all is used" >&2

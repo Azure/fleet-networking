@@ -163,6 +163,9 @@ echo "=== Starting log collection at $(date) ==="
 if check_cluster_context "${HUB_CLUSTER}"; then
     echo "Collecting logs from hub cluster: ${HUB_CLUSTER}"
     collect_logs "${HUB_CLUSTER}" "app.kubernetes.io/name=hub-net-controller-manager"
+    if [[ "${ENABLE_AZURE_FRONT_DOOR:-false}" == true ]]; then
+        collect_logs "${HUB_CLUSTER}" "app.kubernetes.io/name=hub-gateway-controller-manager"
+    fi
     describe_resources "${HUB_CLUSTER}"
 fi
 

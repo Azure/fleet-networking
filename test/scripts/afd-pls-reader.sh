@@ -45,7 +45,7 @@ done
 for target in "${targets[@]}"; do
   az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role "$reader" \
     --assignee-object-id "$principal" --assignee-principal-type ServicePrincipal --scope "$target" >/dev/null
-  bindings="$(az role assignment list --subscription "$AZURE_SUBSCRIPTION_ID" --scope "$target")"
+  bindings="$(az role assignment list --subscription "$AZURE_SUBSCRIPTION_ID" --scope "$target" --fill-principal-name false)"
   if ! jq -e --arg principal "$principal" --arg scope "$target" --arg role "$reader" '
     any(.[]; (.principalId | ascii_downcase) == ($principal | ascii_downcase) and
       (.scope | ascii_downcase) == ($scope | ascii_downcase) and
