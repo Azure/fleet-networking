@@ -689,35 +689,6 @@ matrix entry, uses the existing setup/test targets, and collects logs/cleans up
 with `if: always()`. These are implemented test/CI paths, not evidence that a
 particular live run passed.
 
-For an authorized manual CI run, dispatch **E2E Tests** against the trusted
-upstream branch containing the candidate and set `enable-afd=true`:
-
-```bash
-gh workflow run e2e-tests.yml --repo Azure/fleet-networking \
-  --ref <TRUSTED-UPSTREAM-BRANCH> -f enable-afd=true
-```
-
-This enables AFD and test-caller Private Link auto-approval only in the shared-VNet
-job, alongside ATM and the existing scenarios. Other topology jobs are unchanged.
-Retention is disabled, and the existing always-run log collection/upload and
-resource-group cleanup still apply. Gateway controller logs are included in the
-shared-VNet artifact. Ordinary main/tag runs leave AFD disabled.
-
-Dispatch requires repository write access and authorizes billable Azure resources
-and approval of the exact correlated test connections. The Azure federated
-identity must trust the selected branch's GitHub OIDC subject; trust for `main`
-alone does not authorize another branch. Existing subscription permissions must
-cover AFD lifecycle operations, exact-PLS role preparation and connection
-approval. If subscription policy attaches an NSG to a member subnet, ensure the
-member AKS control-plane identity has the required linked-NSG join permission
-before PLS provisioning; the AFD installer does not grant it. Do not broaden
-OIDC trust or Azure roles automatically to make a run pass.
-
-This entry point does not make the provisioning scripts resumable or prove the
-live suite passes. The hosted job's execution limit can also terminate a run
-before the test runner's longer maximum deadlines; collect logs and verify Azure
-cleanup after any timeout or cancellation.
-
 The reviewed ATM scenario has no application HTTP request, observed health-probe
 logs or statistical traffic-distribution assertion; its Azure comparison ignores
 monitor-status fields. AFD reuses its intent/status/actual-ARM/cleanup pattern but
