@@ -1,0 +1,311 @@
+---
+# Source: hub-net-controller-manager/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hub-net-hub-net-controller-manager-sa
+  namespace: fleet-system
+  labels:
+    helm.sh/chart: hub-net-controller-manager-0.1.0
+    app.kubernetes.io/name: hub-net-controller-manager
+    app.kubernetes.io/instance: hub-net
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+
+---
+# Source: hub-net-controller-manager/templates/azurecloudconfig.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-cloud-config
+  namespace: fleet-system
+type: Opaque
+data:
+  azure.json: "ICAgIHsiYWFkQ2xpZW50SWQiOiIiLCJhYWRDbGllbnRTZWNyZXQiOiIiLCJjbG91ZCI6IkF6dXJlUHVibGljQ2xvdWQiLCJsb2NhdGlvbiI6ImVhc3R1cyIsInJlc291cmNlR3JvdXAiOiJyZy1mbGVldCIsInN1YnNjcmlwdGlvbklkIjoiMTExMTExMTEtMTExMS0xMTExLTExMTEtMTExMTExMTExMTExIiwidGVuYW50SWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJ1c2VNYW5hZ2VkSWRlbnRpdHlFeHRlbnNpb24iOnRydWUsInVzZXJBZ2VudCI6IiIsInVzZXJBc3NpZ25lZElkZW50aXR5SUQiOiIyMjIyMjIyMi0yMjIyLTIyMjItMjIyMi0yMjIyMjIyMjIyMjIifQ=="
+
+---
+# Source: hub-net-controller-manager/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: hub-net-hub-net-controller-manager-role
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+  - list
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceexports
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - endpointsliceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceexports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - internalserviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.fleet.azure.com
+  resources:
+  - serviceimports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+    - cluster.kubernetes-fleet.io
+  resources:
+    - memberclusters
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerbackends/status
+  verbs:
+    - get
+    - patch
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - networking.fleet.azure.com
+  resources:
+    - trafficmanagerprofiles/status
+  verbs:
+    - get
+    - patch
+    - update
+---
+# Source: hub-net-controller-manager/templates/rbac.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hub-net-hub-net-controller-manager-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hub-net-hub-net-controller-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: hub-net-hub-net-controller-manager-sa
+    namespace: fleet-system
+
+---
+# Source: hub-net-controller-manager/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hub-net-hub-net-controller-manager
+  namespace: fleet-system
+  labels:
+    helm.sh/chart: hub-net-controller-manager-0.1.0
+    app.kubernetes.io/name: hub-net-controller-manager
+    app.kubernetes.io/instance: hub-net
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hub-net-controller-manager
+      app.kubernetes.io/instance: hub-net
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hub-net-controller-manager
+        app.kubernetes.io/instance: hub-net
+    spec:
+      serviceAccountName:  hub-net-hub-net-controller-manager-sa
+      containers:
+        - name: hub-net-controller-manager
+          image: "ghcr.io/azure/fleet-networking/hub-net-controller-manager:v0.1.0"
+          imagePullPolicy: Always
+          args:
+            - --leader-election-namespace=fleet-system
+            - --v=2
+            - --add_dir_header
+            - --force-delete-wait-time=2m0s
+            - --enable-traffic-manager-feature=true
+            - --cloud-config=/etc/kubernetes/provider/azure.json
+          ports:
+          - name: metrics
+            containerPort: 8080
+            protocol: TCP
+          - name: healthz
+            containerPort: 8081
+            protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+          - name: cloud-provider-config
+            mountPath: /etc/kubernetes/provider
+            readOnly: true
+      volumes:
+      - name: cloud-provider-config
+        secret:
+          secretName: azure-cloud-config

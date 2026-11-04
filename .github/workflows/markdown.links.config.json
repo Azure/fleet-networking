@@ -9,6 +9,9 @@
     },
     {
       "pattern": "https://aka.ms/spot"
+    },
+    {
+      "pattern": "^https://eng\\.ms/"
     }
   ],
   "timeout": "20s"
