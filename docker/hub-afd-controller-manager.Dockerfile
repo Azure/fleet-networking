@@ -1,0 +1,40 @@
+# Build the hub-afd-controller-manager binary.
+#
+# This binary is a sibling of hub-net-controller-manager. The two run as
+# separate Deployments so their Workload-Identity federated subjects can
+# be distinct — required by Proposal 001 §7 (SFI-NS253). See
+# cmd/hub-afd-controller-manager/main.go for the full rationale. The
+# Dockerfile is intentionally kept in sync with hub-net-controller-manager.Dockerfile
+# (same base images, same distroless runtime, same non-root UID) so that
+# CVE-scan and supply-chain policies apply uniformly across the fleet
+# controller-manager binaries.
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.12 AS builder
+
+ARG GOOS=linux
+ARG GOARCH=amd64
+
+WORKDIR /workspace
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+# Cache the downloaded dependency modules across different builds to expedite the progress.
+# This also helps reduce downloading related reliability issues in our build environment.
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# Copy the go source
+COPY cmd/hub-afd-controller-manager/main.go main.go
+COPY api/ api/
+COPY pkg/ pkg/
+
+# Build with CGO enabled for internal usage
+RUN echo "Building images with GOOS=$GOOS GOARCH=$GOARCH"
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GO111MODULE=on go build -o hub-afd-controller-manager main.go
+
+# Use Azure Linux distroless base image to package hub-afd-controller-manager binary
+# Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0
+WORKDIR /
+COPY --from=builder /workspace/hub-afd-controller-manager .
+USER 65532:65532
+
+ENTRYPOINT ["/hub-afd-controller-manager"]

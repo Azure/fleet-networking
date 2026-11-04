@@ -1,0 +1,86 @@
+# Default values for hub-afd-controller-manager.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Two replicas by default so leader-election survives a single-pod eviction
+# (e.g. node scaling on AKS Automatic). Higher availability than the 1-replica
+# hub-net default because the AFD controller manages external customer-facing
+# infra (Front Door profiles) — a stuck reconciler is more user-visible.
+replicaCount: 2
+
+image:
+  repository: ghcr.io/azure/fleet-networking/hub-afd-controller-manager
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v0.1.0"
+
+logVerbosity: 2
+
+leaderElectionNamespace: fleet-system
+fleetSystemNamespace: fleet-system
+
+# --------------------------------------------------------------------------
+# Azure Workload Identity configuration.
+#
+# The AFD controller authenticates to ARM exclusively via Workload Identity
+# (see pkg/common/azurefrontdoor/client.go). The three sub-fields below are
+# REQUIRED at install time — the chart intentionally does not provide
+# fallback default credentials, so a misconfigured install fails at deploy
+# time rather than surfacing as opaque 401s at reconcile time.
+#
+# SFI-NS253 §7 invariant: the AAD app-registration identified by
+# `azure.clientId` here MUST NOT be the same identity used by the
+# hub-net-controller-manager chart. If it is, the whole point of the
+# chart split is defeated. This is enforced operationally (Terraform / az
+# CLI federated-credential setup) — the chart cannot cross-check it.
+# --------------------------------------------------------------------------
+azure:
+  # tenantId is the AAD tenant that hosts the federated app registration
+  # for this controller. Required.
+  tenantId: ""
+  # clientId is the AAD app (or User-Assigned MI) client ID that the
+  # controller's ServiceAccount is federated to. Required. MUST be
+  # distinct from the ATM controller's identity (SFI-NS253 §7).
+  clientId: ""
+  # subscriptionID is the subscription that owns the AFD profiles this
+  # controller reconciles. Required. Note the ID casing: the underlying
+  # env var read by pkg/common/azurefrontdoor is AZURE_SUBSCRIPTION_ID.
+  subscriptionID: ""
+
+# Resource requests/limits. Sized for a single AFD tenant workload; adjust
+# upward if reconciling many FrontDoorProfile CRs simultaneously (rare —
+# most fleets have <10 profiles).
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+podAnnotations: {}
+
+# Two-replica default (see replicaCount rationale) benefits from spreading
+# pods across nodes. Override with node-affinity if the cluster is
+# single-zone or has fewer nodes than replicas.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: hub-afd-controller-manager
+
+nodeSelector: {}
+
+tolerations: []
+
+# PodDisruptionBudget prevents both replicas from being evicted simultaneously
+# during voluntary disruptions (upgrades, node drains, NAP scaling on AKS
+# Automatic). Set enabled=false on single-replica installs to avoid blocking
+# node drains — a single pod with minAvailable=1 is unevictable.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
