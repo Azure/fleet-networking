@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
@@ -39,6 +40,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/azurefrontdoorbackendattachment"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -66,7 +68,12 @@ var (
 
 	enableV1Beta1APIs = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
-	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
+	enableTrafficManagerFeature    = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
+	enableAzureFrontDoorGatewayAPI = flag.Bool(
+		"enable-azure-front-door-gateway-api",
+		false,
+		"If set, the read-only Azure Front Door Gateway API controller will be enabled.",
+	)
 
 	cloudConfigFile = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The path to the cloud config file which will be used to access the Azure resource.")
 )
@@ -76,6 +83,11 @@ var (
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerProfileKind),
 		fleetnetv1beta1.GroupVersion.WithKind(fleetnetv1beta1.TrafficManagerBackendKind),
 	}
+	azureFrontDoorGatewayAPIRequiredGVKs = []schema.GroupVersionKind{
+		{Group: gatewayv1.GroupName, Version: "v1", Kind: "Gateway"},
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.AzureFrontDoorGatewayPolicyKind),
+		fleetnetv1alpha1.GroupVersion.WithKind(fleetnetv1alpha1.AzureFrontDoorBackendAttachmentKind),
+	}
 )
 
 func init() {
@@ -83,6 +95,7 @@ func init() {
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
 	klog.InitFlags(nil)
 	//+kubebuilder:scaffold:scheme
 }
@@ -233,6 +246,24 @@ func main() {
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
+			exitWithErrorFunc()
+		}
+	}
+	if *enableAzureFrontDoorGatewayAPI {
+		klog.V(1).InfoS("Azure Front Door Gateway API feature is enabled, checking the required CRDs")
+		for _, gvk := range azureFrontDoorGatewayAPIRequiredGVKs {
+			if err = utils.CheckCRDInstalled(discoverClient, gvk); err != nil {
+				klog.ErrorS(err, "Unable to find the required CRD", "GVK", gvk)
+				exitWithErrorFunc()
+			}
+		}
+
+		klog.V(1).InfoS("Start to setup AzureFrontDoorBackendAttachment controller")
+		if err := (&azurefrontdoorbackendattachment.Reconciler{
+			Client:   mgr.GetClient(),
+			Recorder: mgr.GetEventRecorderFor(azurefrontdoorbackendattachment.ControllerName),
+		}).SetupWithManager(ctx, mgr); err != nil {
+			klog.ErrorS(err, "Unable to create AzureFrontDoorBackendAttachment controller")
 			exitWithErrorFunc()
 		}
 	}

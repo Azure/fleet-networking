@@ -53,9 +53,11 @@ func runTest(t *testing.T, crdPath string) {
 		wantError      bool
 	}{
 		{
-			name: "hub mode excludes MultiClusterService CRD",
+			name: "hub mode includes all Fleet networking CRDs",
 			mode: "hub",
 			wantedCRDNames: []string{
+				"azurefrontdoorbackendattachments.networking.fleet.azure.com",
+				"azurefrontdoorgatewaypolicies.networking.fleet.azure.com",
 				"endpointsliceexports.networking.fleet.azure.com",
 				"endpointsliceimports.networking.fleet.azure.com",
 				"internalserviceexports.networking.fleet.azure.com",
