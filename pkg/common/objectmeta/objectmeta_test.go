@@ -114,3 +114,108 @@ func TestExtractWeightFromServiceExport(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractExportModeFromServiceExport(t *testing.T) {
+	testCases := []struct {
+		name      string
+		svcExport *fleetnetv1beta1.ServiceExport
+		wantMode  string
+		wantError bool
+	}{
+		{
+			// Missing annotation is the common case for existing manifests;
+			// it must resolve to the default so nothing breaks silently.
+			name: "annotation absent -> default L4-TrafficManager",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{Name: "no-anno"},
+			},
+			wantMode: ExportModeValueTrafficManager,
+		},
+		{
+			name: "explicit L4-TrafficManager -> accepted",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "explicit-tm",
+					Annotations: map[string]string{
+						ServiceExportAnnotationExportMode: ExportModeValueTrafficManager,
+					},
+				},
+			},
+			wantMode: ExportModeValueTrafficManager,
+		},
+		{
+			name: "explicit L7-FrontDoor -> accepted",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "explicit-afd",
+					Annotations: map[string]string{
+						ServiceExportAnnotationExportMode: ExportModeValueFrontDoor,
+					},
+				},
+			},
+			wantMode: ExportModeValueFrontDoor,
+		},
+		{
+			// Empty string is treated as invalid rather than defaulted so a
+			// mis-templated Helm value that resolves to "" surfaces loudly
+			// instead of silently reverting to TrafficManager.
+			name: "empty string -> invalid",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "empty",
+					Annotations: map[string]string{
+						ServiceExportAnnotationExportMode: "",
+					},
+				},
+			},
+			wantError: true,
+		},
+		{
+			// Case-sensitive by design: enum values are case-sensitive in
+			// the CRD spec, and case-folding here would let ambiguous values
+			// pass through to Azure APIs that themselves are case-sensitive.
+			name: "wrong case -> invalid",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "wrong-case",
+					Annotations: map[string]string{
+						ServiceExportAnnotationExportMode: "l7-frontdoor",
+					},
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "typo -> invalid",
+			svcExport: &fleetnetv1beta1.ServiceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "typo",
+					Annotations: map[string]string{
+						ServiceExportAnnotationExportMode: "L4-Trafficmanager",
+					},
+				},
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotMode, err := ExtractExportModeFromServiceExport(tc.svcExport)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("ExtractExportModeFromServiceExport() error = %v, want error? %v", err, tc.wantError)
+			}
+			if tc.wantError {
+				// On error, mode is documented to be "" so callers cannot
+				// accidentally use an unvalidated value.
+				if gotMode != "" {
+					t.Errorf("ExtractExportModeFromServiceExport() on error returned mode = %q, want empty", gotMode)
+				}
+				return
+			}
+			if gotMode != tc.wantMode {
+				t.Errorf("ExtractExportModeFromServiceExport() mode = %q, want %q", gotMode, tc.wantMode)
+			}
+		})
+	}
+}
