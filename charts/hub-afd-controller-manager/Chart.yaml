@@ -1,0 +1,22 @@
+apiVersion: v2
+name: hub-afd-controller-manager
+description: |
+  Helm chart for the fleet-networking Azure Front Door controller-manager on the hub cluster.
+  This chart is a sibling of the hub-net-controller-manager chart. The two are packaged
+  separately (rather than as one chart with a feature toggle) because Proposal 001 §7
+  (SFI-NS253) requires the AFD Workload-Identity federated subject to be distinct from
+  the ATM subject, which is only enforceable at the Pod boundary. See
+  docs/first-party/001-afd-global-load-balancing.md §7 and
+  docs/first-party/003-pre-implementation-checklist.md §2.4.
+
+# Application chart, not a library — this ships templates that render Kubernetes objects.
+type: application
+
+# This is the chart version. Bump on any chart or template change.
+# Follows Semantic Versioning (https://semver.org/).
+version: 0.1.0
+
+# The application version tracks the AFD controller binary version. It intentionally
+# matches hub-net-controller-manager's appVersion so release automation can promote
+# both binaries together.
+appVersion: "v0.1.0"

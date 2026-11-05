@@ -1603,3 +1603,211 @@ func (c *fakePublicIPAddressClient) List(_ context.Context, rg string) ([]*armne
 	}
 	return nil, errors.New("invalid resource group")
 }
+
+// fakePrivateLinkServicesClient implements
+// sigs.k8s.io/cloud-provider-azure/pkg/azclient/privatelinkserviceclient.Interface
+// with in-memory Get responses keyed by "<rg>/<name>". Missing keys yield a
+// synthetic NotFound error so the reconciler's still-provisioning branch is
+// exercised without needing a real ARM error type.
+type fakePrivateLinkServicesClient struct {
+	// GetResponses maps "<rg>/<name>" -> PrivateLinkService returned by Get.
+	GetResponses map[string]*armnetwork.PrivateLinkService
+	// GetErrOverride, if set, is returned from every Get in place of the
+	// key lookup. Use for testing non-404 error paths.
+	GetErrOverride error
+}
+
+func (c *fakePrivateLinkServicesClient) Get(_ context.Context, rg string, name string, _ *string) (*armnetwork.PrivateLinkService, error) {
+	if c.GetErrOverride != nil {
+		return nil, c.GetErrOverride
+	}
+	if pls, ok := c.GetResponses[rg+"/"+name]; ok {
+		return pls, nil
+	}
+	// Synthesise a NotFound error that contains the string the reconciler's
+	// isAzureNotFoundError helper looks for. Keeps the fake dependency-free.
+	return nil, errors.New("ResourceNotFound: no PLS at " + rg + "/" + name)
+}
+
+func (c *fakePrivateLinkServicesClient) CreateOrUpdate(_ context.Context, _ string, _ string, _ armnetwork.PrivateLinkService) (*armnetwork.PrivateLinkService, error) {
+	return nil, nil
+}
+
+func (c *fakePrivateLinkServicesClient) Delete(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (c *fakePrivateLinkServicesClient) List(_ context.Context, _ string) ([]*armnetwork.PrivateLinkService, error) {
+	return nil, nil
+}
+
+func TestSetAzureRelatedPrivateLinkInformation(t *testing.T) {
+	const (
+		validPLSName       = "pls1"
+		altResourceGroup   = "custom-pls-rg"
+		validPLSResourceID = "/subscriptions/sub1/resourceGroups/valid-rg/providers/Microsoft.Network/privateLinkServices/pls1"
+		altPLSResourceID   = "/subscriptions/sub1/resourceGroups/custom-pls-rg/providers/Microsoft.Network/privateLinkServices/pls1"
+	)
+	tests := []struct {
+		name           string
+		service        *corev1.Service
+		getResponses   map[string]*armnetwork.PrivateLinkService
+		getErrOverride error
+		wantPLSID      *string
+		wantErr        bool
+	}{
+		{
+			name: "not a LoadBalancer service — hard reject",
+			service: &corev1.Service{
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeClusterIP},
+			},
+			wantErr: true,
+		},
+		{
+			name: "LoadBalancer but not internal — hard reject",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						// Note: only "true" (lowercase) qualifies; leaving it unset is
+						// treated as public LB, which is incompatible with L7-FrontDoor.
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			wantErr: true,
+		},
+		{
+			name: "internal LB missing pls-create=true — hard reject",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			wantErr: true,
+		},
+		{
+			name: "pls-create=true but pls-name missing — hard reject",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			wantErr: true,
+		},
+		{
+			name: "PLS not yet provisioned — soft pending, no error, no ID set",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			// No entry in getResponses → fake returns a NotFound error →
+			// reconciler treats as still-provisioning and returns nil.
+			getResponses: map[string]*armnetwork.PrivateLinkService{},
+			wantPLSID:    nil,
+			wantErr:      false,
+		},
+		{
+			name: "PLS Get returns a non-404 error — bubble it up",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			getErrOverride: errors.New("boom: throttled"),
+			wantErr:        true,
+		},
+		{
+			name: "happy path — PLS exists in default RG",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			getResponses: map[string]*armnetwork.PrivateLinkService{
+				validResourceGroup + "/" + validPLSName: {ID: ptr.To(validPLSResourceID)},
+			},
+			wantPLSID: ptr.To(validPLSResourceID),
+		},
+		{
+			name: "happy path — pls-resource-group annotation overrides default RG",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+						objectmeta.ServiceAnnotationAzurePLSResourceGroup:     altResourceGroup,
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			getResponses: map[string]*armnetwork.PrivateLinkService{
+				altResourceGroup + "/" + validPLSName: {ID: ptr.To(altPLSResourceID)},
+			},
+			wantPLSID: ptr.To(altPLSResourceID),
+		},
+		{
+			name: "PLS Get returns object without ID — soft pending, no error, no ID set",
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						objectmeta.ServiceAnnotationAzureLoadBalancerInternal: "true",
+						objectmeta.ServiceAnnotationAzurePLSCreate:            "true",
+						objectmeta.ServiceAnnotationAzurePLSName:              validPLSName,
+					},
+				},
+				Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer},
+			},
+			getResponses: map[string]*armnetwork.PrivateLinkService{
+				validResourceGroup + "/" + validPLSName: {ID: nil},
+			},
+			wantPLSID: nil,
+			wantErr:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Reconciler{
+				AzurePrivateLinkServicesClient: &fakePrivateLinkServicesClient{
+					GetResponses:   tt.getResponses,
+					GetErrOverride: tt.getErrOverride,
+				},
+				ResourceGroupName: validResourceGroup,
+			}
+			got := &fleetnetv1alpha1.InternalServiceExport{}
+			err := r.setAzureRelatedPrivateLinkInformation(context.Background(), tt.service, got)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("setAzureRelatedPrivateLinkInformation() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if diff := cmp.Diff(tt.wantPLSID, got.Spec.PrivateLinkServiceResourceID); diff != "" {
+				t.Errorf("PrivateLinkServiceResourceID mismatch (-want, +got):\n%s", diff)
+			}
+		})
+	}
+}

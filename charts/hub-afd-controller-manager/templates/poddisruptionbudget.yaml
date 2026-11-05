@@ -1,0 +1,23 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{/*
+PodDisruptionBudget so voluntary disruptions (upgrades, node drains,
+AKS Automatic NAP-driven scaling) cannot take both replicas down at
+once. With replicaCount=2 and minAvailable=1 the deployment tolerates
+one voluntary eviction per drain cycle.
+
+Disable via podDisruptionBudget.enabled=false on single-replica installs
+(otherwise the PDB blocks all voluntary evictions and drains hang).
+*/}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "hub-afd-controller-manager.fullname" . }}-pdb
+  namespace: {{ .Values.fleetSystemNamespace }}
+  labels:
+    {{- include "hub-afd-controller-manager.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "hub-afd-controller-manager.selectorLabels" . | nindent 6 }}
+{{- end }}
