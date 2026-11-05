@@ -43,9 +43,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              InternalServiceExportSpec specifies the spec of an exported Service; at this stage only the ports of an
-              exported Service are sync'd.
+            description: InternalServiceExportSpec specifies the member Service information
+              transported to the hub.
             properties:
               isDNSLabelConfigured:
                 description: |-
@@ -111,6 +110,34 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
+              privateLinkOrigin:
+                description: |-
+                  PrivateLinkOrigin is optional member-discovered private ingress metadata.
+                  Absence means unknown, including exports from older members.
+                properties:
+                  internalIP:
+                    description: InternalIP is the Service's verified internal LB
+                      frontend address.
+                    type: string
+                  location:
+                    description: Location is the Azure region of the PLS.
+                    type: string
+                  ready:
+                    description: Ready requires a uniquely identified, provisioned
+                      internal frontend and PLS.
+                    type: boolean
+                  reason:
+                    description: Reason explains discovery readiness without carrying
+                      raw Azure error responses.
+                    type: string
+                  resourceID:
+                    description: ResourceID identifies the PLS bound to the Service's
+                      internal LB frontend.
+                    type: string
+                required:
+                - ready
+                - reason
+                type: object
               publicIPResourceID:
                 description: PublicIPResourceID is the Azure Resource URI of public
                   IP. This is only applicable for Load Balancer type Services.
