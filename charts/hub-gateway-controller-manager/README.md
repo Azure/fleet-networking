@@ -11,6 +11,24 @@ and application health remain independent. The last eligible origin withdraws
 the owned route/origins while retaining Disabled roots for re-export; Gateway
 deletion cleans up only the verified owned profile.
 
+## Current limitations
+
+The enabled AFD runtime supports only the following execution subset, not the
+broader future contract shown in some configuration examples.
+
+| Area | Current limitation |
+|---|---|
+| Listeners | Exactly one listener per Gateway |
+| Protocol and port | HTTP on port 80 only; no HTTPS, TLS configuration or certificate lifecycle |
+| Hostnames | No listener or HTTPRoute hostname restrictions; uses the default AFD endpoint domain, not custom domains |
+| Path matching | Only `PathPrefix: /` (including the default match); no Exact or non-root paths |
+| Other matching | No header, query-parameter or method matching |
+| Backends | Exactly one `networking.fleet.azure.com/ServiceImport` backend per rule; all rules must use the same logical backend and port. Multiple eligible member origins behind that backend are supported |
+| Backend namespaces | ServiceImport must be in the HTTPRoute namespace; cross-namespace backend references are rejected even with a ReferenceGrant. Cross-namespace HTTPRoute-to-Gateway attachment remains controlled by listener `allowedRoutes` |
+| Route features | No filters, timeouts, retries or session persistence; no WAF association |
+| Origin topology | AFD Premium with Private Link to member internal load balancers only; no AFD Standard or public origins |
+| Private Link approval | Requires an authorized PLS owner; the controller does not approve connections |
+
 **Enabled mode is no longer observation-only: it performs AFD writes.** Controller
 code is validated offline. An earlier diagnostic served both private members
 after user-performed activation despite null/NotStarted AFD metadata. That is not
@@ -136,7 +154,7 @@ custom domains or certificate management.
 
 | Value | Default | Purpose |
 |---|---|---|
-| `fleetSystemNamespace` | `fleet-system` | Namespace for controller resources, identities and leader election |
+| `fleetSystemNamespace` | `fleet-system` | Namespace for controller workloads, identities and configuration Secret |
 | `afd.enabled` | `false` | Explicitly enable Gateway/Fleet controllers and cluster RBAC |
 | `afd.resourceGroup` | Empty | Required when enabled |
 | `afd.cloudConfigSecret.name` | Empty | Existing Secret in `fleetSystemNamespace`; required when enabled |
@@ -146,6 +164,7 @@ custom domains or certificate management.
 | `serviceAccount.annotations` | `{}` | Annotations on the chart-created account |
 | `podLabels` / `podAnnotations` | `{}` | Platform projection/metadata; selector labels cannot be overridden |
 | `leaderElection` | `true` | Namespaced leases and events; keep enabled for multiple replicas |
+| `leaderElectionNamespace` | `fleet-system` | Namespace for leader election and its Role/RoleBinding, independent of `fleetSystemNamespace` |
 | `replicaCount` / `logVerbosity` | `1` / `2` | Deployment replica count and manager verbosity |
 | `resources` | See values.yaml | CPU/memory requests and limits |
 | `nodeSelector` / `tolerations` / `affinity` | Empty | Scheduling policy |
@@ -157,12 +176,15 @@ usual projection plumbing. For example, a platform may use
 cloud-config authentication, federation, a webhook or Azure role assignments.
 Annotate an existing account outside this chart when reusing it.
 
-`fleetSystemNamespace` controls all namespaced resources, binding subjects and
-leader election, matching the existing Fleet charts. It defaults to the reserved
-`fleet-system` namespace independently of the Helm release namespace. For a
-custom controller namespace, explicitly set `fleetSystemNamespace` and create
-that namespace and its configuration Secret before installation; `--namespace`
-alone only selects the Helm release namespace. The chart creates no Namespace.
+`fleetSystemNamespace` controls the Deployment, ServiceAccount and binding
+subjects. `leaderElectionNamespace` independently controls the leader-election
+namespace and its Role/RoleBinding, matching the existing Fleet charts. Both
+default to the reserved `fleet-system` namespace independently of the Helm
+release namespace. For a custom controller namespace, explicitly set
+`fleetSystemNamespace`; set `leaderElectionNamespace` separately if leases should
+also move. Create both namespaces (if different) and the controller's configuration
+Secret before installation; `--namespace` alone only selects the Helm release
+namespace. The chart creates no Namespace.
 The image runs as UID/GID 65532 with a read-only root filesystem, no privilege
 escalation, dropped capabilities and RuntimeDefault seccomp.
 

@@ -33,8 +33,8 @@ func (r *Reconciler) suspendDeniedReferences(ctx context.Context, gateway *gatew
 	if !controllerutil.ContainsFinalizer(gateway, objectmeta.GatewayAFDCleanupFinalizer) {
 		return nil, nil
 	}
-	if r.APIReader == nil || r.ProfileCleanup == nil || gateway.UID == "" {
-		return nil, fmt.Errorf("uncached reader, cleanup provider and existing Gateway identity are required before reference withdrawal")
+	if gateway.UID == "" {
+		return nil, fmt.Errorf("existing Gateway identity is required before reference withdrawal")
 	}
 	hubUID, err := r.provisioningHubUID(ctx)
 	if err != nil {
@@ -108,24 +108,22 @@ func (r *Reconciler) routeReferenceDenied(ctx context.Context, gateway *gatewayv
 	if err != nil || len(attachments) == 0 {
 		return false, err
 	}
-	var readErr error
 	for _, rule := range route.Spec.Rules {
 		// ValidateHTTPRoute guarantees exactly one effective backend per rule.
-		err := gatewayresolver.AuthorizeBackendReference(ctx, r.APIReader, route.Namespace, rule.BackendRefs[0])
+		err := gatewayresolver.AuthorizeBackendReference(route.Namespace, rule.BackendRefs[0])
 		if err == nil {
 			continue
 		}
 		var resolutionErr *gatewayresolver.ResolutionError
 		if errors.As(err, &resolutionErr) {
 			if resolutionErr.Reason == string(gatewayv1.RouteReasonRefNotPermitted) {
-				return true, readErr
+				return true, nil
 			}
 		} else {
-			// Unknown reads are not denial, nor may they hide a separate positive proof.
-			readErr = errors.Join(readErr, err)
+			return false, err
 		}
 	}
-	return false, readErr
+	return false, nil
 }
 
 func (r *Reconciler) currentReferenceDenial(ctx context.Context, expected *gatewayv1.Gateway, denial *referenceDenial) (bool, error) {
@@ -158,7 +156,7 @@ func (r *Reconciler) applyReferenceWithdrawal(ctx context.Context, gateway *gate
 	case confirmed && staging.err != nil:
 		message = "AFD endpoint suspension failed: " + staging.err.Error()
 	case confirmed:
-		message = fmt.Sprintf("AFD endpoint suspension: %s; ReferenceGrant denies HTTPRoute %s/%s; whole-endpoint withdrawal also interrupts permitted routes; ingress is not programmed",
+		message = fmt.Sprintf("AFD endpoint suspension: %s; cross-namespace backends are unsupported for HTTPRoute %s/%s; whole-endpoint withdrawal also interrupts permitted routes; ingress is not programmed",
 			staging.suspension.State, staging.denial.route.Namespace, staging.denial.route.Name)
 	}
 	if confirmed && err != nil {

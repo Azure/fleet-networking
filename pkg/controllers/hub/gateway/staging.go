@@ -39,9 +39,6 @@ func (r *Reconciler) stageGraph(ctx context.Context, gateway *gatewayv1.Gateway)
 	if r.GraphStager == nil && r.HTTPProvisioner == nil {
 		return nil, nil
 	}
-	if r.GraphStager != nil && r.HTTPProvisioner != nil {
-		return nil, fmt.Errorf("disabled-only staging and full HTTP provisioning cannot both be configured")
-	}
 	if r.HTTPProvisioner != nil {
 		var class gatewayv1.GatewayClass
 		if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, &class); err != nil {
@@ -54,7 +51,7 @@ func (r *Reconciler) stageGraph(ctx context.Context, gateway *gatewayv1.Gateway)
 			return r.suspendUnprogrammableGateway(ctx, gateway)
 		}
 	}
-	// Revocation must not wait for unrelated backend resolution or a complete model.
+	// Namespace denial must not wait for backend resolution or a complete model.
 	if staging, err := r.suspendDeniedReferences(ctx, gateway); staging != nil || err != nil {
 		return staging, err
 	}

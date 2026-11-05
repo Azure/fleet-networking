@@ -33,6 +33,13 @@ installed identity and HTTP/Host/probe/withdrawal/cleanup evidence are still
 required before release/readiness claims. Broader routing and standalone observer
 matrix expansion are not the next milestone.
 
+**First-release namespace boundary:** ServiceImport backends must be in the
+HTTPRoute namespace. Cross-namespace backend references are rejected even with
+ReferenceGrants; grant-authorized backends described in the original plan below
+are deferred. Cross-namespace attachment to a Gateway remains governed by
+listener `allowedRoutes`. Already-owned endpoints with denied backend intent
+are suspended without reading backend targets.
+
 ## Product requirements and boundaries
 
 ```text
@@ -69,7 +76,7 @@ Clients -> public AFD Premium edge -> Private Link -> member PLS
 | Manager | Enabled-only GatewayClass/Gateway/HTTPRoute reconcilers, dependency indexes, schemes, health/readiness endpoints and Azure configuration checks | Provider clients, deployment packaging and meaningful provider readiness |
 | Annotations | Premium-only Gateway validation, ServiceImport AFD annotation rejection, fixed approved HTTP-preview probe/Host policy | Provider enforcement and live probe/Host evidence |
 | Model | Rule-scoped matches/backends, listener hostname intersections, precedence metadata, deep copies, private-origin validation and approved HTTP-preview probe data | Proven AFD route/rule lowering for every advertised feature |
-| Backend resolution | Private resolver, parent/namespace authorization, ReferenceGrants, indexed lookups and dependency watches | Envtest, provider integration and live evidence |
+| Backend resolution | Private resolver, parent/namespace authorization, same-namespace ServiceImport backends, indexed lookups and dependency watches | Live evidence; cross-namespace backends deferred |
 | Member transport | Optional private-origin transport, opt-in read-only ILB/PLS discovery, hub resolution and weight publication independent of Traffic Manager | Envtest and live Azure verification |
 | E2E | Gateway CRDs, builders, live API round-trip scenario | Running Gateway controllers, Azure provisioning, approval transitions and traffic assertions |
 | Packaging | Package-based build/run, existing image/push and GHCR/MCR delivery integration, separate local image target, disabled-default Gateway chart with scoped RBAC/existing identity, image/chart CI definitions | Actual container/registry/multiarchitecture verification, live RBAC/identity verification and opt-in E2E deployment |

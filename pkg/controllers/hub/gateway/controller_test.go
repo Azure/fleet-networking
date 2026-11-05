@@ -7,6 +7,7 @@ package gateway
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -22,6 +23,48 @@ import (
 )
 
 const otherName = "other"
+
+func TestGatewaySetupRequiresDependencies(t *testing.T) {
+	tests := []struct {
+		name   string
+		remove func(*Reconciler)
+	}{
+		{"missing Kubernetes client", func(r *Reconciler) { r.Client = nil }},
+		{"missing cleanup provider", func(r *Reconciler) { r.ProfileCleanup = nil }},
+		{"missing API reader", func(r *Reconciler) { r.APIReader = nil }},
+		{"missing HTTP provisioner", func(r *Reconciler) { r.HTTPProvisioner = nil }},
+		{"disabled-only stager", func(r *Reconciler) {
+			r.HTTPProvisioner = nil
+			r.GraphStager = &fakeGraphStager{}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := fake.NewClientBuilder().Build()
+			r := Reconciler{
+				Client: c, APIReader: c, ProfileCleanup: &fakeProfileCleaner{}, HTTPProvisioner: &fakeHTTPProvisioner{},
+			}
+			tt.remove(&r)
+			// A nil manager verifies dependencies are checked before controller registration.
+			err := r.SetupWithManager(nil)
+			if err == nil || !strings.Contains(err.Error(), "Kubernetes client, AFD cleanup provider, HTTP provisioner and uncached API reader are required") {
+				t.Fatalf("SetupWithManager error = %v, want missing Gateway dependencies", err)
+			}
+		})
+	}
+}
+
+func TestGatewaySetupRejectsConflictingProviders(t *testing.T) {
+	c := fake.NewClientBuilder().Build()
+	r := Reconciler{
+		Client: c, APIReader: c, ProfileCleanup: &fakeProfileCleaner{},
+		HTTPProvisioner: &fakeHTTPProvisioner{}, GraphStager: &fakeGraphStager{},
+	}
+	err := r.SetupWithManager(nil)
+	if err == nil || !strings.Contains(err.Error(), "disabled-only staging and full HTTP provisioning cannot both be configured") {
+		t.Fatalf("SetupWithManager error = %v, want conflicting providers", err)
+	}
+}
 
 func TestReconcileGatewayControlPlaneOnly(t *testing.T) {
 	tests := []struct {

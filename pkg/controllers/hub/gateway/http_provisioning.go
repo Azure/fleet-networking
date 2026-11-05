@@ -24,7 +24,10 @@ import (
 	"go.goms.io/fleet-networking/pkg/providers/azure/frontdoor"
 )
 
-func (r *Reconciler) applyHTTPPreview(ctx context.Context, gateway *gatewayv1.Gateway,
+// applyHTTPPreviewStatus updates Gateway/listener readiness and addresses from
+// provisioning results matching the current identity, generation and model.
+// It revalidates uncached intent before publishing readiness; the caller persists status.
+func (r *Reconciler) applyHTTPPreviewStatus(ctx context.Context, gateway *gatewayv1.Gateway,
 	model *gatewaymodel.GlobalGateway, staging *gatewayStaging) (bool, error) {
 	if staging == nil || staging.http == nil || model == nil || gateway.UID != staging.uid ||
 		gateway.Generation != staging.generation || !reflect.DeepEqual(*model, staging.model) {

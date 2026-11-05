@@ -18,7 +18,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
@@ -185,7 +184,7 @@ func ResolveBackend(ctx context.Context, reader client.Reader, namespace string,
 }
 
 func resolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, indexed bool) (gatewaymodel.Backend, error) {
-	if err := AuthorizeBackendReference(ctx, reader, namespace, ref); err != nil {
+	if err := AuthorizeBackendReference(namespace, ref); err != nil {
 		return gatewaymodel.Backend{}, err
 	}
 	targetNamespace := string(ptr.Deref(ref.Namespace, gatewayv1.Namespace(namespace)))
@@ -229,49 +228,19 @@ func resolveBackend(ctx context.Context, reader client.Reader, namespace string,
 	return backend, nil
 }
 
-// AuthorizeBackendReference checks the supported kind and ReferenceGrants without
-// reading the target, so unavailable backends cannot prevent policy withdrawal.
-func AuthorizeBackendReference(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef) error {
+// AuthorizeBackendReference restricts backends to Fleet ServiceImports in the
+// HTTPRoute namespace without reads, so unavailable targets cannot block withdrawal.
+func AuthorizeBackendReference(namespace string, ref gatewayv1.HTTPBackendRef) error {
 	if ptr.Deref(ref.Group, "") != gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group) || ptr.Deref(ref.Kind, "Service") != serviceImportKind {
 		return newResolutionError("InvalidKind", false, "only %s/ServiceImport backends are supported", fleetnetv1alpha1.GroupVersion.Group)
 	}
 	targetNamespace := string(ptr.Deref(ref.Namespace, gatewayv1.Namespace(namespace)))
-	if targetNamespace == namespace {
-		return nil
-	}
-	// Listener attachment permission does not authorize cross-namespace backend reads.
-	var grants gatewayv1beta1.ReferenceGrantList
-	if err := reader.List(ctx, &grants, client.InNamespace(targetNamespace)); err != nil {
-		return fmt.Errorf("list backend ReferenceGrants: %w", err)
-	}
-	if !referencePermitted(namespace, ref.Name, grants.Items) {
+	if targetNamespace != namespace {
 		return newResolutionError(string(gatewayv1.RouteReasonRefNotPermitted), false,
-			"no ReferenceGrant permits HTTPRoute namespace %q to reference %s/%s", namespace, targetNamespace, ref.Name)
+			"cross-namespace backends are unsupported in the HTTP preview; ServiceImport %s/%s must be in HTTPRoute namespace %q",
+			targetNamespace, ref.Name, namespace)
 	}
 	return nil
-}
-
-func referencePermitted(namespace string, name gatewayv1.ObjectName, grants []gatewayv1beta1.ReferenceGrant) bool {
-	for _, grant := range grants {
-		if grant.DeletionTimestamp != nil {
-			continue
-		}
-		fromAllowed := false
-		for _, from := range grant.Spec.From {
-			if from.Group == gatewayv1.GroupName && from.Kind == "HTTPRoute" && string(from.Namespace) == namespace {
-				fromAllowed = true
-			}
-		}
-		if !fromAllowed {
-			continue
-		}
-		for _, to := range grant.Spec.To {
-			if to.Group == gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group) && to.Kind == serviceImportKind && (to.Name == nil || *to.Name == name) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // ResolveHTTPRoute builds rule-scoped private intent. An unavailable origin does

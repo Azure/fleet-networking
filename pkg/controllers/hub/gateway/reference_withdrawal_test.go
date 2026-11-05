@@ -80,27 +80,23 @@ func referenceWithdrawalFixture(t *testing.T) (client.Client, *gatewayv1.Gateway
 
 func TestGatewayAllDeniedReferencesSuspendWithoutTargetReads(t *testing.T) {
 	const deletingGrantCase = "grant marked deleting"
-	for _, scenario := range []string{"grant removed", deletingGrantCase, "target also missing"} {
+	for _, scenario := range []string{"grant present", "grant removed", deletingGrantCase, "target also missing"} {
 		c, gateway, route, grant := referenceWithdrawalFixture(t)
 		stager := &fakeGraphStager{result: frontdoor.DisabledGraphStagingResult{
 			Roots: frontdoor.RootProvisioningResult{State: frontdoor.ProfileProvisioningPending},
 		}, suspension: frontdoor.EndpointSuspensionResult{State: frontdoor.EndpointSuspended}}
 		r := &Reconciler{Client: c, APIReader: c, ProfileCleanup: &fakeProfileCleaner{}, GraphStager: stager}
 		request := ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)}
-		if _, err := r.Reconcile(context.Background(), request); err != nil {
-			t.Fatal(err)
-		}
-		if stager.calls != 1 || stager.suspensions != 0 {
-			t.Fatalf("authorized route was not staged: %#v", stager)
-		}
 		if scenario == deletingGrantCase {
 			grant.Finalizers = []string{ownershipForeignFinalizer}
 			if err := c.Update(context.Background(), grant); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := c.Delete(context.Background(), grant); err != nil {
-			t.Fatal(err)
+		if scenario != "grant present" {
+			if err := c.Delete(context.Background(), grant); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if scenario == "target also missing" {
 			if err := c.Delete(context.Background(), &fleetnetv1alpha1.ServiceImport{ObjectMeta: metav1.ObjectMeta{
@@ -117,6 +113,9 @@ func TestGatewayAllDeniedReferencesSuspendWithoutTargetReads(t *testing.T) {
 				return cl.Get(ctx, key, object, opts...)
 			},
 			List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if _, grants := list.(*gatewayv1beta1.ReferenceGrantList); grants {
+					t.Fatal("cross-namespace denial read ReferenceGrants")
+				}
 				if _, target := list.(*fleetnetv1alpha1.InternalServiceExportList); target {
 					t.Fatal("denied reference read internal exports")
 				}
@@ -125,7 +124,7 @@ func TestGatewayAllDeniedReferencesSuspendWithoutTargetReads(t *testing.T) {
 		})
 		r.Client, r.APIReader = guarded, ownershipReader{Reader: guarded, t: t}
 		result, err := r.Reconcile(context.Background(), request)
-		if err != nil || result.RequeueAfter < 30*time.Second || result.RequeueAfter > 36*time.Second || stager.suspensions != 1 || stager.calls != 1 {
+		if err != nil || result.RequeueAfter < 30*time.Second || result.RequeueAfter > 36*time.Second || stager.suspensions != 1 || stager.calls != 0 {
 			t.Fatalf("all-denied graph did not withdraw: %#v, %v, provider=%#v", result, err, stager)
 		}
 		if err := c.Get(context.Background(), request.NamespacedName, gateway); err != nil {
@@ -244,7 +243,7 @@ func TestGatewayDenialSurvivesBackendAndStatusFailures(t *testing.T) {
 	}
 }
 
-func TestGatewayDenialSurvivesOtherGrantReadFailure(t *testing.T) {
+func TestGatewayDenialDoesNotReadGrants(t *testing.T) {
 	c, gateway, route, grant := referenceWithdrawalFixture(t)
 	if err := c.Delete(context.Background(), grant); err != nil {
 		t.Fatal(err)
@@ -255,13 +254,10 @@ func TestGatewayDenialSurvivesOtherGrantReadFailure(t *testing.T) {
 	if err := c.Update(context.Background(), route); err != nil {
 		t.Fatal(err)
 	}
-	readErr := errors.New("other ReferenceGrants unavailable")
 	reader := interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-			options := &client.ListOptions{}
-			options.ApplyOptions(opts)
-			if _, grants := list.(*gatewayv1beta1.ReferenceGrantList); grants && options.Namespace == string(*unknown.BackendRefs[0].Namespace) {
-				return readErr
+			if _, grants := list.(*gatewayv1beta1.ReferenceGrantList); grants {
+				t.Fatal("unsupported cross-namespace backend read ReferenceGrants")
 			}
 			return cl.List(ctx, list, opts...)
 		},
@@ -269,16 +265,16 @@ func TestGatewayDenialSurvivesOtherGrantReadFailure(t *testing.T) {
 	stager := &fakeGraphStager{suspension: frontdoor.EndpointSuspensionResult{State: frontdoor.EndpointSuspended}}
 	r := &Reconciler{Client: reader, APIReader: ownershipReader{Reader: reader, t: t}, ProfileCleanup: &fakeProfileCleaner{}, GraphStager: stager}
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
-	if !errors.Is(err, readErr) || stager.suspensions != 1 || stager.calls != 0 {
-		t.Fatalf("other grant failure blocked positive denial: %v, provider=%#v", err, stager)
+	if err != nil || stager.suspensions != 1 || stager.calls != 0 {
+		t.Fatalf("cross-namespace denial did not suspend: %v, provider=%#v", err, stager)
 	}
 	if err := c.Get(context.Background(), client.ObjectKeyFromObject(gateway), gateway); err != nil {
 		t.Fatal(err)
 	}
 	pending := meta.FindStatusCondition(gateway.Status.Conditions, "Programmed")
 	if pending == nil || pending.Status != metav1.ConditionFalse || !strings.Contains(pending.Message, string(stager.suspension.State)) ||
-		!strings.Contains(pending.Message, "other authorization reads failed") {
-		t.Fatalf("positive denial/provider result or uncertainty was lost: %#v", gateway.Status)
+		!strings.Contains(pending.Message, "cross-namespace backends are unsupported") {
+		t.Fatalf("cross-namespace denial/provider result was lost: %#v", gateway.Status)
 	}
 }
 
@@ -417,7 +413,7 @@ func TestGatewayDenialStatusConflictDoesNotReplaySuspension(t *testing.T) {
 	}
 }
 
-func TestGatewayFreshDenialOverridesCachedPermission(t *testing.T) {
+func TestGatewayCachedGrantCannotPermitCrossNamespaceBackend(t *testing.T) {
 	c, gateway, route, grant := referenceWithdrawalFixture(t)
 	addWithdrawalPeer(t, c, gateway, route)
 	if err := c.Delete(context.Background(), grant); err != nil {
@@ -442,7 +438,7 @@ func TestGatewayFreshDenialOverridesCachedPermission(t *testing.T) {
 	}
 }
 
-func TestGatewayDenialRestoredBeforeOperationPreventsSuspension(t *testing.T) {
+func TestGatewayGrantRestoredBeforeOperationCannotPermitCrossNamespaceBackend(t *testing.T) {
 	c, gateway, route, grant := referenceWithdrawalFixture(t)
 	addWithdrawalPeer(t, c, gateway, route)
 	if err := c.Delete(context.Background(), grant); err != nil {
@@ -461,8 +457,8 @@ func TestGatewayDenialRestoredBeforeOperationPreventsSuspension(t *testing.T) {
 	}}
 	r := &Reconciler{Client: c, APIReader: reader, ProfileCleanup: &fakeProfileCleaner{}, GraphStager: stager}
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
-	if !errors.Is(err, errProvisioningIntentChanged) || !restored || stager.suspensions != 0 || stager.calls != 0 {
-		t.Fatalf("permission was not rechecked immediately before suspension: %v, provider=%#v", err, stager)
+	if err != nil || !restored || stager.suspensions != 1 || stager.calls != 0 {
+		t.Fatalf("restored grant authorized cross-namespace intent: %v, provider=%#v", err, stager)
 	}
 }
 
@@ -473,7 +469,7 @@ func TestGatewayMixedDenialRechecksStatusEvidence(t *testing.T) {
 		readFails   bool
 	}{
 		{name: "route changed during suspension", changeRoute: true},
-		{name: "permission restored during suspension"},
+		{name: "backend corrected to same namespace during suspension"},
 		{name: "status proof read fails", readFails: true},
 	}
 	for _, tt := range tests {
@@ -484,13 +480,13 @@ func TestGatewayMixedDenialRechecksStatusEvidence(t *testing.T) {
 				t.Fatal(err)
 			}
 			afterOperation := false
-			proofErr := errors.New("current grant evidence unavailable")
+			proofErr := errors.New("current route evidence unavailable")
 			reader := interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
-				List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-					if _, grants := list.(*gatewayv1beta1.ReferenceGrantList); grants && afterOperation && tt.readFails {
+				Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, object client.Object, opts ...client.GetOption) error {
+					if _, route := object.(*gatewayv1.HTTPRoute); route && afterOperation && tt.readFails {
 						return proofErr
 					}
-					return cl.List(ctx, list, opts...)
+					return cl.Get(ctx, key, object, opts...)
 				},
 			})
 			stager := &fakeGraphStager{suspension: frontdoor.EndpointSuspensionResult{State: frontdoor.EndpointSuspended}, during: func() {
@@ -502,8 +498,8 @@ func TestGatewayMixedDenialRechecksStatusEvidence(t *testing.T) {
 						t.Fatal(err)
 					}
 				case !tt.readFails:
-					grant.ResourceVersion = ""
-					if err := c.Create(context.Background(), grant); err != nil {
+					route.Spec.Rules[0].BackendRefs[0].Namespace = nil
+					if err := c.Update(context.Background(), route); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -525,13 +521,18 @@ func TestGatewayMixedDenialRechecksStatusEvidence(t *testing.T) {
 	}
 }
 
-func TestGatewayDenialRequiresCurrentGrantEvidence(t *testing.T) {
+func TestGatewayDenialRequiresCurrentRouteEvidence(t *testing.T) {
 	for _, lookupFails := range []bool{false, true} {
-		c, gateway, _, _ := referenceWithdrawalFixture(t)
+		c, gateway, route, _ := referenceWithdrawalFixture(t)
+		stale := route.DeepCopy()
+		route.Spec.Rules[0].BackendRefs[0].Namespace = nil
+		if err := c.Update(context.Background(), route); err != nil {
+			t.Fatal(err)
+		}
 		cache := interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 			List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				if grants, ok := list.(*gatewayv1beta1.ReferenceGrantList); ok {
-					grants.Items = nil
+				if routes, ok := list.(*gatewayv1.HTTPRouteList); ok {
+					routes.Items = []gatewayv1.HTTPRoute{*stale}
 					return nil
 				}
 				return cl.List(ctx, list, opts...)
@@ -542,29 +543,29 @@ func TestGatewayDenialRequiresCurrentGrantEvidence(t *testing.T) {
 		if lookupFails {
 			r.APIReader = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 				List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-					if _, grants := list.(*gatewayv1beta1.ReferenceGrantList); grants {
-						return apierrors.NewForbidden(schema.GroupResource{Resource: referenceGrantResource}, gateway.Namespace, errors.New("grant reads unavailable"))
+					if _, routes := list.(*gatewayv1.HTTPRouteList); routes {
+						return apierrors.NewForbidden(schema.GroupResource{Resource: "httproutes"}, route.Namespace, errors.New("route reads unavailable"))
 					}
 					return cl.List(ctx, list, opts...)
 				},
 			})
 		}
-		_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
-		if err == nil || stager.calls != 0 || stager.suspensions != 0 ||
-			(lookupFails && !apierrors.IsForbidden(err)) || (!lookupFails && !errors.Is(err, errProvisioningIntentChanged)) {
+		staging, err := r.suspendDeniedReferences(context.Background(), gateway)
+		if staging != nil || stager.calls != 0 || stager.suspensions != 0 ||
+			(lookupFails && !apierrors.IsForbidden(err)) || (!lookupFails && err != nil) {
 			t.Fatalf("stale denial/read failure caused withdrawal: %v, provider=%#v", err, stager)
 		}
 	}
 }
 
-func TestGatewayRestoredGrantInvalidatesSuspensionStatus(t *testing.T) {
-	c, gateway, _, grant := referenceWithdrawalFixture(t)
+func TestGatewayCorrectedBackendInvalidatesSuspensionStatus(t *testing.T) {
+	c, gateway, route, grant := referenceWithdrawalFixture(t)
 	if err := c.Delete(context.Background(), grant); err != nil {
 		t.Fatal(err)
 	}
 	stager := &fakeGraphStager{suspension: frontdoor.EndpointSuspensionResult{State: frontdoor.EndpointSuspended}, during: func() {
-		grant.ResourceVersion = ""
-		if err := c.Create(context.Background(), grant); err != nil {
+		route.Spec.Rules[0].BackendRefs[0].Namespace = nil
+		if err := c.Update(context.Background(), route); err != nil {
 			t.Fatal(err)
 		}
 	}}
@@ -578,7 +579,7 @@ func TestGatewayRestoredGrantInvalidatesSuspensionStatus(t *testing.T) {
 	pending := meta.FindStatusCondition(gateway.Status.Conditions, "Programmed")
 	if stager.suspensions != 1 || stager.calls != 0 || pending == nil || pending.Status != metav1.ConditionFalse ||
 		strings.Contains(pending.Message, referenceSuspensionMessage) || len(gateway.Status.Addresses) != 0 {
-		t.Fatalf("restored permission retained stale suspension status: %#v, provider=%#v", gateway.Status, stager)
+		t.Fatalf("corrected backend retained stale suspension status: %#v, provider=%#v", gateway.Status, stager)
 	}
 }
 
@@ -604,7 +605,7 @@ func TestGatewayAllDeniedReferencesDoNotAcquireOwnership(t *testing.T) {
 	}
 }
 
-func TestGatewayGrantLookupFailureIsNotDenial(t *testing.T) {
+func TestGatewayGrantLookupFailureCannotBlockNamespaceDenial(t *testing.T) {
 	c, gateway, _, _ := referenceWithdrawalFixture(t)
 	reader := interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
@@ -617,7 +618,7 @@ func TestGatewayGrantLookupFailureIsNotDenial(t *testing.T) {
 	stager := &fakeGraphStager{}
 	r := &Reconciler{Client: reader, APIReader: c, ProfileCleanup: &fakeProfileCleaner{}, GraphStager: stager}
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
-	if !apierrors.IsForbidden(err) || stager.suspensions != 0 || stager.calls != 0 {
-		t.Fatalf("grant lookup failure was treated as denial: %v, provider=%#v", err, stager)
+	if err != nil || stager.suspensions != 1 || stager.calls != 0 {
+		t.Fatalf("grant lookup failure blocked namespace denial: %v, provider=%#v", err, stager)
 	}
 }

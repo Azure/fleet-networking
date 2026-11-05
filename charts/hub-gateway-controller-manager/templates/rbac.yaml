@@ -6,7 +6,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ $fullname }}-leader
-  namespace: {{ .Values.fleetSystemNamespace }}
+  namespace: {{ .Values.leaderElectionNamespace }}
 rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
@@ -19,7 +19,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ $fullname }}-leader
-  namespace: {{ .Values.fleetSystemNamespace }}
+  namespace: {{ .Values.leaderElectionNamespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

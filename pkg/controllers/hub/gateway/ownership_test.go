@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -333,7 +332,7 @@ func TestPrepareProvisioningStopsRetryOnDependencyChange(t *testing.T) {
 }
 
 func TestPrepareProvisioningMissingPrerequisites(t *testing.T) {
-	for _, kind := range []string{"no reader", "no cleaner", "empty model", "model owner mismatch", "hub Namespace absent", "empty hub UID", "canceled"} {
+	for _, kind := range []string{"empty model", "model owner mismatch", "hub Namespace absent", "empty hub UID", "canceled"} {
 		t.Run(kind, func(t *testing.T) {
 			c, gateway, _, _ := gatewayFixture(t, 1)
 			if kind != "hub Namespace absent" {
@@ -344,10 +343,6 @@ func TestPrepareProvisioningMissingPrerequisites(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			switch kind {
-			case "no reader":
-				r.APIReader = nil
-			case "no cleaner":
-				r.ProfileCleanup = nil
 			case "empty model":
 				model.Routes = nil
 			case "model owner mismatch":
@@ -369,17 +364,25 @@ func TestPrepareProvisioningMissingPrerequisites(t *testing.T) {
 	}
 }
 
-func TestPrepareProvisioningRechecksCrossNamespaceAuthorization(t *testing.T) {
-	for _, change := range []string{"authorized", "grant revoked", "namespace policy revoked"} {
+func TestPrepareProvisioningRechecksCrossNamespaceAttachment(t *testing.T) {
+	for _, change := range []string{"authorized", "namespace policy revoked"} {
 		t.Run(change, func(t *testing.T) {
 			ctx := context.Background()
 			c, gateway, route, _ := gatewayFixture(t, 1)
 			addObservationHub(t, c)
-			routeNamespace := "tenant-routes"
-			namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-				Name: routeNamespace, Labels: map[string]string{ownershipAccessLabel: "allowed"},
-			}}
-			if err := c.Create(ctx, namespace); err != nil {
+			namespace := &corev1.Namespace{}
+			if err := c.Get(ctx, client.ObjectKey{Name: route.Namespace}, namespace); err != nil {
+				t.Fatal(err)
+			}
+			namespace.Labels = map[string]string{ownershipAccessLabel: "allowed"}
+			if err := c.Update(ctx, namespace); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Delete(ctx, gateway); err != nil {
+				t.Fatal(err)
+			}
+			gateway.Namespace, gateway.ResourceVersion = "tenant-gateways", ""
+			if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: gateway.Namespace}}); err != nil {
 				t.Fatal(err)
 			}
 			gateway.Spec.Listeners[0].AllowedRoutes = &gatewayv1.AllowedRoutes{Namespaces: &gatewayv1.RouteNamespaces{
@@ -387,40 +390,17 @@ func TestPrepareProvisioningRechecksCrossNamespaceAuthorization(t *testing.T) {
 					MatchLabels: map[string]string{ownershipAccessLabel: "allowed"},
 				},
 			}}
-			if err := c.Update(ctx, gateway); err != nil {
+			if err := c.Create(ctx, gateway); err != nil {
 				t.Fatal(err)
 			}
-			if err := c.Delete(ctx, route); err != nil {
-				t.Fatal(err)
-			}
-			route = route.DeepCopy()
-			route.Namespace, route.ResourceVersion = routeNamespace, ""
 			for i := range route.Spec.ParentRefs {
 				route.Spec.ParentRefs[i].Namespace = ptr.To(gatewayv1.Namespace(gateway.Namespace))
 			}
-			route.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace(gateway.Namespace))
-			if err := c.Create(ctx, route); err != nil {
-				t.Fatal(err)
-			}
-			grant := &gatewayv1beta1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{Namespace: gateway.Namespace, Name: "allow-route"},
-				Spec: gatewayv1beta1.ReferenceGrantSpec{
-					From: []gatewayv1beta1.ReferenceGrantFrom{{
-						Group: gatewayv1.GroupName, Kind: "HTTPRoute", Namespace: gatewayv1.Namespace(routeNamespace),
-					}},
-					To: []gatewayv1beta1.ReferenceGrantTo{{
-						Group: gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group), Kind: "ServiceImport",
-						Name: ptr.To(route.Spec.Rules[0].BackendRefs[0].Name),
-					}},
-				}}
-			if err := c.Create(ctx, grant); err != nil {
+			if err := c.Update(ctx, route); err != nil {
 				t.Fatal(err)
 			}
 			model := ownershipModel(t, c, gateway)
 			switch change {
-			case "grant revoked":
-				if err := c.Delete(ctx, grant); err != nil {
-					t.Fatal(err)
-				}
 			case "namespace policy revoked":
 				namespace.Labels[ownershipAccessLabel] = "denied"
 				if err := c.Update(ctx, namespace); err != nil {

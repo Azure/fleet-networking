@@ -177,8 +177,6 @@ func TestGatewayStagingGuardFailuresAndSkips(t *testing.T) {
 		{name: unsupportedCase},
 		{name: foreignClassCase},
 		{name: "deleting Gateway"},
-		{name: "missing reader", wantError: true},
-		{name: "missing cleaner", wantError: true},
 		{name: "metadata patch fails", wantError: true},
 		{name: "intent changes before ownership", wantError: true},
 	}
@@ -220,10 +218,6 @@ func TestGatewayStagingGuardFailuresAndSkips(t *testing.T) {
 				if err := c.Delete(ctx, gateway); err != nil {
 					t.Fatal(err)
 				}
-			case "missing reader":
-				r.APIReader = nil
-			case "missing cleaner":
-				r.ProfileCleanup = nil
 			case "metadata patch fails":
 				r.Client = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 					Patch: func(context.Context, client.WithWatch, client.Object, client.Patch, ...client.PatchOption) error {

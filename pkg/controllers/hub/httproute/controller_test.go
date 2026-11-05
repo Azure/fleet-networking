@@ -83,7 +83,7 @@ func TestReconcileRouteConditionsAndStatusOwnership(t *testing.T) {
 		{"wrong backend kind", func(_ *gatewayv1.GatewayClass, _ *gatewayv1.Gateway, r *gatewayv1.HTTPRoute) {
 			r.Spec.Rules[0].BackendRefs[0].Kind = ptr.To(gatewayv1.Kind("Service"))
 		}, metav1.ConditionTrue, metav1.ConditionFalse, "InvalidKind", true},
-		{"cross namespace requires grant", func(_ *gatewayv1.GatewayClass, _ *gatewayv1.Gateway, r *gatewayv1.HTTPRoute) {
+		{"cross namespace unsupported", func(_ *gatewayv1.GatewayClass, _ *gatewayv1.Gateway, r *gatewayv1.HTTPRoute) {
 			r.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace("backends"))
 		}, metav1.ConditionTrue, metav1.ConditionFalse, "RefNotPermitted", true},
 		{"namespace policy denies route", func(_ *gatewayv1.GatewayClass, g *gatewayv1.Gateway, _ *gatewayv1.HTTPRoute) {
@@ -285,7 +285,7 @@ func TestReconcileRouteReturnsAPIErrorWithoutChangingStatus(t *testing.T) {
 	}
 }
 
-func TestReconcileRouteRevokesDeletedGrant(t *testing.T) {
+func TestReconcileRouteRejectsCrossNamespaceBackendRegardlessOfGrant(t *testing.T) {
 	class, gateway, route, service := routeObjects()
 	service.Namespace = "backends"
 	route.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace(service.Namespace))
@@ -311,8 +311,9 @@ func TestReconcileRouteRevokesDeletedGrant(t *testing.T) {
 			t.Fatal(err)
 		}
 		resolved := meta.FindStatusCondition(got.Status.Parents[0].Conditions, "ResolvedRefs")
-		if resolved == nil || (resolved.Status == metav1.ConditionTrue) == deleted || (deleted && resolved.Reason != "RefNotPermitted") {
-			t.Fatalf("grant deletion=%v did not update authorization: %#v", deleted, resolved)
+		if resolved == nil || resolved.Status != metav1.ConditionFalse || resolved.Reason != "RefNotPermitted" ||
+			resolved.ObservedGeneration != got.Generation {
+			t.Fatalf("grant deletion=%v permitted cross-namespace backend: %#v", deleted, resolved)
 		}
 	}
 }

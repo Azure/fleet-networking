@@ -34,7 +34,7 @@ spec:
           args:
             - --enable-afd={{ .Values.afd.enabled }}
             - --leader-elect={{ .Values.leaderElection }}
-            - --leader-election-namespace={{ .Values.fleetSystemNamespace }}
+            - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --metrics-bind-address=:8082
             - --health-probe-bind-address=:8083
             - --v={{ .Values.logVerbosity }}

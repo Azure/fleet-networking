@@ -193,16 +193,17 @@ checks current unprogrammed/address-free status. Approval/convergence/cleanup
 Events are persisted through the real API server. A test-seeded ownership
 finalizer remains while cleanup is pending and is released only after a later
 absence observation, using server-assigned hub/Gateway/source-Service identities.
-Its route lives in a different namespace with explicit AllowedRoutes and a
-ReferenceGrant. Deleting the grant preserves current `Accepted=True` attachment
-but sets `ResolvedRefs=False/RefNotPermitted`, replaces the Gateway convergence
-message with denial and stops observer calls after denied state settles. Removing
-the target does not override the authorization denial. Recreating the grant while
-the target is absent exposes `BackendNotFound`; recreating the ServiceImport and its platform
-status restores resolution/observation through dependency watches. Recreated
-grant/backend UIDs differ, while Gateway/HTTPRoute specs and generations remain
-unchanged. The observer does not enforce Azure withdrawal, and these settled
-cache assertions are not a transactional authorization guarantee.
+Its route lives in a different namespace from the Gateway with explicit
+AllowedRoutes, but its backend is in the route namespace. Changing the backend
+reference to another namespace preserves `Accepted=True` attachment but sets
+`ResolvedRefs=False/RefNotPermitted`, even with a matching ReferenceGrant, and
+suspends the fake endpoint. Deleting/recreating the grant cannot restore access;
+missing backends cannot override namespace denial. Correcting the reference to
+the route namespace exposes `BackendNotFound` until the ServiceImport and its
+platform status are recreated. Dependency watches restore resolution/provisioning.
+The Gateway spec/generation remain unchanged; route edits advance its generation.
+These are local fake-provider assertions, not live Azure withdrawal or
+transactional authorization proof.
 The lifecycle also recreates the fixture source Service and transports its new
 server-assigned UID, then replaces the exported PLS/frontend identity. Each
 export spec change first retains stale unconflicted status: the Gateway rejects
@@ -289,8 +290,10 @@ export ENABLE_GATEWAY_API=true
 ```
 
 The controller entry waits for current-generation GatewayClass/Gateway acceptance and HTTPRoute
-reference conditions. It checks missing-backend recovery and `ReferenceGrant` deletion/recreation
-without editing the cross-namespace route. Gateways and listeners must remain
+reference conditions. It checks missing-backend recovery and rejects cross-namespace
+backends both with and without a ReferenceGrant; deleting/recreating a grant
+cannot enable them. The baseline API round-trip accepts these manifests but does
+not imply controller support. Gateways and listeners must remain
 `Programmed=False`, with no fabricated Azure address or Azure cleanup finalizer.
 If the flag is absent, this entry is explicitly skipped while the baseline entry still runs.
 
@@ -302,7 +305,7 @@ For supported real private intent, the enabled manager now provisions resources
 and persists cleanup ownership before doing so.
 Ownership-preparation unit tests separately cover metadata-only finalizer
 persistence/re-observation with uncached UID, class, route, namespace policy,
-grant and backend rechecks. They reject cache-only field selectors and exercise
+same-namespace backend rechecks. They reject cache-only field selectors and exercise
 metadata conflicts, lost ownership, changed intent and read/write failures.
 The helper itself makes no Azure requests. Injected-stager controller tests now
 exercise it through reconciliation, asserting persisted ownership before staging,
@@ -319,16 +322,16 @@ SDK suspension tests assert GET-only absence handling and disable-only PATCH,
 fresh observations after submission, cancellation/error preservation and no
 dependency on backend/route clients or a hostname. They do not prove live traffic
 revocation or selective withdrawal.
-All-denied ReferenceGrant tests cover deleting/absent grants, denied target
-read avoidance even when the target is missing, stale cached denial, fresh grant
-read errors, restored permission during suspension and no ownership acquisition
+Backend-namespace denial tests cover present/deleting/absent grants, denied target
+read avoidance even when the target is missing, current route evidence, grant
+read avoidance, corrected intent during suspension and no ownership acquisition
 for never-owned Gateways. Mixed denied/permitted or denied/unresolved route sets
 must return no candidate and never stage a partial graph, but a separate current
 authorization-only proof suspends the whole already-owned endpoint. This
 intentionally interrupts permitted peers too. Tests cover backend API failures
 without blocking suspension or unprogrammed status, preserved read/provider/
-status errors, other grant-read failures alongside a positive denial, stale
-cached permission, permission restored before the operation, route/ownership
+status errors, grant-read failures that cannot block denial, ignored cached
+grants, grant recreation before the operation, route/ownership
 drift, ineligible routes, fresh proof failure and status conflicts without
 replaying Azure. The uncached reader rejects cache-only field selectors. These
 are fake-client/provider checks, not live traffic enforcement evidence.

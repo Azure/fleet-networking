@@ -91,8 +91,6 @@ func TestGatewayFinalizesOwnedProfileWithoutClass(t *testing.T) {
 		notDeleting   bool
 		missingHub    bool
 		emptyHubUID   bool
-		missingClient bool
-		missingReader bool
 		conflict      bool
 		deleted       bool
 		cleanupError  error
@@ -117,8 +115,6 @@ func TestGatewayFinalizesOwnedProfileWithoutClass(t *testing.T) {
 			wantCalls: 1, wantError: true, wantFinalizer: true, outcome: "ownership_conflict", event: cleanupOwnedEvent},
 		{name: "missing hub", missingHub: true, wantError: true, wantFinalizer: true},
 		{name: "missing hub UID", emptyHubUID: true, wantError: true, wantFinalizer: true},
-		{name: "provider unavailable", missingClient: true, wantError: true, wantFinalizer: true},
-		{name: "reader unavailable", missingReader: true, wantError: true, wantFinalizer: true},
 		{name: "metadata conflict does not repeat Azure deletion", deleted: true, conflict: true, wantCalls: 1, outcome: "absent", event: cleanupDoneEvent},
 	}
 	for _, tt := range tests {
@@ -156,12 +152,6 @@ func TestGatewayFinalizesOwnedProfileWithoutClass(t *testing.T) {
 			cleaner := &fakeProfileCleaner{deleted: tt.deleted, err: tt.cleanupError}
 			recorder := events.NewFakeRecorder(10)
 			r := &Reconciler{Client: c, APIReader: cleanupAPIReader{Reader: c, hub: readerBuilder.Build()}, ProfileCleanup: cleaner, Recorder: recorder}
-			if tt.missingClient {
-				r.ProfileCleanup = nil
-			}
-			if tt.missingReader {
-				r.APIReader = nil
-			}
 			var conflictClient *cleanupConflictClient
 			if tt.conflict {
 				conflictClient = &cleanupConflictClient{Client: c}

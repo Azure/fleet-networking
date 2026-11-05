@@ -28,9 +28,6 @@ func (r *Reconciler) finalize(ctx context.Context, gateway *gatewayv1.Gateway) (
 	if !controllerutil.ContainsFinalizer(gateway, objectmeta.GatewayAFDCleanupFinalizer) {
 		return ctrl.Result{}, nil
 	}
-	if r.ProfileCleanup == nil || r.APIReader == nil {
-		return ctrl.Result{}, fmt.Errorf("AFD cleanup provider and uncached API reader are required to finalize Gateway")
-	}
 	var hub corev1.Namespace
 	if err := r.APIReader.Get(ctx, client.ObjectKey{Name: metav1.NamespaceSystem}, &hub); err != nil {
 		return ctrl.Result{}, fmt.Errorf("read trusted hub identity for AFD cleanup: %w", err)

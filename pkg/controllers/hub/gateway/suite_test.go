@@ -128,7 +128,7 @@ var _ = BeforeSuite(func() {
 	Expect((&Reconciler{
 		Client: manager.GetClient(), APIReader: manager.GetAPIReader(),
 		OriginObserver: integrationProvider, ProfileCleanup: integrationProvider,
-		Recorder: integrationRecorder,
+		HTTPProvisioner: integrationProvider, Recorder: integrationRecorder,
 	}).SetupWithManager(manager)).To(Succeed())
 	Expect((&httproute.Reconciler{Client: manager.GetClient()}).SetupWithManager(manager)).To(Succeed())
 	done := make(chan error, 1)

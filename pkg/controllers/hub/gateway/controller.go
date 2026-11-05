@@ -126,19 +126,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 		before := gateway.DeepCopy()
 		model, err := r.resolve(ctx, &gateway, &class)
 		if err != nil {
-			if r.HTTPProvisioner == nil && (staging == nil || staging.denial == nil) {
-				return err
-			}
 			// Do not publish partial attachment counts, but still clear stale readiness.
 			gateway.Status = *before.Status.DeepCopy()
 			evaluationErr = err
-			if r.HTTPProvisioner != nil {
-				setHTTPPreviewStatus(&gateway, false, "AFD desired state could not be resolved: "+err.Error())
-			}
+			setHTTPPreviewStatus(&gateway, false, "AFD desired state could not be resolved: "+err.Error())
 		}
 		observationApplied := applyOriginObservation(&gateway, model, observation)
 		applyGraphStaging(&gateway, model, staging)
-		httpApplied, httpErr := r.applyHTTPPreview(ctx, &gateway, model, staging)
+		httpApplied, httpErr := r.applyHTTPPreviewStatus(ctx, &gateway, model, staging)
 		evaluationErr = errors.Join(evaluationErr, httpErr)
 		evaluationErr = errors.Join(evaluationErr, r.applyReferenceWithdrawal(ctx, &gateway, staging))
 		preserveProgrammedTransitions(&gateway, before)
@@ -327,6 +322,12 @@ func resolveRouteAttachments(gateway *gatewayv1.Gateway, route *gatewayv1.HTTPRo
 // SetupWithManager registers Gateway, class and route dependency watches.
 // Watch backends directly: readiness may change while HTTPRoute refs remain valid.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Client == nil || r.ProfileCleanup == nil || r.HTTPProvisioner == nil || r.APIReader == nil {
+		return fmt.Errorf("Kubernetes client, AFD cleanup provider, HTTP provisioner and uncached API reader are required to register Gateway controller")
+	}
+	if r.GraphStager != nil {
+		return fmt.Errorf("disabled-only staging and full HTTP provisioning cannot both be configured")
+	}
 	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{}).
 		Watches(&gatewayv1.GatewayClass{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForClass)).
 		Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForRoute)).

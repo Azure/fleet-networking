@@ -44,10 +44,12 @@ type integrationAFDProvider struct {
 	originState      frontdoor.PrivateOriginState
 	absent           bool
 	observations     int
+	provisions       int
 	cleanups         int
 	observationOwner frontdoor.GatewayOwner
 	cleanupOwner     frontdoor.GatewayOwner
 	model            gatewaymodel.GlobalGateway
+	provisionedModel gatewaymodel.GlobalGateway
 	hold             *integrationObservationHold
 }
 
@@ -81,6 +83,22 @@ func (p *integrationAFDProvider) Observe(ctx context.Context, owner frontdoor.Ga
 	if hold != nil {
 		defer close(hold.returned)
 	}
+	result, err := integrationOrigins(model, state)
+	if err != nil {
+		return frontdoor.PrivateOriginsObservation{}, err
+	}
+	if hold != nil {
+		hold.entered <- result
+		select {
+		case <-ctx.Done():
+			return frontdoor.PrivateOriginsObservation{}, ctx.Err()
+		case <-hold.released:
+		}
+	}
+	return result, nil
+}
+
+func integrationOrigins(model gatewaymodel.GlobalGateway, state frontdoor.PrivateOriginState) (frontdoor.PrivateOriginsObservation, error) {
 	if state == "" {
 		return frontdoor.PrivateOriginsObservation{}, fmt.Errorf("integration origin state must be configured")
 	}
@@ -101,15 +119,40 @@ func (p *integrationAFDProvider) Observe(ctx context.Context, owner frontdoor.Ga
 	if state == frontdoor.PrivateOriginApprovalPending {
 		result.PendingApprovals = plan.PrivateLinks
 	}
-	if hold != nil {
-		hold.entered <- result
-		select {
-		case <-ctx.Done():
-			return frontdoor.PrivateOriginsObservation{}, ctx.Err()
-		case <-hold.released:
-		}
-	}
 	return result, nil
+}
+
+func (p *integrationAFDProvider) ReconcileHTTPPreview(_ context.Context, _ frontdoor.GatewayOwner,
+	model gatewaymodel.GlobalGateway) (frontdoor.HTTPPreviewProvisioningResult, error) {
+	p.mutex.Lock()
+	p.provisions++
+	p.provisionedModel = model
+	state := p.originState
+	p.mutex.Unlock()
+	origins, err := integrationOrigins(model, state)
+	if err != nil {
+		return frontdoor.HTTPPreviewProvisioningResult{}, err
+	}
+	if origins.OriginsConverged {
+		return frontdoor.HTTPPreviewProvisioningResult{
+			State: frontdoor.HTTPPreviewProgrammed, EndpointHostName: "envtest.azurefd.net",
+		}, nil
+	}
+	return frontdoor.HTTPPreviewProvisioningResult{
+		State: frontdoor.HTTPPreviewStaging,
+		Staging: frontdoor.DisabledGraphStagingResult{Route: frontdoor.RouteProvisioningResult{
+			Backends: frontdoor.BackendProvisioningResult{Origins: origins},
+		}},
+		Diagnostic: fmt.Sprintf("integration private origins: %s", state),
+	}, nil
+}
+
+func (p *integrationAFDProvider) SuspendEndpoint(context.Context, frontdoor.GatewayOwner) (frontdoor.EndpointSuspensionResult, error) {
+	return frontdoor.EndpointSuspensionResult{State: frontdoor.EndpointSuspended}, nil
+}
+
+func (p *integrationAFDProvider) WithdrawHTTPPreview(ctx context.Context, owner frontdoor.GatewayOwner) (frontdoor.EndpointSuspensionResult, error) {
+	return p.SuspendEndpoint(ctx, owner)
 }
 
 func (p *integrationAFDProvider) holdNextObservation(state frontdoor.PrivateOriginState) (*integrationObservationHold, error) {
@@ -222,14 +265,30 @@ func (p *integrationAFDProvider) observationCount() int {
 	return p.observations
 }
 
+func (p *integrationAFDProvider) provisioningCount() int {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	return p.provisions
+}
+
 func (p *integrationAFDProvider) observedOrigin() (gatewaymodel.Origin, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	if len(p.model.Routes) != 1 || len(p.model.Routes[0].Rules) != 1 ||
-		len(p.model.Routes[0].Rules[0].Backends) != 1 || len(p.model.Routes[0].Rules[0].Backends[0].Origins) != 1 {
-		return gatewaymodel.Origin{}, fmt.Errorf("expected one observed route/rule/backend/origin, got %+v", p.model)
+	return integrationModelOrigin(p.model)
+}
+
+func (p *integrationAFDProvider) provisionedOrigin() (gatewaymodel.Origin, error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	return integrationModelOrigin(p.provisionedModel)
+}
+
+func integrationModelOrigin(model gatewaymodel.GlobalGateway) (gatewaymodel.Origin, error) {
+	if len(model.Routes) != 1 || len(model.Routes[0].Rules) != 1 ||
+		len(model.Routes[0].Rules[0].Backends) != 1 || len(model.Routes[0].Rules[0].Backends[0].Origins) != 1 {
+		return gatewaymodel.Origin{}, fmt.Errorf("expected one route/rule/backend/origin, got %+v", model)
 	}
-	return p.model.Routes[0].Rules[0].Backends[0].Origins[0], nil
+	return model.Routes[0].Rules[0].Backends[0].Origins[0], nil
 }
 
 var _ = Describe("Current Gateway runtime with a real API server", func() {
@@ -243,19 +302,19 @@ var _ = Describe("Current Gateway runtime with a real API server", func() {
 			return integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))
 		}, 20*time.Second, 100*time.Millisecond).Should(Succeed())
 		By("observing pending approval and persisting its native Event")
-		Eventually(message, 20*time.Second, 100*time.Millisecond).Should(ContainSubstring("approval pending"))
+		Eventually(message, 20*time.Second, 100*time.Millisecond).Should(ContainSubstring("authorized PLS owner must approve"))
 		Eventually(func() (bool, error) {
 			return integrationHasEvent(gateway, "AFDPrivateLinkApprovalRequired")
 		}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
 		var before gatewayv1.Gateway
 		Expect(integrationClient.Get(integrationContext, key, &before)).To(Succeed())
-		Expect(controllerutil.ContainsFinalizer(&before, objectmeta.GatewayAFDCleanupFinalizer)).To(BeFalse())
+		Expect(controllerutil.ContainsFinalizer(&before, objectmeta.GatewayAFDCleanupFinalizer)).To(BeTrue())
 
 		By("changing only provider state, without a Kubernetes edit or direct Reconcile call")
 		integrationProvider.setOriginState(frontdoor.PrivateOriginReady)
-		Eventually(message, 50*time.Second, 100*time.Millisecond).Should(ContainSubstring("approved and deployed"))
+		Eventually(message, 50*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
 		Eventually(func() (bool, error) {
-			return integrationHasEvent(gateway, "AFDPrivateOriginsConverged")
+			return integrationHasEvent(gateway, "AFDHTTPProgrammed")
 		}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
 		var current gatewayv1.Gateway
 		Expect(integrationClient.Get(integrationContext, key, &current)).To(Succeed())
@@ -279,19 +338,18 @@ var _ = Describe("Current Gateway runtime with a real API server", func() {
 
 		By("invalidating and restoring discovery through the actual export dependency watch")
 		updateIntegrationDiscovery(export, false)
-		Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("no ready private origin"))
+		Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("AFD endpoint suspension"))
 		updateIntegrationDiscovery(export, true)
-		Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("approved and deployed"))
+		Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
 
 		verifyIntegrationIdentityLifecycle(fixture)
 		verifyIntegrationConvergenceLifecycle(fixture)
 		verifyIntegrationStaleObservation(fixture)
-		verifyIntegrationGrantLifecycle(fixture)
+		verifyIntegrationBackendNamespaceLifecycle(fixture)
 
-		By("modeling persisted cleanup ownership without injecting a graph writer")
+		By("retaining provisioning cleanup ownership until observed profile absence")
 		Expect(integrationClient.Get(integrationContext, key, &current)).To(Succeed())
-		controllerutil.AddFinalizer(&current, objectmeta.GatewayAFDCleanupFinalizer)
-		Expect(integrationClient.Update(integrationContext, &current)).To(Succeed())
+		Expect(controllerutil.ContainsFinalizer(&current, objectmeta.GatewayAFDCleanupFinalizer)).To(BeTrue())
 		Expect(integrationClient.Delete(integrationContext, &current)).To(Succeed())
 		Eventually(integrationProvider.cleanupCount, 10*time.Second, 100*time.Millisecond).Should(BeNumerically(">", 0))
 		Consistently(func(g Gomega) {
@@ -344,10 +402,10 @@ func createIntegrationGateway() integrationGatewayFixture {
 		Spec:       gatewayv1.GatewayClassSpec{ControllerName: gatewayv1.GatewayController(objectmeta.GatewayAPIControllerName)},
 	}
 	Expect(integrationClient.Create(integrationContext, class)).To(Succeed())
-	source := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: namespace.Name, Name: "private-api"},
+	source := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: routeNamespace.Name, Name: "private-api"},
 		Spec: corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 80, Protocol: corev1.ProtocolTCP}}, Type: corev1.ServiceTypeLoadBalancer}}
 	Expect(integrationClient.Create(integrationContext, source)).To(Succeed())
-	service := &fleetnetv1alpha1.ServiceImport{ObjectMeta: metav1.ObjectMeta{Namespace: namespace.Name, Name: source.Name}}
+	service := &fleetnetv1alpha1.ServiceImport{ObjectMeta: metav1.ObjectMeta{Namespace: routeNamespace.Name, Name: source.Name}}
 	Expect(integrationClient.Create(integrationContext, service)).To(Succeed())
 	service.Status = fleetnetv1alpha1.ServiceImportStatus{
 		Ports:    []fleetnetv1alpha1.ServicePort{{Port: 80, Protocol: corev1.ProtocolTCP}},
@@ -355,7 +413,7 @@ func createIntegrationGateway() integrationGatewayFixture {
 	}
 	Expect(integrationClient.Status().Update(integrationContext, service)).To(Succeed())
 	export := &fleetnetv1alpha1.InternalServiceExport{
-		ObjectMeta: metav1.ObjectMeta{Namespace: member.Name, Name: namespace.Name + "-" + source.Name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: member.Name, Name: routeNamespace.Name + "-" + source.Name},
 		Spec: fleetnetv1alpha1.InternalServiceExportSpec{
 			Ports: service.Status.Ports, Type: corev1.ServiceTypeLoadBalancer, IsInternalLoadBalancer: true,
 			ServiceReference: fleetnetv1alpha1.FromMetaObjects(integrationClusterID, metav1.TypeMeta{APIVersion: "v1", Kind: "Service"}, source.ObjectMeta, metav1.Now()),
@@ -461,8 +519,7 @@ func verifyIntegrationExportReplacement(fixture integrationGatewayFixture, want 
 	message := func() (string, error) {
 		return integrationGatewayMessage(client.ObjectKeyFromObject(fixture.gateway))
 	}
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(Equal(
-		fmt.Sprintf("cluster %q requires matching source identity, compatible ports and current unconflicted status", integrationClusterID)))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("AFD endpoint suspension"))
 	Expect(integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))).To(Succeed())
 	calls := integrationProvider.observationCount()
 	Consistently(integrationProvider.observationCount, time.Second, 100*time.Millisecond).Should(Equal(calls))
@@ -471,7 +528,7 @@ func verifyIntegrationExportReplacement(fixture integrationGatewayFixture, want 
 	By("recovering the exact new origin through the export status watch")
 	updateIntegrationExportStatus(export)
 	Eventually(integrationProvider.observedOrigin, 10*time.Second, 100*time.Millisecond).Should(Equal(want))
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("approved and deployed"))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
 	Expect(integrationProvider.observationCount()).To(BeNumerically(">", calls))
 	Expect(integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))).To(Succeed())
 	Consistently(integrationProvider.observedOrigin, time.Second, 100*time.Millisecond).Should(Equal(want))
@@ -487,44 +544,31 @@ func verifyIntegrationConvergenceLifecycle(fixture integrationGatewayFixture) {
 	}
 	origin, err := integrationProvider.observedOrigin()
 	Expect(err).NotTo(HaveOccurred())
-	integrationProvider.mutex.Lock()
-	plan, err := frontdoor.PlanBackends(integrationProvider.model)
-	integrationProvider.mutex.Unlock()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(plan.OriginGroups).To(HaveLen(1))
-	Expect(plan.OriginGroups[0].Origins).To(HaveLen(1))
-	reference := frontdoor.OriginReference{OriginGroup: plan.OriginGroups[0].Name, Origin: plan.OriginGroups[0].Origins[0].Name}
 	message := func() (string, error) {
 		return integrationGatewayMessage(client.ObjectKeyFromObject(fixture.gateway))
 	}
 	convergenceEvents := func() int64 {
-		return integrationEventOccurrences(fixture.gateway, corev1.EventTypeNormal, "AFDPrivateOriginsConverged",
-			"Observed private origins are approved and deployed; full Azure graph programming and ingress readiness are not established.")
+		return integrationEventOccurrences(fixture.gateway, corev1.EventTypeNormal, "AFDHTTPProgrammed",
+			"Observed complete enabled AFD Premium private HTTP graph and published its Azure hostname; live application health is not implied.")
 	}
 	for _, state := range []frontdoor.PrivateOriginState{frontdoor.PrivateOriginDisconnected, frontdoor.PrivateOriginDrifted} {
 		By(fmt.Sprintf("detecting provider-only %s through ordinary polling", state))
-		warningEvents := func() int64 {
-			return integrationEventOccurrences(fixture.gateway, corev1.EventTypeWarning, "AFDPrivateOriginsNotReady",
-				fmt.Sprintf("Observed AFD private origin state %s; inspect Gateway status. Ingress readiness is not established.", state))
-		}
-		warningsBefore := warningEvents()
-		calls := integrationProvider.observationCount()
+		convergenceBefore := convergenceEvents()
+		calls := integrationProvider.provisioningCount()
 		integrationProvider.setOriginState(state)
 		Eventually(message, 50*time.Second, 100*time.Millisecond).Should(Equal(
-			fmt.Sprintf("AFD private origin %s/%s is %s; full enabled graph readiness is not established by origin observation", reference.OriginGroup, reference.Origin, state)))
-		Expect(integrationProvider.observationCount()).To(BeNumerically(">", calls))
-		Eventually(warningEvents, 10*time.Second, 100*time.Millisecond).Should(BeNumerically(">", warningsBefore))
+			fmt.Sprintf("AFD private HTTP graph: Staging; integration private origins: %s", state)))
+		Expect(integrationProvider.provisioningCount()).To(BeNumerically(">", calls))
+		Expect(convergenceEvents()).To(Equal(convergenceBefore), "unready origins must not emit a programmed event")
 		Expect(integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))).To(Succeed())
 		Expect(integrationProvider.observedOrigin()).To(Equal(origin))
 
 		By(fmt.Sprintf("recovering from %s without any Kubernetes edit", state))
-		convergenceBefore := convergenceEvents()
 		Expect(convergenceBefore).To(BeNumerically(">", 0))
-		calls = integrationProvider.observationCount()
+		calls = integrationProvider.provisioningCount()
 		integrationProvider.setOriginState(frontdoor.PrivateOriginReady)
-		Eventually(message, 50*time.Second, 100*time.Millisecond).Should(Equal(
-			"Private origins are approved and deployed; full enabled graph readiness is not established by origin observation"))
-		Expect(integrationProvider.observationCount()).To(BeNumerically(">", calls))
+		Eventually(message, 50*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
+		Expect(integrationProvider.provisioningCount()).To(BeNumerically(">", calls))
 		Eventually(convergenceEvents, 10*time.Second, 100*time.Millisecond).Should(BeNumerically(">", convergenceBefore))
 		Expect(integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))).To(Succeed())
 		Expect(integrationProvider.observedOrigin()).To(Equal(origin))
@@ -554,11 +598,6 @@ func verifyIntegrationStaleObservation(fixture integrationGatewayFixture) {
 	Expect(integrationClient.Get(integrationContext, routeKey, &beforeRoute)).To(Succeed())
 	previous, err := integrationProvider.observedOrigin()
 	Expect(err).NotTo(HaveOccurred())
-	convergenceEvents := func() int64 {
-		return integrationEventOccurrences(fixture.gateway, corev1.EventTypeNormal, "AFDPrivateOriginsConverged",
-			"Observed private origins are approved and deployed; full Azure graph programming and ingress readiness are not established.")
-	}
-	convergenceBefore := convergenceEvents()
 	rejectedEvents := func() int64 {
 		return integrationEventOccurrences(fixture.gateway, corev1.EventTypeWarning, "AFDPrivateOriginsNotReady",
 			"Observed AFD private origin state Rejected; inspect Gateway status. Ingress readiness is not established.")
@@ -600,11 +639,10 @@ func verifyIntegrationStaleObservation(fixture integrationGatewayFixture) {
 	want := previous
 	want.Endpoint = export.Spec.PrivateLinkOrigin.InternalIP
 	Eventually(integrationProvider.observedOrigin, 10*time.Second, 100*time.Millisecond).Should(Equal(want))
+	Eventually(integrationProvider.provisionedOrigin, 10*time.Second, 100*time.Millisecond).Should(Equal(want))
 	Eventually(func() (string, error) {
 		return integrationGatewayMessage(gatewayKey)
-	}, 10*time.Second, 100*time.Millisecond).Should(Equal(
-		"Private origins are approved and deployed; full enabled graph readiness is not established by origin observation"))
-	Eventually(convergenceEvents, 10*time.Second, 100*time.Millisecond).Should(BeNumerically(">", convergenceBefore))
+	}, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
 	Consistently(rejectedEvents, time.Second, 100*time.Millisecond).Should(BeZero())
 	Expect(integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))).To(Succeed())
 	var afterGateway gatewayv1.Gateway
@@ -617,45 +655,53 @@ func verifyIntegrationStaleObservation(fixture integrationGatewayFixture) {
 	Expect(afterRoute.Spec).To(Equal(beforeRoute.Spec))
 }
 
-func verifyIntegrationGrantLifecycle(fixture integrationGatewayFixture) {
-	By("revoking the cross-namespace grant without changing Gateway or HTTPRoute specs")
+func verifyIntegrationBackendNamespaceLifecycle(fixture integrationGatewayFixture) {
+	By("rejecting a cross-namespace backend even with a matching ReferenceGrant")
 	var beforeGateway gatewayv1.Gateway
 	var beforeRoute gatewayv1.HTTPRoute
 	gatewayKey := client.ObjectKeyFromObject(fixture.gateway)
 	routeKey := client.ObjectKeyFromObject(fixture.route)
 	Expect(integrationClient.Get(integrationContext, gatewayKey, &beforeGateway)).To(Succeed())
 	Expect(integrationClient.Get(integrationContext, routeKey, &beforeRoute)).To(Succeed())
-	Expect(integrationClient.Delete(integrationContext, fixture.grant)).To(Succeed())
+	var crossNamespace gatewayv1.HTTPRoute
+	Expect(integrationClient.Get(integrationContext, routeKey, &crossNamespace)).To(Succeed())
+	crossNamespace.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace(fixture.grant.Namespace))
+	Expect(integrationClient.Update(integrationContext, &crossNamespace)).To(Succeed())
 	denied := func() error {
 		return integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonRefNotPermitted))
 	}
 	message := func() (string, error) { return integrationGatewayMessage(gatewayKey) }
 	Eventually(denied, 10*time.Second, 100*time.Millisecond).Should(Succeed())
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("no ReferenceGrant permits"))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("cross-namespace backends are unsupported"))
 	calls := integrationProvider.observationCount()
 	Consistently(integrationProvider.observationCount, time.Second, 100*time.Millisecond).Should(Equal(calls))
 
-	By("keeping authorization denial ahead of a missing backend")
+	By("keeping namespace denial independent of grants and backend availability")
+	Expect(integrationClient.Delete(integrationContext, fixture.grant)).To(Succeed())
 	Expect(integrationClient.Delete(integrationContext, fixture.service)).To(Succeed())
 	var missing fleetnetv1alpha1.ServiceImport
 	err := integrationClient.Get(integrationContext, client.ObjectKeyFromObject(fixture.service), &missing)
 	Expect(apierrors.IsNotFound(err)).To(BeTrue(), "expected deleted backend, got %v", err)
 	Consistently(denied, time.Second, 100*time.Millisecond).Should(Succeed())
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("no ReferenceGrant permits"))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("cross-namespace backends are unsupported"))
 	Consistently(integrationProvider.observationCount, time.Second, 100*time.Millisecond).Should(Equal(calls))
 
-	By("restoring permission with a newly identified grant while the backend remains absent")
+	By("refusing to restore cross-namespace access when a grant is recreated")
 	restoredGrant := &gatewayv1beta1.ReferenceGrant{
 		ObjectMeta: metav1.ObjectMeta{Name: fixture.grant.Name, Namespace: fixture.grant.Namespace},
 		Spec:       *fixture.grant.Spec.DeepCopy(),
 	}
 	Expect(integrationClient.Create(integrationContext, restoredGrant)).To(Succeed())
 	Expect(restoredGrant.UID).NotTo(Equal(fixture.grant.UID))
+	Consistently(denied, time.Second, 100*time.Millisecond).Should(Succeed())
+	By("recovering same-namespace eligibility while the backend remains absent")
+	Expect(integrationClient.Get(integrationContext, routeKey, &crossNamespace)).To(Succeed())
+	crossNamespace.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace(fixture.service.Namespace))
+	Expect(integrationClient.Update(integrationContext, &crossNamespace)).To(Succeed())
 	Eventually(func() error {
 		return integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonBackendNotFound))
 	}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(Equal(
-		fmt.Sprintf("ServiceImport %s/%s is unavailable", fixture.service.Namespace, fixture.service.Name)))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("current intent cannot be programmed"))
 	Consistently(integrationProvider.observationCount, time.Second, 100*time.Millisecond).Should(Equal(calls))
 
 	By("recovering through the ServiceImport watch after the target is recreated")
@@ -669,7 +715,7 @@ func verifyIntegrationGrantLifecycle(fixture integrationGatewayFixture) {
 	Eventually(func() error {
 		return integrationRouteReferences(fixture.route, string(gatewayv1.RouteReasonResolvedRefs))
 	}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
-	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("approved and deployed"))
+	Eventually(message, 10*time.Second, 100*time.Millisecond).Should(ContainSubstring("Observed complete enabled AFD"))
 	Expect(integrationProvider.observationCount()).To(BeNumerically(">", calls))
 	var afterGateway gatewayv1.Gateway
 	var afterRoute gatewayv1.HTTPRoute
@@ -677,7 +723,7 @@ func verifyIntegrationGrantLifecycle(fixture integrationGatewayFixture) {
 	Expect(integrationClient.Get(integrationContext, routeKey, &afterRoute)).To(Succeed())
 	Expect(afterGateway.Generation).To(Equal(beforeGateway.Generation))
 	Expect(afterGateway.Spec).To(Equal(beforeGateway.Spec))
-	Expect(afterRoute.Generation).To(Equal(beforeRoute.Generation))
+	Expect(afterRoute.Generation).To(BeNumerically(">", beforeRoute.Generation))
 	Expect(afterRoute.Spec).To(Equal(beforeRoute.Spec))
 }
 
@@ -730,9 +776,22 @@ func integrationGatewayMessage(key client.ObjectKey) (string, error) {
 	accepted := meta.FindStatusCondition(gateway.Status.Conditions, "Accepted")
 	programmed := meta.FindStatusCondition(gateway.Status.Conditions, "Programmed")
 	if accepted == nil || accepted.Status != metav1.ConditionTrue || accepted.ObservedGeneration != gateway.Generation ||
-		programmed == nil || programmed.Status != metav1.ConditionFalse || programmed.ObservedGeneration != gateway.Generation ||
-		len(gateway.Status.Addresses) != 0 {
-		return "", fmt.Errorf("current Gateway status is not accepted and unprogrammed: %+v", gateway.Status)
+		programmed == nil || programmed.ObservedGeneration != gateway.Generation {
+		return "", fmt.Errorf("current Gateway status is not accepted with current readiness: %+v", gateway.Status)
+	}
+	switch programmed.Status {
+	case metav1.ConditionFalse:
+		if len(gateway.Status.Addresses) != 0 {
+			return "", fmt.Errorf("unprogrammed Gateway retains addresses: %+v", gateway.Status)
+		}
+	case metav1.ConditionTrue:
+		if len(gateway.Status.Addresses) != 1 || gateway.Status.Addresses[0].Type == nil ||
+			*gateway.Status.Addresses[0].Type != gatewayv1.HostnameAddressType ||
+			gateway.Status.Addresses[0].Value != "envtest.azurefd.net" {
+			return "", fmt.Errorf("programmed Gateway has no matching fake provider hostname: %+v", gateway.Status)
+		}
+	default:
+		return "", fmt.Errorf("Gateway has unknown readiness: %+v", gateway.Status)
 	}
 	return programmed.Message, nil
 }

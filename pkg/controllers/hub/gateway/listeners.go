@@ -17,6 +17,9 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayresolver"
 )
 
+// resolveListeners validates listener configuration and conflicts, populates
+// model.Listeners, and initializes gateway.Status.Listeners with pending readiness.
+// Invalid, conflicting or missing listeners also mark the Gateway unaccepted.
 func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGateway, accepted *metav1.Condition) {
 	previous := gateway.Status.Listeners
 	gateway.Status.Listeners = nil

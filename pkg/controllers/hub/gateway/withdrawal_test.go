@@ -96,8 +96,6 @@ func TestGatewaySuspensionRejectsUnconfirmedWithdrawal(t *testing.T) {
 		{name: "owned finalizer is missing", wantError: true},
 		{name: "hub changes during validation", wantError: true},
 		{name: "uncached reads fail", wantError: true},
-		{name: "no suspension reader", wantError: true},
-		{name: "no suspension cleanup provider", wantError: true},
 		{name: "never owned empty Gateway"},
 		{name: "nil suspension injection"},
 	}
@@ -144,10 +142,6 @@ func TestGatewaySuspensionRejectsUnconfirmedWithdrawal(t *testing.T) {
 						return errors.New("withdrawal API unavailable")
 					},
 				})
-			case "no suspension reader":
-				r.APIReader = nil
-			case "no suspension cleanup provider":
-				r.ProfileCleanup = nil
 			case "never owned empty Gateway":
 				gateway.Finalizers = []string{ownershipForeignFinalizer}
 				if err := c.Update(ctx, gateway); err != nil {

@@ -23,7 +23,10 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewaymodel"
 )
+
+const crossNamespaceRouteNamespace = "apps"
 
 func routeFixture() (*gatewayv1.Gateway, *gatewayv1.HTTPRoute, gatewayv1.ParentReference) {
 	gateway := &gatewayv1.Gateway{
@@ -55,7 +58,7 @@ func TestResolveAttachments(t *testing.T) {
 			p.SectionName = ptr.To(gatewayv1.SectionName("http"))
 		}},
 		{name: "cross namespace all", change: func(g *gatewayv1.Gateway, r *gatewayv1.HTTPRoute, p *gatewayv1.ParentReference) {
-			r.Namespace = "apps"
+			r.Namespace = crossNamespaceRouteNamespace
 			p.Namespace = ptr.To(gatewayv1.Namespace("store"))
 			g.Spec.Listeners[0].AllowedRoutes = &gatewayv1.AllowedRoutes{Namespaces: &gatewayv1.RouteNamespaces{From: ptr.To(gatewayv1.NamespacesFromAll)}}
 		}},
@@ -65,7 +68,7 @@ func TestResolveAttachments(t *testing.T) {
 			}}
 		}},
 		{name: "cross namespace default denied", change: func(_ *gatewayv1.Gateway, r *gatewayv1.HTTPRoute, p *gatewayv1.ParentReference) {
-			r.Namespace = "apps"
+			r.Namespace = crossNamespaceRouteNamespace
 			p.Namespace = ptr.To(gatewayv1.Namespace("store"))
 		}, reason: gatewayv1.RouteReasonNotAllowedByListeners},
 		{name: "unknown section", change: func(_ *gatewayv1.Gateway, _ *gatewayv1.HTTPRoute, p *gatewayv1.ParentReference) {
@@ -146,28 +149,53 @@ func TestMemberNamespaceRemoval(t *testing.T) {
 	}
 }
 
-func TestCrossNamespaceGrantRemoval(t *testing.T) {
-	fixture := newBackendFixture()
-	fixture.ref.Namespace = ptr.To(gatewayv1.Namespace("store"))
-	grant := &gatewayv1beta1.ReferenceGrant{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "store", Name: "allow"},
-		Spec: gatewayv1beta1.ReferenceGrantSpec{
-			From: []gatewayv1beta1.ReferenceGrantFrom{{Group: gatewayv1.GroupName, Kind: "HTTPRoute", Namespace: "apps"}},
-			To:   []gatewayv1beta1.ReferenceGrantTo{{Group: gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group), Kind: serviceImportKind, Name: ptr.To(gatewayv1.ObjectName("api"))}},
-		},
-	}
-	c := resolverClient(t, fixture.service, &fixture.exports[0], &fixture.exports[1], grant)
-	ctx := context.Background()
-	if _, err := ResolveBackend(ctx, c, "apps", fixture.ref); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Delete(ctx, grant); err != nil {
-		t.Fatal(err)
-	}
-	_, err := ResolveBackend(ctx, c, "apps", fixture.ref)
-	var resolutionErr *ResolutionError
-	if !errors.As(err, &resolutionErr) || resolutionErr.ReferenceValid || resolutionErr.Reason != string(gatewayv1.RouteReasonRefNotPermitted) {
-		t.Fatalf("revoked grant did not revoke reference: %v", err)
+func TestResolveBackendNamespaceScope(t *testing.T) {
+	for _, scenario := range []string{"default namespace", "explicit same namespace", "cross namespace", "cross namespace with grant"} {
+		t.Run(scenario, func(t *testing.T) {
+			fixture := newBackendFixture()
+			namespace := "store"
+			if scenario != "default namespace" {
+				fixture.ref.Namespace = ptr.To(gatewayv1.Namespace("store"))
+			}
+			denied := scenario == "cross namespace" || scenario == "cross namespace with grant"
+			if denied {
+				namespace = crossNamespaceRouteNamespace
+			}
+			objects := []client.Object{fixture.service, &fixture.exports[0], &fixture.exports[1]}
+			if scenario == "cross namespace with grant" {
+				objects = append(objects, &gatewayv1beta1.ReferenceGrant{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "store", Name: "allow"},
+					Spec: gatewayv1beta1.ReferenceGrantSpec{
+						From: []gatewayv1beta1.ReferenceGrantFrom{{Group: gatewayv1.GroupName, Kind: "HTTPRoute", Namespace: crossNamespaceRouteNamespace}},
+						To:   []gatewayv1beta1.ReferenceGrantTo{{Group: gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group), Kind: serviceImportKind, Name: ptr.To(gatewayv1.ObjectName("api"))}},
+					},
+				})
+			}
+			c := interceptor.NewClient(resolverClient(t, objects...), interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, object client.Object, options ...client.GetOption) error {
+					if denied {
+						t.Fatal("cross-namespace reference read its target")
+					}
+					return c.Get(ctx, key, object, options...)
+				},
+				List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, options ...client.ListOption) error {
+					if denied {
+						t.Fatal("cross-namespace reference read grants or exports")
+					}
+					return c.List(ctx, list, options...)
+				},
+			})
+			got, err := ResolveBackend(context.Background(), c, namespace, fixture.ref)
+			if denied {
+				var resolutionErr *ResolutionError
+				if !errors.As(err, &resolutionErr) || resolutionErr.ReferenceValid ||
+					resolutionErr.Reason != string(gatewayv1.RouteReasonRefNotPermitted) || !reflect.DeepEqual(got, gatewaymodel.Backend{}) {
+					t.Fatalf("cross-namespace reference returned a backend: %+v, %v", got, err)
+				}
+			} else if err != nil || len(got.Origins) != 2 || got.Namespace != namespace {
+				t.Fatalf("same-namespace backend did not resolve: %+v, %v", got, err)
+			}
+		})
 	}
 }
 
@@ -249,36 +277,6 @@ func TestValidateHTTPRouteRejectsUnsupportedIntent(t *testing.T) {
 			tt.change(route)
 			if err := ValidateHTTPRoute(route); err == nil {
 				t.Fatal("unsupported intent was ignored")
-			}
-		})
-	}
-}
-
-func TestReferenceGrantRequiresMatchingFromAndTo(t *testing.T) {
-	tests := []struct {
-		name   string
-		change func(*gatewayv1beta1.ReferenceGrant)
-		allow  bool
-	}{
-		{"matching", func(*gatewayv1beta1.ReferenceGrant) {}, true},
-		{"wildcard target name", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.To[0].Name = nil }, true},
-		{"other source namespace", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.From[0].Namespace = otherName }, false},
-		{"other source group", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.From[0].Group = "other.example" }, false},
-		{"other source kind", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.From[0].Kind = "TCPRoute" }, false},
-		{"other target name", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.To[0].Name = ptr.To(gatewayv1.ObjectName(otherName)) }, false},
-		{"other target group", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.To[0].Group = "" }, false},
-		{"other target kind", func(g *gatewayv1beta1.ReferenceGrant) { g.Spec.To[0].Kind = "Service" }, false},
-		{"deleting grant", func(g *gatewayv1beta1.ReferenceGrant) { now := metav1.Now(); g.DeletionTimestamp = &now }, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			grant := gatewayv1beta1.ReferenceGrant{Spec: gatewayv1beta1.ReferenceGrantSpec{
-				From: []gatewayv1beta1.ReferenceGrantFrom{{Group: gatewayv1.GroupName, Kind: "HTTPRoute", Namespace: "apps"}},
-				To:   []gatewayv1beta1.ReferenceGrantTo{{Group: gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group), Kind: serviceImportKind, Name: ptr.To(gatewayv1.ObjectName("api"))}},
-			}}
-			tt.change(&grant)
-			if allowed := referencePermitted("apps", "api", []gatewayv1beta1.ReferenceGrant{grant}); allowed != tt.allow {
-				t.Fatalf("grant allowed=%v, want %v", allowed, tt.allow)
 			}
 		})
 	}

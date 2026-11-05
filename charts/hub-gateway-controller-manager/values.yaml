@@ -26,6 +26,7 @@ serviceAccount:
   annotations: {}
 
 leaderElection: true
+leaderElectionNamespace: fleet-system
 logVerbosity: 2
 podLabels: {}
 podAnnotations: {}

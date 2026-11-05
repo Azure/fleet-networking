@@ -8,6 +8,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -16,11 +17,14 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 
@@ -36,6 +40,8 @@ const (
 
 	azureDNSFormat                             = "%s.%s.cloudapp.azure.com"
 	azureTrafficManagerProfileResourceIDFormat = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/trafficManagerProfiles/%s"
+	privateHTTPEnabled                         = "true"
+	privateHTTPDisabled                        = "false"
 )
 
 var (
@@ -59,13 +65,18 @@ var (
 	atmResourceGroup string
 
 	enabledNetworkingFeatures = os.Getenv("AZURE_NETWORK_SETTING") != "unsupported"
+	retainedAFDSetup          bool
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(fleetv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
+	// ReferenceGrant remains v1beta1 in Gateway API v1.2.1.
+	utilruntime.Must(gatewayv1beta1.Install(scheme))
 }
 
 func TestE2E(t *testing.T) {
@@ -75,6 +86,11 @@ func TestE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	var err error
+	retainedAFDSetup, err = afdSetupRetention(os.Getenv("RETAIN_AFD_E2E_SETUP"))
+	Expect(err).Should(Succeed())
+	if retainedAFDSetup {
+		Expect(os.Getenv("ENABLE_AFD_PRIVATE_HTTP_PROOF")).To(Equal(privateHTTPEnabled), "Retention requires the explicit AFD diagnostic")
+	}
 	// hub cluster setup
 	hubCluster, err = framework.NewCluster(hubClusterName, scheme)
 	Expect(err).Should(Succeed(), "Failed to initialize hubCluster")
@@ -135,6 +151,10 @@ func createTestNamespace(ctx context.Context) {
 }
 
 var _ = AfterSuite(func() {
+	if retainedAFDSetup {
+		AddReportEntry("AFD retained suite namespace", testNamespace)
+		return
+	}
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testNamespace,
@@ -145,3 +165,14 @@ var _ = AfterSuite(func() {
 		Expect(m.Client().Delete(ctx, &ns)).Should(Succeed(), "Failed to delete namespace %s cluster %s", testNamespace, m.Name())
 	}
 })
+
+func afdSetupRetention(value string) (bool, error) {
+	switch value {
+	case "", privateHTTPDisabled:
+		return false, nil
+	case privateHTTPEnabled:
+		return true, nil
+	default:
+		return false, fmt.Errorf("RETAIN_AFD_E2E_SETUP must be true or false")
+	}
+}

@@ -32,7 +32,10 @@
 >
 > The approved first Azure execution subset is narrower than the full examples:
 > one HTTP/80 listener with no hostname restriction, root `PathPrefix: /`,
-> and one logical ServiceImport backend port across all rules. Pure request
+> and one logical ServiceImport backend port across all rules. Backends must be
+> in the HTTPRoute namespace; ReferenceGrants do not enable cross-namespace
+> backends in this release. Cross-namespace HTTPRoute-to-Gateway attachment
+> remains subject to listener `allowedRoutes`. Pure request
 > construction now produces this complete graph with both endpoint and route
 > disabled. The enabled manager uses the complete provider lifecycle rather
 > than repeatedly replaying disabled-only staging. AFD remains disabled by

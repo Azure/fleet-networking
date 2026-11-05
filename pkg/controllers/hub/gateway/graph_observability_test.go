@@ -163,35 +163,20 @@ func TestGraphOperationTelemetryRetriesAndDiscard(t *testing.T) {
 	}
 }
 
-func TestGraphOperationTelemetrySkipsPrerequisites(t *testing.T) {
-	const missingStagerCase = "stager"
+func TestGraphOperationTelemetrySkipsMissingStager(t *testing.T) {
 	for _, operation := range []string{testStageOperation, testEmptyOperation, testDeniedOperation} {
-		for _, missing := range []string{missingStagerCase, "reader", "cleaner"} {
-			t.Run(operation+"/"+missing, func(t *testing.T) {
-				c, gateway := graphTelemetryFixture(t, operation)
-				recorder := events.NewFakeRecorder(10)
-				stager := &fakeGraphStager{}
-				r := &Reconciler{Client: c, APIReader: c, ProfileCleanup: &fakeProfileCleaner{}, GraphStager: stager, Recorder: recorder}
-				switch missing {
-				case missingStagerCase:
-					r.GraphStager = nil
-				case "reader":
-					r.APIReader = nil
-				case "cleaner":
-					r.ProfileCleanup = nil
-				}
-				before := graphMetricSamples(t, "", "")
-				_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
-				if (err != nil) != (missing != missingStagerCase) {
-					t.Fatalf("unexpected prerequisite error: %v", err)
-				}
-				assertGraphMetricDelta(t, before, graphMetricSamples(t, "", ""), 0)
-				assertObservationEvent(t, recorder, "")
-				if stager.calls+stager.suspensions != 0 {
-					t.Fatalf("skipped prerequisite called provider: %#v", stager)
-				}
-			})
-		}
+		t.Run(operation, func(t *testing.T) {
+			c, gateway := graphTelemetryFixture(t, operation)
+			recorder := events.NewFakeRecorder(10)
+			r := &Reconciler{Client: c, APIReader: c, ProfileCleanup: &fakeProfileCleaner{}, Recorder: recorder}
+			before := graphMetricSamples(t, "", "")
+			_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)})
+			if err != nil {
+				t.Fatalf("unexpected prerequisite error: %v", err)
+			}
+			assertGraphMetricDelta(t, before, graphMetricSamples(t, "", ""), 0)
+			assertObservationEvent(t, recorder, "")
+		})
 	}
 }
 

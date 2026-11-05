@@ -20,12 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -210,8 +210,12 @@ func TestHTTPControllerFailureClearsReadiness(t *testing.T) {
 					},
 				})
 			}
-			if _, err := r.Reconcile(context.Background(), request); err == nil {
+			_, err := r.Reconcile(context.Background(), request)
+			if err == nil {
 				t.Fatal("failure was not surfaced")
+			}
+			if (scenario == "provider error" || scenario == "API resolution error") && !errors.Is(err, failure) {
+				t.Fatalf("original failure was lost: %v", err)
 			}
 			assertHTTPGatewayReadiness(t, c, gateway, false)
 			if provider.suspensions != 0 || !controllerutil.ContainsFinalizer(gateway, objectmeta.GatewayAFDCleanupFinalizer) {
@@ -275,18 +279,14 @@ func TestHTTPControllerStatusConflictDoesNotReplayProvisioning(t *testing.T) {
 
 func TestHTTPControllerRejectsStaleReadyEvidence(t *testing.T) {
 	const (
-		uncachedBackendCase = "uncached backend changes"
-		uncachedGrantCase   = "uncached grant revoked"
-		finalizerCase       = "finalizer lost"
-		hubCase             = "hub changes"
+		uncachedBackendCase   = "uncached backend changes"
+		uncachedNamespaceCase = "uncached backend namespace changes"
+		finalizerCase         = "finalizer lost"
+		hubCase               = "hub changes"
 	)
-	for _, scenario := range []string{"generation changed", "backend changes", uncachedBackendCase, uncachedGrantCase, finalizerCase, hubCase, "route detached", "post-operation API unavailable"} {
+	for _, scenario := range []string{"generation changed", "backend changes", uncachedBackendCase, uncachedNamespaceCase, finalizerCase, hubCase, "route detached", "post-operation API unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
 			c, gateway, route, r, provider := httpControllerFixture(t)
-			if scenario == uncachedGrantCase {
-				c, gateway, route, _ = referenceWithdrawalFixture(t)
-				r.Client, r.APIReader = c, ownershipReader{Reader: c, t: t}
-			}
 			provider.during = func() {
 				ctx := context.Background()
 				switch scenario {
@@ -321,7 +321,7 @@ func TestHTTPControllerRejectsStaleReadyEvidence(t *testing.T) {
 							}
 						}
 					}}
-				case uncachedBackendCase, uncachedGrantCase:
+				case uncachedBackendCase, uncachedNamespaceCase:
 					r.APIReader = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
 						List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 							if err := cl.List(ctx, list, opts...); err != nil {
@@ -332,8 +332,10 @@ func TestHTTPControllerRejectsStaleReadyEvidence(t *testing.T) {
 									exports.Items[i].Spec.ServiceReference.UID = "replacement-service"
 								}
 							}
-							if grants, ok := list.(*gatewayv1beta1.ReferenceGrantList); ok && scenario == uncachedGrantCase {
-								grants.Items = nil
+							if routes, ok := list.(*gatewayv1.HTTPRouteList); ok && scenario == uncachedNamespaceCase {
+								for i := range routes.Items {
+									routes.Items[i].Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace("other-backends"))
+								}
 							}
 							return nil
 						},
@@ -362,24 +364,13 @@ func TestHTTPControllerRejectsStaleReadyEvidence(t *testing.T) {
 
 func TestHTTPControllerWithdrawalAndCleanup(t *testing.T) {
 	const (
-		deletedCase      = "Gateway deleted"
-		grantRevokedCase = "grant revoked"
+		deletedCase        = "Gateway deleted"
+		crossNamespaceCase = "backend changed to cross namespace"
 	)
-	for _, scenario := range []string{"route removed", "private origin unavailable", "unsupported listener", "class rejected", grantRevokedCase, deletedCase} {
+	for _, scenario := range []string{"route removed", "private origin unavailable", "unsupported listener", "class rejected", crossNamespaceCase, deletedCase} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			c, gateway, route, r, provider := httpControllerFixture(t)
-			var revoke func()
-			if scenario == grantRevokedCase {
-				var grantObject client.Object
-				c, gateway, route, grantObject = referenceWithdrawalFixture(t)
-				r.Client, r.APIReader = c, ownershipReader{Reader: c, t: t}
-				revoke = func() {
-					if err := c.Delete(ctx, grantObject); err != nil {
-						t.Fatal(err)
-					}
-				}
-			}
 			request := ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)}
 			if _, err := r.Reconcile(ctx, request); err != nil {
 				t.Fatal(err)
@@ -414,8 +405,11 @@ func TestHTTPControllerWithdrawalAndCleanup(t *testing.T) {
 				if err := c.Status().Update(ctx, &class); err != nil {
 					t.Fatal(err)
 				}
-			case grantRevokedCase:
-				revoke()
+			case crossNamespaceCase:
+				route.Spec.Rules[0].BackendRefs[0].Namespace = ptr.To(gatewayv1.Namespace("other-backends"))
+				if err := c.Update(ctx, route); err != nil {
+					t.Fatal(err)
+				}
 			case deletedCase:
 				if err := c.Delete(ctx, gateway); err != nil {
 					t.Fatal(err)
@@ -445,32 +439,19 @@ func TestHTTPControllerWithdrawalAndCleanup(t *testing.T) {
 }
 
 func TestHTTPControllerOwnershipGuards(t *testing.T) {
-	for _, scenario := range []string{"reader dependency missing", "cleanup dependency missing", "metadata write fails", "competing stager"} {
-		t.Run(scenario, func(t *testing.T) {
-			c, gateway, _, r, provider := httpControllerFixture(t)
-			switch scenario {
-			case "reader dependency missing":
-				r.APIReader = nil
-			case "cleanup dependency missing":
-				r.ProfileCleanup = nil
-			case "metadata write fails":
-				r.Client = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
-					Patch: func(context.Context, client.WithWatch, client.Object, client.Patch, ...client.PatchOption) error {
-						return errors.New("ownership patch denied")
-					},
-				})
-			case "competing stager":
-				r.GraphStager = &fakeGraphStager{}
-			}
-			if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)}); err == nil {
-				t.Fatal("invalid provisioning prerequisites were not surfaced")
-			}
-			assertHTTPGatewayReadiness(t, c, gateway, false)
-			if provider.calls != 0 || provider.suspensions != 0 ||
-				controllerutil.ContainsFinalizer(gateway, objectmeta.GatewayAFDCleanupFinalizer) {
-				t.Fatal("invalid prerequisites authorized provisioning or acquired ownership")
-			}
-		})
+	c, gateway, _, r, provider := httpControllerFixture(t)
+	r.Client = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
+		Patch: func(context.Context, client.WithWatch, client.Object, client.Patch, ...client.PatchOption) error {
+			return errors.New("ownership patch denied")
+		},
+	})
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gateway)}); err == nil {
+		t.Fatal("invalid provisioning prerequisites were not surfaced")
+	}
+	assertHTTPGatewayReadiness(t, c, gateway, false)
+	if provider.calls != 0 || provider.suspensions != 0 ||
+		controllerutil.ContainsFinalizer(gateway, objectmeta.GatewayAFDCleanupFinalizer) {
+		t.Fatal("invalid prerequisites authorized provisioning or acquired ownership")
 	}
 }
 

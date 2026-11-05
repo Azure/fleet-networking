@@ -32,9 +32,6 @@ func (r *Reconciler) prepareProvisioning(ctx context.Context, gateway *gatewayv1
 	if err := ctx.Err(); err != nil {
 		return frontdoor.GatewayOwner{}, err
 	}
-	if r.Client == nil || r.APIReader == nil || r.ProfileCleanup == nil {
-		return frontdoor.GatewayOwner{}, fmt.Errorf("Kubernetes writer, uncached reader and AFD cleanup provider are required before provisioning")
-	}
 	if gateway.UID == "" || model.UID != string(gateway.UID) || model.Namespace != gateway.Namespace || model.Name != gateway.Name ||
 		len(model.Routes) == 0 {
 		return frontdoor.GatewayOwner{}, fmt.Errorf("nonempty supported Gateway intent and matching owner identity are required before provisioning")

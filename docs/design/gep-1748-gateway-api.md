@@ -45,7 +45,8 @@ connectivity is mandatory; Web Application Firewall (WAF) remains optional.
 
 The opt-in hub Gateway manager now registers GatewayClass, Gateway and HTTPRoute
 control-plane reconcilers. They validate the private HTTP-preview subset,
-authorize listener namespaces and cross-namespace ServiceImport references, and
+authorize listener namespaces, restrict ServiceImport backends to the HTTPRoute
+namespace even when a ReferenceGrant exists, and
 watch indexed Kubernetes dependencies. Status updates preserve other controllers'
 route parents and retry conflicts against current intent.
 
@@ -66,7 +67,7 @@ Azure finalizer until the create/update lifecycle is integrated.
 A metadata-only preparation helper now persists and reobserves the Gateway
 cleanup finalizer against matching uncached intent. It requires an available
 cleanup provider and trusted hub identity, and checks Gateway UID/generation,
-class acceptance, current routes, namespace policy, ReferenceGrants and private
+class acceptance, current routes, namespace policy, same-namespace backends and private
 backends before patching and again before returning ownership. Conflicts retry
 only Kubernetes work and preserve other metadata. Uncached validation explicitly
 lists/filters routes and exports without cache-only field selectors; the normal
@@ -298,7 +299,7 @@ Metadata retries do not replay provider calls or count extra samples. An absent
 profile is not proof this controller deleted it, and provider-call success is
 not proof of finalizer persistence. See the
 [cleanup diagnostics reference](../../charts/hub-gateway-controller-manager/README.md#owned-profile-cleanup-diagnostics).
-Existing injected graph staging and both empty-intent/ReferenceGrant-denial
+Existing injected graph staging and both empty-intent/backend-namespace-denial
 suspension call sites also expose fixed-operation/outcome call counts and
 durations, plus sanitized failed-call warnings. Calls count once outside status
 retries even if their result becomes stale or later status persistence fails.
@@ -321,14 +322,16 @@ rate limits or dataplane enforcement. Native Windows teardown is unsupported by
 this controller-runtime version; use Linux/WSL. Broader lifecycle/provider
 integration remains open; see the
 [integration guide](../../test/README.md#gateway-api-server-integration).
-The same lifecycle now covers a cross-namespace route: ReferenceGrant deletion
-preserves attachment acceptance but sets current `ResolvedRefs=False` with
-`RefNotPermitted` and stops origin observation after denied status settles.
-Denial remains ahead of missing-target lookup; a recreated grant exposes
-`BackendNotFound` until a recreated ServiceImport restores resolution through
-dependency watches. Gateway/HTTPRoute specs and generations stay unchanged.
-This verifies local authorization/status recovery, not transactional cache
-authorization or actual Azure withdrawal/enforcement.
+The same lifecycle covers a route attached to a Gateway in another namespace,
+with its backend in the route namespace. Changing the backend reference to a
+different namespace preserves attachment acceptance but sets current
+`ResolvedRefs=False/RefNotPermitted`, even with a matching ReferenceGrant.
+Deleting or recreating a grant cannot restore access. Denial precedes target
+lookup; correcting the reference to the route namespace exposes `BackendNotFound`
+until a recreated ServiceImport restores resolution through dependency watches.
+Gateway spec/generation remain unchanged; route edits advance its generation.
+This verifies local status/recovery and fake-provider suspension, not live Azure
+withdrawal/enforcement.
 Export-watch integration also covers a recreated source Service's transported
 UID and a replacement PLS/frontend identity. Each changed export is rejected
 while its unconflicted status belongs to the prior generation; current status
@@ -690,7 +693,9 @@ metadata:
 
 ### Cross-namespace backend
 
-Gateway API `ReferenceGrant` controls cross-namespace access:
+Deferred beyond the first release. The current controller rejects cross-namespace
+backends even with a matching grant. The following illustrates the future
+Gateway API `ReferenceGrant` contract, not currently supported routing:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -905,7 +910,8 @@ schema changes must remain backward-compatible during mixed-version upgrades.
 - Hostname matching.
 - Exact and path-prefix matching.
 - One logical backend per rule, with existing per-member ServiceExport weights.
-- Same-namespace and `ReferenceGrant`-authorized cross-namespace ServiceImport references.
+- Same-namespace ServiceImport references; grant-authorized cross-namespace backends
+  are deferred beyond the first release.
 
 These are implementation targets, not current foundation capabilities. Header/method matches,
 multiple weighted backendRefs, redirects, rewrites and header modification require separately
