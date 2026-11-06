@@ -1,167 +1,107 @@
-# Overview
+# Fleet networking Copilot instructions
 
-This repo contains networking components and controllers for the Fleet project. It is primarily written in Go and leverages Kubernetes client-go and controller-runtime libraries. The repository is organized as a monorepo, with packages grouped by functionality.
+## Project and architecture
 
-## General Rules
+Fleet networking is a Go/controller-runtime project with a hub-and-member architecture.
+Use the checked-out source and [Makefile](../Makefile) as the authority for implemented behavior
+and commands; do not assume a feature branch's components exist on main.
 
-- Use @terminal when answering questions about Git.
-- If you're waiting for my confirmation ("OK"), proceed without further prompting.
-- Follow the [Go Style Guide](https://go.dev/wiki/Style) and [Uber Go Style Guide](https://raw.githubusercontent.com/uber-go/guide/master/style.md) if possible. If there are any conflicts, follow the Go Style Guide.
-- Favor using the standard library over third-party libraries.
-- Run goimports on save.
-- Run golint and go vet to check for errors.
-- Use go mod tidy if the dependencies are changed.
+- [Hub controllers](../pkg/controllers/hub) coordinate exported services and endpoint metadata
+  and reconcile Azure Traffic Manager profiles and backends.
+- [Member controllers](../pkg/controllers/member) export local services/endpoints and import
+  fleet networking state. [MCS controllers](../pkg/controllers/multiclusterservice) reconcile member-side
+  multi-cluster services.
+- [API types](../api) define the networking CRDs; generated manifests live in
+  [config/crd/bases](../config/crd/bases). Keep API types, generated code, manifests, RBAC,
+  and affected charts consistent when changing an API.
+- Preserve the ServiceExport/ServiceImport contract: matching service names and namespaces
+  identify a logical service across clusters. Preserve hub/member client boundaries and
+  reserved member namespaces; do not treat cluster-local objects as globally interchangeable.
+- Reconciliation must tolerate retries and deletion. Preserve resource ownership checks,
+  finalizer cleanup, status conditions, and existing error/requeue behavior. Keep Azure
+  operations within the relevant controller's existing SDK-client boundary, reuse
+  [Azure error helpers](../pkg/common/azureerrors), and test failure paths without live Azure.
+- Gateway API/Azure Front Door (AFD) is in-progress work, not a shipped component on main.
+  When working on a branch containing it, inspect that branch's design docs and implementation
+  first. Keep Gateway intent/status reconciliation separate from Azure provider operations;
+  do not infer working ingress or live traffic from passing unit tests or proposed designs.
 
-## Terminology
+See the [architecture overview](../README.md#architecture),
+[service export contract](../docs/concepts/ExportingService/README.md),
+[DNS load balancing](../docs/concepts/DNSBasedGlobalLoadBalancing/README.md), and
+[Traffic Manager permissions](../docs/howtos/traffic-manager-permissions-setup.md).
 
-- **Fleet**: A collection of Kubernetes clusters managed as a unit.
-- **Networking Controller**: A controller responsible for managing network resources across clusters.
-- **Hub cluster**: An Kubernetes cluster that hosts the control plane of the fleet.
-- **Member cluster**: A Kubernetes cluster that is part of the fleet.
-- **Fleet-system Namespace**: A reserved namespace in all clusters for running Fleet networking controllers and putting internal resources.
-- **Reserved member cluster namespace in the hub cluster**: A reserved namespace in the hub cluster where a member cluster can access to communicate with the hub cluster.
+## Development commands
 
-## Repository directory structure
+Use the Go version declared in [go.mod](../go.mod). Make targets install their configured
+tools when needed; do not substitute unrelated tools or versions.
 
-- `api/` - Contains Golang structs for CRDs.
-- `charts/` - Helm charts for deploying networking components.
-  - `charts/hub-net-controller-manager/` - Helm chart for the fleet hub networking components.
-    - `charts/mcs-controller-manager/` - Helm chart for the fleet member networking component which provides the L4 load balancing functionality.
-    - `charts/member-net-controller-manager/` - Helm chart for the fleet member networking components.
-- `cmd/` - Entry points for networking controllers and agents.
-  - `cmd/hub-net-controller-manager/` - Main entry point for the hub networking components.
-  - `cmd/mcs-controller-manager/` - Main entry point for the member networking component which provides the L4 load balancing functionality.
-  - `cmd/member-net-controller-manager/` - Main entry point for the member networking components.
-- `config/` - CRD manifests and configuration files built from the CRD definitions in the `api/` folder.
-  - `config/crd/bases` - CRD definitions for the networking features.
-- `docker/` - Dockerfiles for building images for networking components.
-- `examples/` - Example YAMLs for CRDs and networking resources.
-- `hack/` - Scripts and tools for development.
-- `pkg/` - Libraries and core logic for networking controllers.
-  - `pkg/common/` - Common libraries shared between networking controllers.
-  - `pkg/controllers/` - Core networking controllers.
-     - `pkg/controllers/hub/` - Hub networking controller logic.
-     - `pkg/controllers/member/` - Member networking controller logic.
-     - `pkg/controllers/mcs/` - MCS networking controller logic.
-- `test/` - Integration, and e2e tests.
-    - `test/apis/` - The tests for the CRD definitions.
-    - `test/common/` - Common test utilities and helpers.
-    - `test/e2e/` - End-to-end tests for networking components.
-    - `test/perftest/` - Performance tests for networking components.
-    - `test/scripts/` - Scripts to setup and clean the e2e test environments.
-- `tools/` - Client-side tools for managing networking resources.
-- `Makefile` - Build and test automation.
-- `go.mod` / `go.sum` - Dependency management.
+| Purpose | Command | Notes |
+|---------|---------|-------|
+| Focused package tests | `go test -v ./pkg/common/azureerrors` | Replace with the affected package; see envtest prerequisites below. |
+| Package analysis | `go vet ./pkg/common/azureerrors` | Replace with the affected package. |
+| Package/controller suites | `make local-unit-test` | Tests under cmd and pkg, including envtest-backed suites; uses race detection. |
+| Additional integration suites | `make integration-test` | Tests API and CRD-installer suites; requires Ginkgo CLI and envtest. |
+| Full local test pipeline | `make test` | Generates manifests/code, formats, vets, then runs both test targets; no Azure E2E. |
+| Build managers | `make build` | Also generates code, formats, and vets. |
+| Format | `make fmt` | Runs go fmt and goimports repository-wide. |
+| Lint | `make lint` | Uses the Makefile-configured golangci-lint; not golint. |
+| Full quality checks | `make reviewable` | Formats, vets, lints, runs staticcheck and go mod tidy; can modify files. |
+| Regenerate API artifacts | `make manifests generate` | Run after API or generation-marker changes; inspect generated changes. |
+| Azure E2E lifecycle | `make e2e-setup`, `make e2e-tests`, `make e2e-collect-logs`, `make e2e-cleanup` | Requires an explicitly approved Azure test environment. |
 
-## Testing Rules
+### Choose the smallest sufficient validation
 
-- Unit test files should be named `<go_file>_test.go` and be in the same directory.
-- Use table-driven tests for unit tests.
-- Run `go test -v ./...` to execute all tests.
-- Run tests for modified packages and verify they pass.
-- Share analysis for failing tests and propose fixes.
-- Integration test files should be named `<go_file>_integration_test.go` and placed in the same or `test` directory.
-- Integration and e2e tests are written in Ginkgo style.
-- E2E tests are under `test/e2e` and run with `make e2e-tests`.
-- Clean up e2e tests with `make e2e-cleanup`.
-- When adding tests, reuse existing setup and contexts where possible.
-- Only add imports if absolutely needed.
+- For Go changes, add/update regression tests and run affected packages first, then relevant
+  broader checks. Use `-run` for Go tests or Ginkgo focus flags for Ginkgo specs.
+- Controller directories can contain both unit and envtest integration tests. A plain package
+  test may start a local API server and etcd. Use the Makefile's envtest setup or configure
+  `KUBEBUILDER_ASSETS` for a targeted run; do not silently skip integration suites.
+- Unit/integration tests use table-driven Go tests and Ginkgo/Gomega. Reuse existing suites,
+  setup, contexts, and mocks. Keep tests beside the code where the package already does so.
+- Do not use blanket `go test ./...` as a substitute for selecting the right suites and
+  prerequisites. Run `make test` when full local unit/integration coverage is needed.
+- Documentation-only changes need link/Markdown checks, not Go builds or Azure E2E.
+- Report the exact checks run, failures, and unverified behavior. Offline tests do not prove
+  Azure permissions, provisioning, or end-to-end traffic.
 
-## Domain Knowledge
+### Azure E2E safety
 
-Use the files in the `docs/**` and `.github/.copilot/domain_knowledge/**/*` as a source of truth when it comes to domain knowledge. These files provide context in which the current solution operates. This folder contains information like entity relationships, workflows, and ubiquitous language. As the understanding of the domain grows, take the opportunity to update these files as needed.
+Follow the [E2E guide](../test/README.md) and inspect the relevant
+[scripts](../test/scripts) before running them. Use the current go.mod requirement rather
+than an older Go version shown in a guide.
 
-## Specification Files
+E2E setup creates Azure resources and role assignments and can incur costs. Before setup,
+live tests, or cleanup, obtain explicit approval of the subscription, resource group, and
+scope of operations. Use a test subscription, verify Kubernetes contexts, and never run
+cleanup against an unverified environment. Collect relevant logs before approved cleanup.
 
-Use specifications from the `.github/.copilot/specifications` folder. Each folder under `specifications` groups similar specifications together. Always ask the user which specifications best apply for the current conversation context if you're not sure.
+## Change conventions
 
-Use the `.github/.copilot/specifications/.template.md` file as a template for specification structure.
+- Follow the [Go style guide](https://go.dev/wiki/Style) and existing package patterns.
+  Favor the standard library and existing helpers over new dependencies.
+- Keep changes surgical; preserve unrelated local edits and avoid repository-wide formatting
+  churn when only a few files change. Format changed Go files with goimports.
+- Run go mod tidy when dependencies change. Review generated and dependency changes before
+  including them in a commit.
+- Update directly affected docs and examples; do not describe proposals as implemented.
+- Use [docs](../docs) and current source for domain context. Consult branch-specific specs
+  only if they exist; do not assume a hidden specification directory or template is present.
 
-   examples:
-   ```text
-   ├── application_architecture
-   │   └── main.spec.md
-   |   └── specific-feature.spec.md
-   ├── database
-   │   └── main.spec.md
-   ├── observability
-   │   └── main.spec.md
-   └── testing
-      └── main.spec.md
-   ```
+## Planning and breadcrumbs
 
-## Breadcrumb Protocol
-
-A breadcrumb is a collaborative scratch pad that allow the user and agent to get alignment on context. When working on tasks in this repository, follow this collaborative documentation workflow to create a clear trail of decisions and implementations:
-
-1. At the start of each new task, ask me for a breadcrumb file name if you can't determine a suitable one.
-
-2. Create the breadcrumb file in the `${REPO}/.github/.copilot/breadcrumbs` folder using the format: `yyyy-mm-dd-HHMM-{title}.md` (*year-month-date-current_time_in-24hr_format-{title}.md* using UTC timezone)
-
-3. Structure the breadcrumb file with these required sections:
-   - **Requirements**: Clear list of what needs to be implemented.
-   - **Additional comments from user**: Any additional input from the user during the conversation.
-   - **Plan**: Strategy and technical plan before implementation.
-   - **Decisions**: Why specific implementation choices were made.
-   - **Implementation Details**: Code snippets with explanations for key files.
-   - **Changes Made**: Summary of files modified and how they changed.
-   - **Before/After Comparison**: Highlighting the improvements.
-   - **References**: List of referred material like domain knowledge files, specification files, URLs and summary of what is was used for. If there is a version in the domain knowledge or in the specifications, record the version in the breadcrumb.
-
-4. Workflow rules:
-   - Update the breadcrumb **BEFORE** making any code changes.
-   - **Get explicit approval** on the plan before implementation.
-   - Update the breadcrumb **AFTER completing each significant change**.
-   - Keep the breadcrumb as our single source of truth as it contains the most recent information.
-
-5. Ask me to verify the plan with: "Are you happy with this implementation plan?" before proceeding with code changes.
-
-6. Reference related breadcrumbs when a task builds on previous work.
-
-7. Before concluding, ensure the breadcrumb file properly documents the entire process, including any course corrections or challenges encountered.
-
-This practice creates a trail of decision points that document our thought process while building features in this solution, making pull request review for the current change easier to follow as well.
-
-### Plan Structure Guidelines
-- When creating a plan, organize it into numbered phases (e.g., "Phase 1: Setup Dependencies").
-- Break down each phase into specific tasks with numeric identifiers (e.g., "Task 1.1: Add Dependencies").
-- Include a detailed checklist at the end of the document that maps to all phases and tasks.
-- Plan should always lookup related information from `domain_knowledge` folder and any applicable specification files.
-- Mark tasks as `- [ ]` for pending tasks and `- [x]` for completed tasks.
-- Start all planning tasks as unchecked, and update them to checked as implementation proceeds.
-- Each planning task should have clear success criteria.
-- End the plan with success criteria that define when the implementation is complete.
-- Plans should start with writing Unit Tests first when possible, so we can use those to guide our implementation. Same for UI tests when it makes sense.
-- If the domain knowledge has changed, update the related files in the `domain_knowledge` folder.
-- If specifications have changed, update the related files in the `specifications` folder.
-
-### Following Plans
-- When coding you need to follow the plan phases and check off the tasks as they are completed.  
-- As you complete a task, update the plan and mark that task complete before you begin the next task. 
-- Tasks that involved tests should not be marked complete until the tests pass. 
-
-### Example Usage
-
-**User**: I need to implement JWT authentication for our Express API.
-
-**Agent**: I'll help with implementing JWT authentication for your Express API. Let me create a breadcrumb file to track our implementation. What would you like to name this breadcrumb?
-
-**User**: Use "jwt-auth-implementation"
-
-**Agent**: I've created the breadcrumb file `2025-04-08-1430-jwt-auth-implementation.md`. Are you happy with this implementation plan?
-
-[high level plan with tasks here]
-
-**User**: Looks good, but let's use 30-minute expiration for tokens.
-
-**Agent**: I've updated the breadcrumb with your specification: Are you happy with this implementation plan?
-
-[high level plan with tasks here]
-
-**User**: Yes, please proceed.
-
-**Agent**: I'll implement the JWT authentication now. Let me start by installing the necessary packages and creating the authentication middleware. I've updated the breadcrumb with implementation details. Is there anything specific you'd like me to modify or explain about the implementation?
-
-**User**: This looks good.
-
-**Agent**: I've updated the breadcrumb with the latest understanding.
+- Small, well-scoped fixes, documentation edits, and read-only questions do not require a
+  breadcrumb or a separate plan-approval round. Proceed within the user's requested scope.
+- For non-trivial work (cross-controller behavior, API changes, Azure resource lifecycle,
+  or substantial refactors), propose a concise plan and get explicit approval before
+  implementation. If the user already approved that plan, do not ask again unless scope changes.
+- For such work, create a UTC-named breadcrumb under
+  [.github/.copilot/breadcrumbs](.copilot/breadcrumbs) using
+  `yyyy-mm-dd-HHMM-{title}.md`; choose a descriptive title unless the user supplies one.
+  Record requirements, user input, numbered plan/checklist with success criteria, decisions,
+  implementation details, changed files, before/after behavior, validation, and references.
+  Start checklist tasks unchecked, add tests first where practical, and mark validation tasks
+  complete only after checks pass.
+- Update the breadcrumb before implementation and after significant changes, link related
+  prior work, and summarize unresolved risks before concluding. Keep durable architecture
+  guidance in docs rather than requiring every task to read historical breadcrumbs.
