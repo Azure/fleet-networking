@@ -21,10 +21,6 @@ and commands; do not assume a feature branch's components exist on main.
   finalizer cleanup, status conditions, and existing error/requeue behavior. Keep Azure
   operations within the relevant controller's existing SDK-client boundary, reuse
   [Azure error helpers](../pkg/common/azureerrors), and test failure paths without live Azure.
-- Gateway API/Azure Front Door (AFD) is in-progress work, not a shipped component on main.
-  When working on a branch containing it, inspect that branch's design docs and implementation
-  first. Keep Gateway intent/status reconciliation separate from Azure provider operations;
-  do not infer working ingress or live traffic from passing unit tests or proposed designs.
 
 See the [architecture overview](../README.md#architecture),
 [service export contract](../docs/concepts/ExportingService/README.md),
