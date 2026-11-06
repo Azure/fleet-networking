@@ -28,7 +28,7 @@
 
 - [x] Task 3.1: Check Markdown links, whitespace, command targets, and PR scope.
   Success: documentation checks pass and no unrelated files enter the commit.
-- [ ] Task 3.2: Commit, push, and open the PR against main.
+- [x] Task 3.2: Commit, push, and open the PR against main.
   Success: the remote PR contains only the instructions and this breadcrumb.
 
 ## Decisions
@@ -56,6 +56,8 @@
 
 - Created this breadcrumb before implementation.
 - Rewrote [.github/copilot-instructions.md](../../copilot-instructions.md).
+- Published [PR #442](https://github.com/Azure/fleet-networking/pull/442) against main
+  from the isolated docs/actionable-copilot-instructions branch.
 
 ## Before/After Comparison
 
