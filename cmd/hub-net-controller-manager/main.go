@@ -39,6 +39,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/eventrecorder"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/endpointsliceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceexport"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/internalserviceimport"
@@ -169,7 +170,7 @@ func main() {
 	klog.V(1).InfoS("Start to setup ServiceImport controller")
 	if err := (&serviceimport.Reconciler{
 		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorderFor(serviceimport.ControllerName),
+		Recorder: mgr.GetEventRecorder(serviceimport.ControllerName),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		klog.ErrorS(err, "Unable to create ServiceImport controller")
 		exitWithErrorFunc()
@@ -182,7 +183,7 @@ func main() {
 			klog.V(1).InfoS("Start to setup MemberCluster controller")
 			if err := (&membercluster.Reconciler{
 				Client:              mgr.GetClient(),
-				Recorder:            mgr.GetEventRecorderFor(membercluster.ControllerName),
+				Recorder:            mgr.GetEventRecorder(membercluster.ControllerName),
 				ForceDeleteWaitTime: *forceDeleteWaitTime,
 			}).SetupWithManager(mgr); err != nil {
 				klog.ErrorS(err, "Unable to create MemberCluster controller")
@@ -217,7 +218,7 @@ func main() {
 		if err := (&trafficmanagerprofile.Reconciler{
 			Client:         mgr.GetClient(),
 			ProfilesClient: profilesClient,
-			Recorder:       mgr.GetEventRecorderFor(trafficmanagerprofile.ControllerName),
+			Recorder:       eventrecorder.NewNoteTruncatingRecorder(mgr.GetEventRecorder(trafficmanagerprofile.ControllerName)),
 		}).SetupWithManager(mgr); err != nil {
 			klog.ErrorS(err, "Unable to create TrafficManagerProfile controller")
 			exitWithErrorFunc()
@@ -228,7 +229,7 @@ func main() {
 			Client:          mgr.GetClient(),
 			ProfilesClient:  profilesClient,
 			EndpointsClient: endpointsClient,
-			Recorder:        mgr.GetEventRecorderFor(trafficmanagerbackend.ControllerName),
+			Recorder:        eventrecorder.NewNoteTruncatingRecorder(mgr.GetEventRecorder(trafficmanagerbackend.ControllerName)),
 			// serviceImport controller has already enabled the internalServiceExportIndexer.
 			// Therefore, no need to setup it again.
 		}).SetupWithManager(ctx, mgr, true); err != nil {

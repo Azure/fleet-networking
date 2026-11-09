@@ -336,7 +336,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		MemberClusterID: mcName,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
-		Recorder:        memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
+		Recorder:        memberMgr.GetEventRecorder(internalserviceexport.ControllerName),
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err
@@ -378,7 +378,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubClient:                   hubClient,
 		MemberClusterID:             mcName,
 		HubNamespace:                mcHubNamespace,
-		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
+		Recorder:                    memberMgr.GetEventRecorder(serviceexport.ControllerName),
 		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
 		ResourceGroupName:           resourceGroupName,
 		AzurePublicIPAddressClient:  azurePublicIPAddressClient,

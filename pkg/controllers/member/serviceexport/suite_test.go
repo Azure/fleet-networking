@@ -135,7 +135,7 @@ var _ = BeforeSuite(func() {
 		MemberClient:                memberClient,
 		HubClient:                   hubClient,
 		HubNamespace:                hubNSForMember,
-		Recorder:                    ctrlMgr.GetEventRecorderFor(ControllerName),
+		Recorder:                    ctrlMgr.GetEventRecorder(ControllerName),
 		AzurePublicIPAddressClient:  &fakePublicIPAddressClient{ListResponse: publicIPAddressListResponse},
 		ResourceGroupName:           validResourceGroup,
 		EnableTrafficManagerFeature: true,

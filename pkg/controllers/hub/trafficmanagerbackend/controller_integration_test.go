@@ -8,11 +8,11 @@ package trafficmanagerbackend
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	prometheusclientmodel "github.com/prometheus/client_model/go"
@@ -169,21 +169,27 @@ func generateMetrics(
 	}
 }
 
-// validateEmittedEvents validates the events emitted for a trafficManagerBackend.
+// validateEmittedEvents validates the distinct events emitted for a trafficManagerBackend, in the order they were first emitted.
+// The events.k8s.io/v1 API records a new Event whenever the resourceVersion of the regarding object changes, so the same
+// event may be recorded more than once.
 func validateEmittedEvents(backend *fleetnetv1beta1.TrafficManagerBackend, want []corev1.Event) {
 	var got corev1.EventList
 	Expect(k8sClient.List(ctx, &got, client.InNamespace(testNamespace),
 		client.MatchingFieldsSelector{Selector: fields.OneTermEqualSelector("involvedObject.name", backend.Name)})).Should(Succeed())
 
-	cmpOptions := []cmp.Option{
-		cmpopts.SortSlices(func(a, b corev1.Event) bool {
-			return a.LastTimestamp.Before(&b.LastTimestamp) // sort by time
-		}),
-		cmp.Comparer(func(a, b corev1.Event) bool {
-			return a.Reason == b.Reason && a.Type == b.Type && a.ReportingController == b.ReportingController
-		}),
+	equalEvent := func(a, b corev1.Event) bool {
+		return a.Reason == b.Reason && a.Type == b.Type && a.ReportingController == b.ReportingController
 	}
-	diff := cmp.Diff(got.Items, want, cmpOptions...)
+	slices.SortStableFunc(got.Items, func(a, b corev1.Event) int {
+		return a.EventTime.Compare(b.EventTime.Time) // sort by time
+	})
+	var distinct []corev1.Event
+	for _, e := range got.Items {
+		if !slices.ContainsFunc(distinct, func(d corev1.Event) bool { return equalEvent(d, e) }) {
+			distinct = append(distinct, e)
+		}
+	}
+	diff := cmp.Diff(distinct, want, cmp.Comparer(equalEvent))
 	Expect(diff).To(BeEmpty(), "Event list mismatch (-got, +want):\n%s, %v", diff, got.Items)
 }
 

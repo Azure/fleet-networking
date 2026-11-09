@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,7 +40,7 @@ const (
 // Reconciler reconciles a ServiceImport object.
 type Reconciler struct {
 	client.Client
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // statusChange stores the internalServiceExports list whose status needs to be updated.
@@ -55,6 +55,7 @@ type statusChange struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;watch;list
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile resolves the service spec when the serviceImport status is empty and updates the status of internalServiceExports.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -169,7 +170,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to update serviceImport status with retry", "serviceImport", serviceImportKRef)
 		return ctrl.Result{}, err
 	}
-	r.Recorder.Eventf(&serviceImport, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Resolved exported service properties and updated %s status", serviceImport.Name)
+	r.Recorder.Eventf(&serviceImport, nil, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "UpdateStatus", "Resolved exported service properties and updated %s status", serviceImport.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -196,7 +197,7 @@ func (r *Reconciler) updateInternalServiceExportWithRetry(ctx context.Context, i
 }
 
 func (r *Reconciler) deleteServiceImport(ctx context.Context, serviceImport *fleetnetv1alpha1.ServiceImport) (ctrl.Result, error) {
-	r.Recorder.Eventf(serviceImport, corev1.EventTypeNormal, "NoExportedService", "No exported service and deleting serviceImport %s", serviceImport.Name)
+	r.Recorder.Eventf(serviceImport, nil, corev1.EventTypeNormal, "NoExportedService", "DeleteServiceImport", "No exported service and deleting serviceImport %s", serviceImport.Name)
 
 	serviceImportKObj := klog.KObj(serviceImport)
 	if err := r.Client.Delete(ctx, serviceImport); err != nil {

@@ -27,6 +27,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/eventrecorder"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 )
 
@@ -102,7 +103,7 @@ var _ = BeforeSuite(func() {
 	err = (&Reconciler{
 		Client:         mgr.GetClient(),
 		ProfilesClient: profileClient,
-		Recorder:       mgr.GetEventRecorderFor(ControllerName),
+		Recorder:       eventrecorder.NewNoteTruncatingRecorder(mgr.GetEventRecorder(ControllerName)),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
