@@ -20,10 +20,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -62,7 +63,7 @@ type Reconciler struct {
 	client.Client
 	Scheme               *runtime.Scheme
 	FleetSystemNamespace string // reserved fleet namespace
-	Recorder             record.EventRecorder
+	Recorder             events.EventRecorder
 }
 
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -71,6 +72,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=multiclusterservices/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile triggers a single reconcile round.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -136,7 +138,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 			return ctrl.Result{}, err
 		}
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "UnimportedService", "Unimported service %s", serviceImportName)
+	r.Recorder.Eventf(mcs, nil, corev1.EventTypeNormal, "UnimportedService", "UnimportService", "Unimported service %s", serviceImportName)
 
 	controllerutil.RemoveFinalizer(mcs, multiClusterServiceFinalizer)
 	if err := r.Client.Update(ctx, mcs); err != nil {
@@ -233,7 +235,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	}); err != nil {
 		serviceImportKObj := klog.KObj(serviceImport)
 		// If the service import is already owned by another MultiClusterService, serviceImport update or creation will fail.
-		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
+		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && r.isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
 			// reset the current serviceImport to empty as input so that internal func will update mcs status based on the serviceImport status
 			// it won't change the serviceImport in the API server
 			// TODO could be improved by moving into the mutate func and creating a customized error
@@ -257,7 +259,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 		// it will do nothing.
 		return ctrl.Result{}, r.handleInvalidServiceImport(ctx, mcs, serviceImport)
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "FoundValidService", "Found valid service %s and importing", serviceImport.Name)
+	r.Recorder.Eventf(mcs, nil, corev1.EventTypeNormal, "FoundValidService", "ImportService", "Found valid service %s and importing", serviceImport.Name)
 
 	serviceName := r.derivedServiceFromLabel(mcs)
 	if serviceName == nil {
@@ -336,14 +338,22 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, service); err != nil {
 		return ctrl.Result{}, err
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Imported %s service and updated %s status", serviceImport.Name, mcs.Name)
+	r.Recorder.Eventf(mcs, nil, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "UpdateStatus", "Imported %s service and updated %s status", serviceImport.Name, mcs.Name)
 	return ctrl.Result{}, nil
 }
 
-func isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+// isServiceImportOwnedByOthers returns true if the serviceImport is controlled by a MultiClusterService other than mcs.
+func (r *Reconciler) isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+	// Resolve the GVK from the scheme instead of mcs.TypeMeta, which the client clears once the object has been written.
+	gvk, err := apiutil.GVKForObject(mcs, r.Scheme)
+	if err != nil {
+		klog.ErrorS(err, "Failed to get the GVK of mcs", "multiClusterService", klog.KObj(mcs))
+		return false
+	}
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
 	for _, owner := range serviceImport.OwnerReferences {
-		if owner.APIVersion == mcs.APIVersion &&
-			owner.Kind == mcs.Kind &&
+		if owner.APIVersion == apiVersion &&
+			owner.Kind == kind &&
 			owner.Controller != nil && *owner.Controller &&
 			owner.Name != mcs.Name {
 			return true
@@ -362,7 +372,7 @@ func (r *Reconciler) handleInvalidServiceImport(ctx context.Context, mcs *fleetn
 	if err := r.updateMultiClusterServiceStatus(ctx, mcs, serviceImport, &corev1.Service{}); err != nil {
 		return err
 	}
-	r.Recorder.Eventf(mcs, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "Importing %s service and updated %s status", serviceImport.Name, mcs.Name)
+	r.Recorder.Eventf(mcs, nil, corev1.EventTypeNormal, "SuccessfulUpdateStatus", "UpdateStatus", "Importing %s service and updated %s status", serviceImport.Name, mcs.Name)
 
 	serviceName := r.derivedServiceFromLabel(mcs)
 	mcsKObj := klog.KObj(mcs)

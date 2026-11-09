@@ -86,7 +86,7 @@ var _ = BeforeSuite(func() {
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		FleetSystemNamespace: "fleet-system",
-		Recorder:             mgr.GetEventRecorderFor(ControllerName),
+		Recorder:             mgr.GetEventRecorder(ControllerName),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

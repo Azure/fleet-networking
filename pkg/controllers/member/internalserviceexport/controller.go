@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,7 +71,7 @@ type Reconciler struct {
 	MemberClusterID string
 	MemberClient    client.Client
 	HubClient       client.Client
-	Recorder        record.EventRecorder
+	Recorder        events.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
@@ -79,6 +79,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceexports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile reports back whether an export of a Service has been accepted with no conflict detected.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -195,10 +196,10 @@ func (r *Reconciler) reportBackConflictCondition(ctx context.Context,
 
 	// Update the conditions
 	if internalSvcExportConflictCond.Status == metav1.ConditionTrue {
-		r.Recorder.Eventf(svcExport, corev1.EventTypeWarning, "ServiceExportConflictFound", "Service %s is in conflict with other exported services", svcExport.Name)
+		r.Recorder.Eventf(svcExport, nil, corev1.EventTypeWarning, "ServiceExportConflictFound", "CheckExportConflict", "Service %s is in conflict with other exported services", svcExport.Name)
 	}
 	if internalSvcExportConflictCond.Status == metav1.ConditionFalse {
-		r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "NoServiceExportConflictFound", "Service %s is exported without conflict", svcExport.Name)
+		r.Recorder.Eventf(svcExport, nil, corev1.EventTypeNormal, "NoServiceExportConflictFound", "CheckExportConflict", "Service %s is exported without conflict", svcExport.Name)
 	}
 	meta.SetStatusCondition(&svcExport.Status.Conditions, *desiredSvcExportConflictCond)
 	return true, r.MemberClient.Status().Update(ctx, svcExport)

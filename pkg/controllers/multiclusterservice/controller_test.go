@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -77,7 +77,7 @@ func multiClusterServiceReconciler(client client.Client) *Reconciler {
 		Client:               client,
 		Scheme:               client.Scheme(),
 		FleetSystemNamespace: systemNamespace,
-		Recorder:             record.NewFakeRecorder(10),
+		Recorder:             events.NewFakeRecorder(10),
 	}
 }
 
@@ -1024,6 +1024,8 @@ func TestHandleUpdate(t *testing.T) {
 				t.Fatalf("ServiceImport Get() got error %v, want no error", err)
 			}
 			options := []cmp.Option{
+				// The fake client clears the TypeMeta of typed objects, matching the behavior of the real client.
+				cmpopts.IgnoreTypes(metav1.TypeMeta{}),
 				cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
 				cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
 			}

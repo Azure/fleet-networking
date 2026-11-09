@@ -37,7 +37,6 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
-	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -74,7 +73,6 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
-	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
@@ -280,7 +278,7 @@ func setupControllersWithManager(_ context.Context, hubMgr, memberMgr manager.Ma
 		Client:               memberClient,
 		Scheme:               memberMgr.GetScheme(),
 		FleetSystemNamespace: *fleetSystemNamespace,
-		Recorder:             memberMgr.GetEventRecorderFor(multiclusterservice.ControllerName),
+		Recorder:             memberMgr.GetEventRecorder(multiclusterservice.ControllerName),
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create multiclusterservice reconciler")
 		return err

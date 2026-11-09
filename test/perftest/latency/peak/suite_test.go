@@ -19,8 +19,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
-
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/test/e2e/framework"
 )
@@ -53,7 +51,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 }
 
 func TestE2E(t *testing.T) {

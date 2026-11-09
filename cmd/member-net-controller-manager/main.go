@@ -40,7 +40,6 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
-	fleetv1alpha1 "go.goms.io/fleet/apis/v1alpha1"
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -88,7 +87,6 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
-	utilruntime.Must(fleetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
@@ -338,7 +336,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		MemberClusterID: mcName,
 		MemberClient:    memberClient,
 		HubClient:       hubClient,
-		Recorder:        memberMgr.GetEventRecorderFor(internalserviceexport.ControllerName),
+		Recorder:        memberMgr.GetEventRecorder(internalserviceexport.ControllerName),
 	}).SetupWithManager(hubMgr); err != nil {
 		klog.ErrorS(err, "Unable to create internalserviceexport controller")
 		return err
@@ -380,7 +378,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		HubClient:                   hubClient,
 		MemberClusterID:             mcName,
 		HubNamespace:                mcHubNamespace,
-		Recorder:                    memberMgr.GetEventRecorderFor(serviceexport.ControllerName),
+		Recorder:                    memberMgr.GetEventRecorder(serviceexport.ControllerName),
 		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
 		ResourceGroupName:           resourceGroupName,
 		AzurePublicIPAddressClient:  azurePublicIPAddressClient,
@@ -411,11 +409,10 @@ func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddresscli
 		return nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
 	}
 
-	factoryConfig := &azclient.ClientFactoryConfig{
-		CloudProviderBackoff: true,
-		SubscriptionID:       cloudConfig.SubscriptionID,
-	}
-	options, err := azclient.GetDefaultResourceClientOption(&cloudConfig.ARMClientConfig, factoryConfig)
+	// Retry backoff now lives in ARMClientConfig; copy it to avoid mutating the shared cloud config.
+	armConfig := cloudConfig.ARMClientConfig
+	armConfig.CloudProviderBackoff = true
+	options, err := azclient.GetDefaultResourceClientOption(&armConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default resource client option: %w", err)
 	}

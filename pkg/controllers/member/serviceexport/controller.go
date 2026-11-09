@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v9"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
@@ -60,7 +60,7 @@ type Reconciler struct {
 	HubClient       client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
-	Recorder     record.EventRecorder
+	Recorder     events.EventRecorder
 
 	ResourceGroupName          string // default resource group name to create public IP address
 	AzurePublicIPAddressClient publicipaddressclient.Interface
@@ -74,6 +74,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=internalserviceexports,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile exports a Service.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -128,7 +129,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch {
 	// The Service to export does not exist or has been deleted.
 	case apierrors.IsNotFound(err) || svc.DeletionTimestamp != nil:
-		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotFound", "Service %s is not found or in the deleting state", svc.Name)
+		r.Recorder.Eventf(&svcExport, nil, corev1.EventTypeWarning, "ServiceNotFound", "ValidateService", "Service %s is not found or in the deleting state", svc.Name)
 
 		// Unexport the Service if the ServiceExport has the cleanup finalizer added.
 		klog.V(2).InfoS("Service is deleted; unexport the service", "service", svcRef)
@@ -153,7 +154,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if the Service is eligible for export.
 	if !isServiceEligibleForExport(&svc) {
-		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, "ServiceNotEligible", "Service %s is not eligible for exporting and please check service spec", svc.Name)
+		r.Recorder.Eventf(&svcExport, nil, corev1.EventTypeWarning, "ServiceNotEligible", "ValidateService", "Service %s is not eligible for exporting and please check service spec", svc.Name)
 
 		// Unexport ineligible Service if the ServiceExport has the cleanup finalizer added.
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
@@ -191,7 +192,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// no need to retry if the condition is already set
 			return ctrl.Result{}, nil
 		}
-		r.Recorder.Eventf(&svcExport, corev1.EventTypeWarning, svcExportInvalidWeightAnnotationReason, "ServiceExport %s has invalid weight value in the annotation", svc.Name)
+		r.Recorder.Eventf(&svcExport, nil, corev1.EventTypeWarning, svcExportInvalidWeightAnnotationReason, "ValidateServiceExport", "ServiceExport %s has invalid weight value in the annotation", svc.Name)
 		meta.SetStatusCondition(&svcExport.Status.Conditions, expectedValidCond)
 		return ctrl.Result{}, r.MemberClient.Status().Update(ctx, &svcExport)
 	}
@@ -199,7 +200,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if exportWeight == 0 {
 		// The weight is 0, unexport the service.
 		klog.V(2).InfoS("Service has weight 0; unexport the service", "service", svcRef)
-		r.Recorder.Eventf(&svcExport, corev1.EventTypeNormal, "Service", "Service %s weight is set to 0", svc.Name)
+		r.Recorder.Eventf(&svcExport, nil, corev1.EventTypeNormal, "Service", "UnexportService", "Service %s weight is set to 0", svc.Name)
 
 		if controllerutil.ContainsFinalizer(&svcExport, svcExportCleanupFinalizer) {
 			if _, err = r.unexportService(ctx, &svcExport); err != nil {
@@ -554,8 +555,8 @@ func (r *Reconciler) markServiceExportAsValid(ctx context.Context, svcExport *fl
 		// A stable state has been reached; no further action is needed.
 		return nil
 	}
-	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "ValidServiceExport", "Service %s is valid for export", svcExport.Name)
-	r.Recorder.Eventf(svcExport, corev1.EventTypeNormal, "PendingExportConflictResolution", "Service %s is pending export conflict resolution", svcExport.Name)
+	r.Recorder.Eventf(svcExport, nil, corev1.EventTypeNormal, "ValidServiceExport", "ValidateServiceExport", "Service %s is valid for export", svcExport.Name)
+	r.Recorder.Eventf(svcExport, nil, corev1.EventTypeNormal, "PendingExportConflictResolution", "ExportService", "Service %s is pending export conflict resolution", svcExport.Name)
 	return r.MemberClient.Status().Update(ctx, svcExport)
 }
 

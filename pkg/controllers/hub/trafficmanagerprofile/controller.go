@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +65,10 @@ const (
 	profileEventReasonAzureAPIError = "AzureAPIError"
 	profileEventReasonProgrammed    = "Programmed"
 	profileEventReasonDeleted       = "Deleted"
+
+	profileEventActionGet            = "GetProfile"
+	profileEventActionCreateOrUpdate = "CreateOrUpdateProfile"
+	profileEventActionDelete         = "DeleteProfile"
 )
 
 var (
@@ -93,13 +97,14 @@ type Reconciler struct {
 	client.Client
 
 	ProfilesClient *armtrafficmanager.ProfilesClient
-	Recorder       record.EventRecorder
+	Recorder       events.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile triggers a single reconcile round.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -162,12 +167,12 @@ func (r *Reconciler) handleDelete(ctx context.Context, profile *fleetnetv1beta1.
 		klog.V(2).InfoS("Deleting Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 		if _, err := r.ProfilesClient.Delete(ctx, profile.Spec.ResourceGroup, atmProfileName, nil); err != nil {
 			if !azureerrors.IsNotFound(err) {
-				r.Recorder.Eventf(profile, corev1.EventTypeWarning, profileEventReasonAzureAPIError, "Failed to delete Azure Traffic Manager profile %s: %v", atmProfileName, err)
+				r.Recorder.Eventf(profile, nil, corev1.EventTypeWarning, profileEventReasonAzureAPIError, profileEventActionDelete, "Failed to delete Azure Traffic Manager profile %s: %v", atmProfileName, err)
 				klog.ErrorS(err, "Failed to delete Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 				return ctrl.Result{}, err
 			}
 		}
-		r.Recorder.Eventf(profile, corev1.EventTypeNormal, profileEventReasonDeleted, "Deleted Azure Traffic Manager profile %s", atmProfileName)
+		r.Recorder.Eventf(profile, nil, corev1.EventTypeNormal, profileEventReasonDeleted, profileEventActionDelete, "Deleted Azure Traffic Manager profile %s", atmProfileName)
 		klog.V(2).InfoS("Deleted Azure Traffic Manager profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 		controllerutil.RemoveFinalizer(profile, objectmeta.TrafficManagerProfileFinalizer)
 		needUpdate = true
@@ -193,7 +198,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 	if getErr != nil {
 		if !azureerrors.IsNotFound(getErr) {
-			r.Recorder.Eventf(profile, corev1.EventTypeWarning, profileEventReasonAzureAPIError, "Failed to get Azure Traffic Manager profile %s: %v", atmProfileName, getErr)
+			r.Recorder.Eventf(profile, nil, corev1.EventTypeWarning, profileEventReasonAzureAPIError, profileEventActionGet, "Failed to get Azure Traffic Manager profile %s: %v", atmProfileName, getErr)
 			klog.ErrorS(getErr, "Failed to get the profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 			// If a user specifies an invalid resource group or the agent does not have the permission to access the resource,
 			// Return invalid profile
@@ -226,7 +231,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 
 	res, updateErr := r.ProfilesClient.CreateOrUpdate(ctx, profile.Spec.ResourceGroup, atmProfileName, desiredATMProfile, nil)
 	if updateErr != nil {
-		r.Recorder.Eventf(profile, corev1.EventTypeWarning, profileEventReasonAzureAPIError, "Failed to create or update Azure Traffic Manager profile %s: %v", atmProfileName, updateErr)
+		r.Recorder.Eventf(profile, nil, corev1.EventTypeWarning, profileEventReasonAzureAPIError, profileEventActionCreateOrUpdate, "Failed to create or update Azure Traffic Manager profile %s: %v", atmProfileName, updateErr)
 		var responseError *azcore.ResponseError
 		if !errors.As(updateErr, &responseError) {
 			klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
@@ -236,7 +241,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, profile *fleetnetv1beta1.
 			"atmProfileName", atmProfileName,
 			"errorCode", responseError.ErrorCode, "statusCode", responseError.StatusCode)
 	} else {
-		r.Recorder.Eventf(profile, corev1.EventTypeNormal, profileEventReasonProgrammed, "Created or updated Azure Traffic Manager profile %s", atmProfileName)
+		r.Recorder.Eventf(profile, nil, corev1.EventTypeNormal, profileEventReasonProgrammed, profileEventActionCreateOrUpdate, "Created or updated Azure Traffic Manager profile %s", atmProfileName)
 		klog.V(2).InfoS("Created or updated Azure Traffic Manager Profile", "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
 	}
 	return r.updateProfileStatus(ctx, profile, &res.Profile, updateErr)

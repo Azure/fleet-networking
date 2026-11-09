@@ -30,6 +30,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
+	"go.goms.io/fleet-networking/pkg/common/eventrecorder"
 	"go.goms.io/fleet-networking/test/common/trafficmanager/fakeprovider"
 )
 
@@ -320,7 +321,7 @@ var _ = BeforeSuite(func() {
 		Client:          mgr.GetClient(),
 		ProfilesClient:  profileClient,
 		EndpointsClient: endpointClient,
-		Recorder:        mgr.GetEventRecorderFor(ControllerName),
+		Recorder:        eventrecorder.NewNoteTruncatingRecorder(mgr.GetEventRecorder(ControllerName)),
 	}).SetupWithManager(ctx, mgr, false)
 	Expect(err).ToNot(HaveOccurred())
 

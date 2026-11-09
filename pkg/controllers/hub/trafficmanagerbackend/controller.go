@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -83,6 +83,11 @@ const (
 	backendEventReasonAzureAPIError = "AzureAPIError"
 	backendEventReasonAccepted      = "Accepted"
 	backendEventReasonDeleted       = "Deleted"
+
+	backendEventActionGetProfile             = "GetProfile"
+	backendEventActionCreateOrUpdateEndpoint = "CreateOrUpdateEndpoint"
+	backendEventActionDeleteEndpoint         = "DeleteEndpoint"
+	backendEventActionDeleteEndpoints        = "DeleteEndpoints"
 )
 
 var (
@@ -110,7 +115,7 @@ type Reconciler struct {
 
 	ProfilesClient  *armtrafficmanager.ProfilesClient
 	EndpointsClient *armtrafficmanager.EndpointsClient
-	Recorder        record.EventRecorder
+	Recorder        events.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerbackends,verbs=get;list;watch;create;update;patch;delete
@@ -119,6 +124,7 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=trafficmanagerprofiles,verbs=get;list;watch
 //+kubebuilder:rbac:groups=networking.fleet.azure.com,resources=serviceimports,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile triggers a single reconcile round.
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
@@ -177,11 +183,11 @@ func (r *Reconciler) handleDelete(ctx context.Context, backend *fleetnetv1beta1.
 
 	if controllerutil.ContainsFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer) {
 		if err := r.deleteAzureTrafficManagerEndpoints(ctx, backend); err != nil {
-			r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to delete Azure Traffic Manager endpoints: %v", err)
+			r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionDeleteEndpoints, "Failed to delete Azure Traffic Manager endpoints: %v", err)
 			klog.ErrorS(err, "Failed to delete Azure Traffic Manager endpoints", "trafficManagerBackend", backendKObj)
 			return ctrl.Result{}, err
 		}
-		r.Recorder.Eventf(backend, corev1.EventTypeNormal, backendEventReasonDeleted, "Deleted Azure Traffic Manager endpoints")
+		r.Recorder.Eventf(backend, nil, corev1.EventTypeNormal, backendEventReasonDeleted, backendEventActionDeleteEndpoints, "Deleted Azure Traffic Manager endpoints")
 		controllerutil.RemoveFinalizer(backend, objectmeta.TrafficManagerBackendFinalizer)
 		needUpdate = true
 	}
@@ -300,10 +306,10 @@ func (r *Reconciler) handleUpdate(ctx context.Context, backend *fleetnetv1beta1.
 	if *backend.Spec.Weight == 0 {
 		klog.V(2).InfoS("Weight is 0, deleting all the endpoints", "trafficManagerBackend", backendKObj)
 		if err := r.cleanupEndpoints(ctx, profile.Spec.ResourceGroup, backend, atmProfile); err != nil {
-			r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to delete Azure Traffic Manager endpoints: %v", err)
+			r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionDeleteEndpoints, "Failed to delete Azure Traffic Manager endpoints: %v", err)
 			return ctrl.Result{}, err
 		}
-		r.Recorder.Eventf(backend, corev1.EventTypeNormal, backendEventReasonAccepted, "Successfully removed all endpoints from Azure Traffic Manager due to zero weight")
+		r.Recorder.Eventf(backend, nil, corev1.EventTypeNormal, backendEventReasonAccepted, backendEventActionDeleteEndpoints, "Successfully removed all endpoints from Azure Traffic Manager due to zero weight")
 		setTrueCondition(backend, nil)
 		return ctrl.Result{}, r.updateTrafficManagerBackendStatus(ctx, backend)
 	}
@@ -398,7 +404,7 @@ func (r *Reconciler) validateAzureTrafficManagerProfile(ctx context.Context, bac
 	getRes, getErr := r.ProfilesClient.Get(ctx, profile.Spec.ResourceGroup, atmProfileName, nil)
 	if getErr != nil {
 		klog.ErrorS(getErr, "Failed to get Azure Traffic Manager profile", "resourceGroup", profile.Spec.ResourceGroup, "trafficManagerBackend", backendKObj, "trafficManagerProfile", profileKObj, "atmProfileName", atmProfileName)
-		r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to get Azure Traffic Manager profile %q under %q: %v", atmProfileName, profile.Spec.ResourceGroup, getErr)
+		r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionGetProfile, "Failed to get Azure Traffic Manager profile %q under %q: %v", atmProfileName, profile.Spec.ResourceGroup, getErr)
 		if azureerrors.IsNotFound(getErr) {
 			// We've already checked the TrafficManagerProfile condition before getting Azure resource.
 			// It may happen when
@@ -428,7 +434,7 @@ func (r *Reconciler) validateServiceImportAndCleanupEndpointsIfInvalid(ctx conte
 		if apierrors.IsNotFound(getServiceImportErr) {
 			klog.V(2).InfoS("NotFound serviceImport and starting deleting any stale endpoints", "trafficManagerBackend", backendKObj, "serviceImport", backend.Spec.Backend.Name)
 			if err := r.cleanupEndpoints(ctx, resourceGroup, backend, azureProfile); err != nil {
-				r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to delete stale endpoints for an invalid serviceImport: %v", err)
+				r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionDeleteEndpoints, "Failed to delete stale endpoints for an invalid serviceImport: %v", err)
 				klog.ErrorS(err, "Failed to delete stale endpoints for an invalid serviceImport", "trafficManagerBackend", backendKObj, "serviceImport", backend.Spec.Backend.Name)
 				return nil, err
 			}
@@ -679,7 +685,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 					continue
 				}
 				klog.ErrorS(deleteErr, "Failed to delete the Azure Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
-				r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to delete Azure Traffic Manager endpoint %q: %v", endpointName, deleteErr)
+				r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionDeleteEndpoint, "Failed to delete Azure Traffic Manager endpoint %q: %v", endpointName, deleteErr)
 				setUnknownCondition(backend, fmt.Sprintf("Failed to cleanup the existing %q for %q: %v", endpointName, *profile.Name, deleteErr))
 				if err := r.updateTrafficManagerBackendStatus(ctx, backend); err != nil {
 					return nil, nil, err
@@ -704,7 +710,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 		endpointName := *endpoint.Endpoint.Name
 		res, updateErr := r.EndpointsClient.CreateOrUpdate(ctx, resourceGroup, *profile.Name, armtrafficmanager.EndpointTypeAzureEndpoints, endpointName, endpoint.Endpoint, nil)
 		if updateErr != nil {
-			r.Recorder.Eventf(backend, corev1.EventTypeWarning, backendEventReasonAzureAPIError, "Failed to create or update Azure Traffic Manager endpoint %q: %v", endpointName, updateErr)
+			r.Recorder.Eventf(backend, nil, corev1.EventTypeWarning, backendEventReasonAzureAPIError, backendEventActionCreateOrUpdateEndpoint, "Failed to create or update Azure Traffic Manager endpoint %q: %v", endpointName, updateErr)
 			if !errors.As(updateErr, &responseError) {
 				klog.ErrorS(updateErr, "Failed to send the createOrUpdate request", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", *profile.Name, "atmEndpoint", endpointName)
 				return nil, nil, updateErr
@@ -722,7 +728,7 @@ func (r *Reconciler) updateTrafficManagerEndpointsAndUpdateStatusIfUnknown(ctx c
 			}
 			return nil, nil, updateErr
 		}
-		r.Recorder.Eventf(backend, corev1.EventTypeNormal, backendEventReasonAccepted, "Successfully created or updated Azure Traffic Manager endpoint %q", endpointName)
+		r.Recorder.Eventf(backend, nil, corev1.EventTypeNormal, backendEventReasonAccepted, backendEventActionCreateOrUpdateEndpoint, "Successfully created or updated Azure Traffic Manager endpoint %q", endpointName)
 		klog.V(2).InfoS("Created or updated Traffic Manager endpoint", "resourceGroup", resourceGroup, "trafficManagerBackend", backendKObj, "atmProfile", profile.Name, "atmEndpoint", endpointName)
 		acceptedEndpoints = append(acceptedEndpoints, buildAcceptedEndpointStatus(&res.Endpoint, endpoint))
 	}
