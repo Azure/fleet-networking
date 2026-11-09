@@ -251,11 +251,10 @@ func initAzureTrafficManagerClients(cloudConfig *azure.CloudConfig) (*armtraffic
 		return nil, nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
 	}
 
-	factoryConfig := &azclient.ClientFactoryConfig{
-		CloudProviderBackoff: true,
-		SubscriptionID:       cloudConfig.SubscriptionID,
-	}
-	options, err := azclient.GetDefaultResourceClientOption(&cloudConfig.ARMClientConfig, factoryConfig)
+	// Retry backoff now lives in ARMClientConfig; copy it to avoid mutating the shared cloud config.
+	armConfig := cloudConfig.ARMClientConfig
+	armConfig.CloudProviderBackoff = true
+	options, err := azclient.GetDefaultResourceClientOption(&armConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get default resource client option: %w", err)
 	}

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v9"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
@@ -1587,6 +1587,10 @@ type fakePublicIPAddressClient struct {
 
 func (c *fakePublicIPAddressClient) Get(_ context.Context, _ string, _ string, _ *string) (*armnetwork.PublicIPAddress, error) {
 	return nil, nil
+}
+
+func (c *fakePublicIPAddressClient) GetVirtualMachineScaleSetPublicIPAddress(_ context.Context, _ string, _ string, _ string, _ string, _ string, _ string, _ *armnetwork.PublicIPAddressesClientGetVirtualMachineScaleSetPublicIPAddressOptions) (armnetwork.PublicIPAddressesClientGetVirtualMachineScaleSetPublicIPAddressResponse, error) {
+	return armnetwork.PublicIPAddressesClientGetVirtualMachineScaleSetPublicIPAddressResponse{}, nil
 }
 
 func (c *fakePublicIPAddressClient) CreateOrUpdate(_ context.Context, _ string, _ string, _ armnetwork.PublicIPAddress) (*armnetwork.PublicIPAddress, error) {
