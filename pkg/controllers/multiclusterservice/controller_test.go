@@ -1024,6 +1024,8 @@ func TestHandleUpdate(t *testing.T) {
 				t.Fatalf("ServiceImport Get() got error %v, want no error", err)
 			}
 			options := []cmp.Option{
+				// The fake client clears the TypeMeta of typed objects, matching the behavior of the real client.
+				cmpopts.IgnoreTypes(metav1.TypeMeta{}),
 				cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion"),
 				cmpopts.IgnoreFields(metav1.Condition{}, "Message", "LastTransitionTime"),
 			}

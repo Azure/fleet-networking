@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -234,7 +235,7 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	}); err != nil {
 		serviceImportKObj := klog.KObj(serviceImport)
 		// If the service import is already owned by another MultiClusterService, serviceImport update or creation will fail.
-		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
+		if err := r.Client.Get(ctx, desiredServiceImportName, serviceImport); err == nil && r.isServiceImportOwnedByOthers(mcs, serviceImport) { // check if NO error
 			// reset the current serviceImport to empty as input so that internal func will update mcs status based on the serviceImport status
 			// it won't change the serviceImport in the API server
 			// TODO could be improved by moving into the mutate func and creating a customized error
@@ -341,10 +342,18 @@ func (r *Reconciler) handleUpdate(ctx context.Context, mcs *fleetnetv1alpha1.Mul
 	return ctrl.Result{}, nil
 }
 
-func isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+// isServiceImportOwnedByOthers returns true if the serviceImport is controlled by a MultiClusterService other than mcs.
+func (r *Reconciler) isServiceImportOwnedByOthers(mcs *fleetnetv1alpha1.MultiClusterService, serviceImport *fleetnetv1alpha1.ServiceImport) bool {
+	// Resolve the GVK from the scheme instead of mcs.TypeMeta, which the client clears once the object has been written.
+	gvk, err := apiutil.GVKForObject(mcs, r.Scheme)
+	if err != nil {
+		klog.ErrorS(err, "Failed to get the GVK of mcs", "multiClusterService", klog.KObj(mcs))
+		return false
+	}
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
 	for _, owner := range serviceImport.OwnerReferences {
-		if owner.APIVersion == mcs.APIVersion &&
-			owner.Kind == mcs.Kind &&
+		if owner.APIVersion == apiVersion &&
+			owner.Kind == kind &&
 			owner.Controller != nil && *owner.Controller &&
 			owner.Name != mcs.Name {
 			return true

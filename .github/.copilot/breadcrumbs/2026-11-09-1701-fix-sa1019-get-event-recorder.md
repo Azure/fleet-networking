@@ -5,7 +5,7 @@
 - Preserve existing event behavior (types, reasons, reporting controller) and keep events deliverable to the API server.
 
 ## Additional comments from user
-- None.
+- Follow-up after reviewing PR #445: fix the CI `unit-integration-tests` failures introduced by the Fleet/controller-runtime dependency bump, and the stale Fleet CRD path in the e2e bootstrap script.
 
 ## Plan
 1. Phase 1: Analysis
@@ -35,7 +35,8 @@
 - [x] Task 3.5: RBAC for `events.k8s.io`.
 - [x] Task 4.1: staticcheck clean for SA1019.
 - [x] Task 4.2: vet/format (golangci-lint cannot run in this toolchain; see Implementation Details).
-- [x] Task 4.3: Tests pass (except the pre-existing `multiclusterservice` `TestHandleUpdate` failure, which also fails on `HEAD`).
+- [x] Task 4.3: Tests pass.
+- [x] Follow-up: fix the CI failures caused by the dependency bump (see Implementation Details).
 
 Success criteria: no `GetEventRecorderFor` usages remain, staticcheck no longer reports this SA1019, all controllers emit `events.k8s.io/v1` events with the RBAC needed to create them, and the targeted tests pass.
 
@@ -66,8 +67,13 @@ Success criteria: no `GetEventRecorderFor` usages remain, staticcheck no longer 
   - The pinned golangci-lint v1.64.7 cannot run here because it was built with Go 1.24 and the module targets Go 1.26.10 (existing tooling limit).
 - Test results:
   - The first `go test ./cmd/... ./pkg/... -race` run failed the traffic manager envtest suites with event-list mismatches caused by the resourceVersion-based dedup above; later failures in those Ordered containers cascaded from leftover objects. The helpers were adapted as described.
-  - `multiclusterservice` `TestHandleUpdate` (`TypeMeta` mismatch on objects read back from the fake client) also fails on a clean `HEAD` worktree, so it is pre-existing and unrelated.
+  - `multiclusterservice` `TestHandleUpdate` also failed on the PR's dependency-bump commit. It was initially misreported here as pre-existing, but it passes on `main`; the bump to controller-runtime v0.23.3 caused it (see the follow-up below).
   - After the helper change, `go test ./pkg/controllers/hub/trafficmanagerprofile/ ./pkg/controllers/hub/trafficmanagerbackend/ -race` passes. All other `./cmd/...` and `./pkg/...` packages passed in the full run, and `go vet -tags=e2e ./test/...` passes.
+- Follow-up CI fixes for PR #445 (caused by the dependency bump, not the events migration):
+  - The `hub/membercluster` and `member/internalmembercluster/v1beta1` envtest suites and `test/scripts/bootstrap.sh` loaded Fleet CRDs from a hardcoded `go.goms.io/fleet@v0.14.0` module-cache path. CI no longer downloads v0.14.0, so `BeforeSuite` failed there; it passed locally only because v0.14.0 was still cached. All three now point at `fleet@v0.18.16`, which has the same CRD file layout.
+  - controller-runtime v0.23's fake client clears `TypeMeta` on typed objects, as the real client does. `TestHandleUpdate` now ignores `TypeMeta` in its object comparisons.
+  - This also exposed a latent controller bug. `isServiceImportOwnedByOthers` compared owner references against `mcs.APIVersion`/`mcs.Kind`, which are empty after `updateMultiClusterLabel` writes the MCS. The conflict check then never matched: the reconcile returned an error instead of setting the status, and only recovered on a later pass. It is now a `Reconciler` method that resolves the GVK with `apiutil.GVKForObject(mcs, r.Scheme)`, the same source `controllerutil.SetControllerReference` uses to write the owner reference.
+  - `go test ./pkg/controllers/hub/membercluster/ ./pkg/controllers/member/internalmembercluster/v1beta1/ ./pkg/controllers/multiclusterservice/ -race` passes; `bash -n test/scripts/bootstrap.sh`, `go vet`, goimports, and staticcheck are clean.
 
 ## Changes Made
 - Added `pkg/common/eventrecorder/eventrecorder.go` and `eventrecorder_test.go`.
@@ -77,6 +83,7 @@ Success criteria: no `GetEventRecorderFor` usages remain, staticcheck no longer 
 - Updated `validateEmittedEvents` in the two traffic manager `controller_integration_test.go` files.
 - Regenerated `config/rbac/role.yaml` (controller-gen merged `""` and `events.k8s.io` into one `events` rule).
 - Added an `events.k8s.io` `events` rule (`create`, `patch`) to the hub, member, and MCS Helm chart ClusterRoles.
+- Follow-up: bumped the Fleet CRD paths to `fleet@v0.18.16` in `pkg/controllers/hub/membercluster/suite_test.go`, `pkg/controllers/member/internalmembercluster/v1beta1/suite_test.go`, and `test/scripts/bootstrap.sh`. `pkg/controllers/multiclusterservice/controller.go` now resolves the MCS GVK from the scheme in the ownership check, and `controller_test.go` ignores `TypeMeta`.
 
 ## Before/After Comparison
 - Before: controllers use the deprecated `GetEventRecorderFor` and emit legacy `core/v1` events; staticcheck reports 13 SA1019 findings for it.
