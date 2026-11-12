@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -28,7 +29,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/loadbalancerclient"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/policy/ratelimit"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/privatelinkserviceclient"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -74,7 +77,8 @@ var (
 	isV1Alpha1APIEnabled = flag.Bool("enable-v1alpha1-apis", false, "If set, the agents will watch for the v1alpha1 APIs. This flag is deprecated and will be removed in future releases.")
 	isV1Beta1APIEnabled  = flag.Bool("enable-v1beta1-apis", true, "If set, the agents will watch for the v1beta1 APIs.")
 
-	enableTrafficManagerFeature = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
+	enableTrafficManagerFeature      = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
+	enablePrivateLinkOriginDiscovery = flag.Bool("enable-private-link-origin-discovery", false, "Discover private ingress origins and publish ILB/PLS metadata independently of Traffic Manager.")
 
 	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
 
@@ -351,21 +355,22 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		return err
 	}
 
-	var azurePublicIPAddressClient publicipaddressclient.Interface
+	var networkClients azureNetworkClients
 	var resourceGroupName string
-	if *enableTrafficManagerFeature {
-		klog.V(1).InfoS("Traffic manager feature is enabled, loading cloud config and creating azure clients", "cloudConfigFile", *cloudConfigFile)
+	// Private-origin discovery must not require enabling Traffic Manager.
+	if *enableTrafficManagerFeature || *enablePrivateLinkOriginDiscovery {
+		klog.V(1).InfoS("Loading cloud config for enabled Azure networking features", "cloudConfigFile", *cloudConfigFile)
 		cloudConfig, err := azure.NewCloudConfigFromFile(*cloudConfigFile)
 		if err != nil {
 			klog.ErrorS(err, "Unable to load cloud config", "file name", *cloudConfigFile)
 			return err
 		}
 		cloudConfig.SetUserAgent("fleet-member-net-controller-manager")
-		klog.V(1).InfoS("Cloud config loaded", "cloudConfig", cloudConfig)
+		klog.V(1).InfoS("Cloud config loaded", "resourceGroup", cloudConfig.ResourceGroup)
 
-		azurePublicIPAddressClient, err = initAzureNetworkClients(cloudConfig)
+		networkClients, err = initAzureNetworkClients(cloudConfig, *enableTrafficManagerFeature, *enablePrivateLinkOriginDiscovery)
 		if err != nil {
-			klog.ErrorS(err, "Unable to create Azure Traffic Manager clients")
+			klog.ErrorS(err, "Unable to create Azure networking clients")
 			return err
 		}
 
@@ -374,14 +379,17 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
 	if err := (&serviceexport.Reconciler{
-		MemberClient:                memberClient,
-		HubClient:                   hubClient,
-		MemberClusterID:             mcName,
-		HubNamespace:                mcHubNamespace,
-		Recorder:                    memberMgr.GetEventRecorder(serviceexport.ControllerName),
-		EnableTrafficManagerFeature: *enableTrafficManagerFeature,
-		ResourceGroupName:           resourceGroupName,
-		AzurePublicIPAddressClient:  azurePublicIPAddressClient,
+		MemberClient:                     memberClient,
+		HubClient:                        hubClient,
+		MemberClusterID:                  mcName,
+		HubNamespace:                     mcHubNamespace,
+		Recorder:                         memberMgr.GetEventRecorder(serviceexport.ControllerName),
+		EnableTrafficManagerFeature:      *enableTrafficManagerFeature,
+		ResourceGroupName:                resourceGroupName,
+		AzurePublicIPAddressClient:       networkClients.publicIPAddresses,
+		EnablePrivateLinkOriginDiscovery: *enablePrivateLinkOriginDiscovery,
+		AzureLoadBalancerClient:          networkClients.loadBalancers,
+		AzurePrivateLinkServiceClient:    networkClients.privateLinkServices,
 	}).SetupWithManager(memberMgr); err != nil {
 		klog.ErrorS(err, "Unable to create serviceexport reconciler")
 		return err
@@ -402,11 +410,23 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	return nil
 }
 
-// initAzureNetworkClients initializes the Azure network resource clients, currently only publicIPAddressClient.
-func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddressclient.Interface, error) {
+type azureNetworkClients struct {
+	publicIPAddresses   publicipaddressclient.Interface
+	loadBalancers       serviceexport.OriginLoadBalancerClient
+	privateLinkServices serviceexport.OriginPrivateLinkServiceClient
+}
+
+func initAzureNetworkClients(cloudConfig *azure.CloudConfig, trafficManager, privateOrigins bool) (azureNetworkClients, error) {
+	clients := azureNetworkClients{}
+	if !trafficManager && !privateOrigins {
+		return clients, nil
+	}
+	if privateOrigins && strings.TrimSpace(cloudConfig.ResourceGroup) == "" {
+		return clients, errors.New("private origin discovery requires the member Azure resource group")
+	}
 	authProvider, err := azclient.NewAuthProvider(&cloudConfig.ARMClientConfig, &cloudConfig.AzureAuthConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure auth provider: %w", err)
+		return clients, fmt.Errorf("failed to create Azure auth provider: %w", err)
 	}
 
 	// Retry backoff now lives in ARMClientConfig; copy it to avoid mutating the shared cloud config.
@@ -414,17 +434,28 @@ func initAzureNetworkClients(cloudConfig *azure.CloudConfig) (publicipaddresscli
 	armConfig.CloudProviderBackoff = true
 	options, err := azclient.GetDefaultResourceClientOption(&armConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get default resource client option: %w", err)
+		return clients, fmt.Errorf("failed to get default resource client option: %w", err)
 	}
 
 	if rateLimitPolicy := ratelimit.NewRateLimitPolicy(cloudConfig.Config); rateLimitPolicy != nil {
 		options.ClientOptions.PerCallPolicies = append(options.ClientOptions.PerCallPolicies, rateLimitPolicy)
 	}
 
-	pipClient, err := publicipaddressclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure PublicIPAddress client: %w", err)
+	if trafficManager {
+		clients.publicIPAddresses, err = publicipaddressclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+		if err != nil {
+			return clients, fmt.Errorf("failed to create Azure PublicIPAddress client: %w", err)
+		}
 	}
-
-	return pipClient, nil
+	if privateOrigins {
+		clients.loadBalancers, err = loadbalancerclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+		if err != nil {
+			return clients, fmt.Errorf("failed to create Azure LoadBalancer client: %w", err)
+		}
+		clients.privateLinkServices, err = privatelinkserviceclient.New(cloudConfig.SubscriptionID, authProvider.GetAzIdentity(), options)
+		if err != nil {
+			return clients, fmt.Errorf("failed to create Azure PrivateLinkService client: %w", err)
+		}
+	}
+	return clients, nil
 }

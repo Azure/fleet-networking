@@ -14,6 +14,9 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy the go source
 COPY cmd/net-crd-installer/ cmd/net-crd-installer/
+# Build-time dependency: fleet/pkg/utils/controller -> fleet/pkg/utils -> api/v1alpha1.
+# API sources are not copied into the runtime image; CRD installation uses the manifests below.
+COPY api/ api/
 
 # Build with CGO enabled for internal usage
 RUN echo "Building images with GOOS=linux GOARCH=$GOARCH"

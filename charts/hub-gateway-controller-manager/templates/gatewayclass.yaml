@@ -1,0 +1,10 @@
+{{- if and .Values.afd.enabled .Values.gatewayClass.create }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ required "gatewayClass.name is required when creating a class" (.Values.gatewayClass.name | trim) | quote }}
+  labels:
+    {{- include "hub-gateway-controller-manager.labels" . | nindent 4 }}
+spec:
+  controllerName: networking.fleet.azure.com/afd
+{{- end }}

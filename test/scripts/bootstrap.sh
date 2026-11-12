@@ -4,6 +4,9 @@ set -o nounset
 set -o pipefail
 set -x
 
+# shellcheck source=test/scripts/e2e-config.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
+
 # Check required variables.
 [[ -z "${AZURE_SUBSCRIPTION_ID}" ]] && echo "AZURE_SUBSCRIPTION_ID is not set" && exit 1
 
@@ -21,6 +24,16 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ] && [ "$AZURE_NETWORK_SETTING" != "sha
   exit 1
 fi
 
+if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+  for tool in az jq helm kubectl go docker; do
+    if ! command -v "$tool" >/dev/null; then
+      echo "error: AFD setup requires $tool" >&2
+      exit 1
+    fi
+  done
+  AFD_VALIDATE_LOCAL_TOOLS=true go test -count=1 ./test/scripts
+fi
+
 az account set -s ${AZURE_SUBSCRIPTION_ID}
 
 # Create resource group to host hub and member clusters.
@@ -33,7 +46,12 @@ az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet
 function cleanup {
     az group delete -n $RESOURCE_GROUP --no-wait --yes
 }
-trap cleanup INT TERM
+if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
+    trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 130' INT
+    trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 143' TERM
+else
+    trap cleanup INT TERM
+fi
 
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
@@ -47,7 +65,7 @@ az acr create -g $RESOURCE_GROUP -n $REGISTRY_NAME --sku standard --tags "source
 az acr update --name $REGISTRY_NAME --anonymous-pull-enabled -g $RESOURCE_GROUP
 az acr login -n $REGISTRY_NAME
 export REGISTRY=$REGISTRY_NAME.azurecr.io
-export TAG=$(git rev-parse --short=7 HEAD)
+export TAG="${TAG:-$(git rev-parse --short=7 HEAD)}"
 make push
 
 # Create hub and member clusters and wait until all clusters are ready.
@@ -248,7 +266,8 @@ then
     az aks get-credentials --name $MEMBER_CLUSTER_3 -g $RESOURCE_GROUP --admin --overwrite-existing
     az aks get-credentials --name $MEMBER_CLUSTER_4 -g $RESOURCE_GROUP --admin --overwrite-existing
 fi
-export HUB_URL=$(cat ~/.kube/config | yq eval ".clusters | .[] | select(.name=="\"$HUB_CLUSTER\"") | .cluster.server")
+HUB_URL="$(kubectl --context "$HUB_CLUSTER-admin" config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+export HUB_URL
 
 # Setup hub cluster credentials.
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
@@ -317,6 +336,26 @@ fi
 
 # Helm install charts for hub cluster.
 kubectl config use-context $HUB_CLUSTER-admin
+# Install the Gateway API standard channel CRDs at the version selected in go.mod.
+GATEWAY_API_CRD_DIR="$(go list -m -f '{{.Dir}}' sigs.k8s.io/gateway-api)/config/crd/standard"
+if [ ! -d "$GATEWAY_API_CRD_DIR" ]; then
+  echo "error: Gateway API standard CRD directory not found: $GATEWAY_API_CRD_DIR"
+  exit 1
+fi
+GATEWAY_API_CRDS=(
+  gateway.networking.k8s.io_gatewayclasses.yaml
+  gateway.networking.k8s.io_gateways.yaml
+  gateway.networking.k8s.io_httproutes.yaml
+  gateway.networking.k8s.io_referencegrants.yaml
+)
+for crd in "${GATEWAY_API_CRDS[@]}"; do
+  kubectl apply --server-side -f "$GATEWAY_API_CRD_DIR/$crd"
+done
+kubectl wait --for=condition=Established --timeout=60s \
+  crd/gatewayclasses.gateway.networking.k8s.io \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  crd/referencegrants.gateway.networking.k8s.io
 # need to make sure the version matches the one in the go.mod
 # workaround mentioned in https://github.com/kubernetes-sigs/controller-runtime/issues/1191
 kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.18.16/config/crd/bases/cluster.kubernetes-fleet.io_internalmemberclusters.yaml
@@ -386,6 +425,8 @@ if [ "${AZURE_NETWORK_SETTING}" != "perf-test" ]
 then
     export APP_IMAGE=$REGISTRY/app
     docker build --platform linux/amd64 -f ./examples/getting-started/app/Dockerfile ./examples/getting-started/app --tag $APP_IMAGE
+    # Refresh the three-hour ACR token after provisioning and building the app.
+    az acr login -n "$REGISTRY_NAME"
     docker push $APP_IMAGE
 fi
 
@@ -437,4 +478,8 @@ fi
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
     bash test/scripts/prometheus.sh
+fi
+
+if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+    bash test/scripts/install-afd.sh
 fi
