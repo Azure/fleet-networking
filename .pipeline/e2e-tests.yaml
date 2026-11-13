@@ -1,0 +1,22 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: none
+
+  - task: AzureCLI@2
+    displayName: Validate Fleet E2E service connection
+    inputs:
+      azureSubscription: 'aks fleetnetworking'
+      scriptType: bash
+      scriptLocation: inlineScript
+      addSpnToEnvironment: false
+      visibleAzLogin: false
+      inlineScript: |
+        set -euo pipefail
+        az account show \
+          --query '{subscription:name,subscriptionId:id,tenantId:tenantId,identityType:user.type}' \
+          --output json
