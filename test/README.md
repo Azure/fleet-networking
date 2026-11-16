@@ -28,6 +28,48 @@ assigns Azure roles. Use a test subscription rather than a production subscripti
 
 ## Choose an E2E scenario
 
+### Azure Pipelines baseline
+
+The manually triggered [ADO pipeline](../.pipeline/e2e-tests.yaml) runs the
+shared-VNet baseline using the `aks fleetnetworking` WIF service connection.
+GitHub CI is unchanged. The pipeline does not run AFD or Traffic Manager tests.
+
+In the registered Azure Pipeline, select **Run pipeline**, choose the pushed
+branch containing the YAML, and enable **approveAzureResources** only after
+the subscription and provisioning/deletion scope are approved. Its default
+is false, so a run without explicit consent skips the E2E job. Keep service
+connection approval checks enabled and authorize only this pipeline.
+
+The connection must target the approved Azure Container Service test subscription
+`8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8`. Each run uses a fresh RG named
+`fleet-ado-<Build.BuildId>-<System.JobAttempt>`, plus AKS-managed node RGs.
+Setup creates an ACR with anonymous pull and three AKS clusters, builds/pushes
+images, and installs the controllers. The identity needs resource provisioning,
+ACR push, AKS admin-credential retrieval, and access to the resulting node RGs.
+AKS provisioning can require role-assignment permissions for managed identities;
+have infrastructure owners review the necessary grants rather than adding Owner
+as a workaround.
+
+The hosted Ubuntu 24.04 agent must provide Azure CLI, Docker, Helm, kubectl, jq,
+Mike Farah's yq, Make, and GNU timeout. Go is installed at the version in `go.mod`.
+The job has a five-hour limit; setup and tests have separate timeouts. Confirm
+that the project has hosted-agent capacity and entitlement for this duration.
+
+Go tests retain `DefaultAzureCredential`, explicitly selecting `AzureCLICredential`
+inside the WIF-authenticated task. Setup, tests, and cleanup each obtain their own
+CLI session. The experimental AzureCLI task option `keepAzSessionActive` refreshes
+that session; verify support and long-run refresh in the approved environment.
+This is indirect WIF, not direct `AzurePipelinesCredential` authentication.
+
+Agent logs and run scope metadata are published before cleanup, without uploading
+the kubeconfig or Azure CLI cache. Cleanup checks the run-specific RG name,
+subscription/resource ID, and Fleet source tag, requests deletion using the
+existing Make target, and waits for completion. It is attempted after failures
+and cancellations once setup has started. Hard agent termination or failed
+cleanup can still leave billable resources; inspect the run's RG and associated
+AKS node RGs before authorizing any manual cleanup. The subscription's periodic
+cleanup policy is not proof that this run cleaned up successfully.
+
 All scenarios use the same setup, test, and cleanup targets. The environment variables determine
 the cluster network topology and whether Traffic Manager reconciliation is enabled.
 
