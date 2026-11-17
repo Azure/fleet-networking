@@ -23,6 +23,7 @@ jobs:
       ENABLE_TRAFFIC_MANAGER: 'false'
       ENABLE_AZURE_FRONT_DOOR: 'false'
       RETAIN_AFD_E2E_SETUP: 'false'
+      BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(System.JobAttempt)'
       KUBECONFIG: '$(Agent.TempDirectory)/fleet-e2e-kubeconfig'
       LOG_DIR: '$(Build.ArtifactStagingDirectory)/agent-logs'
     steps:
@@ -47,6 +48,8 @@ jobs:
           done
           go version
           docker info
+          df -h /
+          docker system df
           helm version --short
           kubectl version --client
           yq --version
@@ -80,6 +83,16 @@ jobs:
             echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
             make e2e-setup
 
+      - bash: |
+          set -euo pipefail
+          df -h /
+          docker buildx du --builder "$BUILDX_BUILDER_NAME"
+          docker buildx rm "$BUILDX_BUILDER_NAME"
+          docker system df
+          df -h /
+        displayName: Release image build cache before Go tests
+        timeoutInMinutes: 5
+
       - task: AzureCLI@2
         displayName: Run baseline E2E tests
         timeoutInMinutes: 60
@@ -92,7 +105,6 @@ jobs:
           keepAzSessionActive: true
           inlineScript: |
             set -euo pipefail
-            sleep 5m
             make e2e-tests
         env:
           AZURE_TOKEN_CREDENTIALS: AzureCLICredential

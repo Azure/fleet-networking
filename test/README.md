@@ -54,6 +54,10 @@ The hosted Ubuntu 24.04 agent must provide Azure CLI, Docker, Helm, kubectl, jq,
 Mike Farah's yq, Make, and GNU timeout. Go is installed at the version in `go.mod`.
 The job has a five-hour limit; setup and tests have separate timeouts. Confirm
 that the project has hosted-agent capacity and entitlement for this duration.
+Disk usage is logged before setup and after image publication. Each job uses a
+run-specific BuildKit builder, removed with its cache after successful setup to
+leave room for host-side Go test compilation. Images already pushed to ACR and
+running workloads are unaffected; no global Docker prune is performed.
 
 Go tests retain `DefaultAzureCredential`, explicitly selecting `AzureCLICredential`
 inside the WIF-authenticated task. Setup, tests, and cleanup each obtain their own
