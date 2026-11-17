@@ -411,8 +411,9 @@ approval, controller metadata, replica count or retained resource was changed.
 - Session `afd-standard-live-12/{environment,preflight,run,launch}.sh`:
   prior bounded isolated runner; old dates/cleanup behavior must not be reused.
 - Domain-knowledge/specification directories are absent.
-- https://learn.microsoft.com/en-us/answers/questions/5642906/azure-front-door-endpoint-deployment-stuck-at-nots
-  Standard/custom-domain report with a cosmetic-status reply; not ILB evidence.
+- Microsoft Q&A question `5642906` (since removed; HTTP 410):
+  historical Standard/custom-domain report with a cosmetic-status reply, not
+  ILB evidence. For maintained product guidance, use the canonical FAQ below.
 - https://learn.microsoft.com/en-us/answers/questions/5988188/azure-front-door-premium-deployment-stuck-at-notst
   Premium/ACA user reports HTTP 200 while deployment NotStarted and approval Pending;
   no corresponding ILB/null-state proof or generally validated remedy.
