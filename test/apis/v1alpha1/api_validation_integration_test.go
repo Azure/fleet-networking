@@ -495,7 +495,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with duplicate customHeaders")
 			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
-			Expect(statusErr.Status().Message).Should(ContainSubstring("Duplicate value: map[string]interface {}{\"name\":\"Header1\""))
+			Expect(statusErr.Status().Details).NotTo(BeNil())
+			Expect(statusErr.Status().Details.Causes).Should(ContainElement(And(
+				HaveField("Type", metav1.CauseTypeFieldValueDuplicate),
+				HaveField("Field", "spec.monitorConfig.customHeaders[1]"),
+			)))
 		})
 
 		It("should deny creating API with empty customHeader name", func() {

@@ -66,7 +66,7 @@ GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.33.0
+ENVTEST_K8S_VERSION = 1.35.0
 # ENVTEST_VER is the version of the ENVTEST binary
 # Use a fixed version to avoid Go version conflicts.
 ENVTEST_VER = release-0.22

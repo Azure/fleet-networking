@@ -174,7 +174,7 @@ controller-runtime version cannot complete its signal-based teardown on Windows.
 Use the existing Makefile-selected setup tool/asset versions for a focused run:
 
 ```bash
-export KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22 use 1.33.0 -p path)"
+export KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22 use 1.35.0 -p path)"
 go test -race -count=1 -run '^(TestAPIs|TestIntegrationObservationHold)$' ./pkg/controllers/hub/gateway
 go test -count=1 ./pkg/controllers/hub/gateway... ./cmd/hub-gateway-controller-manager
 ```
