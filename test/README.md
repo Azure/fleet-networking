@@ -53,6 +53,10 @@ export ENABLE_TRAFFIC_MANAGER=false
 The scripts under `test/scripts` define each topology. `unsupported` verifies behavior when member
 clusters do not have supported network connectivity.
 
+The `peered-vnet` setup enables Microsoft Entra authentication and Azure RBAC
+on both member clusters, matching the hub authentication configuration and
+satisfying policies that require an AKS Microsoft Entra authentication profile.
+
 ### Azure Traffic Manager
 
 Traffic Manager E2E provisions and validates real Azure Traffic Manager resources. It is supported
