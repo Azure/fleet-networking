@@ -338,10 +338,11 @@ already accepts absent/NotStarted/InProgress projections; endpointProgress and
 staging diagnostics propagate observed provisioning/deployment/enabled states
 into conditions. Existing bootstrap/lifecycle tests cover the behavior.
 No claim of a fully automatic successful live lifecycle is made: the retained
-diagnostic traffic required manual activation. The supplied Microsoft Q&A
-https://learn.microsoft.com/en-us/answers/questions/5642906/azure-front-door-endpoint-deployment-stuck-at-nots
-was read and supports treating deployment projections as advisory rather than
-a positive deployment-Succeeded gate; explicit failures are still rejected.
+diagnostic traffic required manual activation. The review also consulted
+Microsoft Q&A question `5642906` about stuck deployment projections. That page
+has since been removed (HTTP 410); it is not a current reference or proof of
+automatic convergence. Explicit failures are still rejected. For maintained
+product guidance, see the [Azure Front Door FAQ](https://learn.microsoft.com/azure/frontdoor/front-door-faq).
 
 ## Before/After Comparison
 

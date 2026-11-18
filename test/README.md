@@ -71,6 +71,15 @@ flags required by `test/e2e/traffic_manager_test.go`. Tests in that file skip wh
 
 ### Azure Front Door and Gateway API
 
+For the proposed end-to-end HTTPS follow-up, first-party test owners should
+review the separate [origin hostname/certificate fixture guide](https-origins-certificates.md).
+It covers approved DNS identity, conditional OneCert/public-CA enrollment,
+private-key custody, member Service-targeted policies/automatic hub projection,
+preflight, rotation and negative fixtures. This is
+preparation only; no TLS E2E opt-in/command exists yet. The implementation and
+required live scenarios remain in the
+[HTTPS proposal](../docs/design/gep-1748-https-origins-proposal.md#e2e-testing-requirements).
+
 The separate Gateway manager has an opt-in local image build target. It requires
 make, Docker/buildx and a Linux container builder:
 
