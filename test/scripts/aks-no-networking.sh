@@ -19,6 +19,8 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --no-wait
 
 
@@ -30,4 +32,6 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --no-wait
