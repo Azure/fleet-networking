@@ -45,6 +45,8 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
     --no-wait
@@ -56,6 +58,8 @@ else
      --node-count $NODE_COUNT \
      --node-vm-size Standard_A2_v2 \
      --generate-ssh-keys \
+     --enable-aad \
+     --enable-azure-rbac \
      --network-plugin azure \
      --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
      --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_1_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID} \
@@ -71,6 +75,8 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
     --no-wait
@@ -82,6 +88,8 @@ else
       --node-count $NODE_COUNT \
       --node-vm-size Standard_A2_v2 \
       --generate-ssh-keys \
+      --enable-aad \
+      --enable-azure-rbac \
       --network-plugin azure \
       --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
       --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_2_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID} \

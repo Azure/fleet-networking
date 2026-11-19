@@ -77,6 +77,8 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_1/subnets/$MEMBER_SUBNET_1" \
     --no-wait
@@ -88,6 +90,8 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_1/subnets/$MEMBER_SUBNET_2" \
     --no-wait
@@ -99,6 +103,8 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_2/subnets/$MEMBER_SUBNET_1" \
     --no-wait
@@ -110,6 +116,8 @@ az aks create \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
+    --enable-aad \
+    --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_2/subnets/$MEMBER_SUBNET_2" \
     --no-wait
