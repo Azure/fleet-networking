@@ -3,7 +3,7 @@ pr: none
 
 parameters:
   - name: approveAzureResources
-    displayName: Approve billable baseline E2E provisioning and cleanup in the test subscription
+    displayName: Approve billable provisioning and cleanup for all five E2E scenarios in the test subscription
     type: boolean
     default: false
 
@@ -11,19 +11,54 @@ pool:
   vmImage: ubuntu-24.04
 
 jobs:
-  - job: baseline_e2e
-    displayName: Shared-VNet baseline E2E
+  - job: e2e
+    displayName: Fleet networking E2E
     condition: and(succeeded(), ${{ eq(parameters.approveAzureResources, true) }})
-    timeoutInMinutes: 300
+    strategy:
+      matrix:
+        shared_vnet_atm:
+          SCENARIO: atm
+          AZURE_NETWORK_SETTING: shared-vnet
+          ENABLE_TRAFFIC_MANAGER: 'true'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        peered_vnet:
+          SCENARIO: peered
+          AZURE_NETWORK_SETTING: peered-vnet
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        dynamic_ip_allocation:
+          SCENARIO: dynamic
+          AZURE_NETWORK_SETTING: dynamic-ip-allocation
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        unsupported:
+          SCENARIO: unsupported
+          AZURE_NETWORK_SETTING: unsupported
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        shared_vnet_afd:
+          SCENARIO: afd
+          AZURE_NETWORK_SETTING: shared-vnet
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'true'
+          E2E_JOB_TIMEOUT: 900
+          E2E_TEST_TIMEOUT: 610
+    timeoutInMinutes: $[variables['E2E_JOB_TIMEOUT']]
     cancelTimeoutInMinutes: 30
     variables:
       AZURE_SUBSCRIPTION_ID: '8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8'
-      AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(System.JobAttempt)'
-      AZURE_NETWORK_SETTING: shared-vnet
-      ENABLE_TRAFFIC_MANAGER: 'false'
-      ENABLE_AZURE_FRONT_DOOR: 'false'
+      AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
+      ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
       RETAIN_AFD_E2E_SETUP: 'false'
-      BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(System.JobAttempt)'
+      BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
       KUBECONFIG: '$(Agent.TempDirectory)/fleet-e2e-kubeconfig'
       LOG_DIR: '$(Build.ArtifactStagingDirectory)/agent-logs'
     steps:
@@ -59,7 +94,7 @@ jobs:
         timeoutInMinutes: 15
 
       - task: AzureCLI@2
-        displayName: Set up baseline E2E environment
+        displayName: Set up E2E environment
         timeoutInMinutes: 180
         inputs:
           azureSubscription: 'aks fleetnetworking'
@@ -94,8 +129,8 @@ jobs:
         timeoutInMinutes: 5
 
       - task: AzureCLI@2
-        displayName: Run baseline E2E tests
-        timeoutInMinutes: 60
+        displayName: Run E2E tests
+        timeoutInMinutes: $[variables['E2E_TEST_TIMEOUT']]
         inputs:
           azureSubscription: 'aks fleetnetworking'
           scriptType: bash
@@ -105,6 +140,9 @@ jobs:
           keepAzSessionActive: true
           inlineScript: |
             set -euo pipefail
+            if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+              sleep 5m
+            fi
             make e2e-tests
         env:
           AZURE_TOKEN_CREDENTIALS: AzureCLICredential
@@ -126,7 +164,7 @@ jobs:
         timeoutInMinutes: 5
         inputs:
           targetPath: '$(LOG_DIR)'
-          artifact: 'baseline-e2e-$(System.JobAttempt)'
+          artifact: 'e2e-$(SCENARIO)-$(System.JobAttempt)'
 
       - task: AzureCLI@2
         displayName: Clean up this run's resource group
@@ -141,7 +179,7 @@ jobs:
           keepAzSessionActive: true
           inlineScript: |
             set -euo pipefail
-            expected="fleet-ado-$BUILD_BUILDID-$SYSTEM_JOBATTEMPT"
+            expected="fleet-ado-$BUILD_BUILDID-$SCENARIO-$SYSTEM_JOBATTEMPT"
             if [[ "$AZURE_RESOURCE_GROUP" != "$expected" ]]; then
               echo "error: refusing cleanup outside this run's resource group" >&2
               exit 1
