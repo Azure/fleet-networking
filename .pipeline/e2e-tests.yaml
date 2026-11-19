@@ -1,4 +1,8 @@
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+      - release-*
 pr: none
 
 parameters:
@@ -52,7 +56,7 @@ jobs:
   - ${{ each scenario in parameters.scenarios }}:
     - job: ${{ scenario.key }}
       displayName: Fleet networking E2E (${{ scenario.value.SCENARIO }})
-      condition: and(succeeded(), ${{ eq(parameters.approveAzureResources, true) }})
+      condition: and(succeeded(), or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), ${{ eq(parameters.approveAzureResources, true) }}))
       timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
       cancelTimeoutInMinutes: 30
       variables:
