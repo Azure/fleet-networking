@@ -56,7 +56,10 @@ jobs:
       timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
       cancelTimeoutInMinutes: 30
       variables:
-        ${{ insert }}: ${{ scenario.value }}
+        SCENARIO: ${{ scenario.value.SCENARIO }}
+        AZURE_NETWORK_SETTING: ${{ scenario.value.AZURE_NETWORK_SETTING }}
+        ENABLE_TRAFFIC_MANAGER: ${{ lower(scenario.value.ENABLE_TRAFFIC_MANAGER) }}
+        ENABLE_AZURE_FRONT_DOOR: ${{ lower(scenario.value.ENABLE_AZURE_FRONT_DOOR) }}
         AZURE_SUBSCRIPTION_ID: '8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8'
         AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
         ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
