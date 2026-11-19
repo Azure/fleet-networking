@@ -8,10 +8,6 @@ trigger:
 pr: none
 
 parameters:
-  - name: approveAzureResources
-    displayName: Approve billable provisioning and cleanup for all five E2E scenarios in the test subscription
-    type: boolean
-    default: false
   - name: scenarios
     type: object
     default:
@@ -58,7 +54,6 @@ jobs:
   - ${{ each scenario in parameters.scenarios }}:
     - job: ${{ scenario.key }}
       displayName: Fleet networking E2E (${{ scenario.value.SCENARIO }})
-      condition: and(succeeded(), or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), ${{ eq(parameters.approveAzureResources, true) }}))
       timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
       cancelTimeoutInMinutes: 30
       variables:
