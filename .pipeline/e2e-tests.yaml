@@ -1,161 +1,217 @@
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+  tags:
+    include:
+      - v*.*.*
 pr: none
 
 parameters:
-  - name: approveAzureResources
-    displayName: Approve billable baseline E2E provisioning and cleanup in the test subscription
-    type: boolean
-    default: false
+  - name: scenarios
+    type: object
+    default:
+        shared_vnet_atm:
+          SCENARIO: atm
+          AZURE_NETWORK_SETTING: shared-vnet
+          ENABLE_TRAFFIC_MANAGER: 'true'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        peered_vnet:
+          SCENARIO: peered
+          AZURE_NETWORK_SETTING: peered-vnet
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        dynamic_ip_allocation:
+          SCENARIO: dynamic
+          AZURE_NETWORK_SETTING: dynamic-ip-allocation
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        unsupported:
+          SCENARIO: unsupported
+          AZURE_NETWORK_SETTING: unsupported
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        shared_vnet_afd:
+          SCENARIO: afd
+          AZURE_NETWORK_SETTING: shared-vnet
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'true'
+          E2E_JOB_TIMEOUT: 900
+          E2E_TEST_TIMEOUT: 610
 
 pool:
   vmImage: ubuntu-24.04
 
 jobs:
-  - job: baseline_e2e
-    displayName: Shared-VNet baseline E2E
-    condition: and(succeeded(), ${{ eq(parameters.approveAzureResources, true) }})
-    timeoutInMinutes: 300
-    cancelTimeoutInMinutes: 30
-    variables:
-      AZURE_SUBSCRIPTION_ID: '8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8'
-      AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(System.JobAttempt)'
-      AZURE_NETWORK_SETTING: shared-vnet
-      ENABLE_TRAFFIC_MANAGER: 'false'
-      ENABLE_AZURE_FRONT_DOOR: 'false'
-      RETAIN_AFD_E2E_SETUP: 'false'
-      BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(System.JobAttempt)'
-      KUBECONFIG: '$(Agent.TempDirectory)/fleet-e2e-kubeconfig'
-      LOG_DIR: '$(Build.ArtifactStagingDirectory)/agent-logs'
-    steps:
-      - checkout: self
-        persistCredentials: false
+  - ${{ each scenario in parameters.scenarios }}:
+    - job: ${{ scenario.key }}
+      displayName: Fleet networking E2E (${{ scenario.value.SCENARIO }})
+      timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
+      cancelTimeoutInMinutes: 30
+      variables:
+        SCENARIO: ${{ scenario.value.SCENARIO }}
+        AZURE_NETWORK_SETTING: ${{ scenario.value.AZURE_NETWORK_SETTING }}
+        ENABLE_TRAFFIC_MANAGER: ${{ lower(scenario.value.ENABLE_TRAFFIC_MANAGER) }}
+        ENABLE_AZURE_FRONT_DOOR: ${{ lower(scenario.value.ENABLE_AZURE_FRONT_DOOR) }}
+        AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
+        ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
+        RETAIN_AFD_E2E_SETUP: 'false'
+        BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
+        KUBECONFIG: '$(Agent.TempDirectory)/fleet-e2e-kubeconfig'
+        LOG_DIR: '$(Build.ArtifactStagingDirectory)/agent-logs'
+      steps:
+        - checkout: self
+          persistCredentials: false
 
-      - bash: |
-          set -euo pipefail
-          version=$(awk '$1 == "go" {print $2}' go.mod)
-          test -n "$version"
-          echo "##vso[task.setvariable variable=GoVersion]$version"
-        displayName: Read Go version from go.mod
-
-      - task: GoTool@0
-        inputs:
-          version: '$(GoVersion)'
-
-      - bash: |
-          set -euo pipefail
-          for tool in az docker helm kubectl jq yq make timeout; do
-            command -v "$tool"
-          done
-          go version
-          docker info
-          df -h /
-          docker system df
-          helm version --short
-          kubectl version --client
-          yq --version
-          go mod download
-          mkdir -p "$LOG_DIR"
-        displayName: Check E2E prerequisites
-        timeoutInMinutes: 15
-
-      - task: AzureCLI@2
-        displayName: Set up baseline E2E environment
-        timeoutInMinutes: 180
-        inputs:
-          azureSubscription: 'aks fleetnetworking'
-          scriptType: bash
-          scriptLocation: inlineScript
-          addSpnToEnvironment: false
-          visibleAzLogin: false
-          keepAzSessionActive: true
-          inlineScript: |
+        - bash: |
             set -euo pipefail
-            actual=$(az account show --query id -o tsv)
-            if [[ "$actual" != "$AZURE_SUBSCRIPTION_ID" ]]; then
-              echo "error: service connection subscription does not match the E2E subscription" >&2
-              exit 1
-            fi
-            exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$AZURE_RESOURCE_GROUP")
-            if [[ "$exists" != false ]]; then
-              echo "error: refusing to reuse resource group $AZURE_RESOURCE_GROUP" >&2
-              exit 1
-            fi
-            echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
-            make e2e-setup
+            version=$(awk '$1 == "go" {print $2}' go.mod)
+            test -n "$version"
+            echo "##vso[task.setvariable variable=GoVersion]$version"
+          displayName: Read Go version from go.mod
 
-      - bash: |
-          set -euo pipefail
-          df -h /
-          docker buildx du --builder "$BUILDX_BUILDER_NAME"
-          docker buildx rm "$BUILDX_BUILDER_NAME"
-          docker system df
-          df -h /
-        displayName: Release image build cache before Go tests
-        timeoutInMinutes: 5
+        - task: GoTool@0
+          inputs:
+            version: '$(GoVersion)'
 
-      - task: AzureCLI@2
-        displayName: Run baseline E2E tests
-        timeoutInMinutes: 60
-        inputs:
-          azureSubscription: 'aks fleetnetworking'
-          scriptType: bash
-          scriptLocation: inlineScript
-          addSpnToEnvironment: false
-          visibleAzLogin: false
-          keepAzSessionActive: true
-          inlineScript: |
+        - bash: |
             set -euo pipefail
-            make e2e-tests
-        env:
-          AZURE_TOKEN_CREDENTIALS: AzureCLICredential
+            echo "Removing unused Android, .NET, Swift and Miniconda tooling from this disposable hosted agent."
+            sudo -A rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/share/swift /usr/share/miniconda
+            docker image prune --all --force
+            docker system df
+            df -h /
+          displayName: Reclaim hosted-agent disk space
+          timeoutInMinutes: 5
 
-      - bash: |
-          set -euo pipefail
-          mkdir -p "$LOG_DIR"
-          printf 'subscription=%s\nresourceGroup=%s\ncommit=%s\n' \
-            "$AZURE_SUBSCRIPTION_ID" "$AZURE_RESOURCE_GROUP" "$BUILD_SOURCEVERSION" \
-            > "$LOG_DIR/environment.txt"
-          make e2e-collect-logs
-        displayName: Collect agent logs
-        condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
-        timeoutInMinutes: 5
-
-      - task: PublishPipelineArtifact@1
-        displayName: Publish agent logs
-        condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
-        timeoutInMinutes: 5
-        inputs:
-          targetPath: '$(LOG_DIR)'
-          artifact: 'baseline-e2e-$(System.JobAttempt)'
-
-      - task: AzureCLI@2
-        displayName: Clean up this run's resource group
-        condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
-        timeoutInMinutes: 20
-        inputs:
-          azureSubscription: 'aks fleetnetworking'
-          scriptType: bash
-          scriptLocation: inlineScript
-          addSpnToEnvironment: false
-          visibleAzLogin: false
-          keepAzSessionActive: true
-          inlineScript: |
+        - bash: |
             set -euo pipefail
-            expected="fleet-ado-$BUILD_BUILDID-$SYSTEM_JOBATTEMPT"
-            if [[ "$AZURE_RESOURCE_GROUP" != "$expected" ]]; then
-              echo "error: refusing cleanup outside this run's resource group" >&2
-              exit 1
-            fi
-            az account set --subscription "$AZURE_SUBSCRIPTION_ID"
-            exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected")
-            if [[ "$exists" == false ]]; then
-              echo "Resource group $expected is already absent."
-              exit 0
-            fi
-            group=$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" -o json)
-            jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$expected" \
-              '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking"' \
-              <<<"$group" > /dev/null
-            make e2e-cleanup
-            az group wait --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" \
-              --deleted --interval 15 --timeout 900
+            : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID as a non-secret ADO pipeline variable}"
+            for tool in az docker helm kubectl jq yq make timeout; do
+              command -v "$tool"
+            done
+            go version
+            docker info
+            df -h /
+            docker system df
+            helm version --short
+            kubectl version --client
+            yq --version
+            go mod download
+            df -h /
+            mkdir -p "$LOG_DIR"
+          displayName: Check E2E prerequisites
+          timeoutInMinutes: 15
+
+        - task: AzureCLI@2
+          displayName: Set up E2E environment
+          timeoutInMinutes: 180
+          inputs:
+            azureSubscription: 'aks fleetnetworking'
+            scriptType: bash
+            scriptLocation: inlineScript
+            addSpnToEnvironment: false
+            visibleAzLogin: false
+            keepAzSessionActive: true
+            inlineScript: |
+              set -euo pipefail
+              actual=$(az account show --query id -o tsv)
+              if [[ "$actual" != "$AZURE_SUBSCRIPTION_ID" ]]; then
+                echo "error: service connection subscription does not match the E2E subscription" >&2
+                exit 1
+              fi
+              exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$AZURE_RESOURCE_GROUP")
+              if [[ "$exists" != false ]]; then
+                echo "error: refusing to reuse resource group $AZURE_RESOURCE_GROUP" >&2
+                exit 1
+              fi
+              echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
+              make e2e-setup
+
+        - bash: |
+            set -euo pipefail
+            df -h /
+            docker buildx du --builder "$BUILDX_BUILDER_NAME"
+            docker buildx rm "$BUILDX_BUILDER_NAME"
+            docker system df
+            df -h /
+          displayName: Release image build cache before Go tests
+          timeoutInMinutes: 5
+
+        - task: AzureCLI@2
+          displayName: Run E2E tests
+          timeoutInMinutes: ${{ scenario.value.E2E_TEST_TIMEOUT }}
+          inputs:
+            azureSubscription: 'aks fleetnetworking'
+            scriptType: bash
+            scriptLocation: inlineScript
+            addSpnToEnvironment: false
+            visibleAzLogin: false
+            keepAzSessionActive: true
+            inlineScript: |
+              set -euo pipefail
+              if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+                sleep 5m
+              fi
+              make e2e-tests
+          env:
+            AZURE_TOKEN_CREDENTIALS: AzureCLICredential
+
+        - bash: |
+            set -euo pipefail
+            mkdir -p "$LOG_DIR"
+            printf 'subscription=%s\nresourceGroup=%s\ncommit=%s\n' \
+              "$AZURE_SUBSCRIPTION_ID" "$AZURE_RESOURCE_GROUP" "$BUILD_SOURCEVERSION" \
+              > "$LOG_DIR/environment.txt"
+            make e2e-collect-logs
+          displayName: Collect agent logs
+          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          timeoutInMinutes: 5
+
+        - task: PublishPipelineArtifact@1
+          displayName: Publish agent logs
+          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          timeoutInMinutes: 5
+          inputs:
+            targetPath: '$(LOG_DIR)'
+            artifact: 'e2e-$(SCENARIO)-$(System.JobAttempt)'
+
+        - task: AzureCLI@2
+          displayName: Clean up this run's resource group
+          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          timeoutInMinutes: 20
+          inputs:
+            azureSubscription: 'aks fleetnetworking'
+            scriptType: bash
+            scriptLocation: inlineScript
+            addSpnToEnvironment: false
+            visibleAzLogin: false
+            keepAzSessionActive: true
+            inlineScript: |
+              set -euo pipefail
+              expected="fleet-ado-$BUILD_BUILDID-$SCENARIO-$SYSTEM_JOBATTEMPT"
+              if [[ "$AZURE_RESOURCE_GROUP" != "$expected" ]]; then
+                echo "error: refusing cleanup outside this run's resource group" >&2
+                exit 1
+              fi
+              az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+              exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected")
+              if [[ "$exists" == false ]]; then
+                echo "Resource group $expected is already absent."
+                exit 0
+              fi
+              group=$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" -o json)
+              jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$expected" \
+                '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking"' \
+                <<<"$group" > /dev/null
+              make e2e-cleanup
+              az group wait --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" \
+                --deleted --interval 15 --timeout 900
