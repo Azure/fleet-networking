@@ -2,7 +2,9 @@ trigger:
   branches:
     include:
       - main
-      - release-*
+  tags:
+    include:
+      - v*.*.*
 pr: none
 
 parameters:
