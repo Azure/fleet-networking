@@ -81,6 +81,30 @@ jobs:
 
         - bash: |
             set -euo pipefail
+            df -h /
+            df -i /
+            docker system df
+            sudo -A du -xhd1 /usr/local/lib /usr/share /opt
+            for path in /usr/local/lib/android /usr/share/dotnet; do
+              if [[ -d "$path" ]]; then
+                sudo -A du -sh "$path"
+              else
+                echo "$path is not installed."
+              fi
+            done
+          displayName: Discover hosted-agent disk usage
+          timeoutInMinutes: 5
+
+        - bash: |
+            set -euo pipefail
+            echo "Removing unused Android and .NET SDKs from this disposable hosted agent."
+            sudo -A rm -rf -- /usr/local/lib/android /usr/share/dotnet
+            df -h /
+          displayName: Reclaim hosted-agent disk space
+          timeoutInMinutes: 5
+
+        - bash: |
+            set -euo pipefail
             for tool in az docker helm kubectl jq yq make timeout; do
               command -v "$tool"
             done
@@ -92,6 +116,12 @@ jobs:
             kubectl version --client
             yq --version
             go mod download
+            available_kib=$(df -Pk / | awk 'NR == 2 {print $4}')
+            echo "Available disk space after dependency download: $available_kib KiB"
+            if (( available_kib < 30 * 1024 * 1024 )); then
+              echo "##vso[task.logissue type=error]Need at least 30 GiB free before E2E setup."
+              exit 1
+            fi
             mkdir -p "$LOG_DIR"
           displayName: Check E2E prerequisites
           timeoutInMinutes: 15
