@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -138,30 +137,24 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should withdraw all endpointsliceimports", func() {
 			// Check if all EndpointSliceImports has been withdrawn.
-			Eventually(func() bool {
-				if err := hubClient.Get(ctx, endpointSliceImportBKey, endpointSliceImportB); err != nil && errors.IsNotFound(err) {
-					return false
-				}
-
-				if err := hubClient.Get(ctx, endpointSliceImportCKey, endpointSliceImportC); err != nil && errors.IsNotFound(err) {
-					return false
-				}
-				return true
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(func() error {
+				return hubAPIReader.Get(ctx, endpointSliceImportBKey, endpointSliceImportB)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
+			Eventually(func() error {
+				return hubAPIReader.Get(ctx, endpointSliceImportCKey, endpointSliceImportC)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 
 			// Check if the cleanup finalizer has been removed.
-			Eventually(func() bool {
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); err != nil && errors.IsNotFound(err) {
-					return true
-				}
-				return false
-			}, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			// A cached NotFound can precede observation of the create and delete.
+			Eventually(func() error {
+				return hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 	})
 
@@ -187,7 +180,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -248,7 +241,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -257,8 +250,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should not distribute endpointslice to member clusters", func() {
@@ -315,7 +308,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -324,8 +317,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should not distribute endpointslice to member clusters", func() {
@@ -384,7 +377,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -393,8 +386,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should not distribute endpointslice to member clusters", func() {
@@ -451,7 +444,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -460,8 +453,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should not distribute endpointslice to member clusters", func() {
@@ -517,7 +510,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -526,8 +519,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should distribute endpointslice to member clusters", func() {
@@ -611,7 +604,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -620,8 +613,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should update distributed endpointslices", func() {
@@ -740,7 +733,7 @@ var _ = Describe("endpointsliceexport controller", func() {
 					return false
 				}
 
-				if err := hubClient.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
+				if err := hubAPIReader.Get(ctx, endpointSliceExportKey, endpointSliceExport); !errors.IsNotFound(err) {
 					return false
 				}
 				return true
@@ -749,8 +742,8 @@ var _ = Describe("endpointsliceexport controller", func() {
 			Expect(hubClient.Delete(ctx, svcImport)).Should(Succeed())
 			// Confirm that ServiceImport is deleted; this helps make the test less flaky.
 			Eventually(func() error {
-				return client.IgnoreNotFound(hubClient.Get(ctx, svcImportKey, svcImport))
-			}, eventuallyTimeout, eventuallyInterval).Should(BeNil())
+				return hubAPIReader.Get(ctx, svcImportKey, svcImport)
+			}, eventuallyTimeout, eventuallyInterval).Should(MatchError(errors.IsNotFound, "NotFound"))
 		})
 
 		It("should re-distribute endpointslice copies (unimports + new imports)", func() {
