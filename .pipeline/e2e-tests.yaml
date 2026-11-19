@@ -61,7 +61,6 @@ jobs:
         AZURE_NETWORK_SETTING: ${{ scenario.value.AZURE_NETWORK_SETTING }}
         ENABLE_TRAFFIC_MANAGER: ${{ lower(scenario.value.ENABLE_TRAFFIC_MANAGER) }}
         ENABLE_AZURE_FRONT_DOOR: ${{ lower(scenario.value.ENABLE_AZURE_FRONT_DOOR) }}
-        AZURE_SUBSCRIPTION_ID: '8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8'
         AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
         ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
         RETAIN_AFD_E2E_SETUP: 'false'
@@ -95,6 +94,7 @@ jobs:
 
         - bash: |
             set -euo pipefail
+            : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID as a non-secret ADO pipeline variable}"
             for tool in az docker helm kubectl jq yq make timeout; do
               command -v "$tool"
             done
