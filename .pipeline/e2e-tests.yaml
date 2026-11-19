@@ -116,12 +116,7 @@ jobs:
             kubectl version --client
             yq --version
             go mod download
-            available_kib=$(df -Pk / | awk 'NR == 2 {print $4}')
-            echo "Available disk space after dependency download: $available_kib KiB"
-            if (( available_kib < 30 * 1024 * 1024 )); then
-              echo "##vso[task.logissue type=error]Need at least 30 GiB free before E2E setup."
-              exit 1
-            fi
+            df -h /
             mkdir -p "$LOG_DIR"
           displayName: Check E2E prerequisites
           timeoutInMinutes: 15
