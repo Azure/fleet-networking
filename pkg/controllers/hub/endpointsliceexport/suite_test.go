@@ -27,10 +27,11 @@ import (
 )
 
 var (
-	hubTestEnv *envtest.Environment
-	hubClient  client.Client
-	ctx        context.Context
-	cancel     context.CancelFunc
+	hubTestEnv   *envtest.Environment
+	hubClient    client.Client
+	hubAPIReader client.Reader
+	ctx          context.Context
+	cancel       context.CancelFunc
 )
 
 // setUpResources help set up resources in the test environment.
@@ -105,6 +106,7 @@ var _ = BeforeSuite(func() {
 	// of the cache indexes.
 	hubClient = hubCtrlMgr.GetClient()
 	Expect(hubClient).NotTo(BeNil())
+	hubAPIReader = hubCtrlMgr.GetAPIReader()
 
 	err = (&Reconciler{
 		HubClient: hubClient,

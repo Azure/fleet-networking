@@ -339,7 +339,8 @@ staging diagnostics propagate observed provisioning/deployment/enabled states
 into conditions. Existing bootstrap/lifecycle tests cover the behavior.
 No claim of a fully automatic successful live lifecycle is made: the retained
 diagnostic traffic required manual activation. The supplied Microsoft Q&A
-https://learn.microsoft.com/en-us/answers/questions/5642906/azure-front-door-endpoint-deployment-stuck-at-nots
+`https://learn.microsoft.com/en-us/answers/questions/5642906/azure-front-door-endpoint-deployment-stuck-at-nots`
+(historical source; HTTP 410 Gone as of 2026-11-19)
 was read and supports treating deployment projections as advisory rather than
 a positive deployment-Succeeded gate; explicit failures are still rejected.
 
