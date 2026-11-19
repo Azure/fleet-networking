@@ -85,7 +85,7 @@ jobs:
             df -i /
             docker system df
             sudo -A du -xhd1 /usr/local/lib /usr/share /opt
-            for path in /usr/local/lib/android /usr/share/dotnet; do
+            for path in /usr/local/lib/android /usr/share/dotnet /usr/share/swift /usr/share/miniconda; do
               if [[ -d "$path" ]]; then
                 sudo -A du -sh "$path"
               else
@@ -97,8 +97,10 @@ jobs:
 
         - bash: |
             set -euo pipefail
-            echo "Removing unused Android and .NET SDKs from this disposable hosted agent."
-            sudo -A rm -rf -- /usr/local/lib/android /usr/share/dotnet
+            echo "Removing unused Android, .NET, Swift and Miniconda tooling from this disposable hosted agent."
+            sudo -A rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/share/swift /usr/share/miniconda
+            docker image prune --all --force
+            docker system df
             df -h /
           displayName: Reclaim hosted-agent disk space
           timeoutInMinutes: 5
