@@ -247,7 +247,12 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with invalid timeoutInSeconds")
 			var err = hubClient.Create(ctx, profile)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
-			Expect(statusErr.Status().Message).Should(ContainSubstring("spec.monitorConfig: Invalid value: \"object\": timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10"))
+			Expect(statusErr.Status().Details).NotTo(BeNil())
+			Expect(statusErr.Status().Details.Causes).Should(ContainElement(And(
+				HaveField("Type", metav1.CauseTypeFieldValueInvalid),
+				HaveField("Field", "spec.monitorConfig"),
+				HaveField("Message", ContainSubstring("timeoutInSeconds must be between 5 and 9 when intervalInSeconds is 10")),
+			)))
 		})
 
 		It("should deny creating API with timeoutInSeconds < 5 when intervalInSeconds is not defined", func() {
@@ -307,7 +312,11 @@ var _ = Describe("Test networking v1alpha1 API validation", func() {
 			By("expecting denial of CREATE API with duplicate customHeaders")
 			var err = hubClient.Create(ctx, trafficManagerProfileWithDuplicateHeaders)
 			Expect(errors.As(err, &statusErr)).To(BeTrue(), fmt.Sprintf("Create API call produced error %s. Error type wanted is %s.", reflect.TypeOf(err), reflect.TypeOf(&k8serrors.StatusError{})))
-			Expect(statusErr.Status().Message).Should(ContainSubstring("Duplicate value: map[string]interface {}{\"name\":\"Header1\""))
+			Expect(statusErr.Status().Details).NotTo(BeNil())
+			Expect(statusErr.Status().Details.Causes).Should(ContainElement(And(
+				HaveField("Type", metav1.CauseTypeFieldValueDuplicate),
+				HaveField("Field", "spec.monitorConfig.customHeaders[1]"),
+			)))
 		})
 
 		It("should deny creating API with empty customHeader name", func() {
