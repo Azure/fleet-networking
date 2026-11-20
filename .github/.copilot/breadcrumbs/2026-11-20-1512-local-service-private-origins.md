@@ -111,3 +111,22 @@ temporarily comments out other scenarios and the ordinary E2E suite; the explici
 `runLocalServiceConformance=true` parameter is required even to start provisioning.
 Do not reuse existing resources or local kubeconfig contexts. The approval is for
 this requested pipeline run, not unrelated live operations.
+
+## First live failure and diagnostic rerun
+
+Run 192418766 failed in the 75-minute preparation wait before upstream assertions.
+Historical Azure activity showed successful companion ILB and PLS creation, no
+recorded AFD writes, and successful cleanup. Published artifacts omitted Gateway
+manager logs and pre-teardown conformance resources. A local real-API defaulting
+probe passed, so no defaulting defect was established.
+
+User approved one new run with the same subscription, fresh run-scoped resource
+group, provisioning, exact connection approval, and cleanup scope. Diagnostic changes:
+
+- Collect Gateway-manager logs alongside existing hub networking logs.
+- Capture resource/Pod-status snapshots and Gateway-manager logs in a test defer,
+  before upstream cleanup; exclude Secrets and Pod specification/environment data.
+- Log changing local resolver/profile/approval wait states and retain the discovery
+  snapshot reason in BackendUnavailable messages.
+- Race-enabled helper/localservice tests, tagged offline tests, vet, script syntax,
+  and whitespace checks passed. No live operations were executed by these checks.

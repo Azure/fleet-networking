@@ -101,3 +101,11 @@ Go JSON results are stored in the existing log artifact. Test failures fail the 
 existing always-run log collection and scoped environment cleanup remain active.
 
 No live HTTP conformance pass is established by compile/unit checks.
+
+## Failure diagnostics
+
+Preparation logs changing resolver and approval wait reasons. Before upstream
+cleanup removes routes or namespaces, the runner captures Services, EndpointSlices,
+Gateway/HTTPRoute status, events, and Pod status (not Pod specifications or Secrets).
+When `LOG_DIR` is set, snapshots and Gateway-manager logs are written to the existing
+pipeline artifact. Gateway-manager logs are also included by normal E2E log collection.

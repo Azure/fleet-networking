@@ -16,6 +16,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -145,6 +147,8 @@ func TestAFDConformance(t *testing.T) {
 			cs.Applier.ManifestFS, cs.Applier.ControllerName, cs.Applier.GatewayClass = cs.ManifestFS, cs.ControllerName, class.Name
 			var created []unstructured.Unstructured
 			var namespaces []string
+			// Defers run before upstream t.Cleanup handlers delete the route and fixture resources.
+			defer captureDiagnostics(t, c, test.ShortName, namespacesForFixtures(fixtures))
 			t.Cleanup(func() {
 				cleanupCtx, stop := context.WithTimeout(context.Background(), 45*time.Minute)
 				defer stop()
@@ -198,6 +202,16 @@ type originCheckpoint struct {
 	targetID     string
 	gatewayUID   string
 	skipWarm     bool
+	lastProgress string
+}
+
+func (checkpoint *originCheckpoint) progress(target harness.OriginTarget, message string) {
+	if checkpoint.lastProgress == message {
+		return
+	}
+	checkpoint.lastProgress = message
+	fmt.Fprintf(os.Stderr, "Preparation Gateway=%s route=%s backend=%s: %s\n",
+		target.Gateway, target.Route, target.Reference.Name, message)
 }
 
 func approveAndWarm(ctx context.Context, c client.Client, resolver gatewayresolver.LocalServiceResolver,
@@ -299,6 +313,7 @@ func approveTarget(ctx context.Context, c client.Client, resolver gatewayresolve
 	if err != nil {
 		var pending *gatewayresolver.ResolutionError
 		if errors.As(err, &pending) && pending.ReferenceValid && pending.Reason == "BackendUnavailable" {
+			checkpoint.progress(target, err.Error())
 			return false, nil
 		}
 		if errors.As(err, &pending) && !pending.ReferenceValid {
@@ -333,6 +348,7 @@ func approveTarget(ctx context.Context, c client.Client, resolver gatewayresolve
 	}
 	profile, err := profiles.Get(ctx, scope.ResourceGroup, roots.ProfileName, nil)
 	if azureerrors.IsNotFound(err) {
+		checkpoint.progress(target, "waiting for owned AFD profile "+roots.ProfileName)
 		return false, nil
 	}
 	if err != nil {
@@ -347,6 +363,9 @@ func approveTarget(ctx context.Context, c client.Client, resolver gatewayresolve
 	}
 	connection, err := harness.ApprovalConnection(pls.PrivateLinkService, checkpoint.targetID, "Fleet AFD private origin for "+roots.ProfileName, checkpoint.connectionID)
 	if err != nil || connection == nil {
+		if err == nil {
+			checkpoint.progress(target, "waiting for correlated private endpoint request on "+checkpoint.targetID)
+		}
 		return false, err
 	}
 	checkpoint.connectionID = *connection.ID
@@ -360,7 +379,52 @@ func approveTarget(ctx context.Context, c client.Client, resolver gatewayresolve
 			}}, nil)
 		return false, err
 	}
+	checkpoint.progress(target, "exact private endpoint connection approved")
 	return true, nil
+}
+
+func namespacesForFixtures(fixtures []unstructured.Unstructured) []string {
+	var namespaces []string
+	for _, fixture := range fixtures {
+		if fixture.GetKind() == "Namespace" {
+			namespaces = append(namespaces, fixture.GetName())
+		}
+	}
+	return namespaces
+}
+
+func captureDiagnostics(t *testing.T, c client.Client, testName string, namespaces []string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	data, err := harness.FixtureDiagnostics(ctx, c, namespaces)
+	t.Logf("Pre-teardown fixture snapshot:\n%s", data)
+	if err != nil {
+		t.Errorf("fixture diagnostics failed: %v", err)
+	}
+	dir := os.Getenv("LOG_DIR")
+	if dir != "" {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Errorf("create diagnostic directory: %v", err)
+		} else if err := os.WriteFile(filepath.Join(dir, testName+"-fixtures.json"), data, 0600); err != nil {
+			t.Errorf("write fixture snapshot: %v", err)
+		}
+	}
+	namespace := os.Getenv("AFD_PROOF_CONTROLLER_NAMESPACE")
+	if namespace == "" {
+		namespace = "fleet-system"
+	}
+	logs, err := exec.CommandContext(ctx, "kubectl", "--context", *kubeContext, "-n", namespace, "logs",
+		"-l", "app.kubernetes.io/name=hub-gateway-controller-manager", "--all-containers=true",
+		"--prefix=true", "--tail=2000", "--max-log-requests=5", "--request-timeout=30s").CombinedOutput()
+	if err != nil {
+		t.Errorf("capture Gateway-manager logs: %v: %s", err, logs)
+	}
+	if dir == "" {
+		t.Logf("Gateway-manager logs:\n%s", logs)
+	} else if err := os.WriteFile(filepath.Join(dir, testName+"-gateway-manager.log"), logs, 0600); err != nil {
+		t.Errorf("write Gateway-manager logs: %v", err)
+	}
 }
 
 func warmTarget(ctx context.Context, c client.Client, httpClient *http.Client, target harness.OriginTarget) (bool, error) {

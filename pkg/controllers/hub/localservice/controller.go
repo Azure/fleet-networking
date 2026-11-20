@@ -767,7 +767,11 @@ func (r *Reconciler) ResolveLocalService(ctx context.Context, namespace string, 
 		return unavailable(fmt.Sprintf("private origin discovery failed: %v", err))
 	}
 	if snapshot == nil || !snapshot.Ready {
-		return unavailable("waiting for verified internal LoadBalancer and PLS")
+		reason := "no discovery snapshot"
+		if snapshot != nil {
+			reason = snapshot.Reason
+		}
+		return unavailable("waiting for verified internal LoadBalancer and PLS: " + reason)
 	}
 	if err := r.readyMirrors(ctx, &source, port, &companion); err != nil {
 		return unavailable(err.Error())
