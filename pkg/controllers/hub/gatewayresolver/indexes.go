@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,6 +22,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
+	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 )
 
 const (
@@ -115,9 +117,29 @@ func DependentRoutes(ctx context.Context, reader client.Reader, object client.Ob
 	case *fleetnetv1alpha1.ServiceImport:
 		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Namespace + "/" + dependency.Name})
 	case *corev1.Service:
-		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Namespace + "/" + dependency.Name})
+		source, err := localOriginSource(ctx, reader, dependency)
+		if err != nil || source == nil {
+			return nil, err
+		}
+		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: source.Namespace + "/" + source.Name})
 	case *discoveryv1.EndpointSlice:
 		name := dependency.Labels[discoveryv1.LabelServiceName]
+		if dependency.Labels[objectmeta.LocalOriginManagedLabel] == objectmeta.LocalOriginManager {
+			companion := &corev1.Service{}
+			if err := reader.Get(ctx, client.ObjectKey{Namespace: dependency.Namespace, Name: name}, companion); err != nil {
+				return nil, client.IgnoreNotFound(err)
+			}
+			owner := metav1.GetControllerOf(dependency)
+			if owner == nil || owner.APIVersion != "v1" || owner.Kind != "Service" ||
+				owner.Name != companion.Name || owner.UID != companion.UID {
+				return nil, nil
+			}
+			source, err := localOriginSource(ctx, reader, companion)
+			if err != nil || source == nil {
+				return nil, err
+			}
+			name = source.Name
+		}
 		if name == "" {
 			return nil, nil
 		}

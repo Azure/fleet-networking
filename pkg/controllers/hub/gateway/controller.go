@@ -105,12 +105,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 	var observedGateway *gatewayv1.Gateway
 	var observedHTTPGateway *gatewayv1.Gateway
 	var persistedGateway *gatewayv1.Gateway
+	var localOriginPending bool
 	// This callback can repeat; keep external mutations outside status conflict retries.
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		evaluationErr = nil
 		observedGateway = nil
 		observedHTTPGateway = nil
 		persistedGateway = nil
+		localOriginPending = false
 		var gateway gatewayv1.Gateway
 		if err := r.Client.Get(ctx, request.NamespacedName, &gateway); err != nil {
 			return client.IgnoreNotFound(err)
@@ -126,7 +128,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 			return nil
 		}
 		before := gateway.DeepCopy()
-		model, err := r.resolve(ctx, &gateway, &class)
+		localResolver := &pendingLocalServiceResolver{resolver: r.LocalServices}
+		reader := client.Reader(r.Client)
+		if r.LocalServices != nil {
+			reader = gatewayresolver.WithLocalServices(reader, localResolver)
+		}
+		model, err := resolveGateway(ctx, reader, &gateway, &class, true)
+		localOriginPending = localResolver.pending
 		if err != nil {
 			// Do not publish partial attachment counts, but still clear stale readiness.
 			gateway.Status = *before.Status.DeepCopy()
@@ -169,7 +177,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 	if err := errors.Join(err, observationErr, stagingErr, evaluationErr); err != nil {
 		return ctrl.Result{}, err
 	}
-	return progressRequeue(observation != nil || staging != nil), nil
+	return progressRequeue(observation != nil || staging != nil || localOriginPending), nil
 }
 
 func (r *Reconciler) resolve(ctx context.Context, gateway *gatewayv1.Gateway, class *gatewayv1.GatewayClass) (*gatewaymodel.GlobalGateway, error) {

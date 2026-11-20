@@ -38,10 +38,10 @@ import (
 )
 
 const (
-	managedLabel    = "networking.fleet.azure.com/local-origin"
-	sourceNameLabel = "networking.fleet.azure.com/local-source-name"
-	sourceUIDLabel  = "networking.fleet.azure.com/local-source-uid"
-	managedBy       = "fleet-local-service"
+	managedLabel    = objectmeta.LocalOriginManagedLabel
+	sourceNameLabel = objectmeta.LocalOriginSourceNameLabel
+	sourceUIDLabel  = objectmeta.LocalOriginSourceUIDLabel
+	managedBy       = objectmeta.LocalOriginManager
 	plsCreate       = "service.beta.kubernetes.io/azure-pls-create"
 	pollInterval    = 2 * time.Minute
 )

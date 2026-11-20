@@ -77,6 +77,11 @@ const (
 	// ServiceAnnotationPLSName is the requested name of the Service's PLS.
 	ServiceAnnotationPLSName = "service.beta.kubernetes.io/azure-pls-name"
 
+	LocalOriginManagedLabel    = fleetNetworkingPrefix + "local-origin"
+	LocalOriginSourceNameLabel = fleetNetworkingPrefix + "local-source-name"
+	LocalOriginSourceUIDLabel  = fleetNetworkingPrefix + "local-source-uid"
+	LocalOriginManager         = "fleet-local-service"
+
 	// ServiceAnnotationAzureDNSLabelName is the annotation used on the service to Specify the DNS label name for the
 	// service’s public IP address (PIP). If it is set to empty string, DNS in PIP would be deleted. Because of a bug,
 	// before v1.15.10/v1.16.7/v1.17.3, the DNS label on PIP would also be deleted if the annotation is not specified.

@@ -55,3 +55,10 @@ Resolution checks source/mirror endpoint equality both before and after Azure
 discovery, then rechecks source slice identities/resource versions to detect
 draining during the list operations. Companion changes, source deletion, and
 Gateway withdrawal during discovery cannot produce a usable Backend.
+
+Gateway/HTTPRoute dependency mapping follows companion Service and mirror
+EndpointSlice ownership back to the current source Service UID. This wakes the
+original backend's consumers when CCM publishes an ILB IP or companion endpoints
+change. The Gateway also retries valid pending local origins on its existing
+approximately 30-second observation interval, because Azure PLS readiness may
+change without another Kubernetes event. Invalid references do not enable this retry.
