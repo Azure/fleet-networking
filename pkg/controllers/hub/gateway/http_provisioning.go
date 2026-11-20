@@ -21,6 +21,7 @@ import (
 
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewaymodel"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayresolver"
 	"go.goms.io/fleet-networking/pkg/providers/azure/frontdoor"
 )
 
@@ -151,7 +152,7 @@ func (r *Reconciler) unprogrammableOwner(ctx context.Context, gateway *gatewayv1
 	if !controllerutil.ContainsFinalizer(current, objectmeta.GatewayAFDCleanupFinalizer) {
 		return frontdoor.GatewayOwner{}, errProvisioningIntentChanged
 	}
-	actual, err := resolveGateway(ctx, r.APIReader, current.DeepCopy(), class, false)
+	actual, err := resolveGateway(ctx, gatewayresolver.WithLocalServices(r.APIReader, r.LocalServices), current.DeepCopy(), class, false)
 	if err != nil {
 		return frontdoor.GatewayOwner{}, err
 	}

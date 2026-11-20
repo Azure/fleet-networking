@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,7 +23,7 @@ import (
 
 const gatewayCacheReadinessCheck = "gateway-cache"
 
-func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager) error {
+func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager, localServices ...bool) error {
 	objects := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.Gateway{},
@@ -31,6 +32,9 @@ func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager) error 
 		&fleetnetv1alpha1.ServiceImport{},
 		&fleetnetv1alpha1.InternalServiceExport{},
 		&corev1.Namespace{},
+	}
+	if len(localServices) != 0 && localServices[0] {
+		objects = append(objects, &corev1.Service{}, &discoveryv1.EndpointSlice{})
 	}
 	informers := make([]cache.Informer, 0, len(objects))
 	informerCache := mgr.GetCache()

@@ -20,6 +20,7 @@ import (
 
 // BackendKey identifies one ServiceImport port within a Gateway.
 type BackendKey struct {
+	Kind      string
 	Namespace string
 	Name      string
 	Port      int32
@@ -132,7 +133,7 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 	for _, route := range normalized.Routes {
 		for _, rule := range route.Rules {
 			for _, backend := range rule.Backends {
-				key := BackendKey{Namespace: backend.Namespace, Name: backend.Name, Port: backend.Port}
+				key := BackendKey{Kind: backend.Kind, Namespace: backend.Namespace, Name: backend.Name, Port: backend.Port}
 				if groups[key] {
 					continue
 				}
@@ -141,6 +142,9 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 				group := OriginGroup{
 					Name:    resourceName("fleet-og", normalized.UID, key.Namespace, key.Name, strconv.Itoa(int(key.Port))),
 					Backend: key, HealthProbe: backend.HealthProbe,
+				}
+				if backend.Kind != "" {
+					group.Name = resourceName("fleet-og", normalized.UID, backend.Kind, key.Namespace, key.Name, strconv.Itoa(int(key.Port)))
 				}
 				for _, member := range backend.Origins {
 					target := PrivateLinkTarget{ResourceID: member.PrivateLinkResourceID, Location: member.PrivateLinkLocation}
@@ -159,6 +163,9 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 	}
 	sort.Slice(plan.OriginGroups, func(i, j int) bool {
 		left, right := plan.OriginGroups[i].Backend, plan.OriginGroups[j].Backend
+		if left.Kind != right.Kind {
+			return left.Kind < right.Kind
+		}
 		if left.Namespace != right.Namespace {
 			return left.Namespace < right.Namespace
 		}

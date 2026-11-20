@@ -368,6 +368,7 @@ func afdTestEnvironment(t *testing.T) {
 		t.Skip("Run POSIX harness tests with Go inside WSL, not a Windows Go process")
 	}
 	for _, name := range []string{
+		"ENABLE_LOCAL_SERVICE_ORIGINS",
 		"ENABLE_TRAFFIC_MANAGER", "ENABLE_AZURE_FRONT_DOOR", "ENABLE_GATEWAY_API",
 		"ENABLE_AFD_PRIVATE_HTTP_PROOF", "AFD_PROOF_CONTROLLER_IMAGE", "REGISTRY",
 		"ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL",

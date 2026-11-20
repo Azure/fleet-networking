@@ -184,9 +184,20 @@ func ResolveBackend(ctx context.Context, reader client.Reader, namespace string,
 }
 
 func resolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, indexed bool) (gatewaymodel.Backend, error) {
+	if ptr.Deref(ref.Group, "") == "" && ptr.Deref(ref.Kind, "Service") == "Service" {
+		if local, ok := reader.(LocalServiceResolver); ok {
+			backend, err := local.ResolveLocalService(ctx, namespace, ref)
+			if err != nil {
+				return gatewaymodel.Backend{}, err
+			}
+			backend.Kind = "Service"
+			return backend, nil
+		}
+	}
 	if err := AuthorizeBackendReference(namespace, ref); err != nil {
 		return gatewaymodel.Backend{}, err
 	}
+
 	targetNamespace := string(ptr.Deref(ref.Namespace, gatewayv1.Namespace(namespace)))
 	var service fleetnetv1alpha1.ServiceImport
 	if err := reader.Get(ctx, types.NamespacedName{Namespace: targetNamespace, Name: string(ref.Name)}, &service); err != nil {

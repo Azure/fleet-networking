@@ -72,7 +72,7 @@ func PreflightHTTPPreviewRouting(model gatewaymodel.GlobalGateway) error {
 			}
 			// Normalize proves one positive logical backend per rule.
 			backend := rule.Backends[0]
-			key := BackendKey{Namespace: backend.Namespace, Name: backend.Name, Port: backend.Port}
+			key := BackendKey{Kind: backend.Kind, Namespace: backend.Namespace, Name: backend.Name, Port: backend.Port}
 			if selected.Name != "" && selected != key {
 				return fmt.Errorf("AFD execution subset requires one logical ServiceImport backend port across all rules; multiple-backend routing is not implemented")
 			}

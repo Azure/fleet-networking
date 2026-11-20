@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -33,6 +34,7 @@ import (
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayclass"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayresolver"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/httproute"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/localservice"
 )
 
 var (
@@ -42,9 +44,11 @@ var (
 	enableLeaderElection    = flag.Bool("leader-elect", true, "Enable leader election for the controller manager.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace used for leader election.")
 
-	enableAFD        = flag.Bool("enable-afd", false, "Enable Gateway API reconciliation and AFD Premium private HTTP provisioning, observation and owned cleanup; enabling performs Azure writes.")
-	cloudConfigFile  = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The Azure cloud configuration file.")
-	afdResourceGroup = flag.String("afd-resource-group", "", "The resource group in which the controller manages Azure Front Door resources.")
+	enableAFD                 = flag.Bool("enable-afd", false, "Enable Gateway API reconciliation and AFD Premium private HTTP provisioning, observation and owned cleanup; enabling performs Azure writes.")
+	enableLocalServiceOrigins = flag.Bool("enable-local-service-origins", false, "Enable owned internal LoadBalancer/PLS companions for local Service backends; requires AKS CCM and leader election.")
+	localServiceResourceGroup = flag.String("local-service-resource-group", "", "Verified AKS node resource group used to discover local Service ILB/PLS origins.")
+	cloudConfigFile           = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The Azure cloud configuration file.")
+	afdResourceGroup          = flag.String("afd-resource-group", "", "The resource group in which the controller manages Azure Front Door resources.")
 )
 
 func init() {
@@ -67,24 +71,28 @@ func main() {
 
 func currentOptions() managerOptions {
 	return managerOptions{
-		metricsAddress:          *metricsAddr,
-		probeAddress:            *probeAddr,
-		leaderElection:          *enableLeaderElection,
-		leaderElectionNamespace: *leaderElectionNamespace,
-		enableAFD:               *enableAFD,
-		cloudConfigFile:         *cloudConfigFile,
-		afdResourceGroup:        *afdResourceGroup,
+		metricsAddress:            *metricsAddr,
+		probeAddress:              *probeAddr,
+		leaderElection:            *enableLeaderElection,
+		leaderElectionNamespace:   *leaderElectionNamespace,
+		enableAFD:                 *enableAFD,
+		enableLocalServiceOrigins: *enableLocalServiceOrigins,
+		localServiceResourceGroup: *localServiceResourceGroup,
+		cloudConfigFile:           *cloudConfigFile,
+		afdResourceGroup:          *afdResourceGroup,
 	}
 }
 
 type managerOptions struct {
-	metricsAddress          string
-	probeAddress            string
-	leaderElection          bool
-	leaderElectionNamespace string
-	enableAFD               bool
-	cloudConfigFile         string
-	afdResourceGroup        string
+	metricsAddress            string
+	probeAddress              string
+	leaderElection            bool
+	leaderElectionNamespace   string
+	enableAFD                 bool
+	enableLocalServiceOrigins bool
+	localServiceResourceGroup string
+	cloudConfigFile           string
+	afdResourceGroup          string
 }
 
 type dependencies struct {
@@ -112,6 +120,9 @@ func productionDependencies() dependencies {
 }
 
 func run(options managerOptions, deps dependencies) error {
+	if options.enableLocalServiceOrigins && (!options.enableAFD || !options.leaderElection || strings.TrimSpace(options.localServiceResourceGroup) == "") {
+		return fmt.Errorf("local Service origins require enable-afd, leader election, and a local-service-resource-group")
+	}
 	scheme, err := deps.newScheme()
 	if err != nil {
 		return fmt.Errorf("register controller schemes: %w", err)
@@ -129,6 +140,13 @@ func run(options managerOptions, deps dependencies) error {
 		}
 		if err := providers.validate(); err != nil {
 			return err
+		}
+		if options.enableLocalServiceOrigins {
+			discovery, err := initLocalServiceDiscovery(providers, options.localServiceResourceGroup)
+			if err != nil {
+				return fmt.Errorf("initialize local Service private discovery: %w", err)
+			}
+			providers.localServices = &localservice.Reconciler{Discovery: discovery}
 		}
 	} else {
 		klog.InfoS("Azure Front Door reconciliation is disabled")
@@ -177,6 +195,15 @@ func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProvid
 	if err := gatewayresolver.SetupIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		return fmt.Errorf("register dependency indexes: %w", err)
 	}
+	var local gatewayresolver.LocalServiceResolver
+	if providers.localServices != nil {
+		providers.localServices.Client = mgr.GetClient()
+		providers.localServices.APIReader = mgr.GetAPIReader()
+		if err := providers.localServices.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("register local Service companion controller: %w", err)
+		}
+		local = providers.localServices
+	}
 	controllers := []struct {
 		name  string
 		setup func(ctrl.Manager) error
@@ -187,15 +214,16 @@ func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProvid
 			OriginObserver:  providers.observer,
 			HTTPProvisioner: providers.provisioner,
 			Recorder:        mgr.GetEventRecorder("gateway"),
+			LocalServices:   local,
 		}).SetupWithManager},
-		{"HTTPRoute", (&httproute.Reconciler{Client: mgr.GetClient()}).SetupWithManager},
+		{"HTTPRoute", (&httproute.Reconciler{Client: mgr.GetClient(), LocalServices: local}).SetupWithManager},
 	}
 	for _, controller := range controllers {
 		if err := controller.setup(mgr); err != nil {
 			return fmt.Errorf("register %s reconciler: %w", controller.name, err)
 		}
 	}
-	return registerGatewayCacheReadiness(ctx, mgr)
+	return registerGatewayCacheReadiness(ctx, mgr, providers.localServices != nil)
 }
 
 func newScheme() (*runtime.Scheme, error) {

@@ -2,6 +2,15 @@
 
 export ENABLE_TRAFFIC_MANAGER="${ENABLE_TRAFFIC_MANAGER:-false}"
 export ENABLE_AZURE_FRONT_DOOR="${ENABLE_AZURE_FRONT_DOOR:-false}"
+export ENABLE_LOCAL_SERVICE_ORIGINS="${ENABLE_LOCAL_SERVICE_ORIGINS:-false}"
+if [[ "$ENABLE_LOCAL_SERVICE_ORIGINS" != true && "$ENABLE_LOCAL_SERVICE_ORIGINS" != false ]]; then
+  echo "error: ENABLE_LOCAL_SERVICE_ORIGINS must be true or false" >&2
+  return 1
+fi
+if [[ "$ENABLE_LOCAL_SERVICE_ORIGINS" == true && "$ENABLE_AZURE_FRONT_DOOR" != true ]]; then
+  echo "error: local Service origins require ENABLE_AZURE_FRONT_DOOR=true" >&2
+  return 1
+fi
 export RETAIN_AFD_E2E_SETUP="${RETAIN_AFD_E2E_SETUP:-false}"
 export AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
 

@@ -51,6 +51,34 @@ func appendBackend(model *gatewaymodel.GlobalGateway) *gatewaymodel.Backend {
 	return &model.Routes[0].Rules[len(model.Routes[0].Rules)-1].Backends[0]
 }
 
+func TestLocalServiceDoesNotAliasServiceImport(t *testing.T) {
+	model := backendModel()
+	legacy, err := PlanBackends(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.Routes[0].Rules[0].Backends[0].Kind = "Service"
+	local, err := PlanBackends(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if local.OriginGroups[0].Name == legacy.OriginGroups[0].Name {
+		t.Fatal("Service and ServiceImport with identical names must not share origin group identities")
+	}
+	other := appendBackend(&model)
+	other.Kind = ""
+	combined, err := PlanBackends(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if combined.Capacity.OriginGroups != 2 || len(combined.OriginGroups) != 2 {
+		t.Fatalf("distinct backend kinds aliased in inventory: %+v", combined.Capacity)
+	}
+	if err := PreflightHTTPPreviewRouting(model); err == nil {
+		t.Fatal("mixed backend kinds must not bypass the single-logical-backend preview gate")
+	}
+}
+
 func TestPlanBackendsPrivateResourceShape(t *testing.T) {
 	model := backendModel()
 	before := backendModel()

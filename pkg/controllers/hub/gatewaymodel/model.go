@@ -92,6 +92,8 @@ type HTTPFilter struct {
 
 // Backend represents one Fleet ServiceImport referenced by an HTTPRoute.
 type Backend struct {
+	// Empty Kind preserves the existing Fleet ServiceImport representation.
+	Kind      string
 	Namespace string
 	Name      string
 	Port      int32
@@ -352,6 +354,9 @@ func validateRule(rule HTTPRule, routeKey string, ruleIndex int) error {
 }
 
 func validateBackend(backend Backend, backendKey, routeKey string) error {
+	if backend.Kind != "" && backend.Kind != "Service" {
+		return fmt.Errorf("backend %q has unsupported kind %q", backendKey, backend.Kind)
+	}
 	if backend.Port < 1 || backend.Port > 65535 {
 		return fmt.Errorf("route %q backend %q port %d is outside [1, 65535]", routeKey, backendKey, backend.Port)
 	}

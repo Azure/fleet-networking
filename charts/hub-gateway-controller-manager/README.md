@@ -23,10 +23,10 @@ broader future contract shown in some configuration examples.
 | Hostnames | No listener or HTTPRoute hostname restrictions; uses the default AFD endpoint domain, not custom domains |
 | Path matching | Only `PathPrefix: /` (including the default match); no Exact or non-root paths |
 | Other matching | No header, query-parameter or method matching |
-| Backends | Exactly one `networking.fleet.azure.com/ServiceImport` backend per rule; all rules must use the same logical backend and port. Multiple eligible member origins behind that backend are supported |
+| Backends | Exactly one backend per rule; all rules must use the same kind, namespace, name and port. Fleet ServiceImport remains the default. Local core Service backends require the separate opt-in below |
 | Backend namespaces | ServiceImport must be in the HTTPRoute namespace; cross-namespace backend references are rejected even with a ReferenceGrant. Cross-namespace HTTPRoute-to-Gateway attachment remains controlled by listener `allowedRoutes` |
 | Route features | No filters, timeouts, retries or session persistence; no WAF association |
-| Origin topology | AFD Premium with Private Link to member internal load balancers only; no AFD Standard or public origins |
+| Origin topology | AFD Premium with Private Link to internal load balancers; no AFD Standard or public origins |
 | Private Link approval | Requires an authorized PLS owner; the controller does not approve connections |
 
 **Enabled mode is no longer observation-only: it performs AFD writes.** Controller
@@ -39,6 +39,32 @@ The intended product is **Zero-Public-Exposure Ingress**: AFD Premium reaches
 member internal load balancers only through Private Link. The client-facing AFD
 edge remains public. Installing this chart does not establish a working ingress
 datapath or prove private connectivity.
+
+## Opt-in local Service companions
+
+`afd.localServiceOrigins.enabled` defaults to `false`. Enable it only on a
+workload-capable AKS hub with CCM support for internal LoadBalancer/PLS Services:
+
+```yaml
+afd:
+  enabled: true
+  localServiceOrigins:
+    enabled: true
+    resourceGroup: <verified-AKS-hub-node-resource-group>
+```
+
+Retain the existing AFD resource-group and cloud-config Secret settings.
+Leader election is required. This opt-in adds Kubernetes Service/EndpointSlice
+write permissions and creates source-owned selectorless companion internal
+LoadBalancer Services with PLS annotations; it never changes application Services.
+The identity also needs Reader access to the configured AKS node resource group
+for verified ILB/PLS discovery. This is distinct from the AFD resource group.
+Connections still require separately authorized PLS approval.
+
+The initial local scope is same-namespace, IPv4 HTTP with root-prefix routing.
+It is not full Service or Gateway API conformance. Private frontend provisioning,
+traffic, and cleanup still require separately authorized live verification.
+See [the first HTTP test](../../test/conformance/README.md).
 
 ## Select an image explicitly
 

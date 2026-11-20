@@ -203,7 +203,8 @@ func TestDependentRoutes(t *testing.T) {
 		{"member namespace departure", &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: export.Namespace}}, 1, false},
 		{"unrelated member namespace", &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "fleet-member-other"}}, 0, false},
 		{"unrelated grant namespace", &gatewayv1beta1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{Namespace: otherName}}, 0, false},
-		{"unsupported dependency", &corev1.Service{}, 0, true},
+		{"local Service", &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: "store", Name: "api"}}, 1, false},
+		{"unsupported dependency", &corev1.Pod{}, 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

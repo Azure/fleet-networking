@@ -8,18 +8,28 @@ package main
 import (
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/loadbalancerclient"
+	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/privatelinkserviceclient"
 
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
+	"go.goms.io/fleet-networking/pkg/common/privateorigin"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gateway"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/localservice"
 	"go.goms.io/fleet-networking/pkg/providers/azure/frontdoor"
 )
 
 type afdProviders struct {
-	cleanup     gateway.ProfileCleaner
-	observer    gateway.OriginObserver
-	provisioner gateway.HTTPPreviewProvisioner
+	cleanup       gateway.ProfileCleaner
+	observer      gateway.OriginObserver
+	provisioner   gateway.HTTPPreviewProvisioner
+	localServices *localservice.Reconciler
+	credential    azcore.TokenCredential
+	clientOptions *arm.ClientOptions
+	subscription  string
 }
 
 func (p afdProviders) validate() error {
@@ -72,5 +82,22 @@ func initAzureProviders(cloudConfig *azure.CloudConfig, resourceGroup string) (a
 	if err != nil {
 		return afdProviders{}, err
 	}
-	return afdProviders{cleanup: cleanup, observer: observer, provisioner: provisioner}, nil
+	return afdProviders{cleanup: cleanup, observer: observer, provisioner: provisioner,
+		credential: authProvider.GetAzIdentity(), clientOptions: options, subscription: cloudConfig.SubscriptionID}, nil
+}
+
+func initLocalServiceDiscovery(providers afdProviders, resourceGroup string) (*privateorigin.Discovery, error) {
+	if providers.credential == nil || providers.clientOptions == nil || providers.subscription == "" {
+		return nil, fmt.Errorf("local Service discovery requires initialized Azure credentials and client options")
+	}
+	// Reuse the controller's auth, retry, user-agent, and rate-limit configuration.
+	lb, err := loadbalancerclient.New(providers.subscription, providers.credential, providers.clientOptions)
+	if err != nil {
+		return nil, err
+	}
+	pls, err := privatelinkserviceclient.New(providers.subscription, providers.credential, providers.clientOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &privateorigin.Discovery{LoadBalancerClient: lb, PrivateLinkServiceClient: pls, ResourceGroupName: resourceGroup}, nil
 }

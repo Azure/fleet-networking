@@ -13,6 +13,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,6 +44,7 @@ type Reconciler struct {
 	GraphStager     DisabledGraphStager
 	HTTPProvisioner HTTPPreviewProvisioner
 	Recorder        events.EventRecorder
+	LocalServices   gatewayresolver.LocalServiceResolver
 }
 
 // DisabledGraphStager stages/prunes disabled resources or suspends an owned endpoint.
@@ -171,7 +173,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 }
 
 func (r *Reconciler) resolve(ctx context.Context, gateway *gatewayv1.Gateway, class *gatewayv1.GatewayClass) (*gatewaymodel.GlobalGateway, error) {
-	return resolveGateway(ctx, r.Client, gateway, class, true)
+	return resolveGateway(ctx, gatewayresolver.WithLocalServices(r.Client, r.LocalServices), gateway, class, true)
 }
 
 func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv1.Gateway,
@@ -328,13 +330,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.GraphStager != nil {
 		return fmt.Errorf("disabled-only staging and full HTTP provisioning cannot both be configured")
 	}
-	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{}).
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{}).
 		Watches(&gatewayv1.GatewayClass{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForClass)).
 		Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForRoute)).
 		Watches(&fleetnetv1alpha1.ServiceImport{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
 		Watches(&fleetnetv1alpha1.InternalServiceExport{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
 		Watches(&gatewayv1beta1.ReferenceGrant{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
-		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).Complete(r)
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency))
+	if r.LocalServices != nil {
+		builder = builder.Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
+			Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency))
+	}
+	return builder.Complete(r)
 }
 
 func (r *Reconciler) gatewaysForClass(ctx context.Context, object client.Object) []reconcile.Request {

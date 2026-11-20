@@ -33,6 +33,7 @@ func PreflightBackendCapacity(model GlobalGateway) (BackendCapacity, error) {
 		return BackendCapacity{}, err
 	}
 	type backendKey struct {
+		kind      string
 		namespace string
 		name      string
 		port      int32
@@ -43,7 +44,7 @@ func PreflightBackendCapacity(model GlobalGateway) (BackendCapacity, error) {
 	for _, route := range normalized.Routes {
 		for _, rule := range route.Rules {
 			for _, backend := range rule.Backends {
-				key := backendKey{namespace: backend.Namespace, name: backend.Name, port: backend.Port}
+				key := backendKey{kind: backend.Kind, namespace: backend.Namespace, name: backend.Name, port: backend.Port}
 				if origins, found := groups[key]; found {
 					// Never let traversal order choose between inconsistent copies of one backend.
 					if !reflect.DeepEqual(origins, backend.Origins) {
@@ -56,7 +57,7 @@ func PreflightBackendCapacity(model GlobalGateway) (BackendCapacity, error) {
 						key.namespace, key.name, key.port, len(backend.Origins), maxOriginsPerBackend)
 				}
 				groups[key] = backend.Origins
-				services[key.namespace+"/"+key.name] = struct{}{}
+				services[key.kind+"/"+key.namespace+"/"+key.name] = struct{}{}
 				capacity.OriginGroups++
 				capacity.Origins += len(backend.Origins)
 				if capacity.OriginGroups > maxBackendOriginGroups || capacity.Origins > maxBackendOrigins {

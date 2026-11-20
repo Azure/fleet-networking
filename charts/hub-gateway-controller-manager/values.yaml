@@ -11,6 +11,9 @@ image:
 
 afd:
   enabled: false
+  localServiceOrigins:
+    enabled: false
+    resourceGroup: ""
   resourceGroup: ""
   cloudConfigSecret:
     name: ""

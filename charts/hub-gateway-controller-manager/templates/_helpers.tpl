@@ -40,6 +40,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "hub-gateway-controller-manager.validate" -}}
+{{- if .Values.afd.localServiceOrigins.enabled -}}
+{{- if or (not .Values.afd.enabled) (not .Values.leaderElection) -}}
+{{- fail "local Service origins require afd.enabled=true and leaderElection=true" -}}
+{{- end -}}
+{{- $_ := required "afd.localServiceOrigins.resourceGroup is required when local Service origins are enabled" (.Values.afd.localServiceOrigins.resourceGroup | trim) -}}
+{{- end -}}
 {{- $_ := required "image.repository must select an explicitly built/published image" (.Values.image.repository | trim) -}}
 {{- $_ := required "image.tag must select an explicitly built/published image" (.Values.image.tag | trim) -}}
 {{- if .Values.afd.enabled -}}

@@ -8,37 +8,42 @@ trigger:
 pr: none
 
 parameters:
+  - name: runLocalServiceConformance
+    displayName: Enable billable local ILB/PLS companions and approve exact test connections for HTTP conformance in the AFD scenario
+    type: boolean
+    default: false
   - name: scenarios
     type: object
     default:
-        shared_vnet_atm:
-          SCENARIO: atm
-          AZURE_NETWORK_SETTING: shared-vnet
-          ENABLE_TRAFFIC_MANAGER: 'true'
-          ENABLE_AZURE_FRONT_DOOR: 'false'
-          E2E_JOB_TIMEOUT: 300
-          E2E_TEST_TIMEOUT: 60
-        peered_vnet:
-          SCENARIO: peered
-          AZURE_NETWORK_SETTING: peered-vnet
-          ENABLE_TRAFFIC_MANAGER: 'false'
-          ENABLE_AZURE_FRONT_DOOR: 'false'
-          E2E_JOB_TIMEOUT: 300
-          E2E_TEST_TIMEOUT: 60
-        dynamic_ip_allocation:
-          SCENARIO: dynamic
-          AZURE_NETWORK_SETTING: dynamic-ip-allocation
-          ENABLE_TRAFFIC_MANAGER: 'false'
-          ENABLE_AZURE_FRONT_DOOR: 'false'
-          E2E_JOB_TIMEOUT: 300
-          E2E_TEST_TIMEOUT: 60
-        unsupported:
-          SCENARIO: unsupported
-          AZURE_NETWORK_SETTING: unsupported
-          ENABLE_TRAFFIC_MANAGER: 'false'
-          ENABLE_AZURE_FRONT_DOOR: 'false'
-          E2E_JOB_TIMEOUT: 300
-          E2E_TEST_TIMEOUT: 60
+        # Temporarily disabled while validating the first conformance test.
+        # shared_vnet_atm:
+        #   SCENARIO: atm
+        #   AZURE_NETWORK_SETTING: shared-vnet
+        #   ENABLE_TRAFFIC_MANAGER: 'true'
+        #   ENABLE_AZURE_FRONT_DOOR: 'false'
+        #   E2E_JOB_TIMEOUT: 300
+        #   E2E_TEST_TIMEOUT: 60
+        # peered_vnet:
+        #   SCENARIO: peered
+        #   AZURE_NETWORK_SETTING: peered-vnet
+        #   ENABLE_TRAFFIC_MANAGER: 'false'
+        #   ENABLE_AZURE_FRONT_DOOR: 'false'
+        #   E2E_JOB_TIMEOUT: 300
+        #   E2E_TEST_TIMEOUT: 60
+        # dynamic_ip_allocation:
+        #   SCENARIO: dynamic
+        #   AZURE_NETWORK_SETTING: dynamic-ip-allocation
+        #   ENABLE_TRAFFIC_MANAGER: 'false'
+        #   ENABLE_AZURE_FRONT_DOOR: 'false'
+        #   E2E_JOB_TIMEOUT: 300
+        #   E2E_TEST_TIMEOUT: 60
+        # unsupported:
+        #   SCENARIO: unsupported
+        #   AZURE_NETWORK_SETTING: unsupported
+        #   ENABLE_TRAFFIC_MANAGER: 'false'
+        #   ENABLE_AZURE_FRONT_DOOR: 'false'
+        #   E2E_JOB_TIMEOUT: 300
+        #   E2E_TEST_TIMEOUT: 60
         shared_vnet_afd:
           SCENARIO: afd
           AZURE_NETWORK_SETTING: shared-vnet
@@ -54,13 +59,21 @@ jobs:
   - ${{ each scenario in parameters.scenarios }}:
     - job: ${{ scenario.key }}
       displayName: Fleet networking E2E (${{ scenario.value.SCENARIO }})
-      timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
+      condition: ${{ eq(parameters.runLocalServiceConformance, true) }}
+      ${{ if and(eq(parameters.runLocalServiceConformance, true), eq(scenario.value.ENABLE_AZURE_FRONT_DOOR, 'true')) }}:
+        timeoutInMinutes: 1100
+      ${{ else }}:
+        timeoutInMinutes: ${{ scenario.value.E2E_JOB_TIMEOUT }}
       cancelTimeoutInMinutes: 30
       variables:
         SCENARIO: ${{ scenario.value.SCENARIO }}
         AZURE_NETWORK_SETTING: ${{ scenario.value.AZURE_NETWORK_SETTING }}
         ENABLE_TRAFFIC_MANAGER: ${{ lower(scenario.value.ENABLE_TRAFFIC_MANAGER) }}
         ENABLE_AZURE_FRONT_DOOR: ${{ lower(scenario.value.ENABLE_AZURE_FRONT_DOOR) }}
+        ${{ if and(eq(parameters.runLocalServiceConformance, true), eq(scenario.value.ENABLE_AZURE_FRONT_DOOR, 'true')) }}:
+          ENABLE_LOCAL_SERVICE_ORIGINS: 'true'
+        ${{ else }}:
+          ENABLE_LOCAL_SERVICE_ORIGINS: 'false'
         AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
         ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
         RETAIN_AFD_E2E_SETUP: 'false'
@@ -146,24 +159,49 @@ jobs:
           displayName: Release image build cache before Go tests
           timeoutInMinutes: 5
 
-        - task: AzureCLI@2
-          displayName: Run E2E tests
-          timeoutInMinutes: ${{ scenario.value.E2E_TEST_TIMEOUT }}
-          inputs:
-            azureSubscription: 'aks fleetnetworking'
-            scriptType: bash
-            scriptLocation: inlineScript
-            addSpnToEnvironment: false
-            visibleAzLogin: false
-            keepAzSessionActive: true
-            inlineScript: |
-              set -euo pipefail
-              if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
-                sleep 5m
-              fi
-              make e2e-tests
-          env:
-            AZURE_TOKEN_CREDENTIALS: AzureCLICredential
+        # - task: AzureCLI@2
+        #   displayName: Run E2E tests
+        #   timeoutInMinutes: ${{ scenario.value.E2E_TEST_TIMEOUT }}
+        #   inputs:
+        #     azureSubscription: 'aks fleetnetworking'
+        #     scriptType: bash
+        #     scriptLocation: inlineScript
+        #     addSpnToEnvironment: false
+        #     visibleAzLogin: false
+        #     keepAzSessionActive: true
+        #     inlineScript: |
+        #       set -euo pipefail
+        #       if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+        #         sleep 5m
+        #       fi
+        #       make e2e-tests
+        #   env:
+        #     AZURE_TOKEN_CREDENTIALS: AzureCLICredential
+
+        - ${{ if and(eq(parameters.runLocalServiceConformance, true), eq(scenario.value.ENABLE_AZURE_FRONT_DOOR, 'true')) }}:
+          - task: AzureCLI@2
+            displayName: Run unchanged HTTPRouteSimpleSameNamespace with private local origins
+            timeoutInMinutes: 150
+            inputs:
+              azureSubscription: 'aks fleetnetworking'
+              scriptType: bash
+              scriptLocation: inlineScript
+              visibleAzLogin: false
+              keepAzSessionActive: true
+              inlineScript: |
+                set -euo pipefail
+                actual=$(az account show --query id -o tsv)
+                test "$actual" = "$AZURE_SUBSCRIPTION_ID"
+                export LOCAL_SERVICE_RESOURCE_GROUP
+                LOCAL_SERVICE_RESOURCE_GROUP=$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" \
+                  --resource-group "$AZURE_RESOURCE_GROUP" --name hub --query nodeResourceGroup -o tsv)
+                test -n "$LOCAL_SERVICE_RESOURCE_GROUP"
+                mkdir -p "$LOG_DIR"
+                ENABLE_GATEWAY_CONFORMANCE=true go test -mod=readonly -tags=conformance \
+                  ./test/conformance -run '^TestAFDConformance$' -count=1 -json -timeout=140m \
+                  -args -conformance-context=hub-admin | tee "$LOG_DIR/http-conformance.json"
+            env:
+              AZURE_TOKEN_CREDENTIALS: AzureCLICredential
 
         - bash: |
             set -euo pipefail

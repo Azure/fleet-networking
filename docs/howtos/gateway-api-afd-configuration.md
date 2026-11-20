@@ -76,13 +76,30 @@ AFD Premium. Connectivity and SKU are product constraints, not customer choices.
 The solution uses:
 
 - Gateway API resources in the Fleet hub.
-- A Fleet `ServiceImport` as the only supported `HTTPRoute` backend.
+- A Fleet `ServiceImport` as the default multi-cluster `HTTPRoute` backend.
 - A matching `Service` and `ServiceExport` in every participating member
   cluster.
 - Optional attachment to an existing Azure Front Door WAF policy.
 
 The examples configure HTTP listeners. HTTPS and certificate lifecycle are a
 later implementation phase.
+
+### Opt-in single-cluster Service backends
+
+On a workload-capable AKS hub, `afd.localServiceOrigins.enabled=true` in the
+[Gateway chart](../../charts/hub-gateway-controller-manager/README.md#opt-in-local-service-companions)
+enables core Service references in the HTTPRoute namespace. Configure the verified
+hub node resource group and grant the controller scoped Reader access for ILB/PLS
+discovery. The companion controller creates a selectorless internal LoadBalancer
+Service and mirrors eligible IPv4 EndpointSlice addresses and ports without changing
+the original application Service. AKS CCM provisions its ILB and PLS; AFD remains
+Private Link-only. This does not export local Services across Fleet.
+
+Private Link approval is still a separate authorized action. The
+[single HTTP conformance milestone](../../test/conformance/README.md) stages the
+unchanged upstream backend fixtures and verifies/approves their exact connection.
+The current root-path, one-logical-backend execution limits remain; this is not
+full Service/Gateway API conformance or a live traffic/readiness claim.
 
 > [!IMPORTANT]
 > **AFD Private Link approval is asynchronous and is a provisioning dependency.**

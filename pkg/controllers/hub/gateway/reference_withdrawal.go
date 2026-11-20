@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -110,6 +111,11 @@ func (r *Reconciler) routeReferenceDenied(ctx context.Context, gateway *gatewayv
 	}
 	for _, rule := range route.Spec.Rules {
 		// ValidateHTTPRoute guarantees exactly one effective backend per rule.
+		ref := rule.BackendRefs[0]
+		if r.LocalServices != nil && ptr.Deref(ref.Group, "") == "" && ptr.Deref(ref.Kind, "Service") == "Service" &&
+			string(ptr.Deref(ref.Namespace, gatewayv1.Namespace(route.Namespace))) == route.Namespace {
+			continue
+		}
 		err := gatewayresolver.AuthorizeBackendReference(route.Namespace, rule.BackendRefs[0])
 		if err == nil {
 			continue

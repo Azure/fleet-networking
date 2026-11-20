@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,8 +78,10 @@ func routeServiceImportIndex(object client.Object) []string {
 	keys := make(map[string]struct{})
 	for _, rule := range route.Spec.Rules {
 		for _, backend := range rule.BackendRefs {
-			if ptr.Deref(backend.Group, "") != gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group) ||
-				ptr.Deref(backend.Kind, "Service") != serviceImportKind {
+			local := ptr.Deref(backend.Group, "") == "" && ptr.Deref(backend.Kind, "Service") == "Service"
+			imported := ptr.Deref(backend.Group, "") == gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group) &&
+				ptr.Deref(backend.Kind, "Service") == serviceImportKind
+			if !local && !imported {
 				continue
 			}
 			namespace := string(ptr.Deref(backend.Namespace, gatewayv1.Namespace(route.Namespace)))
@@ -111,6 +114,14 @@ func DependentRoutes(ctx context.Context, reader client.Reader, object client.Ob
 		options = append(options, client.MatchingFields{HTTPRouteGatewayField: dependency.Namespace + "/" + dependency.Name})
 	case *fleetnetv1alpha1.ServiceImport:
 		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Namespace + "/" + dependency.Name})
+	case *corev1.Service:
+		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Namespace + "/" + dependency.Name})
+	case *discoveryv1.EndpointSlice:
+		name := dependency.Labels[discoveryv1.LabelServiceName]
+		if name == "" {
+			return nil, nil
+		}
+		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Namespace + "/" + name})
 	case *fleetnetv1alpha1.InternalServiceExport:
 		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Spec.ServiceReference.NamespacedName})
 	case *gatewayv1beta1.ReferenceGrant:

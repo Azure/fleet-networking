@@ -11,6 +11,7 @@ import (
 	"errors"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -31,7 +32,8 @@ import (
 
 // Reconciler owns only the AFD controller's HTTPRoute parent statuses.
 type Reconciler struct {
-	Client client.Client
+	Client        client.Client
+	LocalServices gatewayresolver.LocalServiceResolver
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes;referencegrants,verbs=get;list;watch
@@ -148,7 +150,7 @@ func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTT
 			}
 		}
 		for _, backend := range rule.BackendRefs {
-			_, err := gatewayresolver.ResolveBackend(ctx, r.Client, route.Namespace, backend)
+			_, err := gatewayresolver.ResolveBackend(ctx, gatewayresolver.WithLocalServices(r.Client, r.LocalServices), route.Namespace, backend)
 			if err == nil {
 				continue
 			}
@@ -171,12 +173,17 @@ func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTT
 
 // SetupWithManager watches all dependencies that can authorize or revoke intent.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{}).
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{}).
 		Watches(&gatewayv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&fleetnetv1alpha1.ServiceImport{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&fleetnetv1alpha1.InternalServiceExport{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&gatewayv1beta1.ReferenceGrant{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
-		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).Complete(r)
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency))
+	if r.LocalServices != nil {
+		builder = builder.Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
+			Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency))
+	}
+	return builder.Complete(r)
 }
 
 func (r *Reconciler) routesForDependency(ctx context.Context, object client.Object) []reconcile.Request {
