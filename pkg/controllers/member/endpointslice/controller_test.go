@@ -18,9 +18,13 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
@@ -106,6 +110,100 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
+}
+
+func TestReconcileExportNameCollision(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		staleRead bool
+		foreign   bool
+	}{
+		{name: "stale cache preserves the existing export identity", staleRead: true},
+		{name: "verified UID collision releases the name", foreign: true},
+		{name: "stale cache defers UID collision detection", staleRead: true, foreign: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			slice := managedIPv4EndpointSliceWithoutUniqueNameAnnotation()
+			slice.UID = "source-uid"
+			slice.Annotations = map[string]string{objectmeta.ExportedObjectAnnotationUniqueName: endpointSliceUniqueName}
+			export := &fleetnetv1alpha1.EndpointSliceExport{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: hubNSForMember, Name: endpointSliceUniqueName, CreationTimestamp: metav1.Now(),
+				},
+				Spec: fleetnetv1alpha1.EndpointSliceExportSpec{
+					EndpointSliceReference: fleetnetv1alpha1.FromMetaObjects(memberClusterID, slice.TypeMeta, slice.ObjectMeta, metav1.Now()),
+					Endpoints: []fleetnetv1alpha1.Endpoint{
+						{Addresses: []string{ipv4Addr}},
+						{Addresses: []string{"10.0.0.99"}},
+					},
+				},
+			}
+			if tc.foreign {
+				export.Spec.EndpointSliceReference.UID = "other-uid"
+			}
+			svcExport := notYetFulfilledServiceExport()
+			svcExport.Status.Conditions = []metav1.Condition{
+				serviceExportValidCondition(memberUserNS, svcName),
+				serviceExportNoConflictCondition(memberUserNS, svcName),
+			}
+			member := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithObjects(slice, svcExport).Build()
+			staleRead := tc.staleRead
+			hub := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithObjects(export).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if staleRead {
+							staleRead = false
+							return errors.NewNotFound(schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "endpointsliceexports"}, key.Name)
+						}
+						return c.Get(ctx, key, obj, opts...)
+					},
+				}).Build()
+			r := &Reconciler{MemberClusterID: memberClusterID, MemberClient: member, HubClient: hub, HubNamespace: hubNSForMember}
+			req := ctrl.Request{NamespacedName: endpointSliceKey}
+			if _, err := r.Reconcile(ctx, req); tc.staleRead {
+				if !errors.IsAlreadyExists(err) {
+					t.Fatalf("stale-cache create must return a retryable AlreadyExists error, got %v", err)
+				}
+				if err := member.Get(ctx, endpointSliceKey, slice); err != nil {
+					t.Fatal(err)
+				}
+				if got := slice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]; got != endpointSliceUniqueName {
+					t.Fatalf("stale-cache conflict changed export name to %q", got)
+				}
+				if _, err := r.Reconcile(ctx, req); err != nil {
+					t.Fatal(err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if err := member.Get(ctx, endpointSliceKey, slice); err != nil {
+				t.Fatal(err)
+			}
+			gotName := slice.Annotations[objectmeta.ExportedObjectAnnotationUniqueName]
+			if tc.foreign {
+				if gotName != "" {
+					t.Fatalf("verified UID collision did not release export name: %q", gotName)
+				}
+			} else if gotName != endpointSliceUniqueName {
+				t.Fatalf("export name changed to %q", gotName)
+			}
+			var exports fleetnetv1alpha1.EndpointSliceExportList
+			if err := hub.List(ctx, &exports); err != nil {
+				t.Fatal(err)
+			}
+			if len(exports.Items) != 1 {
+				t.Fatalf("got %d exports, want exactly one", len(exports.Items))
+			}
+			want := extractEndpointsFromEndpointSlice(slice)
+			if tc.foreign {
+				want = export.Spec.Endpoints
+			}
+			if diff := cmp.Diff(want, exports.Items[0].Spec.Endpoints); diff != "" {
+				t.Fatalf("export endpoints mismatch (-want +got): %s", diff)
+			}
+		})
+	}
 }
 
 // TestIsEndpointSlicePermanentlyUnexportable tests the isEndpointSlicePermanentlyUnexportable function.

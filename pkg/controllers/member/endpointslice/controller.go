@@ -147,6 +147,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.V(2).InfoS("Endpoint slice will be exported",
 		"endpointSlice", endpointSliceRef,
 		"endpointSliceExport", klog.KObj(&endpointSliceExport))
+	nameCollision := false
 	createOrUpdateOp, err := controllerutil.CreateOrUpdate(ctx, r.HubClient, &endpointSliceExport, func() error {
 		// Set up an EndpointSliceReference and only when an EndpointSliceExport is first created; this is because
 		// most fields in EndpointSliceReference should be immutable after creation.
@@ -160,6 +161,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// EndpointSlice from the one that is being reconciled. This usually happens when one unique name is assigned
 		// to multiple EndpointSliceExports, either by chance or through direct manipulation.
 		if !isEndpointSliceExportLinkedWithEndpointSlice(&endpointSliceExport, &endpointSlice) {
+			nameCollision = true
 			return errors.NewAlreadyExists(
 				schema.GroupResource{Group: fleetnetv1alpha1.GroupVersion.Group, Resource: "EndpointSliceExport"},
 				fleetUniqueName,
@@ -180,8 +182,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return nil
 	})
 	switch {
-	case errors.IsAlreadyExists(err):
-		// Remove the unique name annotation; a new one will be assigned in future reciliation attempts.
+	case nameCollision:
+		// Only a verified UID mismatch releases the name; stale-cache create conflicts must retry with the same name.
 		klog.V(2).InfoS("The unique name assigned to the endpoint slice has been used; it will be removed", "endpointSlice", endpointSliceRef)
 		delete(endpointSlice.Annotations, objectmeta.ExportedObjectAnnotationUniqueName)
 		if err := r.MemberClient.Update(ctx, &endpointSlice); err != nil {
