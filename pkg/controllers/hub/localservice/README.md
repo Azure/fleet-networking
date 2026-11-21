@@ -1,6 +1,6 @@
 # Local Service private origins
 
-This opt-in controller leaves the source ClusterIP/headless Service unchanged.
+This controller is registered whenever AFD is enabled and leaves the source ClusterIP/headless Service unchanged.
 For an eligible same-namespace core `Service` HTTPRoute backend, it owns one
 selectorless IPv4 internal LoadBalancer Service and requests a CCM-managed PLS.
 The source Service UID and selected service port determine the companion name.
@@ -19,7 +19,7 @@ preconditions. CCM finalizers are never removed by this controller.
 
 ## Integration
 
-Register `Reconciler.SetupWithManager` only when the feature is enabled:
+AFD startup registers `Reconciler.SetupWithManager` with verified discovery:
 
 ```go
 discovery := &privateorigin.Discovery{

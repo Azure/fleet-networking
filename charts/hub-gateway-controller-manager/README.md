@@ -23,7 +23,7 @@ broader future contract shown in some configuration examples.
 | Hostnames | No listener or HTTPRoute hostname restrictions; uses the default AFD endpoint domain, not custom domains |
 | Path matching | Only `PathPrefix: /` (including the default match); no Exact or non-root paths |
 | Other matching | No header, query-parameter or method matching |
-| Backends | Exactly one backend per rule; all rules must use the same kind, namespace, name and port. Fleet ServiceImport remains the default. Local core Service backends require the separate opt-in below |
+| Backends | Exactly one backend per rule; all rules must use the same kind, namespace, name and port. Fleet ServiceImport and local core Service backends are supported when AFD is enabled |
 | Backend namespaces | ServiceImport must be in the HTTPRoute namespace; cross-namespace backend references are rejected even with a ReferenceGrant. Cross-namespace HTTPRoute-to-Gateway attachment remains controlled by listener `allowedRoutes` |
 | Route features | No filters, timeouts, retries or session persistence; no WAF association |
 | Origin topology | AFD Premium with Private Link to internal load balancers; no AFD Standard or public origins |
@@ -40,21 +40,21 @@ member internal load balancers only through Private Link. The client-facing AFD
 edge remains public. Installing this chart does not establish a working ingress
 datapath or prove private connectivity.
 
-## Opt-in local Service companions
+## Local Service companions
 
-`afd.localServiceOrigins.enabled` defaults to `false`. Enable it only on a
-workload-capable AKS hub with CCM support for internal LoadBalancer/PLS Services:
+Enabling AFD also registers local Service companions. Use a workload-capable AKS
+hub with CCM support for internal LoadBalancer/PLS Services and configure its node
+resource group:
 
 ```yaml
 afd:
   enabled: true
   localServiceOrigins:
-    enabled: true
     resourceGroup: <verified-AKS-hub-node-resource-group>
 ```
 
 Retain the existing AFD resource-group and cloud-config Secret settings.
-Leader election is required. This opt-in adds Kubernetes Service/EndpointSlice
+Leader election is required when AFD is enabled. AFD grants Kubernetes Service/EndpointSlice
 write permissions and creates source-owned selectorless companion internal
 LoadBalancer Services with PLS annotations; it never changes application Services.
 The identity also needs Reader access to the configured AKS node resource group

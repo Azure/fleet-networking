@@ -84,11 +84,11 @@ The solution uses:
 The examples configure HTTP listeners. HTTPS and certificate lifecycle are a
 later implementation phase.
 
-### Opt-in single-cluster Service backends
+### Single-cluster Service backends
 
-On a workload-capable AKS hub, `afd.localServiceOrigins.enabled=true` in the
-[Gateway chart](../../charts/hub-gateway-controller-manager/README.md#opt-in-local-service-companions)
-enables core Service references in the HTTPRoute namespace. Configure the verified
+On a workload-capable AKS hub, enabling AFD in the
+[Gateway chart](../../charts/hub-gateway-controller-manager/README.md#local-service-companions)
+also enables core Service references in the HTTPRoute namespace. Configure the verified
 hub node resource group and grant the controller scoped Reader access for ILB/PLS
 discovery. The companion controller creates a selectorless internal LoadBalancer
 Service and mirrors eligible IPv4 EndpointSlice addresses and ports without changing

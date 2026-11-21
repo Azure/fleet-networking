@@ -209,7 +209,8 @@ func TestAFDRenderedInstallation(t *testing.T) {
 			if container.Image != "testrg.azurecr.io/hub-gateway-controller-manager:candidate" ||
 				deployment.Spec.Template.Spec.ServiceAccountName != "hub-gateway-controller-manager" ||
 				!slices.Contains(container.Args, "--enable-afd=true") ||
-				!slices.Contains(container.Args, "--afd-resource-group=test-rg") {
+				!slices.Contains(container.Args, "--afd-resource-group=test-rg") ||
+				!slices.Contains(container.Args, "--local-service-resource-group=MC_hub") {
 				t.Fatalf("installer rendered the wrong Gateway runtime: %+v", deployment)
 			}
 			foundSecret := false

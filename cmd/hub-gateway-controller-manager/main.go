@@ -30,6 +30,7 @@ import (
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/privateorigin"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gateway"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayclass"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewayresolver"
@@ -45,7 +46,6 @@ var (
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace used for leader election.")
 
 	enableAFD                 = flag.Bool("enable-afd", false, "Enable Gateway API reconciliation and AFD Premium private HTTP provisioning, observation and owned cleanup; enabling performs Azure writes.")
-	enableLocalServiceOrigins = flag.Bool("enable-local-service-origins", false, "Enable owned internal LoadBalancer/PLS companions for local Service backends; requires AKS CCM and leader election.")
 	localServiceResourceGroup = flag.String("local-service-resource-group", "", "Verified AKS node resource group used to discover local Service ILB/PLS origins.")
 	cloudConfigFile           = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The Azure cloud configuration file.")
 	afdResourceGroup          = flag.String("afd-resource-group", "", "The resource group in which the controller manages Azure Front Door resources.")
@@ -76,7 +76,6 @@ func currentOptions() managerOptions {
 		leaderElection:            *enableLeaderElection,
 		leaderElectionNamespace:   *leaderElectionNamespace,
 		enableAFD:                 *enableAFD,
-		enableLocalServiceOrigins: *enableLocalServiceOrigins,
 		localServiceResourceGroup: *localServiceResourceGroup,
 		cloudConfigFile:           *cloudConfigFile,
 		afdResourceGroup:          *afdResourceGroup,
@@ -89,20 +88,20 @@ type managerOptions struct {
 	leaderElection            bool
 	leaderElectionNamespace   string
 	enableAFD                 bool
-	enableLocalServiceOrigins bool
 	localServiceResourceGroup string
 	cloudConfigFile           string
 	afdResourceGroup          string
 }
 
 type dependencies struct {
-	getConfig        func() *rest.Config
-	newManager       func(*rest.Config, ctrl.Options) (ctrl.Manager, error)
-	signalHandler    func() context.Context
-	loadAFDConfig    func(string, string) (*azure.CloudConfig, error)
-	newScheme        func() (*runtime.Scheme, error)
-	newAFDProviders  func(*azure.CloudConfig, string) (afdProviders, error)
-	setupControllers func(context.Context, ctrl.Manager, afdProviders) error
+	getConfig                func() *rest.Config
+	newManager               func(*rest.Config, ctrl.Options) (ctrl.Manager, error)
+	signalHandler            func() context.Context
+	loadAFDConfig            func(string, string) (*azure.CloudConfig, error)
+	newScheme                func() (*runtime.Scheme, error)
+	newAFDProviders          func(*azure.CloudConfig, string) (afdProviders, error)
+	newLocalServiceDiscovery func(afdProviders, string) (*privateorigin.Discovery, error)
+	setupControllers         func(context.Context, ctrl.Manager, afdProviders) error
 }
 
 func productionDependencies() dependencies {
@@ -111,17 +110,18 @@ func productionDependencies() dependencies {
 		newManager: func(config *rest.Config, options ctrl.Options) (ctrl.Manager, error) {
 			return ctrl.NewManager(config, options)
 		},
-		signalHandler:    ctrl.SetupSignalHandler,
-		loadAFDConfig:    loadAFDConfiguration,
-		newScheme:        newScheme,
-		newAFDProviders:  initAzureProviders,
-		setupControllers: setupControllers,
+		signalHandler:            ctrl.SetupSignalHandler,
+		loadAFDConfig:            loadAFDConfiguration,
+		newScheme:                newScheme,
+		newAFDProviders:          initAzureProviders,
+		newLocalServiceDiscovery: initLocalServiceDiscovery,
+		setupControllers:         setupControllers,
 	}
 }
 
 func run(options managerOptions, deps dependencies) error {
-	if options.enableLocalServiceOrigins && (!options.enableAFD || !options.leaderElection || strings.TrimSpace(options.localServiceResourceGroup) == "") {
-		return fmt.Errorf("local Service origins require enable-afd, leader election, and a local-service-resource-group")
+	if options.enableAFD && (!options.leaderElection || strings.TrimSpace(options.localServiceResourceGroup) == "") {
+		return fmt.Errorf("AFD requires leader election and a local-service-resource-group")
 	}
 	scheme, err := deps.newScheme()
 	if err != nil {
@@ -141,13 +141,14 @@ func run(options managerOptions, deps dependencies) error {
 		if err := providers.validate(); err != nil {
 			return err
 		}
-		if options.enableLocalServiceOrigins {
-			discovery, err := initLocalServiceDiscovery(providers, options.localServiceResourceGroup)
-			if err != nil {
-				return fmt.Errorf("initialize local Service private discovery: %w", err)
-			}
-			providers.localServices = &localservice.Reconciler{Discovery: discovery}
+		discovery, err := deps.newLocalServiceDiscovery(providers, options.localServiceResourceGroup)
+		if err != nil {
+			return fmt.Errorf("initialize local Service private discovery: %w", err)
 		}
+		if discovery == nil {
+			return fmt.Errorf("local Service private discovery is not initialized")
+		}
+		providers.localServices = &localservice.Reconciler{Discovery: discovery}
 	} else {
 		klog.InfoS("Azure Front Door reconciliation is disabled")
 	}
@@ -192,18 +193,18 @@ func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProvid
 	if err := providers.validate(); err != nil {
 		return err
 	}
+	if providers.localServices == nil || providers.localServices.Discovery == nil {
+		return fmt.Errorf("AFD requires a local Service companion controller with discovery")
+	}
 	if err := gatewayresolver.SetupIndexes(ctx, mgr.GetFieldIndexer()); err != nil {
 		return fmt.Errorf("register dependency indexes: %w", err)
 	}
-	var local gatewayresolver.LocalServiceResolver
-	if providers.localServices != nil {
-		providers.localServices.Client = mgr.GetClient()
-		providers.localServices.APIReader = mgr.GetAPIReader()
-		if err := providers.localServices.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("register local Service companion controller: %w", err)
-		}
-		local = providers.localServices
+	providers.localServices.Client = mgr.GetClient()
+	providers.localServices.APIReader = mgr.GetAPIReader()
+	if err := providers.localServices.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("register local Service companion controller: %w", err)
 	}
+	local := providers.localServices
 	controllers := []struct {
 		name  string
 		setup func(ctrl.Manager) error
@@ -223,7 +224,7 @@ func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProvid
 			return fmt.Errorf("register %s reconciler: %w", controller.name, err)
 		}
 	}
-	return registerGatewayCacheReadiness(ctx, mgr, providers.localServices != nil)
+	return registerGatewayCacheReadiness(ctx, mgr)
 }
 
 func newScheme() (*runtime.Scheme, error) {

@@ -32,11 +32,8 @@
         "localServiceOrigins": {
           "type": "object",
           "properties": {
-            "enabled": {"type": "boolean"},
             "resourceGroup": {"type": "string"}
-          },
-          "if": {"properties": {"enabled": {"const": true}}, "required": ["enabled"]},
-          "then": {"required": ["resourceGroup"], "properties": {"resourceGroup": {"minLength": 1}}}
+          }
         },
         "resourceGroup": {"type": "string"},
         "cloudConfigSecret": {

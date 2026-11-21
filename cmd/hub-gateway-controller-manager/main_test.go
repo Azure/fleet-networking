@@ -28,7 +28,9 @@ import (
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
+	"go.goms.io/fleet-networking/pkg/common/privateorigin"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewaymodel"
+	"go.goms.io/fleet-networking/pkg/controllers/hub/localservice"
 	"go.goms.io/fleet-networking/pkg/providers/azure/frontdoor"
 )
 
@@ -97,6 +99,7 @@ func TestCurrentOptions_UsesCommandLineConfiguration(t *testing.T) {
 		got.leaderElection != *enableLeaderElection ||
 		got.leaderElectionNamespace != *leaderElectionNamespace ||
 		got.enableAFD != *enableAFD ||
+		got.localServiceResourceGroup != *localServiceResourceGroup ||
 		got.cloudConfigFile != *cloudConfigFile ||
 		got.afdResourceGroup != *afdResourceGroup {
 		t.Errorf("currentOptions() = %#v, want values from command-line flags", got)
@@ -124,7 +127,7 @@ func TestProductionDependencies_AreConfigured(t *testing.T) {
 	got := productionDependencies()
 
 	if got.getConfig == nil || got.newManager == nil || got.signalHandler == nil || got.loadAFDConfig == nil ||
-		got.newScheme == nil || got.setupControllers == nil || got.newAFDProviders == nil {
+		got.newScheme == nil || got.setupControllers == nil || got.newAFDProviders == nil || got.newLocalServiceDiscovery == nil {
 		t.Errorf("productionDependencies() = %#v, want all dependencies configured", got)
 	}
 
@@ -274,6 +277,10 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 				informerCache: newReadinessTestCache(),
 			}
 			configLoads := 0
+			if tt.options.enableAFD {
+				tt.options.leaderElection = true
+				tt.options.localServiceResourceGroup = "hub-node-rg"
+			}
 			registrations := 0
 			initializations := 0
 			loadedConfig := &azure.CloudConfig{SubscriptionID: "00000000-0000-0000-0000-000000000000"}
@@ -324,6 +331,12 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 					}
 					return providers, nil
 				},
+				newLocalServiceDiscovery: func(_ afdProviders, group string) (*privateorigin.Discovery, error) {
+					if group != "hub-node-rg" {
+						t.Fatalf("unexpected local Service discovery scope %q", group)
+					}
+					return &privateorigin.Discovery{ResourceGroupName: group}, nil
+				},
 				newScheme: func() (*runtime.Scheme, error) {
 					if tt.schemeError != nil {
 						return nil, tt.schemeError
@@ -336,6 +349,9 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 					}
 					if providers.cleanup != cleanup || providers.observer != cleanup || providers.provisioner != cleanup {
 						t.Error("registered different AFD providers")
+					}
+					if providers.localServices == nil || providers.localServices.Discovery == nil {
+						t.Error("AFD startup must always register local Service discovery")
 					}
 					registrations++
 					if tt.setupError != nil {
@@ -464,7 +480,10 @@ func TestLoadAFDConfiguration_RejectsMissingSubscription(t *testing.T) {
 func TestSetupControllers_RegistersWithoutContactingAPIServer(t *testing.T) {
 	mgr := newReadinessTestManager(t)
 	provider := &managerProfileCleaner{}
-	if err := setupControllers(context.Background(), mgr, afdProviders{cleanup: provider, observer: provider, provisioner: provider}); err != nil {
+	if err := setupControllers(context.Background(), mgr, afdProviders{
+		cleanup: provider, observer: provider, provisioner: provider,
+		localServices: &localservice.Reconciler{Discovery: &privateorigin.Discovery{ResourceGroupName: "hub-node-rg"}},
+	}); err != nil {
 		t.Fatalf("register runtime controllers: %v", err)
 	}
 	if mgr.check == nil || mgr.checkName != gatewayCacheReadinessCheck {

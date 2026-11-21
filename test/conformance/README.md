@@ -53,7 +53,7 @@ These changes do not add production capabilities or claim additional passing tes
 - An explicitly approved, workload-capable AKS test cluster, not an inaccessible
   managed Fleet hub.
 - Matching Gateway API CRDs and a running AFD controller with accepted
-  `azure-fleet-afd`, AFD enabled, and local Service origins explicitly enabled.
+  `azure-fleet-afd`, AFD enabled, and its local Service discovery resource group configured.
 - AKS CCM support for selectorless companion internal LoadBalancer Services and PLS.
 - Controller Reader access to its configured, verified AKS node resource group,
   plus existing AFD write permissions. The controller never approves connections.
@@ -92,11 +92,11 @@ Collect controller/Azure diagnostics before deleting an approved retained enviro
 
 [The E2E pipeline](../../.pipeline/e2e-tests.yaml) adds a default-off
 `runLocalServiceConformance` parameter. When explicitly selected for the AFD scenario,
-setup enables local companions and grants scoped discovery access; a separate
+AFD setup registers local companions and grants scoped discovery access; a separate
 command runs this test using the same service connection after the ordinary
 Fleet E2E tests succeed. All five existing E2E scenarios are enabled. Setting
-`runLocalServiceConformance=false` omits only the additional conformance step and
-local-origin opt-in; normal E2E provisioning and tests still run.
+`runLocalServiceConformance=false` omits only the additional conformance step;
+normal E2E provisioning, local companion support, and tests still run.
 Go JSON results are stored in the existing log artifact. Test failures fail the job;
 existing always-run log collection and scoped environment cleanup remain active.
 

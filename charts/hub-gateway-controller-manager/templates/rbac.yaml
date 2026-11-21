@@ -35,7 +35,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ $clusterRole }}
-# Additional backend writes are granted only for the opt-in local companion lifecycle.
+# AFD manages owned local companions as well as private member origins.
 rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses", "gateways", "httproutes", "referencegrants"]
@@ -55,14 +55,12 @@ rules:
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "list", "watch"]
-  {{- if .Values.afd.localServiceOrigins.enabled }}
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
-  {{- end }}
   - apiGroups: ["", "events.k8s.io"]
     resources: ["events"]
     verbs: ["create", "patch"]

@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -177,6 +178,8 @@ func requiredReadinessObjects() []client.Object {
 		&fleetnetv1alpha1.ServiceImport{},
 		&fleetnetv1alpha1.InternalServiceExport{},
 		&corev1.Namespace{},
+		&corev1.Service{},
+		&discoveryv1.EndpointSlice{},
 	}
 }
 

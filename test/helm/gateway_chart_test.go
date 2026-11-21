@@ -36,7 +36,7 @@ const (
 	chartNamespace       = "fleet-system"
 	chartRepository      = "fleet-networking/hub-gateway-controller-manager"
 	chartImage           = chartRepository + ":dev"
-	enabledConfiguration = "afd.enabled=true,afd.resourceGroup=afd-rg,afd.cloudConfigSecret.name=platform-azure"
+	enabledConfiguration = "afd.enabled=true,afd.resourceGroup=afd-rg,afd.cloudConfigSecret.name=platform-azure,afd.localServiceOrigins.resourceGroup=hub-node-rg"
 	helmSetFlag          = "--set"
 	helmSetStringFlag    = "--set-string"
 	cloudConfigKey       = "azure.json"
@@ -167,9 +167,11 @@ func TestGatewayChartEnabled(t *testing.T) {
 				"gateway.networking.k8s.io/gateways/finalizers":       {verbUpdate},
 				"networking.fleet.azure.com/serviceimports":           {verbGet, verbList, verbWatch},
 				"networking.fleet.azure.com/internalserviceexports":   {verbGet, verbList, verbWatch},
-				"/namespaces":          {verbGet, verbList, verbWatch},
-				"/events":              {verbCreate, verbPatch},
-				"events.k8s.io/events": {verbCreate, verbPatch},
+				"/namespaces":                     {verbGet, verbList, verbWatch},
+				"/services":                       {verbGet, verbList, verbWatch, verbCreate, verbPatch, verbUpdate, "delete"},
+				"discovery.k8s.io/endpointslices": {verbGet, verbList, verbWatch, verbCreate, verbPatch, verbUpdate, "delete"},
+				"/events":                         {verbCreate, verbPatch},
+				"events.k8s.io/events":            {verbCreate, verbPatch},
 			})
 		})
 	}
@@ -189,6 +191,8 @@ func TestGatewayChartRejectsInvalidConfiguration(t *testing.T) {
 		{"missing repository", false, []string{helmSetStringFlag, "image.repository="}, "image.repository"},
 		{"missing tag", false, []string{helmSetStringFlag, "image.tag="}, "image.tag"},
 		{"missing group", true, []string{helmSetStringFlag, "afd.resourceGroup="}, "afd.resourceGroup"},
+		{"missing node group", true, []string{helmSetStringFlag, "afd.localServiceOrigins.resourceGroup="}, "afd.localServiceOrigins.resourceGroup"},
+		{"enabled without leader election", true, []string{helmSetFlag, "leaderElection=false"}, "leaderElection"},
 		{"missing Secret", true, []string{helmSetStringFlag, "afd.cloudConfigSecret.name="}, "afd.cloudConfigSecret.name"},
 		{"missing key", true, []string{helmSetStringFlag, "afd.cloudConfigSecret.key="}, "afd.cloudConfigSecret.key"},
 		{"missing class name", true, []string{helmSetStringFlag, "gatewayClass.name="}, "gatewayClass.name"},
@@ -227,23 +231,13 @@ func TestGatewayChartDisabledWithAzureConfiguration(t *testing.T) {
 }
 
 func TestGatewayChartWithoutLeaderElection(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		name := "disabled"
-		flags := []string{helmSetFlag, "leaderElection=false"}
-		if enabled {
-			name = "enabled"
-			flags = append(flags, helmSetFlag, enabledConfiguration)
-		}
-		t.Run(name, func(t *testing.T) {
-			got := renderChart(t, flags...)
-			if got.role != nil || got.binding != nil ||
-				!slices.Contains(got.deployment.Spec.Template.Spec.Containers[0].Args, "--leader-elect=false") {
-				t.Fatal("leader-election configuration and permissions disagree")
-			}
-			if (got.clusterRole != nil) != enabled || (got.clusterBinding != nil) != enabled {
-				t.Fatal("leader-election setting changed feature permissions")
-			}
-		})
+	got := renderChart(t, helmSetFlag, "leaderElection=false")
+	if got.role != nil || got.binding != nil ||
+		!slices.Contains(got.deployment.Spec.Template.Spec.Containers[0].Args, "--leader-elect=false") {
+		t.Fatal("leader-election configuration and permissions disagree")
+	}
+	if got.clusterRole != nil || got.clusterBinding != nil {
+		t.Fatal("disabled AFD granted feature permissions")
 	}
 }
 

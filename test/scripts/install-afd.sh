@@ -22,6 +22,15 @@ cloud_config() {
 hub="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name hub)"
 hub_principal="$(jq -er '.identityProfile.kubeletidentity.objectId' <<<"$hub")"
 base="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups"
+hub_node_group="$(jq -er '.nodeResourceGroup' <<<"$hub")"
+hub_id="$(jq -er '.id' <<<"$hub")"
+hub_group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$hub_node_group")"
+if [[ "${hub_id,,}" != "${base,,}/${AZURE_RESOURCE_GROUP,,}/providers/microsoft.containerservice/managedclusters/hub" ]] ||
+  ! jq -e --arg id "$hub_id" --arg group "$base/$hub_node_group" \
+    '(.managedBy|ascii_downcase)==($id|ascii_downcase) and (.id|ascii_downcase)==($group|ascii_downcase)' <<<"$hub_group" >/dev/null; then
+  echo "error: refusing local Service discovery grant outside the verified hub node resource group" >&2
+  exit 1
+fi
 declare -A clusters node_groups
 # Validate both AKS-managed node groups before any role assignments.
 for member in member-1 member-2; do
@@ -79,22 +88,9 @@ az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role "CDN Pr
   --assignee-object-id "$hub_principal" --assignee-principal-type ServicePrincipal \
   --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP" >/dev/null
 config="$(cloud_config "$client" "$AZURE_RESOURCE_GROUP" "$location")"
-local_values=()
-if [[ "$ENABLE_LOCAL_SERVICE_ORIGINS" == true ]]; then
-  hub_node_group="$(jq -er '.nodeResourceGroup' <<<"$hub")"
-  hub_id="$(jq -er '.id' <<<"$hub")"
-  hub_group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$hub_node_group")"
-  if [[ "${hub_id,,}" != "${base,,}/${AZURE_RESOURCE_GROUP,,}/providers/microsoft.containerservice/managedclusters/hub" ]] ||
-    ! jq -e --arg id "$hub_id" --arg group "$base/$hub_node_group" \
-      '(.managedBy|ascii_downcase)==($id|ascii_downcase) and (.id|ascii_downcase)==($group|ascii_downcase)' <<<"$hub_group" >/dev/null; then
-    echo "error: refusing local Service discovery grant outside the verified hub node resource group" >&2
-    exit 1
-  fi
-  az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role Reader \
-    --assignee-object-id "$hub_principal" --assignee-principal-type ServicePrincipal \
-    --scope "$base/$hub_node_group" >/dev/null
-  local_values=(--set afd.localServiceOrigins.enabled=true --set-string "afd.localServiceOrigins.resourceGroup=$hub_node_group")
-fi
+az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role Reader \
+  --assignee-object-id "$hub_principal" --assignee-principal-type ServicePrincipal \
+  --scope "$base/$hub_node_group" >/dev/null
 kubectl --context hub-admin create namespace "$AFD_PROOF_CONTROLLER_NAMESPACE" --dry-run=client -o yaml |
   kubectl --context hub-admin apply -f -
 kubectl --context hub-admin --namespace "$AFD_PROOF_CONTROLLER_NAMESPACE" create secret generic afd-cloud-config \
@@ -107,4 +103,5 @@ helm install hub-gateway-controller-manager ./charts/hub-gateway-controller-mana
   --set-string "image.repository=${AFD_PROOF_CONTROLLER_IMAGE%:*}" \
   --set-string "image.tag=${AFD_PROOF_CONTROLLER_IMAGE##*:}" \
   --set afd.enabled=true --set-string "afd.resourceGroup=$AZURE_RESOURCE_GROUP" \
-  --set afd.cloudConfigSecret.name=afd-cloud-config "${local_values[@]}" --wait --timeout 10m
+  --set afd.cloudConfigSecret.name=afd-cloud-config \
+  --set-string "afd.localServiceOrigins.resourceGroup=$hub_node_group" --wait --timeout 10m

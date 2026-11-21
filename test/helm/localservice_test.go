@@ -12,10 +12,10 @@ import (
 	"testing"
 )
 
-func TestLocalServiceChartOptIn(t *testing.T) {
-	got := renderChart(t, helmSetFlag, enabledConfiguration+",afd.localServiceOrigins.enabled=true,afd.localServiceOrigins.resourceGroup=hub-node-rg")
+func TestLocalServiceChartEnabledWithAFD(t *testing.T) {
+	got := renderChart(t, helmSetFlag, enabledConfiguration)
 	args := got.deployment.Spec.Template.Spec.Containers[0].Args
-	for _, want := range []string{"--enable-local-service-origins=true", "--local-service-resource-group=hub-node-rg"} {
+	for _, want := range []string{"--local-service-resource-group=hub-node-rg"} {
 		if !slices.Contains(args, want) {
 			t.Fatalf("missing local companion argument %s", want)
 		}
@@ -32,10 +32,7 @@ func TestLocalServiceChartOptIn(t *testing.T) {
 			t.Fatalf("local companion lifecycle RBAC missing for %s", resource)
 		}
 	}
-	defaults := renderChart(t, helmSetFlag, enabledConfiguration)
-	for _, rule := range defaults.clusterRole.Rules {
-		if slices.Contains(rule.Resources, "services") || slices.Contains(rule.Resources, "endpointslices") {
-			t.Fatal("local companion privileges must not be granted without opt-in")
-		}
+	if disabled := renderChart(t); disabled.clusterRole != nil {
+		t.Fatal("disabled AFD must not grant companion privileges")
 	}
 }

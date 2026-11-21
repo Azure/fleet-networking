@@ -39,10 +39,7 @@ spec:
             - --health-probe-bind-address=:8083
             - --v={{ .Values.logVerbosity }}
             {{- if .Values.afd.enabled }}
-            {{- if .Values.afd.localServiceOrigins.enabled }}
-            - --enable-local-service-origins=true
-            - --local-service-resource-group={{ required "afd.localServiceOrigins.resourceGroup is required when local Service origins are enabled" (.Values.afd.localServiceOrigins.resourceGroup | trim) }}
-            {{- end }}
+            - --local-service-resource-group={{ .Values.afd.localServiceOrigins.resourceGroup | trim }}
             - --afd-resource-group={{ .Values.afd.resourceGroup | trim }}
             - --cloud-config=/etc/kubernetes/provider/azure.json
             {{- end }}

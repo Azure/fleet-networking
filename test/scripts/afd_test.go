@@ -215,7 +215,7 @@ func TestAFDSetupReaderScope(t *testing.T) {
 		missingBinding, fails                   bool
 		wantWrites                              int
 	}{
-		{"verified member groups", "member-1", "member-2", "", false, false, 5},
+		{"verified member groups", "member-1", "member-2", "", false, false, 6},
 		{"foreign first owner", "unrelated", "member-2", "", false, true, 0},
 		{"foreign second owner", "member-1", "unrelated", "", false, true, 0},
 		{"foreign second cluster", "member-1", "member-2", "/subscriptions/foreign/clusters/member-2", false, true, 0},
@@ -357,7 +357,7 @@ func TestAFDInstallationWithoutATM(t *testing.T) {
 		}
 	}
 	if strings.Contains(string(commands), "Network Contributor") || strings.Contains(string(commands), "approve") ||
-		strings.Count(string(commands), "role assignment create") != 5 {
+		strings.Count(string(commands), "role assignment create") != 6 {
 		t.Fatalf("installation exceeded the bounded role preparation: %s", commands)
 	}
 }
@@ -368,7 +368,6 @@ func afdTestEnvironment(t *testing.T) {
 		t.Skip("Run POSIX harness tests with Go inside WSL, not a Windows Go process")
 	}
 	for _, name := range []string{
-		"ENABLE_LOCAL_SERVICE_ORIGINS",
 		"ENABLE_TRAFFIC_MANAGER", "ENABLE_AZURE_FRONT_DOOR", "ENABLE_GATEWAY_API",
 		"ENABLE_AFD_PRIVATE_HTTP_PROOF", "AFD_PROOF_CONTROLLER_IMAGE", "REGISTRY",
 		"ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL",

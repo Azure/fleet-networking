@@ -23,7 +23,7 @@ import (
 
 const gatewayCacheReadinessCheck = "gateway-cache"
 
-func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager, localServices ...bool) error {
+func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager) error {
 	objects := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.Gateway{},
@@ -32,9 +32,8 @@ func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager, localS
 		&fleetnetv1alpha1.ServiceImport{},
 		&fleetnetv1alpha1.InternalServiceExport{},
 		&corev1.Namespace{},
-	}
-	if len(localServices) != 0 && localServices[0] {
-		objects = append(objects, &corev1.Service{}, &discoveryv1.EndpointSlice{})
+		&corev1.Service{},
+		&discoveryv1.EndpointSlice{},
 	}
 	informers := make([]cache.Informer, 0, len(objects))
 	informerCache := mgr.GetCache()
