@@ -15,35 +15,34 @@ parameters:
   - name: scenarios
     type: object
     default:
-        # Temporarily disabled while validating the first conformance test.
-        # shared_vnet_atm:
-        #   SCENARIO: atm
-        #   AZURE_NETWORK_SETTING: shared-vnet
-        #   ENABLE_TRAFFIC_MANAGER: 'true'
-        #   ENABLE_AZURE_FRONT_DOOR: 'false'
-        #   E2E_JOB_TIMEOUT: 300
-        #   E2E_TEST_TIMEOUT: 60
-        # peered_vnet:
-        #   SCENARIO: peered
-        #   AZURE_NETWORK_SETTING: peered-vnet
-        #   ENABLE_TRAFFIC_MANAGER: 'false'
-        #   ENABLE_AZURE_FRONT_DOOR: 'false'
-        #   E2E_JOB_TIMEOUT: 300
-        #   E2E_TEST_TIMEOUT: 60
-        # dynamic_ip_allocation:
-        #   SCENARIO: dynamic
-        #   AZURE_NETWORK_SETTING: dynamic-ip-allocation
-        #   ENABLE_TRAFFIC_MANAGER: 'false'
-        #   ENABLE_AZURE_FRONT_DOOR: 'false'
-        #   E2E_JOB_TIMEOUT: 300
-        #   E2E_TEST_TIMEOUT: 60
-        # unsupported:
-        #   SCENARIO: unsupported
-        #   AZURE_NETWORK_SETTING: unsupported
-        #   ENABLE_TRAFFIC_MANAGER: 'false'
-        #   ENABLE_AZURE_FRONT_DOOR: 'false'
-        #   E2E_JOB_TIMEOUT: 300
-        #   E2E_TEST_TIMEOUT: 60
+        shared_vnet_atm:
+          SCENARIO: atm
+          AZURE_NETWORK_SETTING: shared-vnet
+          ENABLE_TRAFFIC_MANAGER: 'true'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        peered_vnet:
+          SCENARIO: peered
+          AZURE_NETWORK_SETTING: peered-vnet
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        dynamic_ip_allocation:
+          SCENARIO: dynamic
+          AZURE_NETWORK_SETTING: dynamic-ip-allocation
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
+        unsupported:
+          SCENARIO: unsupported
+          AZURE_NETWORK_SETTING: unsupported
+          ENABLE_TRAFFIC_MANAGER: 'false'
+          ENABLE_AZURE_FRONT_DOOR: 'false'
+          E2E_JOB_TIMEOUT: 300
+          E2E_TEST_TIMEOUT: 60
         shared_vnet_afd:
           SCENARIO: afd
           AZURE_NETWORK_SETTING: shared-vnet
@@ -59,7 +58,6 @@ jobs:
   - ${{ each scenario in parameters.scenarios }}:
     - job: ${{ scenario.key }}
       displayName: Fleet networking E2E (${{ scenario.value.SCENARIO }})
-      condition: ${{ eq(parameters.runLocalServiceConformance, true) }}
       ${{ if and(eq(parameters.runLocalServiceConformance, true), eq(scenario.value.ENABLE_AZURE_FRONT_DOOR, 'true')) }}:
         timeoutInMinutes: 1100
       ${{ else }}:
@@ -159,24 +157,24 @@ jobs:
           displayName: Release image build cache before Go tests
           timeoutInMinutes: 5
 
-        # - task: AzureCLI@2
-        #   displayName: Run E2E tests
-        #   timeoutInMinutes: ${{ scenario.value.E2E_TEST_TIMEOUT }}
-        #   inputs:
-        #     azureSubscription: 'aks fleetnetworking'
-        #     scriptType: bash
-        #     scriptLocation: inlineScript
-        #     addSpnToEnvironment: false
-        #     visibleAzLogin: false
-        #     keepAzSessionActive: true
-        #     inlineScript: |
-        #       set -euo pipefail
-        #       if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
-        #         sleep 5m
-        #       fi
-        #       make e2e-tests
-        #   env:
-        #     AZURE_TOKEN_CREDENTIALS: AzureCLICredential
+        - task: AzureCLI@2
+          displayName: Run E2E tests
+          timeoutInMinutes: ${{ scenario.value.E2E_TEST_TIMEOUT }}
+          inputs:
+            azureSubscription: 'aks fleetnetworking'
+            scriptType: bash
+            scriptLocation: inlineScript
+            addSpnToEnvironment: false
+            visibleAzLogin: false
+            keepAzSessionActive: true
+            inlineScript: |
+              set -euo pipefail
+              if [[ "$ENABLE_TRAFFIC_MANAGER" == true || "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+                sleep 5m
+              fi
+              make e2e-tests
+          env:
+            AZURE_TOKEN_CREDENTIALS: AzureCLICredential
 
         - ${{ if and(eq(parameters.runLocalServiceConformance, true), eq(scenario.value.ENABLE_AZURE_FRONT_DOOR, 'true')) }}:
           - task: AzureCLI@2

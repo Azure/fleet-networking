@@ -93,10 +93,10 @@ Collect controller/Azure diagnostics before deleting an approved retained enviro
 [The E2E pipeline](../../.pipeline/e2e-tests.yaml) adds a default-off
 `runLocalServiceConformance` parameter. When explicitly selected for the AFD scenario,
 setup enables local companions and grants scoped discovery access; a separate
-command runs this test using the same service connection. Other scenarios and the
-ordinary Fleet E2E test invocation are temporarily commented out on this branch.
-The AFD job itself is skipped unless `runLocalServiceConformance=true`, so the
-default run does not provision resources without a selected conformance test.
+command runs this test using the same service connection after the ordinary
+Fleet E2E tests succeed. All five existing E2E scenarios are enabled. Setting
+`runLocalServiceConformance=false` omits only the additional conformance step and
+local-origin opt-in; normal E2E provisioning and tests still run.
 Go JSON results are stored in the existing log artifact. Test failures fail the job;
 existing always-run log collection and scoped environment cleanup remain active.
 
