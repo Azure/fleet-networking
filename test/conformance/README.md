@@ -91,14 +91,17 @@ Collect controller/Azure diagnostics before deleting an approved retained enviro
 ## ADO integration
 
 [The E2E pipeline](../../.pipeline/e2e-tests.yaml) adds a default-off
-`runLocalServiceConformance` parameter. When explicitly selected for the AFD scenario,
-AFD setup registers local companions and grants scoped discovery access; a separate
-command runs this test using the same service connection after the ordinary
-Fleet E2E tests succeed. All five existing E2E scenarios are enabled. Setting
-`runLocalServiceConformance=false` omits only the additional conformance step;
+`runLocalServiceConformance` parameter. When explicitly selected, an independent
+`afd_conformance` job provisions its own shared-VNet AFD environment, registers local
+companions, and grants scoped discovery access. It runs conformance only, without
+waiting for ordinary Fleet E2E tests. All five existing E2E scenarios remain enabled
+and provision their own environments using the same [job template](../../.pipeline/e2e-job.yaml).
+Setting `runLocalServiceConformance=false` omits only the conformance job;
 normal E2E provisioning, local companion support, and tests still run.
-Go JSON results are stored in the existing log artifact. Test failures fail the job;
-existing always-run log collection and scoped environment cleanup remain active.
+The additional job creates a separate billable environment in
+`fleet-ado-<build ID>-conformance-<job attempt>` and requires approval of that scope.
+Go JSON results are stored in its `e2e-conformance-<job attempt>` log artifact.
+Each job independently collects logs and performs scoped cleanup even on failure.
 
 No live HTTP conformance pass is established by compile/unit checks.
 
