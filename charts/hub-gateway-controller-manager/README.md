@@ -19,7 +19,7 @@ broader future contract shown in some configuration examples.
 | Area | Current limitation |
 |---|---|
 | Listeners | Exactly one listener per Gateway |
-| Protocol and port | HTTP on port 80 only; no HTTPS, TLS configuration or certificate lifecycle |
+| Protocol and port | HTTP on port 80 by default; HTTPS requires the separate `enableOriginTLS` opt-in and its prerequisites below |
 | Hostnames | No listener or HTTPRoute hostname restrictions; uses the default AFD endpoint domain, not custom domains |
 | Path matching | Only `PathPrefix: /` (including the default match); no Exact or non-root paths |
 | Other matching | No header, query-parameter or method matching |
@@ -156,6 +156,7 @@ custom domains or certificate management.
 |---|---|---|
 | `fleetSystemNamespace` | `fleet-system` | Namespace for controller workloads, identities and configuration Secret |
 | `afd.enabled` | `false` | Explicitly enable Gateway/Fleet controllers and cluster RBAC |
+| `enableOriginTLS` | `false` | Enable HTTPS/origin TLS; requires `afd.enabled=true` and preinstalled TLS CRDs |
 | `afd.resourceGroup` | Empty | Required when enabled |
 | `afd.cloudConfigSecret.name` | Empty | Existing Secret in `fleetSystemNamespace`; required when enabled |
 | `afd.cloudConfigSecret.key` | `azure.json` | Selected configuration key; required when enabled |
@@ -189,9 +190,68 @@ The image runs as UID/GID 65532 with a read-only root filesystem, no privilege
 escalation, dropped capabilities and RuntimeDefault seccomp.
 
 `/healthz` and `/readyz` are exposed on port 8083; metrics use 8082. No Service is
-created. Enabled readiness requires initial synchronization of all seven watched
-informers, not leadership, Azure uptime or Private Link approval. It does not
-prove continuing API freshness or dataplane readiness.
+created. Enabled readiness requires initial synchronization of all seven baseline
+informers (plus BackendTLSPolicy when TLS is enabled), not leadership, Azure
+uptime or Private Link approval. It does not prove continuing API freshness or
+dataplane readiness.
+
+## Opt-in HTTPS installation and upgrade
+
+`enableOriginTLS` and the binary flag `--enable-origin-tls` default to `false`.
+HTTP mode has no BackendTLSPolicy watch or experimental CRD dependency.
+Enabling TLS without `afd.enabled=true` (`--enable-afd=true`) is rejected.
+The feature operates in the hub control plane; public MCS APIs remain unchanged.
+
+Upgrade in this order:
+
+1. Install the release's upgraded hub InternalServiceExport CRD from
+   `config/crd/bases/networking.fleet.azure.com_internalserviceexports.yaml`
+   **before** enabling any member or hub TLS option. Its served `v1alpha1`
+   schema must retain `spec.originTLS`. No additional API field is needed for
+   the metadata-only heartbeat.
+2. Explicitly install the pinned **Gateway API v1.2.1 experimental CRDs** on
+   the hub and participating members:
+
+   ```bash
+   kubectl --context <verified-cluster-context> apply --server-side \
+     -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/experimental-install.yaml
+   ```
+
+   BackendTLSPolicy must be served as `gateway.networking.k8s.io/v1alpha3`;
+   installing only standard-channel CRDs is insufficient.
+3. Enable member `enablePrivateLinkOriginDiscovery=true` and
+   `enableOriginTLS=true`, with the additional hub CRD-read permission
+   described in the [member chart](../member-net-controller-manager/README.md#opt-in-https-origin-metadata).
+4. Enable this chart's `enableOriginTLS=true` alongside the existing
+   `afd.enabled=true` configuration. Preserve existing image, resource-group
+   and cloud-config settings when upgrading.
+
+The enabled hub checks both CRDs through its uncached API reader before
+registering controllers. Missing or unserved BackendTLSPolicy versions, old
+InternalServiceExport schemas, and forbidden CRD reads fail startup. Neither
+manager fetches or installs CRDs dynamically.
+
+TLS conditionally adds BackendTLSPolicy `get/list/watch/create/update/patch/delete`
+and status `get/update/patch`. The chart grants only name-scoped CRD `get` for
+the two startup checks. It adds no Secret API or Azure Key Vault permissions.
+Certificate/identity provisioning and any required external permissions remain
+platform responsibilities.
+
+The one-minute freshness heartbeat is stored in the InternalServiceExport
+`networking.fleet.azure.com/origin-tls-observation` annotation, bound by SHA256
+to the typed `spec.originTLS` snapshot. Unchanged TLS intent therefore does not
+increment the export's generation. Existing member hub-side InternalServiceExport
+update access and hub export read/watch access cover this metadata; no annotation
+subresource, additional schema field or additional RBAC permission is required.
+
+Before disabling TLS or downgrading the hub, withdraw HTTPS Gateways/routes
+while the TLS-enabled controller is running and **observe owned HTTPS cleanup**;
+do not simply flip the feature off with HTTPS resources still active.
+Then disable the hub option and, if desired, the member option. Member disable
+publishes nil TLS metadata on reconciliation; the one-minute heartbeat and
+five-minute maximum freshness bound expire stale metadata. Observe
+withdrawal/expiry before removing schemas or their read permissions. Existing
+HTTP reconciliation remains unaffected.
 
 ## Origin-observation diagnostics
 

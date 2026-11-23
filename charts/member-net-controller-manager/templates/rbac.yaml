@@ -4,6 +4,16 @@ metadata:
   creationTimestamp: null
   name: {{ include "member-net-controller-manager.fullname" . }}-role
 rules:
+{{- if .Values.enableOriginTLS }}
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - backendtlspolicies
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
 - apiGroups:
   - coordination.k8s.io
   resources:

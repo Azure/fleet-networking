@@ -13,13 +13,13 @@ COPY go.sum go.sum
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy the go source
-COPY cmd/member-net-controller-manager/main.go main.go
+COPY cmd/member-net-controller-manager/ cmd/member-net-controller-manager/
 COPY api/ api/
 COPY pkg/ pkg/
 
 # Build with CGO enabled for internal usage
 RUN echo "Building images with GOOS=$GOOS GOARCH=$GOARCH"
-RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GO111MODULE=on go build -o member-net-controller-manager main.go
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH GO111MODULE=on go build -o member-net-controller-manager ./cmd/member-net-controller-manager
 
 # Use Azure Linux distroless base image to package member-net-controller-manager binary
 # Refer to https://mcr.microsoft.com/en-us/artifact/mar/azurelinux/distroless/base/about for more details

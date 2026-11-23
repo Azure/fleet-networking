@@ -33,6 +33,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --enable-afd={{ .Values.afd.enabled }}
+            - --enable-origin-tls={{ .Values.enableOriginTLS }}
             - --leader-elect={{ .Values.leaderElection }}
             - --leader-election-namespace={{ .Values.leaderElectionNamespace }}
             - --metrics-bind-address=:8082

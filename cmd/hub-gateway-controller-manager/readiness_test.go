@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -56,7 +57,7 @@ func TestGatewayCacheReadiness(t *testing.T) {
 				informer.synced = kind.Elem().Name() != tt.unsynced
 				informer.stopped = kind.Elem().Name() == tt.stopped
 			}
-			if err := registerGatewayCacheReadiness(ctx, mgr); err != nil {
+			if err := registerGatewayCacheReadiness(ctx, mgr, false); err != nil {
 				t.Fatal(err)
 			}
 			if mgr.check == nil {
@@ -106,7 +107,7 @@ func TestGatewayCacheReadiness(t *testing.T) {
 
 func TestGatewayCacheReadinessTracksSynchronization(t *testing.T) {
 	mgr := newReadinessTestManager(t)
-	if err := registerGatewayCacheReadiness(context.Background(), mgr); err != nil {
+	if err := registerGatewayCacheReadiness(context.Background(), mgr, false); err != nil {
 		t.Fatal(err)
 	}
 	if mgr.check == nil {
@@ -139,7 +140,7 @@ func TestGatewayCacheReadinessFailures(t *testing.T) {
 			wantError := errors.New("informer initialization failed")
 			mgr.informers.failKind = reflect.TypeOf(object)
 			mgr.informers.initError = wantError
-			err := registerGatewayCacheReadiness(context.Background(), mgr)
+			err := registerGatewayCacheReadiness(context.Background(), mgr, false)
 			if !errors.Is(err, wantError) || !strings.Contains(err.Error(), reflect.TypeOf(object).Elem().Name()) {
 				t.Fatalf("setup error = %v, want contextual informer initialization error", err)
 			}
@@ -152,7 +153,7 @@ func TestGatewayCacheReadinessFailures(t *testing.T) {
 		mgr := newReadinessTestManager(t)
 		wantError := errors.New("readiness registration failed")
 		mgr.checkError = wantError
-		err := registerGatewayCacheReadiness(context.Background(), mgr)
+		err := registerGatewayCacheReadiness(context.Background(), mgr, false)
 		if !errors.Is(err, wantError) {
 			t.Fatalf("setup error = %v, want readiness registration error", err)
 		}
@@ -161,11 +162,38 @@ func TestGatewayCacheReadinessFailures(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		mgr := newReadinessTestManager(t)
-		err := registerGatewayCacheReadiness(ctx, mgr)
+		err := registerGatewayCacheReadiness(ctx, mgr, false)
 		if !errors.Is(err, context.Canceled) || mgr.check != nil {
 			t.Fatalf("cancelled initialization error = %v, want cancellation without readiness registration", err)
 		}
 	})
+}
+
+func TestGatewayCacheReadinessIncludesOriginTLSOnlyWhenEnabled(t *testing.T) {
+	kind := reflect.TypeOf(&gatewayv1alpha3.BackendTLSPolicy{})
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			mgr := newReadinessTestManager(t)
+			policyInformer := &readinessTestInformer{}
+			mgr.informers.informers[kind] = policyInformer
+			for objectKind, informer := range mgr.informers.informers {
+				informer.synced = objectKind != kind
+			}
+			if err := registerGatewayCacheReadiness(context.Background(), mgr, enabled); err != nil {
+				t.Fatal(err)
+			}
+			if (mgr.informers.requests[kind] == 1) != enabled {
+				t.Fatalf("BackendTLSPolicy informer requests = %d, enabled = %v", mgr.informers.requests[kind], enabled)
+			}
+			if err := mgr.check(nil); (err != nil) != enabled {
+				t.Fatalf("readiness with unsynced BackendTLSPolicy = %v, enabled = %v", err, enabled)
+			}
+			policyInformer.synced = true
+			if err := mgr.check(nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func requiredReadinessObjects() []client.Object {

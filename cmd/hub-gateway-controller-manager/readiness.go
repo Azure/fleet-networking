@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -22,7 +23,7 @@ import (
 
 const gatewayCacheReadinessCheck = "gateway-cache"
 
-func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager) error {
+func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager, originTLS bool) error {
 	objects := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.Gateway{},
@@ -31,6 +32,9 @@ func registerGatewayCacheReadiness(ctx context.Context, mgr ctrl.Manager) error 
 		&fleetnetv1alpha1.ServiceImport{},
 		&fleetnetv1alpha1.InternalServiceExport{},
 		&corev1.Namespace{},
+	}
+	if originTLS {
+		objects = append(objects, &gatewayv1alpha3.BackendTLSPolicy{})
 	}
 	informers := make([]cache.Informer, 0, len(objects))
 	informerCache := mgr.GetCache()

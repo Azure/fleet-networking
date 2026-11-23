@@ -59,6 +59,55 @@ spec:
                 description: IsInternalLoadBalancer determines if the Service is an
                   internal load balancer type.
                 type: boolean
+              originTLS:
+                description: |-
+                  OriginTLS carries only non-secret, member-observed TLS authorization.
+                  Absence is unknown, never permission to infer a TLS identity.
+                properties:
+                  hostname:
+                    type: string
+                  observedAt:
+                    format: date-time
+                    type: string
+                  policy:
+                    description: OriginTLSPolicyReference binds authorization to one
+                      observed member policy.
+                    properties:
+                      exportToFleet:
+                        type: string
+                      generation:
+                        format: int64
+                        type: integer
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                      resourceVersion:
+                        type: string
+                      uid:
+                        type: string
+                    required:
+                    - exportToFleet
+                    - generation
+                    - name
+                    - namespace
+                    - resourceVersion
+                    - uid
+                    type: object
+                  ready:
+                    type: boolean
+                  reason:
+                    type: string
+                  serviceUID:
+                    type: string
+                  trust:
+                    type: string
+                required:
+                - observedAt
+                - ready
+                - reason
+                - serviceUID
+                type: object
               ports:
                 description: A list of ports exposed by the exported Service.
                 items:

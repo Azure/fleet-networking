@@ -7,6 +7,9 @@ set -o pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 
 if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
+  if [[ "$ENABLE_AFD_PRIVATE_HTTPS_PROOF" == true ]]; then
+    exec go test -count=1 -timeout 10h -tags=e2e -v ./test/e2e -args -ginkgo.v -ginkgo.timeout=9h30m -ginkgo.label-filter=afd-private-https-proof
+  fi
   if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
     echo "AFD retained diagnostic: withdrawal and cleanup are not run; resources require explicit later cleanup."
     exec go test -count=1 -timeout 10h -tags=e2e -v ./test/e2e -args -ginkgo.v -ginkgo.timeout=9h30m -ginkgo.label-filter=afd-private-http-proof

@@ -8,6 +8,26 @@ source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 if [[ "$ENABLE_AZURE_FRONT_DOOR" != true ]]; then
   exit 0
 fi
+if [[ "$ENABLE_ORIGIN_TLS" == true ]]; then
+  kubectl --context hub-admin apply --server-side \
+    -f ./config/crd/bases/networking.fleet.azure.com_internalserviceexports.yaml
+  kubectl --context hub-admin wait --for=condition=Established --timeout=60s \
+    crd/internalserviceexports.networking.fleet.azure.com
+  policy_crd="$(go list -m -f '{{.Dir}}' sigs.k8s.io/gateway-api)/config/crd/experimental/gateway.networking.k8s.io_backendtlspolicies.yaml"
+  if [[ ! -f "$policy_crd" ]]; then
+    echo "error: pinned experimental BackendTLSPolicy CRD is missing" >&2
+    exit 1
+  fi
+  for context in hub-admin member-1-admin member-2-admin; do
+    kubectl --context "$context" apply --server-side -f "$policy_crd"
+    kubectl --context "$context" wait --for=condition=Established --timeout=60s \
+      crd/backendtlspolicies.gateway.networking.k8s.io
+  done
+  kubectl --context hub-admin create clusterrole fleet-origin-tls-schema-reader \
+    --verb=get --resource=customresourcedefinitions.apiextensions.k8s.io \
+    --resource-name=internalserviceexports.networking.fleet.azure.com --dry-run=client -o yaml |
+    kubectl --context hub-admin apply -f -
+fi
 tenant="$(az account show --subscription "$AZURE_SUBSCRIPTION_ID" --query tenantId -o tsv)"
 
 cloud_config() {
@@ -67,9 +87,14 @@ for member in member-1 member-2; do
     --assignee-object-id "$principal" --assignee-principal-type ServicePrincipal \
     --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$node_group" >/dev/null
   config="$(cloud_config "$client" "$node_group" "$location")"
+  if [[ "$ENABLE_ORIGIN_TLS" == true ]]; then
+    kubectl --context hub-admin create clusterrolebinding "fleet-origin-tls-schema-reader-$member" \
+      --clusterrole=fleet-origin-tls-schema-reader --user="$principal" --dry-run=client -o yaml |
+      kubectl --context hub-admin apply -f -
+  fi
   helm upgrade member-net-controller-manager ./charts/member-net-controller-manager \
     --kube-context "$member-admin" --namespace default --reuse-values \
-    --set enablePrivateLinkOriginDiscovery=true --set-json "azureCloudConfig=$config" \
+    --set enablePrivateLinkOriginDiscovery=true --set "enableOriginTLS=$ENABLE_ORIGIN_TLS" --set-json "azureCloudConfig=$config" \
     --wait --timeout 10m
 done
 
@@ -90,5 +115,5 @@ helm install hub-gateway-controller-manager ./charts/hub-gateway-controller-mana
   --set-string "serviceAccount.name=$AFD_PROOF_CONTROLLER_DEPLOYMENT" \
   --set-string "image.repository=${AFD_PROOF_CONTROLLER_IMAGE%:*}" \
   --set-string "image.tag=${AFD_PROOF_CONTROLLER_IMAGE##*:}" \
-  --set afd.enabled=true --set-string "afd.resourceGroup=$AZURE_RESOURCE_GROUP" \
+  --set afd.enabled=true --set "enableOriginTLS=$ENABLE_ORIGIN_TLS" --set-string "afd.resourceGroup=$AZURE_RESOURCE_GROUP" \
   --set afd.cloudConfigSecret.name=afd-cloud-config --wait --timeout 10m

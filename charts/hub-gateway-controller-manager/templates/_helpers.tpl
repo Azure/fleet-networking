@@ -40,6 +40,9 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "hub-gateway-controller-manager.validate" -}}
+{{- if and .Values.enableOriginTLS (not .Values.afd.enabled) -}}
+{{- fail "enableOriginTLS requires afd.enabled" -}}
+{{- end -}}
 {{- $_ := required "image.repository must select an explicitly built/published image" (.Values.image.repository | trim) -}}
 {{- $_ := required "image.tag must select an explicitly built/published image" (.Values.image.tag | trim) -}}
 {{- if .Values.afd.enabled -}}

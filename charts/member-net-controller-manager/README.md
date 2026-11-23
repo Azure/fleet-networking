@@ -116,6 +116,7 @@ helm upgrade member-net-controller-manager ./charts/member-net-controller-manage
 | tolerations | The toleration to use for pod scheduling | `[]` |
 | enableTrafficManagerFeature | Set to true to enable the Azure Traffic Manager feature. | `false` |
 | enablePrivateLinkOriginDiscovery | Discover ILB/PLS origins for Zero-Public-Exposure Ingress independently of Traffic Manager. | `false` |
+| enableOriginTLS | Publish private-origin TLS metadata; requires private-origin discovery and preinstalled TLS CRDs. | `false` |
 | enableNetworkingFeatures | Set to true to enable Networking Controllers on member cluster. | `true` |
 | azureCloudConfig | The Azure cloud provider configuration | **required if Traffic Manager or private-origin discovery is enabled** |
 
@@ -215,5 +216,87 @@ ready. It does not mean AFD has been provisioned or an AFD private endpoint
 connection has been approved. **AFD approval remains asynchronous and separately
 owned.** Gateway reconciliation and traffic programming are later implementation
 phases.
+
+## Opt-in HTTPS origin metadata
+
+`enableOriginTLS=false` is the safe default (`--enable-origin-tls=false`).
+It adds no BackendTLSPolicy watch or experimental CRD dependency. Enabling it
+requires `enablePrivateLinkOriginDiscovery=true`; Traffic Manager is independent.
+This is hub control-plane metadata, not a change to the public MCS APIs or the
+HTTP service export contract.
+
+Before enabling TLS:
+
+1. Upgrade the hub InternalServiceExport CRD first, using the release's
+   `config/crd/bases/networking.fleet.azure.com_internalserviceexports.yaml`.
+   Verify that the served `v1alpha1` schema includes `spec.originTLS`; an older
+   schema prunes this metadata.
+2. Explicitly install the pinned **Gateway API v1.2.1 experimental CRDs** on
+   participating members and the hub, including BackendTLSPolicy served as
+   `v1alpha3`:
+
+   ```bash
+   kubectl --context <verified-cluster-context> apply --server-side \
+     -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/experimental-install.yaml
+   ```
+
+3. Give the member's **hub credential identity** cluster-scoped `get` access to
+   just `internalserviceexports.networking.fleet.azure.com` in the
+   `apiextensions.k8s.io/customresourcedefinitions` resource. Its existing
+   reserved-member-namespace Role cannot grant access to cluster-scoped CRDs.
+   For the `User` identity in the hub setup above, the additional hub RBAC is:
+
+   ```yaml
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRole
+   metadata:
+     name: fleet-origin-tls-schema-reader
+   rules:
+     - apiGroups: ["apiextensions.k8s.io"]
+       resources: ["customresourcedefinitions"]
+       resourceNames: ["internalserviceexports.networking.fleet.azure.com"]
+       verbs: ["get"]
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRoleBinding
+   metadata:
+     name: fleet-origin-tls-schema-reader-<member-cluster-name>
+   roleRef:
+     apiGroup: rbac.authorization.k8s.io
+     kind: ClusterRole
+     name: fleet-origin-tls-schema-reader
+   subjects:
+     - kind: User
+       name: <member-hub-credential-principal-id>
+   ```
+
+   Bind the actual hub credential identity (use a ServiceAccount subject with
+   its namespace when applicable), not the local member workload identity.
+   The member chart already grants local CRD reads for its installer; TLS adds
+   only BackendTLSPolicy `get/list/watch`, with no policy writes, additional
+   Secret permissions or Azure Key Vault access.
+4. Upgrade members with `--set enableOriginTLS=true` and
+   `--set enablePrivateLinkOriginDiscovery=true`, then enable the
+   [hub TLS option](../hub-gateway-controller-manager/README.md#opt-in-https-installation-and-upgrade).
+
+At startup, enabled members verify the member BackendTLSPolicy served version
+and hub InternalServiceExport schema using uncached API readers. Missing CRDs,
+old schemas or denied reads fail startup; managers never fetch or install CRDs
+on demand.
+
+The one-minute heartbeat updates the InternalServiceExport
+`networking.fleet.azure.com/origin-tls-observation` annotation, bound by SHA256
+to its typed `spec.originTLS` snapshot. Unchanged intent does not increment the
+export generation. The member's existing hub-side InternalServiceExport update
+permission covers the annotation; no additional API field or permission is
+needed for heartbeats.
+
+For disable/downgrade, first withdraw HTTPS Gateways/routes while the TLS-enabled
+hub is running and observe owned HTTPS cleanup. Only then disable or downgrade
+the hub. Disabling members clears their published `originTLS` metadata on
+reconciliation; the one-minute heartbeat and five-minute maximum freshness
+bound prevent stale metadata from remaining eligible indefinitely. Wait for
+observed withdrawal/expiry before removing schemas or related access. HTTP
+exports remain unaffected.
 
 ## Contributing Changes

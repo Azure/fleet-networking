@@ -2,8 +2,26 @@
 
 export ENABLE_TRAFFIC_MANAGER="${ENABLE_TRAFFIC_MANAGER:-false}"
 export ENABLE_AZURE_FRONT_DOOR="${ENABLE_AZURE_FRONT_DOOR:-false}"
+export ENABLE_AFD_PRIVATE_HTTPS_PROOF="${ENABLE_AFD_PRIVATE_HTTPS_PROOF:-false}"
+export ENABLE_ORIGIN_TLS="${ENABLE_ORIGIN_TLS:-$ENABLE_AFD_PRIVATE_HTTPS_PROOF}"
 export RETAIN_AFD_E2E_SETUP="${RETAIN_AFD_E2E_SETUP:-false}"
 export AZURE_NETWORK_SETTING="${AZURE_NETWORK_SETTING:-shared-vnet}"
+
+for flag in "$ENABLE_ORIGIN_TLS" "$ENABLE_AFD_PRIVATE_HTTPS_PROOF"; do
+  if [[ "$flag" != true && "$flag" != false ]]; then
+    echo "error: TLS capability and proof opt-ins must be true or false" >&2
+    return 1
+  fi
+done
+if [[ "$ENABLE_ORIGIN_TLS" == true && "$ENABLE_AZURE_FRONT_DOOR" != true ]]; then
+  echo "error: ENABLE_ORIGIN_TLS requires ENABLE_AZURE_FRONT_DOOR=true" >&2
+  return 1
+fi
+if [[ "$ENABLE_AFD_PRIVATE_HTTPS_PROOF" == true &&
+      ( "$ENABLE_ORIGIN_TLS" != true || "$RETAIN_AFD_E2E_SETUP" == true ) ]]; then
+  echo "error: HTTPS proof requires TLS capability and does not support retained secret fixtures" >&2
+  return 1
+fi
 
 if [[ "$ENABLE_AZURE_FRONT_DOOR" != true && "$ENABLE_AZURE_FRONT_DOOR" != false ]]; then
   echo "error: ENABLE_AZURE_FRONT_DOOR must be true or false" >&2
