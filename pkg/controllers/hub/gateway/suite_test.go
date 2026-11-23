@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -81,7 +82,7 @@ var _ = BeforeSuite(func() {
 	testEnvironment := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "..", "config", "crd", "bases"),
-			filepath.Join(strings.TrimSpace(string(module)), "config", "crd", "standard"),
+			filepath.Join(strings.TrimSpace(string(module)), "config", "crd", "experimental"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -96,7 +97,7 @@ var _ = BeforeSuite(func() {
 
 	scheme := runtime.NewScheme()
 	for _, install := range []func(*runtime.Scheme) error{
-		corev1.AddToScheme, gatewayv1.Install, gatewayv1beta1.Install, fleetnetv1alpha1.AddToScheme,
+		corev1.AddToScheme, gatewayv1.Install, gatewayv1beta1.Install, gatewayv1alpha3.Install, fleetnetv1alpha1.AddToScheme,
 	} {
 		Expect(install(scheme)).To(Succeed())
 	}
@@ -129,8 +130,9 @@ var _ = BeforeSuite(func() {
 		Client: manager.GetClient(), APIReader: manager.GetAPIReader(),
 		OriginObserver: integrationProvider, ProfileCleanup: integrationProvider,
 		HTTPProvisioner: integrationProvider, Recorder: integrationRecorder,
+		EnableOriginTLS: true,
 	}).SetupWithManager(manager)).To(Succeed())
-	Expect((&httproute.Reconciler{Client: manager.GetClient()}).SetupWithManager(manager)).To(Succeed())
+	Expect((&httproute.Reconciler{Client: manager.GetClient(), EnableOriginTLS: true}).SetupWithManager(manager)).To(Succeed())
 	done := make(chan error, 1)
 	DeferCleanup(func() {
 		cancel()

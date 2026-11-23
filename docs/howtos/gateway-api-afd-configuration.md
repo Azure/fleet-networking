@@ -566,7 +566,7 @@ publishes an address only after full owned-origin inventory excludes those membe
 Before disabling or downgrading the hub, withdraw HTTPS routing and observe cleanup.
 
 **Customers touch member clusters only.** Application teams configure member
-workloads, TLS Secrets, Services, ServiceExports and Service-targeted
+workloads, application-owned certificate delivery, Services, ServiceExports and Service-targeted
 BackendTLSPolicies explicitly opted into Fleet export. Fleet validates/aggregates
 their non-secret TLS intent and automatically creates the hub
 ServiceImport-targeted policy. Customers and
@@ -586,7 +586,7 @@ flowchart LR
     CLIENT["Client"]
     AFD["Public AFD Premium edge<br/>Generated azurefd.net hostname<br/>Azure-provided edge certificate"]
     subgraph MEMBER["Private member origin"]
-        APP["Application<br/>SNI: store-origin.example.com<br/>Serving certificate: store-origin-tls Secret"]
+        APP["Application<br/>SNI: store-origin.example.com<br/>Serving certificate: AKV CSI mount"]
     end
     CLIENT -->|"HTTPS: client TLS session"| AFD
     AFD -->|"HTTPS over Private Link / PLS / internal LB<br/>Separate origin TLS session"| APP
@@ -651,33 +651,73 @@ reload, expiry monitoring and renewal; Fleet does not distribute private keys.
 
 | Item | Where configured |
 |---|---|
-| Origin certificate chain and matching private key | A TLS Secret or equivalent application-owned certificate store in each member |
+| Origin certificate chain and matching private key | Application-owned AKV certificate mounted into each member pod using Secrets Store CSI |
 | Certificate name/SNI that AFD must validate | Each member's Service-targeted BackendTLSPolicy `validation.hostname`; Fleet projects agreeing intent into the hub |
 | Accepted certificate issuers | Policy `wellKnownCACertificates: System`, meaning AFD's trust store |
 | Client-facing AFD certificate | Azure-provided/renewed certificate for the generated AFD hostname, selected by the operator's HTTPS listener |
 
 For this example, first create namespace `store` in each selected member if it
-does not exist. Set `ORIGIN_CERT_CHAIN_FILE` to the local PEM file containing the
-leaf certificate followed by its intermediates, and `ORIGIN_KEY_FILE` to the
-matching private-key file. Use your own controlled DNS name in place of
-`store-origin.example.com` throughout. Provision the Secret using existing
-certificate automation, or initially:
+does not exist. The platform/certificate owner must already provide:
 
-```bash
-kubectl --context "${MEMBER_CONTEXT}" --namespace store \
-  create secret tls store-origin-tls \
-  --cert="${ORIGIN_CERT_CHAIN_FILE}" \
-  --key="${ORIGIN_KEY_FILE}"
-```
+- Secrets Store CSI Driver and Azure Key Vault provider on each member, with
+  CSI token requests for `api://AzureADTokenExchange` and a configured OIDC issuer.
+- An Entra Workload Identity with least-privilege secret-read access to the
+  approved certificate's backing secret, and AKV network access from each member.
+- A federated credential for **each member's issuer**, exact subject
+  `system:serviceaccount:store:store-origin`, and that audience.
+- An exportable server certificate and full intermediate chain in AKV. Select
+  `objectType: secret`, not `cert` (public certificate only) or `key` (public key).
+  CSI cannot bypass non-exportable/HSM key policy.
 
-This creates `tls.crt` and `tls.key`; do not commit them to source control.
-For an illustrative new workload, the following NGINX application mounts that
-Secret and serves TLS itself. It is the application, not an additional Fleet
+Use your controlled DNS name instead of `store-origin.example.com`. Replace the
+AKV name, backing-secret name, tenant ID and identity client ID placeholders in
+the YAML before applying it. These are identifiers, not credentials. The example
+uses the latest secret version; set `objectVersion` to an approved backing-secret
+version when pinning is required. Different members may reference different
+vaults, identities or keys for the same DNS identity.
+
+The following illustrative NGINX application mounts one PEM bundle containing
+the private key and leaf/intermediate chain, without Kubernetes Secret sync or
+runner-local key files. CSI-native Workload Identity uses the pod's ServiceAccount
+and SPC `clientID`; no application SDK token injection, ServiceAccount annotation
+or pod workload-identity label is required for this CSI-only use.
+See the [provider Workload Identity guidance](https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/configurations/identity-access-modes/workload-identity-mode/).
+It is the application, not an additional Fleet
 ingress proxy. Existing applications should configure their own TLS stack
 instead of replacing their workload with this example. Select an approved,
 pinned image for production.
 
 ```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: store-origin
+  namespace: store
+automountServiceAccountToken: false
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: store-origin-tls
+  namespace: store
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "false"
+    clientID: "<workload-identity-client-id>"
+    keyvaultName: "<approved-akv-name>"
+    tenantId: "<tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: <certificate-backing-secret-name>
+          objectType: secret
+          objectFormat: pem
+          objectAlias: serving.pem
+          objectVersion: ""
+          filePermission: "0400"
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -692,8 +732,8 @@ data:
     server {
       listen 8443 ssl default_server;
       server_name store-origin.example.com;
-      ssl_certificate     /etc/origin-tls/tls.crt;
-      ssl_certificate_key /etc/origin-tls/tls.key;
+      ssl_certificate     /etc/origin-tls/serving.pem;
+      ssl_certificate_key /etc/origin-tls/serving.pem;
       ssl_protocols TLSv1.2 TLSv1.3;
 
       # Accept preserved Host and return 200 for AFD probes.
@@ -718,6 +758,8 @@ spec:
       labels:
         app: store-api
     spec:
+      serviceAccountName: store-origin
+      automountServiceAccountToken: false
       containers:
       - name: app
         image: nginx:stable-alpine # Illustrative; pin an approved digest.
@@ -733,16 +775,22 @@ spec:
           readOnly: true
       volumes:
       - name: origin-tls
-        secret:
-          secretName: store-origin-tls
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: store-origin-tls
       - name: nginx-config
         configMap:
           name: store-api-nginx
 ```
 
-The Secret is namespace-local in each member; the hub policy does not fetch it.
-Arrange application reload or rolling replacement on renewal: a refreshed
-mounted Secret does not automatically make NGINX reload its certificate.
+The ServiceAccount, SPC and mount are member-local; the hub policy never fetches
+certificate contents. The root-owned `0400` bundle is readable by this example's
+NGINX master; adapt ownership/permissions deliberately for a non-root application.
+Arrange application reload or rolling replacement on renewal: CSI rotation
+updates files only when configured and does not make NGINX reload its certificate.
+Use a directory mount, not `subPath`, so atomic CSI updates remain visible.
 Change `member=member-1` to the actual member identifier in each cluster's
 ConfigMap so responses can distinguish sources. The example logs TLS version,
 SNI, HTTP Host and request correlation for diagnosis; these values are not an
@@ -848,7 +896,7 @@ before Fleet re-admits that member's origin.
 
 `caCertificateRefs` would configure trust anchors, not the application's serving
 certificate/key; arbitrary CA references are unsupported by this AFD proposal.
-The certificate Secret remains at the workload. Fleet transports only validated
+The certificate/key mount remains at the workload. Fleet transports only validated
 hostname/trust, resolution state, source identity/generation and observed export
 opt-in through its internal export metadata; no new public ServiceExport/ServiceImport fields.
 Missing, unmarked, duplicate, invalid, unreadable or stale policy intent excludes
@@ -962,7 +1010,7 @@ identifier and illustrative image as appropriate:
 
 | File | YAML contents | Actor and target |
 |---|---|---|
-| `origin-tls-workload.yaml` | ConfigMap and Deployment | Customer, each member |
+| `origin-tls-workload.yaml` | ServiceAccount, SecretProviderClass, ConfigMap and Deployment | Customer, each member |
 | `private-tls-service.yaml` | Service and ServiceExport | Customer, each member |
 | `origin-tls-policy.yaml` | BackendTLSPolicy targeting Service | Customer, each member |
 | `private-origin-tls-gateway.yaml` | Gateway and HTTPRoute | Platform operator, hub only |
@@ -983,8 +1031,8 @@ identifier and illustrative image as appropriate:
      get crd backendtlspolicies.gateway.networking.k8s.io
    ```
 
-2. The customer ensures namespace `store` exists in every member, provisions its
-   certificate Secret as above, and applies that member's workload, policy and
+2. The customer ensures namespace `store` exists in every member and the
+   operator has prepared AKV/CSI/federation as above, then applies its workload, policy and
    export files with matching hostname/trust and explicit policy export opt-in
    in all participating members:
 
@@ -1154,24 +1202,25 @@ an AFD error page is not a successful application response.
 **Actors:** Customer certificate/application owner in members; platform operator
 for hub projection observation, not policy edits
 
-For renewal with the same hostname, use the application's existing certificate
-automation. If manually managing this example's Secret, verify the new chain,
-key and hostname first, then update one member at a time:
+For renewal with the same hostname, use the approved certificate automation to
+create a new AKV certificate/backing-secret version. Verify its chain, key and
+hostname without exposing private contents. If using a pinned version, update
+that member's SPC `objectVersion` and apply it first. With an unpinned reference,
+configured CSI autorotation can refresh the mount; without autorotation a fresh
+pod mount retrieves the current version. Confirm the expected mounted version
+through `SecretProviderClassPodStatus` and public certificate metadata.
+Reload NGINX or roll out one member at a time:
 
 ```bash
-kubectl --context "${MEMBER_CONTEXT}" --namespace store \
-  create secret tls store-origin-tls \
-  --cert="${ORIGIN_CERT_CHAIN_FILE}" --key="${ORIGIN_KEY_FILE}" \
-  --dry-run=client -o yaml |
-kubectl --context "${MEMBER_CONTEXT}" --namespace store apply -f -
 kubectl --context "${MEMBER_CONTEXT}" --namespace store \
   rollout restart deployment/store-api
 kubectl --context "${MEMBER_CONTEXT}" --namespace store \
   rollout status deployment/store-api
 ```
 
-The pipeline carries Secret data: do not log/capture it or commit the rendered
-YAML. A rollout is one example reload method, not a zero-downtime guarantee.
+A rollout is one example reload method, not a zero-downtime guarantee. Never
+render the mounted bundle, export private material into CI, or sync it to a
+Kubernetes Secret just to trigger reload.
 Verify the new certificate through direct private inspection and fresh
 through-AFD TLS connections/requests before updating the next member. Keep
 overlapping certificate validity and a verified rollback option. No policy edit
@@ -1238,7 +1287,8 @@ eligibility, approval and traffic verification.
 | TLS certificate failure | Policy hostname versus presented SAN, intermediates, AFD trust, expiry, server reload and actual SNI | Repair the workload certificate/configuration; never disable name checks, use insecure client probes or fall back to HTTP |
 | Probes fail but direct requests work | Actual probe Host/SNI, HTTPS port, GET `/`, 200 response and firewall/application rules | Make the supported probe succeed; a local curl or Kubernetes/LB probe is not an AFD probe |
 | Only one member responds | Explicit exclusion/reason/isolation state, remaining capacity, member weights/discovery, AFD probe failures and fresh correlated samples | Distinguish intentional degraded service from unobserved failure; prove excluded-origin isolation and repair/revalidate that member before re-admission. Do not claim both-member success or infer distribution from a fixed request count |
-| Failures after renewal | Certificate Secret contents, reload/rollout completion and new TLS handshakes | Restore a known-valid certificate if authorized and verify recovery; old pooled connections can hide a bad reload |
+| CSI mount fails or pod cannot start | Member CSI driver/provider, SPC parameters, OIDC issuer/federated subject/audience, identity secret-read scope and AKV network access | Repair the specific prerequisite; never fall back to a node identity, public origin, printed key or disabled TLS validation |
+| Failures after renewal | AKV backing-secret version, observed CSI mounted version, certificate metadata, reload/rollout completion and new TLS handshakes | Restore a known-valid version if authorized and verify recovery; old pooled connections can hide a bad reload |
 
 Collect sanitized resource conditions, relevant controller events and correlated
 AFD/application logs for escalation. Never include private keys, tokens or
@@ -1280,8 +1330,11 @@ kubectl --context "${MEMBER_CONTEXT}" --namespace store \
     -f origin-tls-workload.yaml --timeout="${CLEANUP_TIMEOUT}"
 ```
 
-Delete `store-origin-tls` and retire its
-certificate automation only after confirming no other workload uses them.
+The workload file also deletes its SPC and ServiceAccount; confirm no other
+workload uses them before deletion. Retire dedicated AKV certificate automation,
+federated credentials and grants separately through their owners, only after
+checking for other consumers. Never delete a shared AKV certificate or identity
+as incidental Kubernetes cleanup.
 Keep shared DNS, namespaces, certificate issuers and unrelated Azure assets.
 Fleet does not delete customer-owned member policies or application
 certificates as part of hub cleanup.
@@ -1301,7 +1354,7 @@ not worked around by weakening TLS or opening a public origin.
 | Managed hub and membership | Fleet platform operator | Fleet has a managed hub; each intended exporting cluster is a healthy member of that Fleet. Hubless Fleet is not supported. Record explicit hub/member contexts and application namespace. |
 | Controller and schema compatibility | Fleet platform operator | Select verified TLS-capable member/hub images. Install updated internal transport CRDs in the hub first and pinned experimental BackendTLSPolicy CRDs in participating members and hub before enabling TLS. A merge is not a release. Missing/old-member TLS envelopes are unknown, not authority to assume a hostname. |
 | Explicit enablement and ownership | Fleet platform operator | Enable existing AFD provisioning and the experimental TLS capability deliberately. Validate the managed GatewayClass. Use the existing manager/leader election, not competing installations or manual Azure writers for its profile. |
-| Kubernetes authorization | Platform and ingress owners | Customers manage member workloads/Secrets/Service/ServiceExport and local Service-targeted TLS policies only. Member controllers read local policies and write only their reserved hub internal exports. Hub controllers own generated-policy lifecycle/status; operators authorize Gateway/HTTPRoute and hand off endpoint/evidence. No customer hub credentials, generated-policy writes, Secret-reading controller permission or shared namespace access for members. |
+| Kubernetes authorization | Platform and ingress owners | Customers manage member workloads, ServiceAccounts/SPCs, Service/ServiceExport and local Service-targeted TLS policies only. Member controllers read local policies and write only their reserved hub internal exports. Hub controllers own generated-policy lifecycle/status; operators authorize Gateway/HTTPRoute and hand off endpoint/evidence. No customer hub credentials, generated-policy writes, Secret-reading controller permission or shared namespace access for members. |
 | Hub Azure identity | Azure resource owner | Configure and test the approved identity/cloud-config, subscription and controller AFD resource group. Grant required scoped AFD lifecycle/inventory access plus `Microsoft.Network/privateLinkServices/read` on every actual PLS. Kubernetes RBAC and credential construction alone prove neither Azure authentication nor authorization. |
 | Member discovery identity | Azure resource owner | Enable private-origin discovery independently of ATM. Grant member controller `Microsoft.Network/loadBalancers/read` and `Microsoft.Network/privateLinkServices/read` at the resource groups actually containing those resources. Confirm resource-group overrides if used. |
 | AKS resource provisioning | Cluster/network owner | AKS cloud-provider identity, subnet configuration and available network capacity permit the internal LB/PLS to be created. Member discovery is read-only and cannot repair provisioning. Verify the resulting Azure resources, not just Service annotations. |
@@ -1327,7 +1380,7 @@ from this proposal.
 | DNS identity and issuance authority | Certificate/DNS owner | Control the chosen DNS name and the CA validation/renewal method. Distinguish origin identity from public application DNS and member-local Service DNS. Public certificate issuance may expose names through certificate transparency; choose an appropriate non-sensitive identity. A private endpoint is not a certificate issuer. |
 | Trusted certificate and chain | Certificate/application owner | Each member presents an in-date server certificate for the configured hostname, with the correct private key and complete intermediate chain, rooted in AFD's allowed trust set. Verify SAN/name coverage, intended server use and chain compatibility; local OS trust is not proof of AFD trust. |
 | TLS protocol compatibility | Application owner | Configure a TLS server compatible with AFD's documented origin TLS 1.2/1.3 negotiation and organizational policy. Do not assume a frontend cipher/minimum-version setting configures the origin hop, or require origin client certificates: AFD origin mTLS is unsupported. |
-| Certificate deployment | Application/certificate owner | Securely provision keys in each member through existing tooling, restrict access, mount/reload into every serving replica and prove the presented certificate after reload. Distinct member keys are allowed; Fleet does not deliver certificates or manage their Secrets. |
+| Certificate deployment | Application/certificate owner | Prepare exportable AKV certificate/backing secret, CSI/provider and exact per-member Workload Identity federation/least-privilege secret-read access; restrict mounts, reload every serving replica and prove the presented certificate. Distinct member keys are allowed; Fleet never reads AKV or delivers private keys. |
 | SNI and HTTP Host | Application owner | Select the right certificate for the policy SNI while accepting the independently preserved request Host. Confirm virtual-host/allowlist/redirect behavior; differing names must not cause wrong certificates, unexpected redirects or rejected requests. |
 | AFD application health probe | Application and platform owners | HTTPS `GET /` on the selected port returns 200 with the actual AFD probe Host/SNI and no interactive authentication or HTTP redirect. Account for distributed probe load. This is separate from Kubernetes readiness and the Azure LB probe. A different mandatory path or probe protocol is a product gap for this subset. |
 | Gateway/route subset | Platform operator | One HTTPS/443 listener with Terminate/default-certificate option, HTTPS-only accepted protocols, no redirect, default-domain association, same-namespace backend reference, one logical backend port and root PathPrefix. Preserve allowedRoutes authorization. Extra listeners, certificateRefs, custom domains, path expansion, filters and WAF remain unsupported here. |

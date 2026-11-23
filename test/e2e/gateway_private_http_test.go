@@ -416,15 +416,15 @@ func createPrivateHTTPWorkload(ctx context.Context) corev1.Service {
 }
 
 func waitPrivateHTTPModel(ctx context.Context, gateway *gatewayv1.Gateway, route *gatewayv1.HTTPRoute,
-	serviceName string, credential azcore.TokenCredential) gatewaymodel.GlobalGateway {
+	serviceName string, credential azcore.TokenCredential, originTLS ...bool) gatewaymodel.GlobalGateway {
 	GinkgoHelper()
 	var model gatewaymodel.GlobalGateway
 	Eventually(ctx, func() error {
-		attachments, err := gatewayresolver.ResolveAttachments(gateway, route, route.Spec.ParentRefs[0], nil)
+		attachments, err := gatewayresolver.ResolveAttachments(gateway, route, route.Spec.ParentRefs[0], nil, originTLS...)
 		if err != nil {
 			return err
 		}
-		resolved, err := gatewayresolver.ResolveHTTPRouteUnindexed(ctx, hubCluster.Client(), route, attachments)
+		resolved, err := gatewayresolver.ResolveHTTPRouteUnindexed(ctx, hubCluster.Client(), route, attachments, originTLS...)
 		if err != nil {
 			return err
 		}
@@ -453,6 +453,9 @@ func waitPrivateHTTPModel(ctx context.Context, gateway *gatewayv1.Gateway, route
 		model = gatewaymodel.GlobalGateway{Namespace: gateway.Namespace, Name: gateway.Name, UID: string(gateway.UID),
 			Listeners: []gatewaymodel.Listener{{Name: privateHTTPListener, Protocol: "HTTP", Port: 80}},
 			Routes:    []gatewaymodel.Route{resolved}}
+		if len(originTLS) != 0 && originTLS[0] {
+			model.Listeners = []gatewaymodel.Listener{{Name: string(gateway.Spec.Listeners[0].Name), Protocol: "HTTPS", Port: 443, DefaultCertificate: true}}
+		}
 		return nil
 	}, privateHTTPTimeout, privateHTTPPoll).Should(Succeed())
 	return model

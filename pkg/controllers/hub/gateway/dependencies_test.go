@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -32,7 +33,7 @@ import (
 func gatewayFixture(t *testing.T, members int) (client.Client, *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *fleetnetv1alpha1.ServiceImport) {
 	t.Helper()
 	scheme := runtime.NewScheme()
-	for _, install := range []func(*runtime.Scheme) error{corev1.AddToScheme, gatewayv1.Install, gatewayv1beta1.Install, fleetnetv1alpha1.AddToScheme} {
+	for _, install := range []func(*runtime.Scheme) error{corev1.AddToScheme, gatewayv1.Install, gatewayv1beta1.Install, gatewayv1alpha3.Install, fleetnetv1alpha1.AddToScheme} {
 		if err := install(scheme); err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +71,7 @@ func gatewayFixture(t *testing.T, members int) (client.Client, *gatewayv1.Gatewa
 		})
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).
-		WithStatusSubresource(&gatewayv1.Gateway{}, &gatewayv1.HTTPRoute{}, &gatewayv1.GatewayClass{}, &fleetnetv1alpha1.ServiceImport{}, &fleetnetv1alpha1.InternalServiceExport{}).
+		WithStatusSubresource(&gatewayv1.Gateway{}, &gatewayv1.HTTPRoute{}, &gatewayv1.GatewayClass{}, &gatewayv1alpha3.BackendTLSPolicy{}, &fleetnetv1alpha1.ServiceImport{}, &fleetnetv1alpha1.InternalServiceExport{}).
 		WithIndex(&gatewayv1.Gateway{}, gatewayresolver.GatewayClassField, func(o client.Object) []string { return []string{string(o.(*gatewayv1.Gateway).Spec.GatewayClassName)} }).
 		WithIndex(&gatewayv1.HTTPRoute{}, gatewayresolver.HTTPRouteGatewayField, func(o client.Object) []string {
 			route := o.(*gatewayv1.HTTPRoute)

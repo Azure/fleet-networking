@@ -24,6 +24,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/cloud-provider-azure/pkg/azclient/publicipaddressclient"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
@@ -77,6 +78,7 @@ func init() {
 	utilruntime.Must(gatewayv1.Install(scheme))
 	// ReferenceGrant remains v1beta1 in Gateway API v1.2.1.
 	utilruntime.Must(gatewayv1beta1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha3.Install(scheme))
 }
 
 func TestE2E(t *testing.T) {

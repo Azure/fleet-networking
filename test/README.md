@@ -439,6 +439,17 @@ exercise these ARM operations. The separately opted-in private HTTP scenario
 below prepares actual deployment/identity, approval, SDK, traffic and cleanup
 assertions. Its live execution remains deferred.
 
+#### Installed-controller private HTTPS proof (prepared, not live-verified)
+
+HTTPS has a separate `ENABLE_AFD_PRIVATE_HTTPS_PROOF=true` opt-in and
+`afd-private-https-proof` label; ordinary HTTP runs do not select it.
+See the [certificate fixture interface](https-origins-certificates.md#executable-fixture-interface)
+for AKV/Workload Identity identifier inputs, member CSI prerequisites, required
+candidate images, CRD-first setup and
+explicit live-scope approval. The scenario checks both TLS hops, real probes,
+member-local metadata revocation, provider-verified isolation, no HTTP fallback,
+all-ineligible withdrawal and cleanup. It is compiled offline, not live-verified.
+
 #### Installed-controller private HTTP proof (prepared, not live-verified)
 
 `gateway_private_http_test.go` adds one serial scenario labeled

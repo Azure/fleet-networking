@@ -30,8 +30,9 @@ baseline; the complete live scenario matrix is not established by offline tests.
   unreachable members expire rather than retaining authority indefinitely.
 - The separately gated installed-controller fixture is
   `ENABLE_AFD_PRIVATE_HTTPS_PROOF=true`, label `afd-private-https-proof`. It reads
-  approved certificate/key **file paths** from environment variables, never AKV
-  credentials in controllers. See the [fixture runbook](../../test/https-origins-certificates.md).
+  approved AKV/Workload Identity identifiers from environment variables and
+  mounts certificate bundles only in member application pods using CSI, never
+  AKV credentials in controllers. See the [fixture runbook](../../test/https-origins-certificates.md).
   It has not been run against live Azure for this change.
 
 **Audience:** Engineering and design reviewers. Customer prerequisites, manifests,
@@ -51,7 +52,7 @@ flowchart LR
     CLIENT["Client"]
     AFD["Public AFD Premium edge<br/>Generated azurefd.net hostname<br/>Azure-provided edge certificate"]
     subgraph MEMBER["Private member origin"]
-        APP["Application<br/>SNI: store-origin.example.com<br/>Serving certificate: store-origin-tls Secret"]
+        APP["Application<br/>SNI: store-origin.example.com<br/>Serving certificate: AKV CSI mount"]
     end
     CLIENT -->|"HTTPS: client TLS session"| AFD
     AFD -->|"HTTPS over Private Link / PLS / internal LB<br/>Separate origin TLS session"| APP
@@ -141,7 +142,7 @@ Use explicit protocol intent in the existing member Service and a same-namespace
 member BackendTLSPolicy targeting that Service, explicitly annotated
 `networking.fleet.azure.com/export-to-fleet: "true"`. Require exactly one
 applicable policy per member Service for Fleet TLS eligibility. Application
-customers manage only member workloads, certificate Secrets, Services, ServiceExports and TLS
+customers manage only member workloads, application certificate delivery, Services, ServiceExports and TLS
 policies. Fleet transports validated non-secret policy intent and automatically
 reconciles one controller-owned hub BackendTLSPolicy targeting the corresponding
 ServiceImport. Customers and platform operators do not hand-author that projection.
@@ -300,12 +301,13 @@ Fleet status or subjected to Fleet-specific field validation. Its existence must
 not change baseline MCS exports or explicit HTTP-preview behavior.
 
 The serving certificate/key are configured at the member application, for
-example through a mounted TLS Secret. BackendTLSPolicy specifies what AFD must
+example through an AKV CSI mount (or existing application-owned TLS Secret).
+BackendTLSPolicy specifies what AFD must
 validate, not where to fetch the server's private key. `caCertificateRefs`, when
 supported by another implementation, specifies CA trust anchors rather than the
 origin's serving certificate/key; it is unsupported by this AFD mapping.
 Frontend Gateway certificate configuration is a separate TLS boundary covered
-above; it never reuses or replaces the member serving Secret.
+above; it never reuses or replaces the member serving certificate mount.
 
 Require exactly one applicable BackendTLSPolicy per member Service before
 exporting Fleet TLS intent. Count policy objects in the Service namespace whose

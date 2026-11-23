@@ -22,6 +22,19 @@ if [[ "$ENABLE_AFD_PRIVATE_HTTPS_PROOF" == true &&
   echo "error: HTTPS proof requires TLS capability and does not support retained secret fixtures" >&2
   return 1
 fi
+if [[ "$ENABLE_AFD_PRIVATE_HTTPS_PROOF" == true ]]; then
+  for required in ORIGIN_TLS_NAMESPACE ORIGIN_TLS_HOSTNAME ORIGIN_AKV_NAME \
+      ORIGIN_AKV_CERT_NAME ORIGIN_AKV_TENANT_ID ORIGIN_AKV_CLIENT_ID; do
+    if [[ -z "${!required:-}" ]]; then
+      echo "error: HTTPS CSI proof requires ${required}" >&2
+      return 1
+    fi
+  done
+  if [[ -n "${ORIGIN_CERT_CHAIN_FILE:-}" || -n "${ORIGIN_KEY_FILE:-}" ]]; then
+    echo "error: runner-local certificate inputs are unsupported; use the AKV CSI fixture" >&2
+    return 1
+  fi
+fi
 
 if [[ "$ENABLE_AZURE_FRONT_DOOR" != true && "$ENABLE_AZURE_FRONT_DOOR" != false ]]; then
   echo "error: ENABLE_AZURE_FRONT_DOOR must be true or false" >&2

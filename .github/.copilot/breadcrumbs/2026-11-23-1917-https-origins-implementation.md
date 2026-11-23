@@ -24,8 +24,8 @@
    generated internal artifacts and charts; preserve TLS-off HTTP startup.
 3. [x] Add regression tests and separately gated env-var certificate fixtures.
    Run focused tests, generation/type/vet/lint and relevant controller suites.
-4. [ ] Create separate feat(https), build(https), test(https) commits with required
-   trailers; verify worktree and commit contents. No push unless requested.
+4. [x] Partition runtime, build and test changes into three substantive commits;
+   verify staged contents and required trailers. No push unless requested.
 
 ## Implementation decisions
 
@@ -56,9 +56,31 @@
   member credential only the additional named hub-CRD read before startup.
 - Member Makefile/run/image commands compile the complete manager package;
   startup helpers must not be omitted by building only main.go.
-- The fixture accepts certificate/key file paths outside the checkout, not raw
-  PEM environment values. Certificate ownership/AKV retrieval is external; no
-  controller or test runner gains AKV credentials.
+- The original fixture accepted certificate/key file paths outside the checkout.
+  The approved [AKV CSI follow-up](2026-11-23-2121-https-akv-csi-fixture.md)
+  replaces that interface with AKV/Workload Identity identifiers and member-only
+  application mounts. Neither controllers nor runner handle private-key bytes.
+
+## Commit partition
+
+- `f04abb1` - `feat(https): reconcile validated private HTTPS origins`.
+- `f12c348` - `build(https): wire opt-in capabilities and CRD-first installation`.
+  Manager signature/startup regression adaptations stay with their build wiring
+  so the intermediate manager tests compile.
+- `test(https)` carries the remaining runtime/API-server regressions, Helm/script
+  tests, certificate fixtures, separately gated live proof and this final record.
+  Final worktree/trailer verification follows creation of that commit.
+
+### Target-branch conflict resolution
+
+Rebased the same four docs/feat/build/test commits onto `58e51b6` from `main`,
+without adding a merge commit. The two older breadcrumb conflicts concerned
+the retired Microsoft Q&A reference only. Preserved main's historical title and
+HTTP-410 observation date, the proposal's current-FAQ guidance, and the explicit
+warning that the old report does not prove automatic convergence.
+Range-diff confirmed no changes to the runtime/build/test patches before this
+record update. Post-rebase `go test ./test/scripts` and
+`git diff --check origin/main..HEAD` passed; the branch remains four commits.
 
 ## Changed files and behavior
 

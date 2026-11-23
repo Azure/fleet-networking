@@ -62,7 +62,7 @@ func TestGatewayChartDisabled(t *testing.T) {
 		deployment.Spec.Template.Spec.ServiceAccountName != got.account.Name {
 		t.Fatal("Deployment and ServiceAccount do not share the release namespace/identity")
 	}
-	wantArgs := []string{"--enable-afd=false", "--leader-elect=true", "--leader-election-namespace=" + chartNamespace,
+	wantArgs := []string{"--enable-afd=false", "--enable-origin-tls=false", "--leader-elect=true", "--leader-election-namespace=" + chartNamespace,
 		"--metrics-bind-address=:8082", "--health-probe-bind-address=:8083", "--v=2"}
 	if container.Image != chartImage || !reflect.DeepEqual(container.Args, wantArgs) {
 		t.Fatalf("image/args = %q/%v, want %q/%v", container.Image, container.Args, chartImage, wantArgs)
@@ -194,6 +194,8 @@ func TestGatewayChartRejectsInvalidConfiguration(t *testing.T) {
 		{"missing class name", true, []string{helmSetStringFlag, "gatewayClass.name="}, "gatewayClass.name"},
 		{"missing existing account", false, []string{helmSetFlag, "serviceAccount.create=false"}, "serviceAccount.name"},
 		{"string feature flag", false, []string{helmSetStringFlag, "afd.enabled=false"}, "afd.enabled"},
+		{"origin TLS without provisioning", false, []string{helmSetFlag, "enableOriginTLS=true"}, "enableOriginTLS requires afd.enabled"},
+		{"string origin TLS flag", false, []string{helmSetStringFlag, "enableOriginTLS=false"}, "enableOriginTLS"},
 		{"string leader flag", false, []string{helmSetStringFlag, "leaderElection=false"}, "leaderElection"},
 		{"string class flag", false, []string{helmSetStringFlag, "gatewayClass.create=false"}, "gatewayClass.create"},
 		{"string account flag", false, []string{helmSetStringFlag, "serviceAccount.create=false"}, "serviceAccount.create"},
