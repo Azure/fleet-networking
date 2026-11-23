@@ -1,9 +1,38 @@
 # Proposal: End-to-end TLS with HTTPS private origins for GEP-1748
 
-**Status: proposed, not implemented.** Based on merged commit
+**Status: experimental implementation on this branch; not released or live-certified.** Based on merged commit
 `4f80e9e42de24d3a775d2f877fd27b51185fde7e`. This is an end-to-end TLS extension
 of the [customer how-to](../howtos/gateway-api-afd-configuration.md), not an
-implementation approval or a production-readiness claim.
+production-readiness claim. The contract below remains the engineering acceptance
+baseline; the complete live scenario matrix is not established by offline tests.
+
+### Implementation and rollout
+
+- Both existing managers expose `--enable-origin-tls` (default `false`); both
+  charts expose `enableOriginTLS: false`. Member enablement requires private-origin
+  discovery; hub enablement requires AFD provisioning. TLS-off startup has no
+  experimental BackendTLSPolicy CRD dependency.
+- Install the upgraded internal CRD on the hub **before** enabling members, then
+  install the pinned Gateway API v1.2.1 experimental BackendTLSPolicy CRD in hub
+  and members. Enabled managers check the served version and internal transport
+  schema through uncached API reads before starting.
+- Internal `spec.originTLS` contains the typed non-secret observation and policy
+  identity. A one-minute (jittered) refresh writes a controller-owned internal
+  metadata heartbeat bound to the SHA-256 digest of that exact snapshot.
+  Unchanged snapshots retain their spec timestamp/generation, preserving existing
+  MCS conflict acknowledgement. Intent expires after five minutes; timestamps over
+  one minute in the future or mismatched heartbeat bindings are rejected.
+- Hub agreement/projection and pre-write/post-write authorization use current API
+  inventory. No policy/export alone creates ingress. The generated policy belongs
+  to the ServiceImport UID and is shared across real authorized Gateway ancestors.
+- Withdraw HTTPS routes/Gateways and observe provider cleanup before disabling
+  or downgrading the hub. Disabling members clears the envelope on reconciliation;
+  unreachable members expire rather than retaining authority indefinitely.
+- The separately gated installed-controller fixture is
+  `ENABLE_AFD_PRIVATE_HTTPS_PROOF=true`, label `afd-private-https-proof`. It reads
+  approved certificate/key **file paths** from environment variables, never AKV
+  credentials in controllers. See the [fixture runbook](../../test/https-origins-certificates.md).
+  It has not been run against live Azure for this change.
 
 **Audience:** Engineering and design reviewers. Customer prerequisites, manifests,
 ownership checklist and diagnostic steps belong in the
@@ -311,9 +340,9 @@ observation identifier, not a cross-cluster ordering or authorization token.
 Do not copy arbitrary policy annotations. Retain the authenticated
 member/reserved-namespace association and current export identity;
 never accept another member's source claim or raw policy YAML as authorization.
-No Secret, key, certificate chain or custom CA is transported. Concrete internal
-field names/schema, generated CRDs and compatibility tests belong to the future
-implementation, not a public ServiceExport/ServiceImport API extension.
+No Secret, key, certificate chain or custom CA is transported. The branch uses
+internal `spec.originTLS` and the digest-bound metadata heartbeat described above,
+not a public ServiceExport/ServiceImport API extension.
 
 Inventory the complete authoritative source set of a referenced logical HTTPS
 backend, then resolve each member's local TLS eligibility independently. Missing,
@@ -343,8 +372,8 @@ that change rather than relying on generation-only predicates or cache keys.
 Removing/changing the opt-in must invalidate the previous TLS authorization,
 not select another policy as an implicit fallback.
 Transport interruptions/partitions must be distinguishable from a current
-successful observation: define an explicit freshness/liveness bound before
-implementation and make the affected member ineligible on expiry. Apply the
+successful observation: the implemented five-minute expiry makes the affected
+member ineligible without a fresh bound observation. Apply the
 isolation/withdrawal rules below; do not claim instantaneous remote
 revocation across a disconnected member.
 
@@ -848,9 +877,9 @@ match whichever Azure projections happen to be populated.
 
 Member Service-targeted BackendTLSPolicy is now selected, with the additional
 member CRD/watch, internal transport, source freshness and generated-policy
-ownership work explicitly required above. The exact freshness/liveness bound
-and safe disabled/upgrade behavior remain implementation-review decisions;
-the proposal does not claim synchronous revocation across partitions.
+ownership work explicitly required above. The branch's one-minute refresh,
+five-minute expiry and internal-CRD-first/safe-withdrawal rollout are described
+above; they do not provide synchronous revocation across partitions.
 
 Per-member identities, multiple TLS ports, other policy fields and private-CA
 backends require a separate reviewed design. If public-trust origin certificates

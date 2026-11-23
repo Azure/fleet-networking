@@ -59,7 +59,7 @@ func graphMismatch(format string, args ...interface{}) error {
 // Sequential ARM reads do not exclude concurrent writers; the owned profile must
 // be exclusively controller-managed.
 func (p *RouteProvisioner) ReconcileHTTPPreview(ctx context.Context, owner GatewayOwner,
-	model gatewaymodel.GlobalGateway) (HTTPPreviewProvisioningResult, error) {
+	model gatewaymodel.GlobalGateway) (result HTTPPreviewProvisioningResult, reconcileErr error) {
 	if err := ctx.Err(); err != nil {
 		return HTTPPreviewProvisioningResult{}, err
 	}
@@ -72,6 +72,7 @@ func (p *RouteProvisioner) ReconcileHTTPPreview(ctx context.Context, owner Gatew
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	defer p.suspendUnverifiedTLS(ctx, owner, model.Listeners[0].Protocol == gatewaymodel.ProtocolHTTPS, &result, &reconcileErr)
 	_, endpoint, found, err := p.backends.observeRoots(ctx, owner, graph.Roots)
 	if err != nil {
 		return HTTPPreviewProvisioningResult{}, err
@@ -156,6 +157,16 @@ func (p *RouteProvisioner) ReconcileHTTPPreview(ctx context.Context, owner Gatew
 	}
 	return HTTPPreviewProvisioningResult{State: HTTPPreviewProgrammed,
 		EndpointHostName: *endpoint.Properties.HostName}, nil
+}
+
+func (p *RouteProvisioner) suspendUnverifiedTLS(ctx context.Context, owner GatewayOwner, secure bool,
+	result *HTTPPreviewProvisioningResult, reconcileErr *error) {
+	if !secure || *reconcileErr == nil {
+		return
+	}
+	suspension, err := p.SuspendEndpoint(ctx, owner)
+	*result = HTTPPreviewProvisioningResult{State: HTTPPreviewSuspending, Suspension: suspension, Diagnostic: "TLS isolation/configuration could not be verified"}
+	*reconcileErr = errors.Join(*reconcileErr, err)
 }
 
 func httpInventoryProgress(ctx context.Context, err error) (HTTPPreviewProvisioningResult, error) {
@@ -277,6 +288,12 @@ func (p *RouteProvisioner) enableHTTPRoute(ctx context.Context, graph HTTPPrevie
 func (p *RouteProvisioner) reconcileOriginTopology(ctx context.Context, owner GatewayOwner,
 	model gatewaymodel.GlobalGateway, graph HTTPPreviewRequests, state armcdn.EnabledState,
 	change *originTopologyChange) (HTTPPreviewProvisioningResult, error) {
+	if model.Listeners[0].Protocol == gatewaymodel.ProtocolHTTPS && len(change.stale) != 0 {
+		if err := p.pruneStaleOriginUnderState(ctx, owner, graph, change.stale, state); err != nil {
+			return HTTPPreviewProvisioningResult{}, err
+		}
+		return HTTPPreviewProvisioningResult{State: HTTPPreviewPending, Diagnostic: "TLS member isolation pending observed origin absence; " + change.Error()}, ctx.Err()
+	}
 	if len(change.missing) != 0 {
 		_, endpoint, found, err := p.backends.observeRoots(ctx, owner, graph.Roots)
 		if err != nil {

@@ -539,11 +539,31 @@ instructions for DNS ownership and custom-domain validation.
 ## Proposed HTTPS origins
 
 > [!IMPORTANT]
-> **Design proposal only; do not apply these manifests to the current HTTP-only
-> controller.** The [HTTPS-origin proposal](../design/gep-1748-https-origins-proposal.md)
-> recommends this future end-to-end TLS UX, including HTTPS at the AFD edge.
+> **Experimental branch capability, default off; not released or live-certified.**
+> The [HTTPS-origin design](../design/gep-1748-https-origins-proposal.md)
+> defines this end-to-end TLS UX, including HTTPS at the AFD edge. Do not apply
+> these manifests to older HTTP-only controllers or infer production readiness
+> from offline tests.
 > The initial client-facing name is AFD's generated hostname; custom client
 > domains and their DNS/certificate lifecycle remain deferred.
+
+The platform must first upgrade the hub's InternalServiceExport CRD, install the
+pinned Gateway API v1.2.1 experimental BackendTLSPolicy CRD in hub and members, and
+set `enableOriginTLS=true` in both existing manager charts. The member also needs
+`enablePrivateLinkOriginDiscovery=true`; the hub needs `afd.enabled=true`.
+The equivalent manager flag is `--enable-origin-tls=true`. Startup checks reject
+missing prerequisites; TLS-off HTTP deployments do not need the experimental CRD.
+See the [member chart](../../charts/member-net-controller-manager/README.md#opt-in-https-origin-metadata)
+and [hub chart](../../charts/hub-gateway-controller-manager/README.md#opt-in-https-installation-and-upgrade)
+for installation, upgrade and disable ordering.
+
+Member TLS intent is refreshed about every minute and expires after five minutes
+without a matching observation. Metadata-only policy opt-out is watched without
+requiring a policy generation change. Revocation is not instantaneous: member/hub
+reconciliation and AFD propagation/in-flight requests still apply. The hub reports
+excluded members/reasons and reduced capacity in existing Gateway status; it
+publishes an address only after full owned-origin inventory excludes those members.
+Before disabling or downgrading the hub, withdraw HTTPS routing and observe cleanup.
 
 **Customers touch member clusters only.** Application teams configure member
 workloads, TLS Secrets, Services, ServiceExports and Service-targeted
@@ -734,7 +754,7 @@ and log retention before production use.
 The proposed Service and existing ServiceExport retain the private topology:
 
 ```yaml
-# Proposed TLS configuration; not supported by the current HTTP-only controller.
+# Requires the experimental TLS capability in both member and hub managers.
 apiVersion: v1
 kind: Service
 metadata:
@@ -775,7 +795,7 @@ active. Port 8443 is an example, not a required TLS port.
 
 **Target:** Every participating member, in the Service namespace
 
-After the platform installs/enables the future member/hub capability and pinned
+After the platform installs/enables the experimental member/hub capability and pinned
 experimental BackendTLSPolicy CRDs, create this policy in each member:
 
 ```yaml
@@ -912,8 +932,8 @@ the origin TLS port independently of edge port 443. The proposed domain-prefixed
 `tls.options` entry selects Azure's certificate for the generated AFD hostname,
 not a member certificate or a hub Secret. This is a Fleet-specific Gateway API
 extension; no MCS field changes. It satisfies the pinned Gateway TLS schema's
-nonempty-options alternative to certificate references, subject to future
-admission and controller tests. No `certificateRefs`, explicit listener/route
+nonempty-options alternative to certificate references; branch envtest checks
+admission and controller reconciliation. No `certificateRefs`, explicit listener/route
 hostnames, extra listener, custom domain or passthrough is supported here.
 
 The operator/controller must configure accepted edge protocols as HTTPS only,
@@ -930,8 +950,9 @@ Probe Host/SNI behavior must be verified before release.
 **Actors:** Customer application/certificate owner in members; platform operator
 in the hub; PLS owner in Azure
 
-This sequence is a reviewable future workflow, **not runnable HTTPS support in
-the current release**. Customers use only `${MEMBER_CONTEXT}`. Only the operator
+This sequence requires the **experimental TLS-enabled branch images, not the
+current released HTTP-only images**. It has not been live-certified. Customers
+use only `${MEMBER_CONTEXT}`. Only the operator
 uses `${HUB_CONTEXT}` in steps explicitly assigned below. The example namespace
 is `store`. Do not reuse these names over an existing deployment without a
 migration plan.
@@ -946,10 +967,12 @@ identifier and illustrative image as appropriate:
 | `origin-tls-policy.yaml` | BackendTLSPolicy targeting Service | Customer, each member |
 | `private-origin-tls-gateway.yaml` | Gateway and HTTPRoute | Platform operator, hub only |
 
-1. The platform operator installs the future TLS-capable member/hub releases,
+1. The platform operator installs the TLS-capable candidate member/hub images,
    updated internal transport CRD in the hub first, pinned policy CRDs in the
    hub and members, and scoped RBAC, then explicitly enables the capability. No
-   supported TLS flag/install command exists yet. Confirm managed hub membership,
+   automatic production enablement is implied. Set both charts'
+   `enableOriginTLS=true` (manager flag `--enable-origin-tls=true`).
+   Confirm managed hub membership,
    GatewayClass acceptance and member private discovery using the prerequisites
    above. The operator verifies the policy CRD in the hub and every member:
 
@@ -1277,7 +1300,7 @@ not worked around by weakening TLS or opening a public origin.
 |---|---|---|
 | Managed hub and membership | Fleet platform operator | Fleet has a managed hub; each intended exporting cluster is a healthy member of that Fleet. Hubless Fleet is not supported. Record explicit hub/member contexts and application namespace. |
 | Controller and schema compatibility | Fleet platform operator | Select verified TLS-capable member/hub images. Install updated internal transport CRDs in the hub first and pinned experimental BackendTLSPolicy CRDs in participating members and hub before enabling TLS. A merge is not a release. Missing/old-member TLS envelopes are unknown, not authority to assume a hostname. |
-| Explicit enablement and ownership | Fleet platform operator | Enable existing AFD provisioning and the future TLS capability deliberately. Validate the managed GatewayClass. Use the existing manager/leader election, not competing installations or manual Azure writers for its profile. |
+| Explicit enablement and ownership | Fleet platform operator | Enable existing AFD provisioning and the experimental TLS capability deliberately. Validate the managed GatewayClass. Use the existing manager/leader election, not competing installations or manual Azure writers for its profile. |
 | Kubernetes authorization | Platform and ingress owners | Customers manage member workloads/Secrets/Service/ServiceExport and local Service-targeted TLS policies only. Member controllers read local policies and write only their reserved hub internal exports. Hub controllers own generated-policy lifecycle/status; operators authorize Gateway/HTTPRoute and hand off endpoint/evidence. No customer hub credentials, generated-policy writes, Secret-reading controller permission or shared namespace access for members. |
 | Hub Azure identity | Azure resource owner | Configure and test the approved identity/cloud-config, subscription and controller AFD resource group. Grant required scoped AFD lifecycle/inventory access plus `Microsoft.Network/privateLinkServices/read` on every actual PLS. Kubernetes RBAC and credential construction alone prove neither Azure authentication nor authorization. |
 | Member discovery identity | Azure resource owner | Enable private-origin discovery independently of ATM. Grant member controller `Microsoft.Network/loadBalancers/read` and `Microsoft.Network/privateLinkServices/read` at the resource groups actually containing those resources. Confirm resource-group overrides if used. |

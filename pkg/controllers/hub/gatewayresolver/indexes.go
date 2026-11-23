@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -115,6 +116,9 @@ func DependentRoutes(ctx context.Context, reader client.Reader, object client.Ob
 		options = append(options, client.MatchingFields{HTTPRouteServiceImportField: dependency.Spec.ServiceReference.NamespacedName})
 	case *gatewayv1beta1.ReferenceGrant:
 		options = append(options, client.MatchingFields{HTTPRouteBackendNamespaceField: dependency.Namespace})
+	case *gatewayv1alpha3.BackendTLSPolicy:
+		// Include old targets on retargeting/metadata updates: namespace-scoped.
+		options = append(options, client.InNamespace(dependency.Namespace))
 	case *corev1.Namespace:
 		options = append(options, client.InNamespace(dependency.Name))
 	default:

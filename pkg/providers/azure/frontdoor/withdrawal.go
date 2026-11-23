@@ -170,6 +170,10 @@ func (p *RouteProvisioner) observeWithdrawalInventory(ctx context.Context, graph
 			group = OriginGroupRequest{Name: *actual.Name, Parameters: armcdn.AFDOriginGroup{
 				Properties: privateHTTPGroupProperties(gatewaymodel.HTTPPreviewHealthProbe()),
 			}}
+			if actual.Properties != nil && actual.Properties.HealthProbeSettings != nil &&
+				ptr.Deref(actual.Properties.HealthProbeSettings.ProbeProtocol, "") == armcdn.ProbeProtocolHTTPS {
+				group.Parameters.Properties = privateHTTPGroupProperties(gatewaymodel.HTTPSHealthProbe())
+			}
 			if err := verifyGroupIdentity(roots, group.Name, *actual); err != nil {
 				return nil, group, nil, err
 			}
@@ -220,6 +224,10 @@ func verifyWithdrawalRoute(graph HTTPPreviewRequests, route armcdn.Route) error 
 		SupportedProtocols: []*armcdn.AFDEndpointProtocols{ptr.To(armcdn.AFDEndpointProtocolsHTTP)},
 		ForwardingProtocol: ptr.To(armcdn.ForwardingProtocolHTTPOnly),
 		HTTPSRedirect:      ptr.To(armcdn.HTTPSRedirectDisabled), LinkToDefaultDomain: ptr.To(armcdn.LinkToDefaultDomainEnabled),
+	}
+	if ptr.Deref(route.Properties.ForwardingProtocol, "") == armcdn.ForwardingProtocolHTTPSOnly {
+		expected.SupportedProtocols = []*armcdn.AFDEndpointProtocols{ptr.To(armcdn.AFDEndpointProtocolsHTTPS)}
+		expected.ForwardingProtocol = ptr.To(armcdn.ForwardingProtocolHTTPSOnly)
 	}
 	state := ptr.Deref(route.Properties.EnabledState, "")
 	if !matchesHTTPPreviewRoute(expected, route.Properties) ||

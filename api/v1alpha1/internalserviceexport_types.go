@@ -39,6 +39,34 @@ type InternalServiceExportSpec struct {
 	// Absence means unknown, including exports from older members.
 	// +optional
 	PrivateLinkOrigin *PrivateLinkOrigin `json:"privateLinkOrigin,omitempty"`
+	// OriginTLS carries only non-secret, member-observed TLS authorization.
+	// Absence is unknown, never permission to infer a TLS identity.
+	// +optional
+	OriginTLS *OriginTLS `json:"originTLS,omitempty"`
+}
+
+// OriginTLS is internal transport, not a public MCS API or certificate store.
+type OriginTLS struct {
+	Ready      bool        `json:"ready"`
+	Reason     string      `json:"reason"`
+	ObservedAt metav1.Time `json:"observedAt"`
+	ServiceUID string      `json:"serviceUID"`
+	// +optional
+	Hostname string `json:"hostname,omitempty"`
+	// +optional
+	Trust string `json:"trust,omitempty"`
+	// +optional
+	Policy *OriginTLSPolicyReference `json:"policy,omitempty"`
+}
+
+// OriginTLSPolicyReference binds authorization to one observed member policy.
+type OriginTLSPolicyReference struct {
+	Namespace       string `json:"namespace"`
+	Name            string `json:"name"`
+	UID             string `json:"uid"`
+	Generation      int64  `json:"generation"`
+	ResourceVersion string `json:"resourceVersion"`
+	ExportToFleet   string `json:"exportToFleet"`
 }
 
 // PrivateLinkOrigin describes the private endpoint behind an exported member Service.

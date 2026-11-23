@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -43,6 +44,7 @@ type Reconciler struct {
 	GraphStager     DisabledGraphStager
 	HTTPProvisioner HTTPPreviewProvisioner
 	Recorder        events.EventRecorder
+	EnableOriginTLS bool
 }
 
 // DisabledGraphStager stages/prunes disabled resources or suspends an owned endpoint.
@@ -75,6 +77,8 @@ type ProfileCleaner interface {
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=backendtlspolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=backendtlspolicies/status,verbs=get;update;patch
 
 // Reconcile refreshes generation-aware Gateway and listener status.
 func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (result ctrl.Result, reconcileErr error) {
@@ -93,7 +97,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 	logger.V(2).Info("Reconciling Gateway", "deleting", current.DeletionTimestamp != nil)
 	if current.DeletionTimestamp != nil {
 		// Ownership cleanup must not depend on a still-valid class or resolvable backends.
-		return r.finalize(ctx, &current)
+		var projectionErr error
+		if r.EnableOriginTLS {
+			projectionErr = r.reconcileTLSProjections(ctx)
+		}
+		result, err := r.finalize(ctx, &current)
+		return result, errors.Join(err, projectionErr)
+	}
+	var projectionErr error
+	if r.EnableOriginTLS {
+		projectionErr = r.reconcileTLSProjections(ctx)
 	}
 	observation, observationErr := r.observeOrigins(ctx, &current)
 	logGatewayObservation(ctx, observation, observationErr)
@@ -164,29 +177,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (resul
 	if err == nil && observedHTTPGateway != nil {
 		r.recordHTTPPreviewEvent(observedHTTPGateway, staging.http)
 	}
-	if err := errors.Join(err, observationErr, stagingErr, evaluationErr); err != nil {
+	if err := errors.Join(err, observationErr, stagingErr, evaluationErr, projectionErr); err != nil {
 		return ctrl.Result{}, err
 	}
 	return progressRequeue(observation != nil || staging != nil), nil
 }
 
 func (r *Reconciler) resolve(ctx context.Context, gateway *gatewayv1.Gateway, class *gatewayv1.GatewayClass) (*gatewaymodel.GlobalGateway, error) {
-	return resolveGateway(ctx, r.Client, gateway, class, true)
+	reader := client.Reader(r.Client)
+	if r.EnableOriginTLS {
+		reader = r.APIReader
+	}
+	return resolveGateway(ctx, reader, gateway, class, !r.EnableOriginTLS, r.EnableOriginTLS)
 }
 
 func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv1.Gateway,
-	class *gatewayv1.GatewayClass, indexed bool) (*gatewaymodel.GlobalGateway, error) {
+	class *gatewayv1.GatewayClass, indexed bool, originTLS ...bool) (*gatewaymodel.GlobalGateway, error) {
+	enabled := len(originTLS) != 0 && originTLS[0]
+	secure := enabled && len(gateway.Spec.Listeners) == 1 && gateway.Spec.Listeners[0].Protocol == gatewayv1.HTTPSProtocolType
 	var candidate *gatewaymodel.GlobalGateway
-	accepted := metav1.Condition{Type: string(gatewayv1.GatewayConditionAccepted), Status: metav1.ConditionTrue,
-		Reason: string(gatewayv1.GatewayReasonAccepted), Message: "Private HTTP Gateway configuration accepted", ObservedGeneration: gateway.Generation}
-	switch {
-	case !gatewayClassAccepted(class):
-		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonInvalidParameters), "GatewayClass is not currently accepted"
-	case len(gateway.Spec.Addresses) != 0:
-		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonUnsupportedAddress), "User-supplied Gateway addresses are unsupported"
-	case gateway.Spec.Infrastructure != nil || gateway.Spec.BackendTLS != nil:
-		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonInvalidParameters), "Infrastructure and backend TLS settings are unsupported"
-	}
+	accepted := gatewayAcceptance(gateway, class)
 	config, configErr := annotations.ParseGatewayConfig(gateway.Annotations)
 	if configErr != nil {
 		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonInvalidParameters), configErr.Error()
@@ -195,7 +205,7 @@ func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv
 	if configErr == nil {
 		model.WAFPolicyID = config.WAFPolicyID
 	}
-	resolveListeners(gateway, &model, &accepted)
+	resolveListeners(gateway, &model, &accepted, enabled)
 	pending := "Awaiting observed AFD private HTTP graph convergence"
 	if accepted.Status == metav1.ConditionTrue {
 		var routes gatewayv1.HTTPRouteList
@@ -218,7 +228,7 @@ func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv
 			if err := reader.Get(ctx, client.ObjectKey{Name: route.Namespace}, &namespace); err != nil {
 				return nil, err
 			}
-			attachments, err := resolveRouteAttachments(gateway, route, namespace.Labels)
+			attachments, err := resolveRouteAttachments(gateway, route, namespace.Labels, enabled)
 			if err != nil {
 				return nil, err
 			}
@@ -229,7 +239,10 @@ func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv
 			if !indexed {
 				resolveRoute = gatewayresolver.ResolveHTTPRouteUnindexed
 			}
-			resolved, err := resolveRoute(ctx, reader, route, attachments)
+			resolved, err := resolveRoute(ctx, reader, route, attachments, secure)
+			if err == nil && secure {
+				err = validateRouteTLSProjections(ctx, reader, resolved)
+			}
 			if err != nil {
 				var resolutionErr *gatewayresolver.ResolutionError
 				if !errors.As(err, &resolutionErr) {
@@ -268,6 +281,31 @@ func resolveGateway(ctx context.Context, reader client.Reader, gateway *gatewayv
 	return candidate, nil
 }
 
+func validateRouteTLSProjections(ctx context.Context, reader client.Reader, route gatewaymodel.Route) error {
+	for _, rule := range route.Rules {
+		for _, backend := range rule.Backends {
+			if err := gatewayresolver.ValidateTLSProjection(ctx, reader, backend); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func gatewayAcceptance(gateway *gatewayv1.Gateway, class *gatewayv1.GatewayClass) metav1.Condition {
+	accepted := metav1.Condition{Type: string(gatewayv1.GatewayConditionAccepted), Status: metav1.ConditionTrue,
+		Reason: string(gatewayv1.GatewayReasonAccepted), Message: "Private Gateway configuration accepted", ObservedGeneration: gateway.Generation}
+	switch {
+	case !gatewayClassAccepted(class):
+		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonInvalidParameters), "GatewayClass is not currently accepted"
+	case len(gateway.Spec.Addresses) != 0:
+		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonUnsupportedAddress), "User-supplied Gateway addresses are unsupported"
+	case gateway.Spec.Infrastructure != nil || gateway.Spec.BackendTLS != nil:
+		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonInvalidParameters), "Infrastructure and backend TLS settings are unsupported"
+	}
+	return accepted
+}
+
 func gatewayClassAccepted(class *gatewayv1.GatewayClass) bool {
 	acceptance := meta.FindStatusCondition(class.Status.Conditions, string(gatewayv1.GatewayClassConditionStatusAccepted))
 	return class.DeletionTimestamp == nil && class.Spec.ParametersRef == nil && acceptance != nil &&
@@ -291,11 +329,11 @@ func referencesGateway(route *gatewayv1.HTTPRoute, gateway client.ObjectKey) boo
 }
 
 func resolveRouteAttachments(gateway *gatewayv1.Gateway, route *gatewayv1.HTTPRoute,
-	namespaceLabels map[string]string) ([]gatewaymodel.RouteAttachment, error) {
+	namespaceLabels map[string]string, originTLS ...bool) ([]gatewaymodel.RouteAttachment, error) {
 	var attachments []gatewaymodel.RouteAttachment
 	seen := make(map[string]bool)
 	for _, parent := range route.Spec.ParentRefs {
-		resolved, err := gatewayresolver.ResolveAttachments(gateway, route, parent, namespaceLabels)
+		resolved, err := gatewayresolver.ResolveAttachments(gateway, route, parent, namespaceLabels, originTLS...)
 		if err != nil {
 			var attachmentErr *gatewayresolver.AttachmentError
 			if !errors.As(err, &attachmentErr) {
@@ -328,13 +366,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.GraphStager != nil {
 		return fmt.Errorf("disabled-only staging and full HTTP provisioning cannot both be configured")
 	}
-	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{}).
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{}).
 		Watches(&gatewayv1.GatewayClass{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForClass)).
 		Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForRoute)).
 		Watches(&fleetnetv1alpha1.ServiceImport{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
 		Watches(&fleetnetv1alpha1.InternalServiceExport{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
 		Watches(&gatewayv1beta1.ReferenceGrant{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).
-		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency)).Complete(r)
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency))
+	if r.EnableOriginTLS {
+		builder = builder.Watches(&gatewayv1alpha3.BackendTLSPolicy{}, handler.EnqueueRequestsFromMapFunc(r.gatewaysForDependency))
+	}
+	return builder.Complete(r)
 }
 
 func (r *Reconciler) gatewaysForClass(ctx context.Context, object client.Object) []reconcile.Request {

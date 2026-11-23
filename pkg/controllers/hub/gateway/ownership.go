@@ -91,7 +91,7 @@ func (r *Reconciler) currentProvisioningIntent(ctx context.Context, expected *ga
 	if err != nil {
 		return nil, err
 	}
-	actual, err := resolveGateway(ctx, r.APIReader, current.DeepCopy(), class, false)
+	actual, err := resolveGateway(ctx, r.APIReader, current.DeepCopy(), class, false, r.EnableOriginTLS)
 	if err != nil {
 		return nil, err
 	}

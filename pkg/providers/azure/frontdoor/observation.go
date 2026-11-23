@@ -168,8 +168,12 @@ func matchesPrivateOrigin(desired Origin, actual *armcdn.AFDOriginProperties) bo
 	if !matchesPrivateLinkTarget(desired.PrivateLink, actual) {
 		return false
 	}
+	portMatches := ptr.Deref(actual.HTTPPort, 0) == desired.HTTPPort
+	if desired.HTTPSPort != 0 {
+		portMatches = ptr.Deref(actual.HTTPSPort, 0) == desired.HTTPSPort
+	}
 	return ptr.Deref(actual.HostName, "") == desired.HostName &&
-		ptr.Deref(actual.HTTPPort, 0) == desired.HTTPPort &&
+		portMatches &&
 		int64(ptr.Deref(actual.Weight, 0)) == desired.Weight &&
 		ptr.Deref(actual.Priority, 0) == desired.Priority &&
 		ptr.Deref(actual.EnabledState, "") == armcdn.EnabledStateEnabled &&

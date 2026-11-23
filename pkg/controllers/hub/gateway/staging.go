@@ -7,6 +7,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
@@ -64,6 +66,13 @@ func (r *Reconciler) stageGraph(ctx context.Context, gateway *gatewayv1.Gateway)
 	}
 	model, err := r.resolve(ctx, gateway.DeepCopy(), &class)
 	if err != nil {
+		if r.EnableOriginTLS && r.HTTPProvisioner != nil {
+			for _, listener := range gateway.Spec.Listeners {
+				if listener.Protocol == gatewayv1.HTTPSProtocolType {
+					return r.suspendUncertainTLS(ctx, gateway, err)
+				}
+			}
+		}
 		return nil, err
 	}
 	if model == nil {
@@ -95,6 +104,27 @@ func (r *Reconciler) stageGraph(ctx context.Context, gateway *gatewayv1.Gateway)
 	staging.result, staging.err = r.GraphStager.StageDisabledGraph(ctx, owner, *model)
 	r.recordGraphOperation(gateway, graphStageDisabled, time.Since(start), staging.err)
 	return staging, staging.err
+}
+
+// Loss of TLS inventory must not leave an owned endpoint serving indefinitely.
+// Current UID/generation, class controller, hub identity and finalizer still gate
+// suspension; uncertainty never authorizes provisioning or adopting resources.
+func (r *Reconciler) suspendUncertainTLS(ctx context.Context, expected *gatewayv1.Gateway, cause error) (*gatewayStaging, error) {
+	hubUID, err := r.provisioningHubUID(ctx)
+	if err != nil {
+		return nil, errors.Join(cause, err)
+	}
+	current, _, err := r.currentGatewayIdentity(ctx, expected, hubUID)
+	if err != nil {
+		return nil, errors.Join(cause, err)
+	}
+	if !controllerutil.ContainsFinalizer(current, objectmeta.GatewayAFDCleanupFinalizer) {
+		return nil, cause
+	}
+	owner := frontdoor.GatewayOwner{HubUID: hubUID, Namespace: current.Namespace, Name: current.Name, UID: string(current.UID)}
+	suspension, suspendErr := r.suspendEndpoint(ctx, owner)
+	staging := &gatewayStaging{uid: current.UID, generation: current.Generation, invalid: true, suspension: &suspension, err: suspendErr}
+	return staging, errors.Join(cause, suspendErr)
 }
 
 func applyGraphStaging(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGateway, staging *gatewayStaging) {

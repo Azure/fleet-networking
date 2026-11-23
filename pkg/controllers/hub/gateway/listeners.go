@@ -20,7 +20,7 @@ import (
 // resolveListeners validates listener configuration and conflicts, populates
 // model.Listeners, and initializes gateway.Status.Listeners with pending readiness.
 // Invalid, conflicting or missing listeners also mark the Gateway unaccepted.
-func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGateway, accepted *metav1.Condition) {
+func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGateway, accepted *metav1.Condition, originTLS ...bool) {
 	previous := gateway.Status.Listeners
 	gateway.Status.Listeners = nil
 	for _, listener := range gateway.Spec.Listeners {
@@ -31,7 +31,10 @@ func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGate
 				break
 			}
 		}
-		listenerErr := gatewayresolver.ValidateListener(listener)
+		listenerErr := gatewayresolver.ValidateListener(listener, originTLS...)
+		if listener.Protocol == gatewayv1.HTTPSProtocolType && len(gateway.Spec.Listeners) != 1 {
+			listenerErr = &gatewayresolver.ListenerError{Reason: gatewayv1.ListenerReasonInvalid, Message: "HTTPS requires exactly one listener"}
+		}
 		conflicted := false
 		for _, other := range gateway.Spec.Listeners {
 			if other.Name != listener.Name && other.Protocol == listener.Protocol && other.Port == listener.Port &&
@@ -45,7 +48,7 @@ func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGate
 			Reason: string(gatewayv1.ListenerReasonNoConflicts), Message: "No listener conflicts", ObservedGeneration: gateway.Generation}
 		references := metav1.Condition{Type: string(gatewayv1.ListenerConditionResolvedRefs), Status: metav1.ConditionTrue,
 			Reason: string(gatewayv1.ListenerReasonResolvedRefs), Message: "HTTP listener has no external references", ObservedGeneration: gateway.Generation}
-		if listener.TLS != nil {
+		if listener.TLS != nil && listenerErr != nil {
 			references.Status, references.Reason, references.Message = metav1.ConditionUnknown, string(gatewayv1.ListenerReasonPending), "TLS references are not resolved by the HTTP preview"
 		}
 		if listenerErr != nil {
@@ -74,7 +77,7 @@ func resolveListeners(gateway *gatewayv1.Gateway, model *gatewaymodel.GlobalGate
 			Status: metav1.ConditionFalse, Reason: string(gatewayv1.ListenerReasonPending), Message: "Awaiting observed AFD private HTTP graph convergence", ObservedGeneration: gateway.Generation})
 		gateway.Status.Listeners = append(gateway.Status.Listeners, status)
 		model.Listeners = append(model.Listeners, gatewaymodel.Listener{Name: string(listener.Name), Protocol: string(listener.Protocol),
-			Port: int32(listener.Port), Hostname: string(ptr.Deref(listener.Hostname, ""))})
+			Port: int32(listener.Port), Hostname: string(ptr.Deref(listener.Hostname, "")), DefaultCertificate: listenerErr == nil && listener.Protocol == gatewayv1.HTTPSProtocolType})
 	}
 	if len(gateway.Spec.Listeners) == 0 {
 		accepted.Status, accepted.Reason, accepted.Message = metav1.ConditionFalse, string(gatewayv1.GatewayReasonListenersNotValid), "At least one HTTP listener is required"
