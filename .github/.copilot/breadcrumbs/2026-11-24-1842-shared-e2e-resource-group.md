@@ -45,11 +45,13 @@ Shared AFD requires the test principal object ID, grants it Network Contributor 
 
 The user requested a generic local E2E guide and chose to retain both existing resource-group tag checks. The guide now uses a caller-selected group name and explains the required tag values; setup and cleanup behavior is unchanged.
 
+The user subsequently requested removal of `shared_group_test.go` and `azure_principal_id_test.go`. Dedicated mocked cleanup and principal-token regression coverage is no longer retained.
+
 Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` setup, topology, configuration, AFD and cleanup scripts and tests, plus E2E framework workload naming and Traffic Manager public-IP tagging.
 
 ## Validation and risks
 
-- `GOTOOLCHAIN=go1.26.10 go test -count=1 ./test/scripts ./test/e2e/framework` passed, including mocked concurrent-run, collision, profile, peering, role, cleanup, token parsing and performance topology cases.
+- `GOTOOLCHAIN=go1.26.10 go test -count=1 ./test/scripts` passed after the requested test removal. Earlier runs also covered the now-removed mocked cleanup, token parsing and performance topology cases.
 - `GOTOOLCHAIN=go1.26.10 go vet ./test/scripts ./test/e2e/framework` passed.
 - `GOTOOLCHAIN=go1.26.10 go test -tags=e2e -run '^$' ./test/e2e` and `go vet -tags=e2e ./test/e2e` passed without executing live E2E.
 - Performance packages compiled and passed `go vet` without running their suites. Installed Azure CLI option checks, Bash syntax, both workflow YAML parsing and `git diff --check` passed.
