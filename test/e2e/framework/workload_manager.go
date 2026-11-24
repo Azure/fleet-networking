@@ -430,6 +430,9 @@ func defaultBackOff() wait.Backoff {
 // TODO(mainred): Before the app image is publicly available, we use the one built from e2e bootstrap.
 // The app image construction must be aligned with the steps in test/scripts/bootstrap.sh.
 func appImage() string {
+	if registry := os.Getenv("REGISTRY"); registry != "" {
+		return fmt.Sprintf("%s/app", registry)
+	}
 	resourceGroupName := os.Getenv("AZURE_RESOURCE_GROUP")
 	registryName := strings.ReplaceAll(resourceGroupName, "-", "")
 	return fmt.Sprintf("%s.azurecr.io/app", registryName)
@@ -437,5 +440,8 @@ func appImage() string {
 
 // UniqueTestNamespace gives a unique namespace name.
 func UniqueTestNamespace() string {
+	if prefix := os.Getenv("E2E_RESOURCE_PREFIX"); os.Getenv("E2E_SHARED_RESOURCE_GROUP") == "true" && prefix != "" {
+		return fmt.Sprintf("%s-%s", prefix, uniquename.RandomLowerCaseAlphabeticString(5))
+	}
 	return fmt.Sprintf("%s-%s", TestNamespacePrefix, uniquename.RandomLowerCaseAlphabeticString(5))
 }

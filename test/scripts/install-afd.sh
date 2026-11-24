@@ -19,19 +19,20 @@ cloud_config() {
     }'
 }
 
-hub="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name hub)"
+hub="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name "$HUB_AZURE_CLUSTER")"
 hub_principal="$(jq -er '.identityProfile.kubeletidentity.objectId' <<<"$hub")"
 base="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups"
 declare -A clusters node_groups
 # Validate both AKS-managed node groups before any role assignments.
 for member in member-1 member-2; do
-  cluster="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name "$member")"
+  if [[ "$member" == member-1 ]]; then azure_cluster="$MEMBER_1_AZURE_CLUSTER"; else azure_cluster="$MEMBER_2_AZURE_CLUSTER"; fi
+  cluster="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name "$azure_cluster")"
   cluster_id="$(jq -er '.id' <<<"$cluster")"
   node_group="$(jq -er '.nodeResourceGroup' <<<"$cluster")"
   group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$node_group")"
   group_id="$(jq -er '.id' <<<"$group")"
   managed_by="$(jq -er '.managedBy' <<<"$group")"
-  expected_cluster="$base/$AZURE_RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/$member"
+  expected_cluster="$base/$AZURE_RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/$azure_cluster"
   expected_group="$base/$node_group"
   if [[ "${cluster_id,,}" != "${expected_cluster,,}" || "${managed_by,,}" != "${cluster_id,,}" ||
         "${group_id,,}" != "${expected_group,,}" ]]; then
@@ -66,6 +67,11 @@ for member in member-1 member-2; do
   az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role Reader \
     --assignee-object-id "$principal" --assignee-principal-type ServicePrincipal \
     --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$node_group" >/dev/null
+  if [[ "$E2E_SHARED_RESOURCE_GROUP" == true && "$ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL" == true ]]; then
+    az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role "Network Contributor" \
+      --assignee-object-id "$E2E_TEST_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+      --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$node_group" >/dev/null
+  fi
   config="$(cloud_config "$client" "$node_group" "$location")"
   helm upgrade member-net-controller-manager ./charts/member-net-controller-manager \
     --kube-context "$member-admin" --namespace default --reuse-values \

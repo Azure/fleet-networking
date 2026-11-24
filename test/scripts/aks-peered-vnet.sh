@@ -3,6 +3,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -x
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 
 
 # peered-vnet creates two member clusters with network peered by virtual network peering. The vnet and member clusters
@@ -20,9 +21,9 @@ set -x
 # Create virutal network and subnet for both member clusters.
 export MEMBER_1_TO_MEMBER_2=member-1-to-member-2
 export MEMBER_2_TO_MEMBER_1=member-2-to-member-1
-export MEMBER_1_VNET=member-1-vnet
+export MEMBER_1_VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}member-1-vnet"
 export MEMBER_1_SUBNET=member-1-subnet
-export MEMBER_2_VNET=member-2-vnet
+export MEMBER_2_VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}member-2-vnet"
 export MEMBER_2_SUBNET=member-2-subnet
 
 az network vnet create \
@@ -31,7 +32,7 @@ az network vnet create \
     --name $MEMBER_1_VNET \
     --resource-group $RESOURCE_GROUP \
     --subnet-name $MEMBER_1_SUBNET \
-    --subnet-prefixes 10.1.0.0/24
+    --subnet-prefixes 10.1.0.0/24 "${E2E_RESOURCE_TAGS[@]}"
 
 az network vnet create \
     --location $MEMBER_2_LOCATION \
@@ -39,7 +40,7 @@ az network vnet create \
     --name $MEMBER_2_VNET \
     --resource-group $RESOURCE_GROUP \
     --subnet-name $MEMBER_2_SUBNET \
-    --subnet-prefixes 10.2.0.0/24
+    --subnet-prefixes 10.2.0.0/24 "${E2E_RESOURCE_TAGS[@]}"
 
 # Get the id for MEMBER_1_VNET.
 MEMBER_1_VNET_ID=$(az network vnet show \
@@ -72,7 +73,7 @@ az network vnet peering create \
 az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_1 \
+    --name $MEMBER_1_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -80,13 +81,13 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$MEMBER_1_VNET/subnets/$MEMBER_1_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 
 # Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_2 \
+    --name $MEMBER_2_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -94,4 +95,4 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$MEMBER_2_VNET/subnets/$MEMBER_2_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"

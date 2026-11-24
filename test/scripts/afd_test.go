@@ -326,7 +326,7 @@ case "$kind" in
     printf '{"id":"%s","provisioningState":"Succeeded"}\n' "$id" ;;
   "role assignment create"|"role assignment list")
     if [[ "$verb" == list && "${AFD_TEST_EMPTY_BINDINGS:-}" == true ]]; then printf '[]\n'; exit 0; fi
-    printf '[{"principalId":"hub-principal","scope":"%s","roleDefinitionId":"/roles/acdd72a7-3385-48ef-bd42-f606fba81ae7"}]\n' "$scope" ;;
+    printf '[{"principalId":"%s-principal","scope":"%s","roleDefinitionId":"/roles/acdd72a7-3385-48ef-bd42-f606fba81ae7"}]\n' "${HUB_AZURE_CLUSTER:-hub}" "$scope" ;;
   *) echo "unexpected Azure operation: $kind" >&2; exit 1 ;;
 esac
 `
@@ -373,6 +373,8 @@ func afdTestEnvironment(t *testing.T) {
 		"ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL",
 		"RETAIN_AFD_E2E_SETUP",
 		"HUB_CLUSTER", "MEMBER_CLUSTER_1", "MEMBER_CLUSTER_2",
+		"E2E_SHARED_RESOURCE_GROUP", "E2E_RUN_ID", "E2E_RESOURCE_PREFIX", "E2E_TEST_PRINCIPAL_ID",
+		"HUB_AZURE_CLUSTER", "MEMBER_1_AZURE_CLUSTER", "MEMBER_2_AZURE_CLUSTER", "REGISTRY_NAME",
 		"HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME", "HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION",
 		"AFD_PROOF_CONTROLLER_NAMESPACE", "AFD_PROOF_CONTROLLER_DEPLOYMENT",
 		"AFD_TEST_FAIL_COMMAND", "AFD_TEST_EMPTY_BINDINGS", "AFD_TEST_REAL_HELM",

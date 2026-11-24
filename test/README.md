@@ -13,7 +13,8 @@ networking components, and runs the Ginkgo tests under `test/e2e`.
 - [`jq`](https://jqlang.github.io/jq/download/)
 - [`yq`](https://github.com/mikefarah/yq#install)
 - Bash and GNU Make
-- An Azure subscription in which the signed-in identity has the Owner role
+- An Azure subscription in which the signed-in identity can provision the test resources and
+  create the required role assignments
 
 Sign in and select the subscription before starting:
 
@@ -25,6 +26,49 @@ az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
 
 The setup builds and pushes test images, creates an Azure Container Registry and AKS clusters, and
 assigns Azure roles. Use a test subscription rather than a production subscription.
+
+### Opt-in shared resource group
+
+The Azure DevOps E2E pipeline can use the pre-created `fleet-networking-e2e` resource group by
+setting the `sharedResourceGroup` pipeline parameter to `true`. The default remains a disposable
+resource group per job. Before opting in, an administrator must deploy the scoped permissions
+and authorize the intended service connection; choose it with the `serviceConnection` parameter.
+For automated AFD Private Link approval, `testPrincipalId` must be that connection's service
+principal **object ID**.
+
+For a local run, set the following in addition to the scenario variables:
+
+```bash
+export AZURE_RESOURCE_GROUP=fleet-networking-e2e
+export E2E_SHARED_RESOURCE_GROUP=true
+export E2E_RUN_ID=<unique-lowercase-run-id>
+export KUBECONFIG=<new-run-specific-kubeconfig-path>
+# Required only when AFD automatic approval is enabled:
+export E2E_TEST_PRINCIPAL_ID=<service-principal-object-id>
+```
+
+Use a unique `E2E_RUN_ID` for every concurrent run and retry; never reuse an ID while a prior run
+or its cleanup is active. The pipeline derives it from the build ID, scenario and job attempt.
+Setup checks the shared group's expected management tags and refuses existing run resources.
+Physical Azure cluster names, VNets, identities and the registry are run-specific, while the
+isolated kubeconfig retains the `hub-admin` and `member-*-admin` context names.
+Shared-group mode does not support the separate `perf-test` topology. AFD shared mode requires
+the default Gateway controller namespace and deployment name.
+
+`make e2e-cleanup` in shared mode **never deletes the resource group**. It verifies run tags,
+resource IDs, controller profile ownership and AKS-managed node groups before removing the
+run's resources and relevant role assignments. If ownership cannot be established, the hub is
+unavailable when controller cleanup is needed, or Azure cleanup fails, the command stops with an
+error and resources may remain. Keep the run ID and inspect leftovers before retrying; do not
+delete the shared group. For AFD auto-approval, supply the same `E2E_TEST_PRINCIPAL_ID` during
+cleanup. There is no automatic stale-run sweeper.
+
+Run-specific names and cleanup checks prevent accidental cross-run deletion; they are not an Azure
+security boundary. An identity with Contributor on the shared group can modify other runs' resources
+and delete the group. Node groups still need their own permissions outside the shared group.
+
+These shared-group permissions and cleanup paths require a separately approved live Azure run
+before production use. Offline tests do not establish Azure provisioning or deletion behavior.
 
 ## Choose an E2E scenario
 

@@ -619,6 +619,9 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 		It("Creating extra Azure traffic manager endpoint directly and then updating trafficManagerBackend", func() {
 			By("Creating a public IP address")
 			publicIPAddressName := fmt.Sprintf("e2e-test-public-ip-%s", uniquename.RandomLowerCaseAlphabeticString(5))
+			if os.Getenv("E2E_SHARED_RESOURCE_GROUP") == "true" {
+				publicIPAddressName = fmt.Sprintf("%s-ip-%s", os.Getenv("E2E_RESOURCE_PREFIX"), uniquename.RandomLowerCaseAlphabeticString(5))
+			}
 			publicIPReq := armnetwork.PublicIPAddress{
 				Name:     ptr.To(publicIPAddressName),
 				Location: ptr.To(clusterLocation),
@@ -631,6 +634,10 @@ var _ = Describe("Test exporting service via Azure traffic manager", Ordered, fu
 				SKU: &armnetwork.PublicIPAddressSKU{
 					Name: ptr.To(armnetwork.PublicIPAddressSKUNameStandard),
 				},
+			}
+			if runID := os.Getenv("E2E_RUN_ID"); os.Getenv("E2E_SHARED_RESOURCE_GROUP") == "true" {
+				Expect(runID).ShouldNot(BeEmpty())
+				publicIPReq.Tags = map[string]*string{"source": ptr.To("fleet-networking"), "fleet-e2e-run": ptr.To(runID)}
 			}
 			publicIPResp, err := pipClient.CreateOrUpdate(ctx, atmValidator.ResourceGroup, publicIPAddressName, publicIPReq)
 			Expect(err).Should(Succeed(), "Failed to create public IP address")

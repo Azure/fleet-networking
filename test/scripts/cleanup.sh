@@ -18,4 +18,12 @@ esac
 
 [[ -z "${AZURE_RESOURCE_GROUP}" ]] && echo "AZURE_RESOURCE_GROUP is not set" && exit 1
 
+if [[ "${E2E_SHARED_RESOURCE_GROUP:-false}" == true ]]; then
+    exec bash "$(dirname "${BASH_SOURCE[0]}")/cleanup-shared-group.sh"
+fi
+if [[ "${E2E_SHARED_RESOURCE_GROUP:-false}" != false ]]; then
+    echo "error: E2E_SHARED_RESOURCE_GROUP must be true or false" >&2
+    exit 1
+fi
+
 az group show --name "$AZURE_RESOURCE_GROUP" && az group delete --name "$AZURE_RESOURCE_GROUP" --no-wait --yes
