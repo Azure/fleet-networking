@@ -35,7 +35,7 @@ The shared-group-only revision:
 2. [x] Update Azure DevOps and GitHub workflow callers and preserve safe cleanup eligibility.
 3. [x] Keep performance topology working with run-specific resources and ownership-verified cleanup.
 4. [x] Update tests and documentation and validate offline.
-5. [ ] Push the shared-group-only revision.
+5. [x] Push the shared-group-only revision.
 
 The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scripts derive physical Azure names and retain the established logical Kubernetes contexts. Setup requires a new run-specific kubeconfig, verifies the group and rejects name or ownership collisions before enabling cleanup.
 
