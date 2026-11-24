@@ -13,7 +13,7 @@
 2. [x] Add offline tests for concurrent run isolation, configuration and fail-closed cleanup.
 3. [x] Implement opt-in shared-group setup, naming, permissions and safe per-run cleanup; preserve existing behavior.
 4. [x] Update documentation and validate targeted tests and shell checks.
-5. [ ] Push branch and report unverified live behavior and remaining risks.
+5. [x] Push branch and report unverified live behavior and remaining risks.
 
 ## Before
 
