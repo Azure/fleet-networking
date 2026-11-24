@@ -41,7 +41,7 @@ The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scr
 
 Cleanup verifies the group, run tags, resource IDs, AKS node-group ownership, role scopes and peering targets. It verifies Traffic Manager namespace tags and Front Door hub/Gateway identity, stops the run's hub controllers before deleting their profiles, deletes only identified roles and resources, and never deletes the shared group. It fails explicitly when ownership, controller quiescence or deletion cannot be verified.
 
-Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. CI obtains the object ID from its Azure CLI access token without logging or storing the token. The pipeline service connection remains unchanged by default and can be selected explicitly after its grants are deployed.
+Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. The user requested storing the object ID as the `E2E_TEST_PRINCIPAL_ID` Azure DevOps pipeline variable instead of parsing a token; the variable was configured for the current CI identity. It must be updated whenever the selected service connection changes; its identity is not independently verified by the pipeline.
 
 The user requested a generic local E2E guide and chose to retain both existing resource-group tag checks. The guide now uses a caller-selected group name and explains the required tag values; setup and cleanup behavior is unchanged.
 

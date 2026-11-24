@@ -12,7 +12,7 @@ networking components, and runs the Ginkgo tests under `test/e2e`.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [`jq`](https://jqlang.github.io/jq/download/)
 - [`yq`](https://github.com/mikefarah/yq#install)
-- Python 3 and `sha256sum`
+- `sha256sum`
 - Bash and GNU Make
 - An Azure subscription in which the signed-in identity can provision the test resources and
   create the required role assignments

@@ -99,7 +99,7 @@ jobs:
         - bash: |
             set -euo pipefail
             : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID as a non-secret ADO pipeline variable}"
-            for tool in az docker helm kubectl jq yq make timeout sha256sum python3; do
+            for tool in az docker helm kubectl jq yq make timeout sha256sum; do
               command -v "$tool"
             done
             go version
@@ -137,11 +137,7 @@ jobs:
                 echo "error: shared resource group $AZURE_RESOURCE_GROUP does not exist" >&2
                 exit 1
               fi
-              if [[ "$ENABLE_AZURE_FRONT_DOOR" == true && "$ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL" == true ]]; then
-                E2E_TEST_PRINCIPAL_ID="$(bash test/scripts/azure-principal-id.sh)"
-                export E2E_TEST_PRINCIPAL_ID
-                echo "##vso[task.setvariable variable=E2E_TEST_PRINCIPAL_ID]$E2E_TEST_PRINCIPAL_ID"
-              fi
+              # E2E_TEST_PRINCIPAL_ID is a pipeline variable and must match the service connection.
               make e2e-setup
 
         - bash: |
