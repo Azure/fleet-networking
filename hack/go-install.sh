@@ -39,6 +39,16 @@ cd "${tmp_dir}"
 go mod init fake/mod
 
 # install the golang module specified as the first argument
-go install "${1}@${3}"
+for attempt in 1 2 3; do
+  if go install "${1}@${3}"; then
+    break
+  fi
+  if (( attempt == 3 )); then
+    echo "error: go install ${1}@${3} failed after 3 attempts" >&2
+    exit 1
+  fi
+  echo "go install failed; retrying in $((attempt * 10)) seconds..." >&2
+  sleep "$((attempt * 10))"
+done
 mv "${GOBIN}/${2}" "${GOBIN}/${2}-${3}"
 ln -sf "${GOBIN}/${2}-${3}" "${GOBIN}/${2}"
