@@ -105,17 +105,7 @@ jobs:
             helm version --short
             kubectl version --client
             yq --version
-            for attempt in 1 2 3; do
-              if go mod download; then
-                break
-              fi
-              if (( attempt == 3 )); then
-                echo "error: go mod download failed after 3 attempts" >&2
-                exit 1
-              fi
-              echo "go mod download failed; retrying in $((attempt * 10)) seconds..." >&2
-              sleep "$((attempt * 10))"
-            done
+            sh ./hack/retry-go.sh mod download
             df -h /
             mkdir -p "$LOG_DIR"
           displayName: Check E2E prerequisites
