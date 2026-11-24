@@ -10,7 +10,9 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # Cache the downloaded dependency modules across different builds to expedite the progress.
 # This also helps reduce downloading related reliability issues in our build environment.
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,source=hack/retry-go-mod-download.sh,target=/tmp/retry-go-mod-download.sh \
+    sh /tmp/retry-go-mod-download.sh
 
 # Copy the go source
 COPY cmd/hub-net-controller-manager/main.go main.go
