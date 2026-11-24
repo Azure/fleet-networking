@@ -67,7 +67,7 @@ for member in member-1 member-2; do
   az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role Reader \
     --assignee-object-id "$principal" --assignee-principal-type ServicePrincipal \
     --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$node_group" >/dev/null
-  if [[ "$E2E_SHARED_RESOURCE_GROUP" == true && "$ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL" == true ]]; then
+  if [[ "$ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL" == true ]]; then
     az role assignment create --subscription "$AZURE_SUBSCRIPTION_ID" --role "Network Contributor" \
       --assignee-object-id "$E2E_TEST_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
       --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$node_group" >/dev/null

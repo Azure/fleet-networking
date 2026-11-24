@@ -15,7 +15,6 @@ import (
 )
 
 func TestSharedRunWorkloadNames(t *testing.T) {
-	t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 	t.Setenv("E2E_RESOURCE_PREFIX", "fne0123456789abcdef")
 	t.Setenv("REGISTRY", "fne0123456789abcdefacr.azurecr.io")
 	if got := appImage(); got != "fne0123456789abcdefacr.azurecr.io/app" {
@@ -34,13 +33,25 @@ func TestSharedRunWorkloadNames(t *testing.T) {
 		t.Fatalf("shared run DNS label %q is invalid: %v", label, problems)
 	}
 
-	t.Setenv("E2E_SHARED_RESOURCE_GROUP", "false")
-	t.Setenv("REGISTRY", "")
-	t.Setenv("AZURE_RESOURCE_GROUP", "fleet-legacy-123")
-	if got := appImage(); got != "fleetlegacy123.azurecr.io/app" {
-		t.Fatalf("legacy registry naming changed: %s", got)
-	}
-	if got := UniqueTestNamespace(); !strings.HasPrefix(got, "my-ns-") {
-		t.Fatalf("legacy namespace naming changed: %s", got)
+}
+
+func TestMissingSharedRunConfiguration(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		key  string
+		call func()
+	}{
+		{"registry", "REGISTRY", func() { appImage() }},
+		{"run prefix", "E2E_RESOURCE_PREFIX", func() { UniqueTestNamespace() }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(tt.key, "")
+			defer func() {
+				if recover() == nil {
+					t.Fatal("missing run configuration must fail explicitly")
+				}
+			}()
+			tt.call()
+		})
 	}
 }

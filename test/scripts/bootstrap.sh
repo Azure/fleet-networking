@@ -36,62 +36,44 @@ fi
 
 az account set -s ${AZURE_SUBSCRIPTION_ID}
 
-# Create resource group to host hub and member clusters.
-# RANDOM ID promises workflow runs don't interface one another.
-export RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-fleet-networking-e2e-$RANDOM}"
+export RESOURCE_GROUP="$AZURE_RESOURCE_GROUP"
 export LOCATION="${LOCATION:-eastus2}"
-if [[ "$E2E_SHARED_RESOURCE_GROUP" == true ]]; then
-    if [[ -z "${KUBECONFIG:-}" || "$KUBECONFIG" == *:* || -e "$KUBECONFIG" || -L "$KUBECONFIG" ]]; then
-      echo "error: shared setup requires a new, run-specific KUBECONFIG path" >&2
-      exit 1
-    fi
-    group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$RESOURCE_GROUP" -o json)"
-    jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
-      '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.managedBy == "aks-rp/ci-resources" and .tags.workload == "fleet-networking-e2e"' \
-      <<<"$group" > /dev/null
-    resources="$(az resource list --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$RESOURCE_GROUP" -o json)"
-    if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" '
-      all(.[];
-        ((.name | ascii_downcase | startswith($prefix)) | not) and
-        .tags["fleet-e2e-run"] != $run and
-        ((.tags["networking.fleet.azure.com.trafficManagerProfile"] // "") | startswith($prefix + "-") | not) and
-        ((.tags["networking.fleet.azure.com.gateway-namespace"] // "") | startswith($prefix + "-") | not))
-    ' <<<"$resources" >/dev/null; then
-      echo "error: refusing to reuse resources for run $E2E_RUN_ID" >&2
-      exit 1
-    fi
-    echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
-else
-    az group create --name $RESOURCE_GROUP --location $LOCATION --tags "source=fleet-networking"
+if [[ -z "${KUBECONFIG:-}" || "$KUBECONFIG" == *:* || -e "$KUBECONFIG" || -L "$KUBECONFIG" ]]; then
+  echo "error: shared setup requires a new, run-specific KUBECONFIG path" >&2
+  exit 1
+fi
+group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$RESOURCE_GROUP" -o json)"
+jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
+  '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.managedBy == "aks-rp/ci-resources" and .tags.workload == "fleet-networking-e2e"' \
+  <<<"$group" > /dev/null
+resources="$(az resource list --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$RESOURCE_GROUP" -o json)"
+if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" '
+  all(.[];
+    ((.name | ascii_downcase | startswith($prefix)) | not) and
+    .tags["fleet-e2e-run"] != $run and
+    ((.tags["networking.fleet.azure.com.trafficManagerProfile"] // "") | startswith($prefix + "-") | not) and
+    ((.tags["networking.fleet.azure.com.gateway-namespace"] // "") | startswith($prefix + "-") | not))
+' <<<"$resources" >/dev/null; then
+  echo "error: refusing to reuse resources for run $E2E_RUN_ID" >&2
+  exit 1
+fi
+echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "resources_started=true" >>"$GITHUB_OUTPUT"
 fi
 
-# Defer function to recycle created Azure resource.
-function cleanup {
-    if [[ "$E2E_SHARED_RESOURCE_GROUP" == true ]]; then
-        echo "shared resource group setup interrupted; run explicit per-run cleanup" >&2
-    else
-        az group delete -n $RESOURCE_GROUP --no-wait --yes
-    fi
-}
 if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
     trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 130' INT
     trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 143' TERM
-elif [[ "$E2E_SHARED_RESOURCE_GROUP" == true ]]; then
+else
     trap 'echo "Shared setup interrupted; run explicit per-run cleanup" >&2; exit 130' INT
     trap 'echo "Shared setup interrupted; run explicit per-run cleanup" >&2; exit 143' TERM
-else
-    trap cleanup INT TERM
 fi
 
 # Pubilsh fleet networking agent images.
 # TODO(mainred): Once we have a specific Azure sub for fleet networking e2e test, we can reuse that registry.
 # Registry name must conform to the following pattern: '^[a-zA-Z0-9]*$'.
-if [[ "$E2E_SHARED_RESOURCE_GROUP" == true ]]; then
-  az acr create -g "$RESOURCE_GROUP" -n "$REGISTRY_NAME" --sku standard "${E2E_RESOURCE_TAGS[@]}"
-else
-  export REGISTRY_NAME="${RESOURCE_GROUP//-}"
-  az acr create -g "$RESOURCE_GROUP" -n "$REGISTRY_NAME" --sku standard --tags "source=fleet-networking"
-fi
+az acr create -g "$RESOURCE_GROUP" -n "$REGISTRY_NAME" --sku standard "${E2E_RESOURCE_TAGS[@]}"
 # Enable anonymous to not wait for the long-running AKS creation.
 # When attach-acr and `--enable-managed-identity` are both specified, AKS requires us to wait until the whole operation
 # succeeds, and as AuthN and AuthZ for member cluster agents to hub cluster in our test requires managed identity,
@@ -103,19 +85,7 @@ export TAG="${TAG:-$(git rev-parse --short=7 HEAD)}"
 make push
 
 # Create hub and member clusters and wait until all clusters are ready.
-export HUB_CLUSTER=${HUB_CLUSTER:-"hub"}
-export MEMBER_CLUSTER_1=${MEMBER_CLUSTER_1:-"member-1"}
-export MEMBER_CLUSTER_2=${MEMBER_CLUSTER_2:-"member-2"}
 export NODE_COUNT=2
-
-export HUB_CLUSTER_AKS_ID_NAME=${HUB_CLUSTER_AKS_ID_NAME:-"fleet-net-hub-aks-id"}
-export HUB_CLUSTER_AKS_KUBELET_ID_NAME=${HUB_CLUSTER_AKS_KUBELET_ID_NAME:-"fleet-net-hub-aks-kubelet-id"}
-export MEMBER_CLUSTER_1_AKS_ID_NAME=${MEMBER_CLUSTER_1_AKS_ID_NAME:-"fleet-net-member-1-aks-id"}
-export MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_1_AKS_KUBELET_ID_NAME:-"fleet-net-member-1-aks-kubelet-id"}
-export MEMBER_CLUSTER_2_AKS_ID_NAME=${MEMBER_CLUSTER_2_AKS_ID_NAME:-"fleet-net-member-2-aks-id"}
-export MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME=${MEMBER_CLUSTER_2_AKS_KUBELET_ID_NAME:-"fleet-net-member-2-aks-kubelet-id"}
-
-
 
 if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   # Create aks hub cluster, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
@@ -204,8 +174,6 @@ case $AZURE_NETWORK_SETTING in
                 bash test/scripts/aks-no-networking.sh
                 ;;
         perf-test)
-                export MEMBER_CLUSTER_3=member-3
-                export MEMBER_CLUSTER_4=member-4
                 export MEMBER_LOCATION_1="${MEMBER_LOCATION_1:-eastus2}"
                 export MEMBER_1_LOCATION=$MEMBER_LOCATION_1
                 export MEMBER_2_LOCATION=$MEMBER_LOCATION_1
@@ -223,8 +191,8 @@ az aks wait --created --interval 10 --name $MEMBER_1_AZURE_CLUSTER --resource-gr
 az aks wait --created --interval 10 --name $MEMBER_2_AZURE_CLUSTER --resource-group $RESOURCE_GROUP --timeout 1800
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
-    az aks wait --created --interval 10 --name $MEMBER_CLUSTER_3 --resource-group $RESOURCE_GROUP --timeout 1800
-    az aks wait --created --interval 10 --name $MEMBER_CLUSTER_4 --resource-group $RESOURCE_GROUP --timeout 1800
+    az aks wait --created --interval 10 --name $MEMBER_3_AZURE_CLUSTER --resource-group $RESOURCE_GROUP --timeout 1800
+    az aks wait --created --interval 10 --name $MEMBER_4_AZURE_CLUSTER --resource-group $RESOURCE_GROUP --timeout 1800
 fi
 
 # hack: add role assignments to kubelet identity
@@ -297,8 +265,8 @@ az aks get-credentials --name $MEMBER_1_AZURE_CLUSTER -g $RESOURCE_GROUP --admin
 az aks get-credentials --name $MEMBER_2_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_2-admin" --overwrite-existing
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
-    az aks get-credentials --name $MEMBER_CLUSTER_3 -g $RESOURCE_GROUP --admin --overwrite-existing
-    az aks get-credentials --name $MEMBER_CLUSTER_4 -g $RESOURCE_GROUP --admin --overwrite-existing
+    az aks get-credentials --name $MEMBER_3_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_3-admin" --overwrite-existing
+    az aks get-credentials --name $MEMBER_4_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_4-admin" --overwrite-existing
 fi
 HUB_URL="$(kubectl --context "$HUB_CLUSTER-admin" config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 export HUB_URL
@@ -311,10 +279,10 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   export PRINCIPAL_FOR_MEMBER_2=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_2_AZURE_CLUSTER"_"$MEMBER_2_LOCATION" | jq --arg identity $MEMBER_2_AZURE_CLUSTER-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
   if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
   then
-    export CLIENT_ID_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-    export PRINCIPAL_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_3"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_3-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
-    export CLIENT_ID_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
-    export PRINCIPAL_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_CLUSTER_4"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_CLUSTER_4-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+    export CLIENT_ID_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_3_AZURE_CLUSTER"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_3_AZURE_CLUSTER-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+    export PRINCIPAL_FOR_MEMBER_3=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_3_AZURE_CLUSTER"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_3_AZURE_CLUSTER-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
+    export CLIENT_ID_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_4_AZURE_CLUSTER"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_4_AZURE_CLUSTER-agentpool -r -c 'map(select(.name | contains($identity)))[].clientId')
+    export PRINCIPAL_FOR_MEMBER_4=$(az identity list -g MC_"$RESOURCE_GROUP"_"$MEMBER_4_AZURE_CLUSTER"_"$MEMBER_LOCATION_2" | jq --arg identity $MEMBER_4_AZURE_CLUSTER-agentpool -r -c 'map(select(.name | contains($identity)))[].principalId')
     fi
 else
   export CLIENT_ID_FOR_MEMBER_1=$MEMBER_CLUSTER_1_KUBELET_CLIENT_ID

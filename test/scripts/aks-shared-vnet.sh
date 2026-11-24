@@ -16,7 +16,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 # https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
 
 # Create virutal network and subnet for both member clusters.
-export VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}fleet"
+export VNET="${E2E_RESOURCE_PREFIX}-fleet"
 export MEMBER_1_SUBNET=member-1
 export MEMBER_2_SUBNET=member-2
 

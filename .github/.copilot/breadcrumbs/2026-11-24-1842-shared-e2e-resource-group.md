@@ -2,7 +2,7 @@
 
 ## Requirements and decisions
 
-- User approved an opt-in shared resource group mode with unique run identities, safe cleanup, offline tests and documentation; existing disposable-group behavior remains the default.
+- User originally approved opt-in shared resource group mode, then requested shared-group-only execution with no mode flag.
 - Push a new branch based on main. Do not run live Azure E2E or cleanup without separate approval.
 - Shared group `fleet-networking-e2e` was created in the test subscription, westus2. Proposed grants and WIF service connection are not yet deployed.
 - Prior work: [retry PR #459](https://github.com/Azure/fleet-networking/pull/459).
@@ -29,18 +29,26 @@ Each Azure DevOps scenario creates and deletes a unique resource group. Fixed re
 
 ## Status
 
-Shared-group mode is opt-in. The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scripts derive physical Azure names and retain the established logical Kubernetes contexts. Setup requires a new run-specific kubeconfig, verifies the group and rejects name or ownership collisions before enabling cleanup.
+The shared-group-only revision:
+
+1. [x] Remove the legacy resource-group creation/deletion path and require per-run shared-group configuration.
+2. [x] Update Azure DevOps and GitHub workflow callers and preserve safe cleanup eligibility.
+3. [x] Keep performance topology working with run-specific resources and ownership-verified cleanup.
+4. [x] Update tests and documentation and validate offline.
+5. [ ] Push the shared-group-only revision.
+
+The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scripts derive physical Azure names and retain the established logical Kubernetes contexts. Setup requires a new run-specific kubeconfig, verifies the group and rejects name or ownership collisions before enabling cleanup.
 
 Cleanup verifies the group, run tags, resource IDs, AKS node-group ownership, role scopes and peering targets. It verifies Traffic Manager namespace tags and Front Door hub/Gateway identity, stops the run's hub controllers before deleting their profiles, deletes only identified roles and resources, and never deletes the shared group. It fails explicitly when ownership, controller quiescence or deletion cannot be verified.
 
-Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. The pipeline service connection remains unchanged by default and can be selected explicitly after its grants are deployed.
+Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. CI obtains the object ID from its Azure CLI access token without logging or storing the token. The pipeline service connection remains unchanged by default and can be selected explicitly after its grants are deployed.
 
 Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` setup, topology, configuration, AFD and cleanup scripts and tests, plus E2E framework workload naming and Traffic Manager public-IP tagging.
 
 ## Validation and risks
 
-- `GOTOOLCHAIN=go1.26.10 go test -count=1 ./test/scripts ./test/e2e/framework` passed, including mocked concurrent-run, collision, profile, peering, role, cleanup and legacy cases.
+- `GOTOOLCHAIN=go1.26.10 go test -count=1 ./test/scripts ./test/e2e/framework` passed, including mocked concurrent-run, collision, profile, peering, role, cleanup, token parsing and performance topology cases.
 - `GOTOOLCHAIN=go1.26.10 go vet ./test/scripts ./test/e2e/framework` passed.
 - `GOTOOLCHAIN=go1.26.10 go test -tags=e2e -run '^$' ./test/e2e` and `go vet -tags=e2e ./test/e2e` passed without executing live E2E.
-- Installed Azure CLI AFD option checks, Bash syntax, pipeline YAML parsing and `git diff --check` passed.
+- Performance packages compiled and passed `go vet` without running their suites. Installed Azure CLI option checks, Bash syntax, both workflow YAML parsing and `git diff --check` passed.
 - No live Azure provisioning, permission, test or cleanup operation was run. The proposed grants and service connection have not been enabled. Cleanup can fail closed and leave resources; there is no stale-run sweeper. Contributor on the shared RG is not a security boundary between runs.

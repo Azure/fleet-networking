@@ -16,7 +16,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 # https://docs.microsoft.com/en-us/azure/aks/configure-azure-cni#configure-networking---cli-with-dynamic-allocation-of-ips-and-enhanced-subnet-support
 
 # Create virutal network and podsubnet and nodesubnet for both member clusters.
-export VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}fleet"
+export VNET="${E2E_RESOURCE_PREFIX}-fleet"
 export MEMBER_1_NODE_SUBNET=member-1-node
 export MEMBER_1_POD_SUBNET=member-1-pod
 export MEMBER_2_NODE_SUBNET=member-2-node

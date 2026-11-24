@@ -21,9 +21,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 # Create virutal network and subnet for both member clusters.
 export MEMBER_1_TO_MEMBER_2=member-1-to-member-2
 export MEMBER_2_TO_MEMBER_1=member-2-to-member-1
-export MEMBER_1_VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}member-1-vnet"
+export MEMBER_1_VNET="${E2E_RESOURCE_PREFIX}-member-1-vnet"
 export MEMBER_1_SUBNET=member-1-subnet
-export MEMBER_2_VNET="${E2E_RESOURCE_PREFIX:+${E2E_RESOURCE_PREFIX}-}member-2-vnet"
+export MEMBER_2_VNET="${E2E_RESOURCE_PREFIX}-member-2-vnet"
 export MEMBER_2_SUBNET=member-2-subnet
 
 az network vnet create \

@@ -20,7 +20,6 @@ func TestSharedGroupConfiguration(t *testing.T) {
 	afdTestEnvironment(t)
 	run := func(id string) (string, error) {
 		t.Helper()
-		t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 		t.Setenv("E2E_RUN_ID", id)
 		t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
 		t.Setenv("AZURE_RESOURCE_GROUP", "fleet-networking-e2e")
@@ -47,6 +46,7 @@ printf '%s|%s|%s|%s|%s\n' "$E2E_RESOURCE_PREFIX" "$HUB_AZURE_CLUSTER" "$MEMBER_1
 		}
 	}
 	t.Setenv("ENABLE_AZURE_FRONT_DOOR", "true")
+	t.Setenv("ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL", "true")
 	t.Setenv("E2E_TEST_PRINCIPAL_ID", "")
 	output, err := run("123-afd-1")
 	if err == nil || !strings.Contains(output, "E2E_TEST_PRINCIPAL_ID") {
@@ -56,9 +56,9 @@ printf '%s|%s|%s|%s|%s\n' "$E2E_RESOURCE_PREFIX" "$HUB_AZURE_CLUSTER" "$MEMBER_1
 
 func TestSharedAFDInstallation(t *testing.T) {
 	afdTestEnvironment(t)
-	t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 	t.Setenv("E2E_RUN_ID", "123-afd-1")
 	t.Setenv("ENABLE_AZURE_FRONT_DOOR", "true")
+	t.Setenv("ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL", "true")
 	t.Setenv("E2E_TEST_PRINCIPAL_ID", "44444444-4444-4444-4444-444444444444")
 	log := installAFDCommandStubs(t)
 	output, err := runAFDScript(t, "./install-afd.sh")
@@ -75,11 +75,11 @@ func TestSharedAFDInstallation(t *testing.T) {
 			{"peered", "./aks-peered-vnet.sh", "peered-vnet", "false"},
 			{"dynamic", "./aks-dynamic-ip-allocation.sh", "dynamic-ip-allocation", "false"},
 			{"unsupported", "./aks-no-networking.sh", "unsupported", "false"},
+			{"performance", "./perf-test.sh", "perf-test", "false"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				afdTestEnvironment(t)
-				t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 				t.Setenv("E2E_RUN_ID", "123-"+tt.network+"-1")
 				t.Setenv("ENABLE_TRAFFIC_MANAGER", tt.atm)
 				t.Setenv("AZURE_NETWORK_SETTING", tt.network)
@@ -87,6 +87,8 @@ func TestSharedAFDInstallation(t *testing.T) {
 				t.Setenv("NODE_COUNT", "2")
 				t.Setenv("MEMBER_1_LOCATION", "eastus2")
 				t.Setenv("MEMBER_2_LOCATION", "westus")
+				t.Setenv("MEMBER_LOCATION_1", "eastus2")
+				t.Setenv("MEMBER_LOCATION_2", "westus")
 				t.Setenv("MEMBER_CLUSTER_1_AKS_IDENTITY_ID", "/identity/member1-control")
 				t.Setenv("MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID", "/identity/member1-kubelet")
 				t.Setenv("MEMBER_CLUSTER_2_AKS_IDENTITY_ID", "/identity/member2-control")
@@ -106,12 +108,16 @@ func TestSharedAFDInstallation(t *testing.T) {
 				hash := sha256.Sum256([]byte("test-subscription/test-rg/123-" + tt.network + "-1"))
 				prefix := fmt.Sprintf("fne%x", hash[:8])
 				calls := readAFDFile(t, filepath.Join(dir, "calls"))
-				for _, name := range []string{prefix + "-member1", prefix + "-member2"} {
+				clusterNames := []string{prefix + "-member1", prefix + "-member2"}
+				if tt.network == "perf-test" {
+					clusterNames = append(clusterNames, prefix+"-member3", prefix+"-member4")
+				}
+				for _, name := range clusterNames {
 					if !strings.Contains(calls, "--name "+name) {
 						t.Errorf("missing physical cluster %s in %s", name, calls)
 					}
 				}
-				if strings.Count(calls, "fleet-e2e-run=123-"+tt.network+"-1") < 2 {
+				if strings.Count(calls, "fleet-e2e-run=123-"+tt.network+"-1") < len(clusterNames) {
 					t.Fatalf("cluster ownership tags missing: %s", calls)
 				}
 				if tt.network != "unsupported" {
@@ -139,12 +145,12 @@ func TestSharedAFDInstallation(t *testing.T) {
 		}{{"clean", false, false}, {"resource collision", true, false}, {"existing kubeconfig", false, true}} {
 			t.Run(tc.name, func(t *testing.T) {
 				afdTestEnvironment(t)
-				t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 				t.Setenv("E2E_RUN_ID", "123-atm-1")
 				t.Setenv("AZURE_RESOURCE_GROUP", "fleet-networking-e2e")
 				dir := t.TempDir()
 				t.Setenv("KUBECONFIG", filepath.Join(dir, "kubeconfig"))
 				t.Setenv("TEST_CALLS", filepath.Join(dir, "calls"))
+				t.Setenv("GITHUB_OUTPUT", filepath.Join(dir, "github-output"))
 				if tc.existingConfig {
 					if err := os.WriteFile(filepath.Join(dir, "kubeconfig"), []byte("existing"), 0o600); err != nil {
 						t.Fatal(err)
@@ -182,6 +188,14 @@ func TestSharedAFDInstallation(t *testing.T) {
 				}
 				if !tc.conflict && !tc.existingConfig && (!strings.Contains(calls, "acr create") || !strings.Contains(output, "##vso[task.setvariable variable=e2eResourcesStarted]true")) {
 					t.Fatalf("successful preflight did not enable cleanup before resource creation: %s, %s", calls, output)
+				}
+				marker, markerErr := os.ReadFile(filepath.Join(dir, "github-output"))
+				if tc.conflict || tc.existingConfig {
+					if !os.IsNotExist(markerErr) {
+						t.Fatalf("failed preflight enabled GitHub cleanup: %q, %v", marker, markerErr)
+					}
+				} else if markerErr != nil || string(marker) != "resources_started=true\n" {
+					t.Fatalf("successful preflight did not enable GitHub cleanup: %q, %v", marker, markerErr)
 				}
 			})
 		}
@@ -231,7 +245,6 @@ func TestSharedGroupCleanupOwnership(t *testing.T) {
 			{"different test principal", false, false, false, true, false}, {"no profiles yet", false, false, false, false, true}} {
 			t.Run(tc.name, func(t *testing.T) {
 				afdTestEnvironment(t)
-				t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 				t.Setenv("E2E_RUN_ID", "123-afd-1")
 				t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
 				t.Setenv("AZURE_RESOURCE_GROUP", "fleet-networking-e2e")
@@ -275,12 +288,16 @@ func TestSharedGroupCleanupOwnership(t *testing.T) {
 						"identityProfile": map[string]interface{}{"kubeletidentity": map[string]string{"objectId": "hub-kubelet"}}},
 					{"id": vnet1, "name": prefix + "-member-1-vnet", "type": "Microsoft.Network/virtualNetworks", "tags": tags},
 					{"id": vnet2, "name": prefix + "-member-2-vnet", "type": "Microsoft.Network/virtualNetworks", "tags": tags},
+					{"id": group + "/providers/Microsoft.ContainerService/managedClusters/" + prefix + "-member3",
+						"name": prefix + "-member3", "type": "Microsoft.ContainerService/managedClusters", "tags": tags},
+					{"id": group + "/providers/Microsoft.ContainerService/managedClusters/" + prefix + "-member4",
+						"name": prefix + "-member4", "type": "Microsoft.ContainerService/managedClusters", "tags": tags},
 					{"id": profileID, "name": profileName, "type": "Microsoft.Cdn/profiles", "tags": profileTags},
 					{"id": trafficProfileID, "name": "fleet-55555555-5555-5555-5555-555555555555", "type": "Microsoft.Network/trafficManagerProfiles",
 						"tags": map[string]string{"networking.fleet.azure.com.trafficManagerProfile": prefix + "-fghij/hello-world-service"}},
 				}
 				if tc.noProfiles {
-					items = items[:3]
+					items = items[:5]
 				}
 				peerings := []map[string]interface{}{
 					{"id": vnet1 + "/virtualNetworkPeerings/to-two", "name": "to-two", "remoteVirtualNetwork": map[string]string{"id": vnet2}},
@@ -367,6 +384,7 @@ func TestSharedGroupCleanupOwnership(t *testing.T) {
 					return
 				}
 				wants := []string{"aks delete", "aks wait", "kubectl --context hub-admin -n fleet-system scale",
+					"--name " + prefix + "-member3", "--name " + prefix + "-member4",
 					"role assignment delete --ids " + group + "/providers/Microsoft.Authorization/roleAssignments/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 					"role assignment delete --ids " + nodeID + "/providers/Microsoft.Authorization/roleAssignments/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 					"role assignment delete --ids " + nodeID + "/providers/Microsoft.Authorization/roleAssignments/cccccccc-cccc-cccc-cccc-cccccccccccc",
@@ -394,7 +412,6 @@ func TestSharedGroupCleanupOwnership(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			afdTestEnvironment(t)
-			t.Setenv("E2E_SHARED_RESOURCE_GROUP", "true")
 			t.Setenv("E2E_RUN_ID", "123-atm-1")
 			t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
 			t.Setenv("AZURE_RESOURCE_GROUP", "fleet-networking-e2e")
@@ -458,30 +475,5 @@ func TestSharedGroupCleanupOwnership(t *testing.T) {
 				t.Fatalf("unexpected resource deletion: %s", calls)
 			}
 		})
-	}
-}
-
-func TestLegacyTopologyKeepsClusterNames(t *testing.T) {
-	afdTestEnvironment(t)
-	t.Setenv("RESOURCE_GROUP", "test-rg")
-	t.Setenv("NODE_COUNT", "2")
-	t.Setenv("MEMBER_1_LOCATION", "eastus2")
-	t.Setenv("MEMBER_2_LOCATION", "eastus2")
-	dir := t.TempDir()
-	t.Setenv("TEST_CALLS", filepath.Join(dir, "calls"))
-	writeAFDCommand(t, filepath.Join(dir, "az"), "#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$TEST_CALLS\"\n")
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := runAFDScript(t, "./aks-shared-vnet.sh")
-	if err != nil {
-		t.Fatalf("legacy topology: %s (%v)", output, err)
-	}
-	calls := readAFDFile(t, filepath.Join(dir, "calls"))
-	for _, name := range []string{"--name fleet", "--name member-1", "--name member-2"} {
-		if !strings.Contains(calls, name) {
-			t.Errorf("missing legacy name %s in %s", name, calls)
-		}
-	}
-	if strings.Contains(calls, "fleet-e2e-run=") {
-		t.Fatalf("legacy topology unexpectedly used shared resource tags: %s", calls)
 	}
 }

@@ -9,9 +9,12 @@ To run this test:
     ```sh
     # Replace YOUR-SUBSCRIPTION-ID with a value of your own.
     export AZURE_SUBSCRIPTION_ID=YOUR-SUBSCRIPTION-ID
+    export AZURE_RESOURCE_GROUP=fleet-networking-e2e
+    export E2E_RUN_ID=<unique-lowercase-run-id>
+    export KUBECONFIG=<new-run-specific-kubeconfig-path>
     export AZURE_NETWORK_SETTING=perf-test
 
-    . ./test/scripts/bootstrap.sh
+    make e2e-setup
     ```
 
     It should take approximately 40 minutes to complete the setup.
@@ -31,6 +34,9 @@ To run this test:
     | `test/perftest/latency/sustained` | A test suite for evaluating export/import latencies under sustained workloads |
 
     It is strongly recommended that **each test suite runs in its own environment**.
+
+After testing, run `make e2e-cleanup` with the same variables to remove only that run's
+resources. The shared resource group is retained.
 
 After finishing the suite, find the results, e.g., service export latencies and `endpointSlice`
 export/import latencies in the output and/or the log file. To collect other metrics for further analysis:

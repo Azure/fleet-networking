@@ -206,7 +206,7 @@ func TestAFDRenderedInstallation(t *testing.T) {
 				t.Fatal("Gateway chart must consume the prepared Secret rather than generate different configuration")
 			}
 			container := deployment.Spec.Template.Spec.Containers[0]
-			if container.Image != "testrg.azurecr.io/hub-gateway-controller-manager:candidate" ||
+			if container.Image != afdRegistry()+"/hub-gateway-controller-manager:candidate" ||
 				deployment.Spec.Template.Spec.ServiceAccountName != "hub-gateway-controller-manager" ||
 				!slices.Contains(container.Args, "--enable-afd=true") ||
 				!slices.Contains(container.Args, "--afd-resource-group=test-rg") {
@@ -354,13 +354,13 @@ func decodeAFDRender(t *testing.T, contents string) (appsv1.Deployment, map[stri
 
 func assertAFDCloudConfig(t *testing.T, got map[string]interface{}, cluster string) {
 	t.Helper()
-	group := "MC_" + cluster
+	group := "MC_" + afdCluster(cluster)
 	if cluster == "hub" {
 		group = "test-rg"
 	}
 	want := map[string]interface{}{
 		"cloud": "AzurePublicCloud", "subscriptionId": "test-subscription", "tenantId": "test-tenant",
-		"useManagedIdentityExtension": true, "userAssignedIdentityID": cluster + "-client",
+		"useManagedIdentityExtension": true, "userAssignedIdentityID": afdCluster(cluster) + "-client",
 		"resourceGroup": group, "location": "test-location",
 	}
 	for name, value := range want {

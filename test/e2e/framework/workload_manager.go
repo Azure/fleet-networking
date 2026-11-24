@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -430,18 +429,18 @@ func defaultBackOff() wait.Backoff {
 // TODO(mainred): Before the app image is publicly available, we use the one built from e2e bootstrap.
 // The app image construction must be aligned with the steps in test/scripts/bootstrap.sh.
 func appImage() string {
-	if registry := os.Getenv("REGISTRY"); registry != "" {
-		return fmt.Sprintf("%s/app", registry)
+	registry := os.Getenv("REGISTRY")
+	if registry == "" {
+		panic("REGISTRY is required for E2E workload images")
 	}
-	resourceGroupName := os.Getenv("AZURE_RESOURCE_GROUP")
-	registryName := strings.ReplaceAll(resourceGroupName, "-", "")
-	return fmt.Sprintf("%s.azurecr.io/app", registryName)
+	return fmt.Sprintf("%s/app", registry)
 }
 
 // UniqueTestNamespace gives a unique namespace name.
 func UniqueTestNamespace() string {
-	if prefix := os.Getenv("E2E_RESOURCE_PREFIX"); os.Getenv("E2E_SHARED_RESOURCE_GROUP") == "true" && prefix != "" {
-		return fmt.Sprintf("%s-%s", prefix, uniquename.RandomLowerCaseAlphabeticString(5))
+	prefix := os.Getenv("E2E_RESOURCE_PREFIX")
+	if prefix == "" {
+		panic("E2E_RESOURCE_PREFIX is required for E2E namespaces")
 	}
-	return fmt.Sprintf("%s-%s", TestNamespacePrefix, uniquename.RandomLowerCaseAlphabeticString(5))
+	return fmt.Sprintf("%s-%s", prefix, uniquename.RandomLowerCaseAlphabeticString(5))
 }

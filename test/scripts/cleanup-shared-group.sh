@@ -4,8 +4,8 @@ set -o nounset
 set -o pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
-if [[ "$E2E_SHARED_RESOURCE_GROUP" != true || "$RETAIN_AFD_E2E_SETUP" == true ]]; then
-  echo "error: shared cleanup requires shared mode and non-retained setup" >&2
+if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
+  echo "error: shared cleanup requires non-retained setup" >&2
   exit 1
 fi
 
@@ -17,13 +17,14 @@ jq -e --arg id "$group_id" \
 
 resources="$(az resource list --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" -o json)"
 if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" --arg group "$group_id" \
-  --arg hub "$HUB_AZURE_CLUSTER" --arg member1 "$MEMBER_1_AZURE_CLUSTER" --arg member2 "$MEMBER_2_AZURE_CLUSTER" '
+  --arg hub "$HUB_AZURE_CLUSTER" --arg member1 "$MEMBER_1_AZURE_CLUSTER" --arg member2 "$MEMBER_2_AZURE_CLUSTER" \
+  --arg member3 "$MEMBER_3_AZURE_CLUSTER" --arg member4 "$MEMBER_4_AZURE_CLUSTER" '
   all(.[];
     if (.name | ascii_downcase | startswith($prefix)) or (.tags["fleet-e2e-run"] // "") == $run then
       .tags.source == "fleet-networking" and .tags["fleet-e2e-run"] == $run and
       ((.id | ascii_downcase) == (($group + "/providers/" + .type + "/" + .name) | ascii_downcase)) and
       (if (.type | ascii_downcase) == "microsoft.containerservice/managedclusters" then
-         (.name == $hub or .name == $member1 or .name == $member2) and
+         (.name == $hub or .name == $member1 or .name == $member2 or .name == $member3 or .name == $member4) and
          (.tags["fleet-e2e-atm"] == "true" or .tags["fleet-e2e-atm"] == "false") and
          (.tags["fleet-e2e-afd"] == "true" or .tags["fleet-e2e-afd"] == "false") and
          (.tags["fleet-e2e-auto-approval"] == "true" or .tags["fleet-e2e-auto-approval"] == "false") and

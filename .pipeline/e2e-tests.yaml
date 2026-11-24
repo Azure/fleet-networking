@@ -8,15 +8,9 @@ trigger:
 pr: none
 
 parameters:
-  - name: sharedResourceGroup
-    type: boolean
-    default: false
   - name: serviceConnection
     type: string
     default: 'aks fleetnetworking'
-  - name: testPrincipalId
-    type: string
-    default: 'none'
   - name: scenarios
     type: object
     default:
@@ -70,13 +64,8 @@ jobs:
         AZURE_NETWORK_SETTING: ${{ scenario.value.AZURE_NETWORK_SETTING }}
         ENABLE_TRAFFIC_MANAGER: ${{ lower(scenario.value.ENABLE_TRAFFIC_MANAGER) }}
         ENABLE_AZURE_FRONT_DOOR: ${{ lower(scenario.value.ENABLE_AZURE_FRONT_DOOR) }}
-        ${{ if eq(parameters.sharedResourceGroup, true) }}:
-          AZURE_RESOURCE_GROUP: 'fleet-networking-e2e'
-        ${{ else }}:
-          AZURE_RESOURCE_GROUP: 'fleet-ado-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
-        E2E_SHARED_RESOURCE_GROUP: ${{ lower(parameters.sharedResourceGroup) }}
+        AZURE_RESOURCE_GROUP: 'fleet-networking-e2e'
         E2E_RUN_ID: '$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
-        E2E_TEST_PRINCIPAL_ID: ${{ parameters.testPrincipalId }}
         ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL: '$(ENABLE_AZURE_FRONT_DOOR)'
         RETAIN_AFD_E2E_SETUP: 'false'
         BUILDX_BUILDER_NAME: 'fleet-e2e-$(Build.BuildId)-$(SCENARIO)-$(System.JobAttempt)'
@@ -110,7 +99,7 @@ jobs:
         - bash: |
             set -euo pipefail
             : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID as a non-secret ADO pipeline variable}"
-            for tool in az docker helm kubectl jq yq make timeout sha256sum; do
+            for tool in az docker helm kubectl jq yq make timeout sha256sum python3; do
               command -v "$tool"
             done
             go version
@@ -144,15 +133,14 @@ jobs:
                 exit 1
               fi
               exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$AZURE_RESOURCE_GROUP")
-              if [[ "$E2E_SHARED_RESOURCE_GROUP" == true && "$exists" != true ]]; then
+              if [[ "$exists" != true ]]; then
                 echo "error: shared resource group $AZURE_RESOURCE_GROUP does not exist" >&2
                 exit 1
-              elif [[ "$E2E_SHARED_RESOURCE_GROUP" != true && "$exists" != false ]]; then
-                echo "error: refusing to reuse resource group $AZURE_RESOURCE_GROUP" >&2
-                exit 1
               fi
-              if [[ "$E2E_SHARED_RESOURCE_GROUP" != true ]]; then
-                echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
+              if [[ "$ENABLE_AZURE_FRONT_DOOR" == true && "$ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL" == true ]]; then
+                E2E_TEST_PRINCIPAL_ID="$(bash test/scripts/azure-principal-id.sh)"
+                export E2E_TEST_PRINCIPAL_ID
+                echo "##vso[task.setvariable variable=E2E_TEST_PRINCIPAL_ID]$E2E_TEST_PRINCIPAL_ID"
               fi
               make e2e-setup
 
@@ -205,9 +193,9 @@ jobs:
             artifact: 'e2e-$(SCENARIO)-$(System.JobAttempt)'
 
         - task: AzureCLI@2
-          displayName: Clean up this run's resource group
+          displayName: Clean up this run's resources
           condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
-          timeoutInMinutes: ${{ iif(parameters.sharedResourceGroup, 90, 20) }}
+          timeoutInMinutes: 90
           inputs:
             azureSubscription: ${{ parameters.serviceConnection }}
             scriptType: bash
@@ -217,25 +205,4 @@ jobs:
             keepAzSessionActive: true
             inlineScript: |
               set -euo pipefail
-              if [[ "$E2E_SHARED_RESOURCE_GROUP" == true ]]; then
-                make e2e-cleanup
-                exit 0
-              fi
-              expected="fleet-ado-$BUILD_BUILDID-$SCENARIO-$SYSTEM_JOBATTEMPT"
-              if [[ "$AZURE_RESOURCE_GROUP" != "$expected" ]]; then
-                echo "error: refusing cleanup outside this run's resource group" >&2
-                exit 1
-              fi
-              az account set --subscription "$AZURE_SUBSCRIPTION_ID"
-              exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected")
-              if [[ "$exists" == false ]]; then
-                echo "Resource group $expected is already absent."
-                exit 0
-              fi
-              group=$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" -o json)
-              jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$expected" \
-                '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking"' \
-                <<<"$group" > /dev/null
               make e2e-cleanup
-              az group wait --subscription "$AZURE_SUBSCRIPTION_ID" -n "$expected" \
-                --deleted --interval 15 --timeout 900
