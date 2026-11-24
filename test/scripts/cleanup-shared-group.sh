@@ -88,6 +88,7 @@ if [[ "$has_hub" == true && ( "$(jq 'length' <<<"$profiles")" -gt 0 ||
   jq -e --arg id "$group_id/providers/Microsoft.ContainerService/managedClusters/$HUB_AZURE_CLUSTER" --arg run "$E2E_RUN_ID" \
     '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking" and .tags["fleet-e2e-run"] == $run' \
     <<<"$hub" >/dev/null
+  # Azure CLI adds the "-admin" suffix for admin credentials.
   az aks get-credentials --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$HUB_AZURE_CLUSTER" --admin --context "$HUB_CLUSTER" --overwrite-existing
   hub_uid="$(kubectl --context "$HUB_CLUSTER-admin" get namespace kube-system -o jsonpath='{.metadata.uid}')"

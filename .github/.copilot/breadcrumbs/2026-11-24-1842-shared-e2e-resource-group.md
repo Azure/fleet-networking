@@ -35,12 +35,13 @@ The approved Azure DevOps run failed during setup because Azure CLI appended `-a
 
 1. [x] Reproduce the context failure in a focused offline test.
 2. [x] Correct setup and cleanup and validate offline.
-3. [ ] Inspect and report resources left by the failed run; obtain explicit approval before any manual cleanup.
-4. [ ] Push the fix and trigger the requested new E2E run.
+3. [x] Inspect and report resources left by the failed run; obtain explicit approval before manual cleanup.
+4. [x] Push the fix.
+5. [ ] Trigger and validate the requested new E2E run.
 
 Azure CLI appends `-admin` to an explicitly supplied context for admin credentials. Setup and cleanup now pass the unsuffixed logical cluster name; the Kubernetes context remains `<name>-admin`. The focused mock reproduces the failure before the fix and passes afterward for ordinary setup, performance setup and cleanup. The full script suite, vet, Bash syntax and whitespace checks passed.
 
-The original run completed with failed ATM and AFD cleanup. Read-only inspection found six surviving AKS clusters and their managed node groups, plus run-owned registries, VNets and identities. Manual cleanup requires separate approval; do not delete the shared resource group.
+The original run completed with failed ATM and AFD cleanup. The user explicitly approved cleanup of those two scenarios. The fixed cleanup completed successfully; read-back found no tagged resources, no six AKS-managed node groups and no role assignments on those node-group scopes. The shared resource group and its tags were preserved, and temporary admin kubeconfigs were removed.
 
 The user approved removing setup kubeconfig, group and collision checks, the cleanup marker, and matching cleanup checks. Azure DevOps log collection and cleanup will run with `always()`. Per-resource ownership checks remain.
 
