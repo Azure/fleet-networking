@@ -727,7 +727,7 @@ resource IDs, and compares actual Azure SDK profile/endpoints. It also exercises
 Azure drift/deletion recovery, backend/member/weight changes and Kubernetes plus
 Azure resource absence during cleanup.
 
-The [E2E workflow](../.github/workflows/e2e-tests.yml) enables ATM for the shared-VNet
+The [E2E pipeline](../.pipeline/e2e-tests.yaml) enables ATM for the shared-VNet
 matrix entry, uses the existing setup/test targets, and collects logs even after a failure.
 Cleanup runs after ownership preflight has succeeded. These are implemented test/CI paths, not evidence that a
 particular live run passed.

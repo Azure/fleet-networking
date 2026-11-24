@@ -58,9 +58,6 @@ if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" '
   exit 1
 fi
 echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
-if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  echo "resources_started=true" >>"$GITHUB_OUTPUT"
-fi
 
 if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
     trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 130' INT

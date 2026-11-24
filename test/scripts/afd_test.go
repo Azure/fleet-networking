@@ -16,115 +16,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/yaml"
 )
-
-func TestAFDSharedVNetWorkflow(t *testing.T) {
-	var workflow struct {
-		Jobs map[string]struct {
-			Env      map[string]string
-			Strategy struct {
-				Matrix struct {
-					Include []struct {
-						Scenario string `json:"scenario"`
-						Network  string `json:"network-setting"`
-						ATM      bool   `json:"enable-traffic-manager"`
-						AFD      bool   `json:"enable-afd"`
-					}
-				}
-			}
-			Steps []struct {
-				Name string
-				ID   string
-				If   string
-				Run  string
-				Env  map[string]string
-				With map[string]string
-			}
-		}
-	}
-	contents := readAFDFile(t, filepath.Join("..", "..", ".github", "workflows", "e2e-tests.yml"))
-	if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(contents), 4096).Decode(&workflow); err != nil {
-		t.Fatal(err)
-	}
-	job := workflow.Jobs["e2e-tests"]
-	if job.Env["ENABLE_AZURE_FRONT_DOOR"] != "${{ matrix.enable-afd }}" ||
-		job.Env["ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL"] != "${{ matrix.enable-afd }}" ||
-		job.Env["RETAIN_AFD_E2E_SETUP"] != "false" ||
-		job.Env["AZURE_RESOURCE_GROUP"] != "fleet-networking-e2e" ||
-		job.Env["E2E_RUN_ID"] != "gh-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.scenario }}" {
-		t.Fatal("AFD selection, exact test approvals and ordinary cleanup must reach the entire job")
-	}
-	scenarios := make(map[string]bool)
-	ids := make(map[string]bool)
-	for _, row := range job.Strategy.Matrix.Include {
-		if row.Scenario == "" || ids[row.Scenario] {
-			t.Fatalf("scenario ID must be unique and nonempty: %q", row.Scenario)
-		}
-		ids[row.Scenario] = true
-		scenario := row.Network
-		switch {
-		case row.AFD:
-			if row.Network != "shared-vnet" || row.ATM {
-				t.Fatal("AFD must use an independent shared-VNet fixture")
-			}
-			scenario += "-afd"
-		case row.ATM:
-			if row.Network != "shared-vnet" {
-				t.Fatal("ATM requires shared-VNet")
-			}
-			scenario += "-atm"
-		}
-		if scenarios[scenario] {
-			t.Fatalf("duplicate CI scenario %s", scenario)
-		}
-		scenarios[scenario] = true
-	}
-	for _, scenario := range []string{"shared-vnet-atm", "shared-vnet-afd", "peered-vnet", "dynamic-ip-allocation", "unsupported"} {
-		if !scenarios[scenario] {
-			t.Errorf("missing CI scenario %s", scenario)
-		}
-	}
-	foundSetup, foundCleanup, foundKubeconfig := false, false, false
-	for _, step := range job.Steps {
-		for _, variable := range []string{"ENABLE_AZURE_FRONT_DOOR", "ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL", "RETAIN_AFD_E2E_SETUP"} {
-			if value, ok := step.Env[variable]; ok && value != job.Env[variable] {
-				t.Errorf("%s overrides job selection for %s", step.Name, variable)
-			}
-		}
-		switch step.Name {
-		case "Prepare e2e variables":
-			foundKubeconfig = true
-			if !strings.Contains(step.Run, "KUBECONFIG=$RUNNER_TEMP/fleet-e2e-kubeconfig") {
-				t.Error("each job must prepare its own kubeconfig")
-			}
-		case "Setup e2e Environment":
-			foundSetup = true
-			if step.ID != "setup" || !strings.Contains(step.Run, "azure-principal-id.sh") {
-				t.Error("setup output must be addressable by cleanup")
-			}
-		case "Cleanup e2e":
-			foundCleanup = true
-			if step.If != "always() && steps.setup.outputs.resources_started == 'true'" {
-				t.Error("cleanup must require successful ownership preflight")
-			}
-		case "Collect agent logs":
-			if !strings.Contains(step.Env["LOG_DIR"], "${{ matrix.enable-afd }}") {
-				t.Error("collected logs must distinguish the two shared-VNet fixtures")
-			}
-		case "Upload agent logs":
-			for _, key := range []string{"name", "path"} {
-				if !strings.Contains(step.With[key], "${{ matrix.enable-afd }}") {
-					t.Errorf("artifact %s must distinguish the two shared-VNet fixtures", key)
-				}
-			}
-		}
-	}
-	if !foundSetup || !foundCleanup || !foundKubeconfig {
-		t.Fatal("shared E2E workflow is missing setup, cleanup or kubeconfig preparation")
-	}
-}
 
 func TestAFDConfiguration(t *testing.T) {
 	tests := []struct {
@@ -410,7 +302,6 @@ func afdTestEnvironment(t *testing.T) {
 		"AFD_TEST_FAIL_COMMAND", "AFD_TEST_EMPTY_BINDINGS", "AFD_TEST_REAL_HELM",
 		"AFD_TEST_SECOND_MANAGED_BY", "AFD_TEST_SECOND_CLUSTER_ID",
 		"AFD_TEST_RENDERED",
-		"GITHUB_OUTPUT",
 	} {
 		t.Setenv(name, "")
 	}

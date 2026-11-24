@@ -47,6 +47,8 @@ The user requested a generic local E2E guide and chose to retain both existing r
 
 The user subsequently requested removal of `shared_group_test.go` and `azure_principal_id_test.go`. Dedicated mocked cleanup and principal-token regression coverage is no longer retained.
 
+The user requested removal of the GitHub Actions E2E workflow. Azure DevOps remains the E2E pipeline; its setup and cleanup behavior is unchanged.
+
 Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` setup, topology, configuration, AFD and cleanup scripts and tests, plus E2E framework workload naming and Traffic Manager public-IP tagging.
 
 ## Validation and risks
