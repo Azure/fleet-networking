@@ -34,7 +34,7 @@ The user approved removing setup kubeconfig, group and collision checks, the cle
 1. [x] Remove the selected setup and cleanup checks and marker.
 2. [x] Make Azure DevOps log collection and cleanup unconditional.
 3. [x] Update documentation and validate offline.
-4. [ ] Push the changes.
+4. [x] Push the changes.
 
 The shared-group-only revision:
 
