@@ -38,26 +38,6 @@ az account set -s ${AZURE_SUBSCRIPTION_ID}
 
 export RESOURCE_GROUP="$AZURE_RESOURCE_GROUP"
 export LOCATION="${LOCATION:-eastus2}"
-if [[ -z "${KUBECONFIG:-}" || "$KUBECONFIG" == *:* || -e "$KUBECONFIG" || -L "$KUBECONFIG" ]]; then
-  echo "error: shared setup requires a new, run-specific KUBECONFIG path" >&2
-  exit 1
-fi
-group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$RESOURCE_GROUP" -o json)"
-jq -e --arg id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
-  '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.managedBy == "aks-rp/ci-resources" and .tags.workload == "fleet-networking-e2e"' \
-  <<<"$group" > /dev/null
-resources="$(az resource list --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$RESOURCE_GROUP" -o json)"
-if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" '
-  all(.[];
-    ((.name | ascii_downcase | startswith($prefix)) | not) and
-    .tags["fleet-e2e-run"] != $run and
-    ((.tags["networking.fleet.azure.com.trafficManagerProfile"] // "") | startswith($prefix + "-") | not) and
-    ((.tags["networking.fleet.azure.com.gateway-namespace"] // "") | startswith($prefix + "-") | not))
-' <<<"$resources" >/dev/null; then
-  echo "error: refusing to reuse resources for run $E2E_RUN_ID" >&2
-  exit 1
-fi
-echo "##vso[task.setvariable variable=e2eResourcesStarted]true"
 
 if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
     trap 'echo "AFD setup interrupted; retaining resources for explicit later cleanup" >&2; exit 130' INT

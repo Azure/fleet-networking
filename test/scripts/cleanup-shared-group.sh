@@ -10,11 +10,6 @@ if [[ "$RETAIN_AFD_E2E_SETUP" == true ]]; then
 fi
 
 group_id="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP"
-group="$(az group show --subscription "$AZURE_SUBSCRIPTION_ID" --name "$AZURE_RESOURCE_GROUP" -o json)"
-jq -e --arg id "$group_id" \
-  '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.managedBy == "aks-rp/ci-resources" and .tags.workload == "fleet-networking-e2e"' \
-  <<<"$group" >/dev/null
-
 resources="$(az resource list --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" -o json)"
 if ! jq -e --arg prefix "$E2E_RESOURCE_PREFIX" --arg run "$E2E_RUN_ID" --arg group "$group_id" \
   --arg hub "$HUB_AZURE_CLUSTER" --arg member1 "$MEMBER_1_AZURE_CLUSTER" --arg member2 "$MEMBER_2_AZURE_CLUSTER" \
@@ -89,10 +84,6 @@ if [[ -n "$recorded_caller" && "$recorded_caller" != "${E2E_TEST_PRINCIPAL_ID:-}
 fi
 if [[ "$has_hub" == true && ( "$(jq 'length' <<<"$profiles")" -gt 0 ||
       "$hub_has_controllers" == true ) ]]; then
-  if [[ -z "${KUBECONFIG:-}" || "$KUBECONFIG" == *:* ]]; then
-    echo "error: controller cleanup requires the run-specific KUBECONFIG path" >&2
-    exit 1
-  fi
   hub="$(az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name "$HUB_AZURE_CLUSTER" -o json)"
   jq -e --arg id "$group_id/providers/Microsoft.ContainerService/managedClusters/$HUB_AZURE_CLUSTER" --arg run "$E2E_RUN_ID" \
     '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking" and .tags["fleet-e2e-run"] == $run' \

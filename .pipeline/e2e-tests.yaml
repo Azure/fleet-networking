@@ -132,11 +132,6 @@ jobs:
                 echo "error: service connection subscription does not match the E2E subscription" >&2
                 exit 1
               fi
-              exists=$(az group exists --subscription "$AZURE_SUBSCRIPTION_ID" -n "$AZURE_RESOURCE_GROUP")
-              if [[ "$exists" != true ]]; then
-                echo "error: shared resource group $AZURE_RESOURCE_GROUP does not exist" >&2
-                exit 1
-              fi
               # E2E_TEST_PRINCIPAL_ID is a pipeline variable and must match the service connection.
               make e2e-setup
 
@@ -177,12 +172,12 @@ jobs:
               > "$LOG_DIR/environment.txt"
             make e2e-collect-logs
           displayName: Collect agent logs
-          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          condition: always()
           timeoutInMinutes: 5
 
         - task: PublishPipelineArtifact@1
           displayName: Publish agent logs
-          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          condition: always()
           timeoutInMinutes: 5
           inputs:
             targetPath: '$(LOG_DIR)'
@@ -190,7 +185,7 @@ jobs:
 
         - task: AzureCLI@2
           displayName: Clean up this run's resources
-          condition: and(always(), eq(variables['e2eResourcesStarted'], 'true'))
+          condition: always()
           timeoutInMinutes: 90
           inputs:
             azureSubscription: ${{ parameters.serviceConnection }}

@@ -30,23 +30,24 @@ assigns Azure roles. Use a test subscription rather than a production subscripti
 
 ### Shared resource group
 
-Use a pre-created test resource group of your choice. Setup and cleanup require these group tags:
-`managedBy=aks-rp/ci-resources` and `workload=fleet-networking-e2e`; the latter is a tag value,
-not the required group name. The identity must be able to manage test resources and assign the
-necessary roles, including on AKS node resource groups.
+Use a pre-created test resource group of your choice. The identity must be able to manage test
+resources and assign the necessary roles, including on AKS node resource groups.
 For local runs, set the following in addition to the scenario variables:
 
 ```bash
 export AZURE_RESOURCE_GROUP=<YOUR-TEST-RESOURCE-GROUP>
 export E2E_RUN_ID=<unique-lowercase-run-id>
-export KUBECONFIG=<new-run-specific-kubeconfig-path>
+# Recommended: use a separate kubeconfig for this run.
+export KUBECONFIG=<run-specific-kubeconfig-path>
 # Required only when AFD automatic approval is enabled:
 export E2E_TEST_PRINCIPAL_ID=<service-principal-object-id>
 ```
 
 Use a unique `E2E_RUN_ID` for every concurrent run and retry; never reuse an ID while a prior run
 or its cleanup is active. Use at most 63 lowercase letters, digits and hyphens, beginning with a
-letter or digit. Setup refuses existing run resources and requires a new kubeconfig path.
+letter or digit. Setup does not check for existing run resources. Reusing an ID can overwrite
+or delete resources from another run. Existing kubeconfig contexts can also be overwritten; use
+a separate kubeconfig to avoid changing them.
 For local AFD auto-approval, sign in as the specified service principal; otherwise disable
 auto-approval and arrange manual approval by an authorized PLS owner.
 
@@ -55,9 +56,9 @@ group**. Keep the same run ID, kubeconfig and, for AFD auto-approval, principal 
 If cleanup fails, inspect remaining resources before retrying; there is no automatic stale-run
 sweeper.
 
-Run-specific names and cleanup checks prevent accidental cross-run deletion; they are not an Azure
-security boundary: an identity with Contributor on the group can modify other runs' resources and
-delete the group.
+Cleanup checks resource ownership but does not prevent deletion of resources from another run
+using the same ID. It is not an Azure security boundary: an identity with Contributor on the group
+can modify other runs' resources and delete the group.
 
 ## Choose an E2E scenario
 
@@ -728,9 +729,8 @@ Azure drift/deletion recovery, backend/member/weight changes and Kubernetes plus
 Azure resource absence during cleanup.
 
 The [E2E pipeline](../.pipeline/e2e-tests.yaml) enables ATM for the shared-VNet
-matrix entry, uses the existing setup/test targets, and collects logs even after a failure.
-Cleanup runs after ownership preflight has succeeded. These are implemented test/CI paths, not evidence that a
-particular live run passed.
+matrix entry, uses the existing setup/test targets, and attempts log collection and cleanup even
+after a failure. These are implemented test/CI paths, not evidence that a particular live run passed.
 
 The reviewed ATM scenario has no application HTTP request, observed health-probe
 logs or statistical traffic-distribution assertion; its Azure comparison ignores

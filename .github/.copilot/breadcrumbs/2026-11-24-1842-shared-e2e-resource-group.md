@@ -29,6 +29,13 @@ Each Azure DevOps scenario creates and deletes a unique resource group. Fixed re
 
 ## Status
 
+The user approved removing setup kubeconfig, group and collision checks, the cleanup marker, and matching cleanup checks. Azure DevOps log collection and cleanup will run with `always()`. Per-resource ownership checks remain.
+
+1. [x] Remove the selected setup and cleanup checks and marker.
+2. [x] Make Azure DevOps log collection and cleanup unconditional.
+3. [x] Update documentation and validate offline.
+4. [ ] Push the changes.
+
 The shared-group-only revision:
 
 1. [x] Remove the legacy resource-group creation/deletion path and require per-run shared-group configuration.
@@ -37,13 +44,13 @@ The shared-group-only revision:
 4. [x] Update tests and documentation and validate offline.
 5. [x] Push the shared-group-only revision.
 
-The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scripts derive physical Azure names and retain the established logical Kubernetes contexts. Setup requires a new run-specific kubeconfig, verifies the group and rejects name or ownership collisions before enabling cleanup.
+The Azure DevOps pipeline supplies a unique run ID per scenario and attempt; scripts derive physical Azure names and retain the established logical Kubernetes contexts. At the user's request, setup no longer validates the kubeconfig path, resource-group tags or run collisions. Azure DevOps always attempts log collection and cleanup.
 
-Cleanup verifies the group, run tags, resource IDs, AKS node-group ownership, role scopes and peering targets. It verifies Traffic Manager namespace tags and Front Door hub/Gateway identity, stops the run's hub controllers before deleting their profiles, deletes only identified roles and resources, and never deletes the shared group. It fails explicitly when ownership, controller quiescence or deletion cannot be verified.
+Cleanup verifies run tags, resource IDs, AKS node-group ownership, role scopes and peering targets. It verifies Traffic Manager namespace tags and Front Door hub/Gateway identity, stops the run's hub controllers before deleting their profiles, deletes only identified roles and resources, and never deletes the shared group. It fails explicitly when ownership, controller quiescence or deletion cannot be verified.
 
 Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. The user requested storing the object ID as the `E2E_TEST_PRINCIPAL_ID` Azure DevOps pipeline variable instead of parsing a token; the variable was configured for the current CI identity. It must be updated whenever the selected service connection changes; its identity is not independently verified by the pipeline.
 
-The user requested a generic local E2E guide and chose to retain both existing resource-group tag checks. The guide now uses a caller-selected group name and explains the required tag values; setup and cleanup behavior is unchanged.
+The user initially chose to retain both resource-group tag checks, then explicitly requested removing them. The guide uses a caller-selected pre-created group name.
 
 The user subsequently requested removal of `shared_group_test.go` and `azure_principal_id_test.go`. Dedicated mocked cleanup and principal-token regression coverage is no longer retained.
 
@@ -58,4 +65,5 @@ Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` 
 - `GOTOOLCHAIN=go1.26.10 go test -tags=e2e -run '^$' ./test/e2e` and `go vet -tags=e2e ./test/e2e` passed without executing live E2E.
 - Performance packages compiled and passed `go vet` without running their suites. Installed Azure CLI option checks, Bash syntax, both workflow YAML parsing and `git diff --check` passed.
 - The generic guide's Markdown fences are balanced and its local links resolve.
-- No live Azure provisioning, permission, test or cleanup operation was run. The proposed grants and service connection have not been enabled. Cleanup can fail closed and leave resources; there is no stale-run sweeper. Contributor on the shared RG is not a security boundary between runs.
+- After preflight removal, mocked setup reached creation with unset and existing kubeconfig paths; mocked cleanup reached credential retrieval without kubeconfig or group-tag checks. Azure DevOps YAML checks verified unconditional log collection and cleanup, and the remaining script suite and vet passed.
+- The new preflight-removal change has not been validated against live Azure. Setup can overwrite existing kubeconfig contexts and reuse run resources; uniqueness is the caller's responsibility. Cleanup can fail closed and leave resources; there is no stale-run sweeper. Contributor on the shared RG is not a security boundary between runs.
