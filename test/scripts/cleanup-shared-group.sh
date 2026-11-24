@@ -1,4 +1,14 @@
 #!/bin/bash
+#
+# 1. Load the run configuration and reject cleanup when AFD retention is enabled.
+# 2. Find run-owned resources and verify their tags, names, types and scope.
+# 3. Verify VNet peerings, controller profiles, the hub identity and the AFD test principal.
+# 4. Collect and validate run-owned identities, node resource groups and role assignments.
+# 5. Stop hub controllers when needed and delete verified Traffic Manager and Front Door profiles.
+# 6. Remove node-group role assignments, delete AKS clusters and wait for node groups to disappear.
+# 7. Remove remaining role assignments, peerings, public IPs, VNets, registries and identities.
+# 8. Verify that no run-owned resources or controller profiles remain, preserving the shared group.
+#
 set -o errexit
 set -o nounset
 set -o pipefail
