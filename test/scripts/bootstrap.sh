@@ -237,13 +237,14 @@ EOF
 fi
 
 # Export kubeconfig.
-az aks get-credentials --name $HUB_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$HUB_CLUSTER-admin" --overwrite-existing
-az aks get-credentials --name $MEMBER_1_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_1-admin" --overwrite-existing
-az aks get-credentials --name $MEMBER_2_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_2-admin" --overwrite-existing
+# Azure CLI adds the "-admin" suffix for admin credentials.
+az aks get-credentials --name $HUB_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$HUB_CLUSTER" --overwrite-existing
+az aks get-credentials --name $MEMBER_1_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_1" --overwrite-existing
+az aks get-credentials --name $MEMBER_2_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_2" --overwrite-existing
 if [ "${AZURE_NETWORK_SETTING}" == "perf-test" ]
 then
-    az aks get-credentials --name $MEMBER_3_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_3-admin" --overwrite-existing
-    az aks get-credentials --name $MEMBER_4_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_4-admin" --overwrite-existing
+    az aks get-credentials --name $MEMBER_3_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_3" --overwrite-existing
+    az aks get-credentials --name $MEMBER_4_AZURE_CLUSTER -g $RESOURCE_GROUP --admin --context "$MEMBER_CLUSTER_4" --overwrite-existing
 fi
 HUB_URL="$(kubectl --context "$HUB_CLUSTER-admin" config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 export HUB_URL

@@ -25,6 +25,81 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
+func TestAKSAdminContexts(t *testing.T) {
+	bootstrap := readAFDFile(t, "bootstrap.sh")
+	_, setup, found := strings.Cut(bootstrap, "# Export kubeconfig.")
+	if !found {
+		t.Fatal("bootstrap kubeconfig section not found")
+	}
+	setup, _, found = strings.Cut(setup, "# Setup hub cluster credentials.")
+	if !found {
+		t.Fatal("bootstrap kubeconfig section is incomplete")
+	}
+	cleanup := readAFDFile(t, "cleanup-shared-group.sh")
+	const start = "  az aks get-credentials --subscription"
+	_, cleanup, found = strings.Cut(cleanup, start)
+	if !found {
+		t.Fatal("cleanup credential retrieval not found")
+	}
+	cleanup, _, found = strings.Cut(cleanup, `  if [[ ! "$hub_uid"`)
+	if !found {
+		t.Fatal("cleanup credential retrieval is incomplete")
+	}
+	cleanup = start + cleanup
+
+	for _, tt := range []struct {
+		name, network, script string
+	}{
+		{"setup", "shared-vnet", setup + `
+for context in hub-admin member-1-admin member-2-admin; do
+  kubectl --context "$context" get namespace kube-system
+done`},
+		{"performance setup", "perf-test", setup + `
+for context in hub-admin member-1-admin member-2-admin member-3-admin member-4-admin; do
+  kubectl --context "$context" get namespace kube-system
+done`},
+		{"cleanup", "shared-vnet", cleanup + `
+[[ "$hub_uid" == 11111111-1111-1111-1111-111111111111 ]]`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			afdTestEnvironment(t)
+			t.Setenv("AZURE_NETWORK_SETTING", tt.network)
+			dir := t.TempDir()
+			t.Setenv("TEST_CONTEXTS", filepath.Join(dir, "contexts"))
+			writeAFDCommand(t, filepath.Join(dir, "az"), `#!/bin/bash
+set -euo pipefail
+[[ "$1 $2" == "aks get-credentials" ]]
+context=""; admin=false
+while (($#)); do
+  case "$1" in
+    --admin) admin=true; shift ;;
+    --context) context="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ "$admin" == true && -n "$context" ]]
+printf '%s-admin\n' "$context" >>"$TEST_CONTEXTS"
+`)
+			writeAFDCommand(t, filepath.Join(dir, "kubectl"), `#!/bin/bash
+set -euo pipefail
+[[ "$1" == --context ]]
+grep -Fxq "$2" "$TEST_CONTEXTS" || { echo "missing context $2" >&2; exit 1; }
+if [[ "$*" == *"config view"* ]]; then
+  echo "https://hub.example.test"
+else
+  echo "11111111-1111-1111-1111-111111111111"
+fi
+`)
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			script := "set -euo pipefail\nsource ./e2e-config.sh\nexport RESOURCE_GROUP=\"$AZURE_RESOURCE_GROUP\"\n" + tt.script
+			output, err := runAFDScript(t, "-ec", script)
+			if err != nil {
+				t.Fatalf("admin contexts are not usable: %s: %v", output, err)
+			}
+		})
+	}
+}
+
 func TestAFDCommandFailureStopsWork(t *testing.T) {
 	tests := []struct {
 		name, script, command, forbidden string

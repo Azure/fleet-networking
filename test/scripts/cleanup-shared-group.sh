@@ -89,7 +89,7 @@ if [[ "$has_hub" == true && ( "$(jq 'length' <<<"$profiles")" -gt 0 ||
     '(.id | ascii_downcase) == ($id | ascii_downcase) and .tags.source == "fleet-networking" and .tags["fleet-e2e-run"] == $run' \
     <<<"$hub" >/dev/null
   az aks get-credentials --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name "$HUB_AZURE_CLUSTER" --admin --context "$HUB_CLUSTER-admin" --overwrite-existing
+    --name "$HUB_AZURE_CLUSTER" --admin --context "$HUB_CLUSTER" --overwrite-existing
   hub_uid="$(kubectl --context "$HUB_CLUSTER-admin" get namespace kube-system -o jsonpath='{.metadata.uid}')"
   if [[ ! "$hub_uid" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
     echo "error: could not verify hub UID for controller profile cleanup" >&2
