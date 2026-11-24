@@ -161,7 +161,7 @@ jobs:
               --retry-delay 1 --retry-max-time 30 --connect-timeout 1 --max-time 2 \
               "http://$address/$path"
           done
-          docker logs "$container" 2>&1 | grep -q 'Azure Front Door reconciliation is disabled'
+          docker logs "$container" 2>&1 | grep 'Azure Front Door reconciliation is disabled' >/dev/null
 
       - name: Verify registry export and pull using a loopback-only registry
         shell: bash
