@@ -30,46 +30,34 @@ assigns Azure roles. Use a test subscription rather than a production subscripti
 
 ### Shared resource group
 
-The E2E workflows use the pre-created `fleet-networking-e2e` resource group. An administrator
-must deploy the scoped permissions and authorize the intended service connection; Azure DevOps
-can select it with the `serviceConnection` parameter. CI obtains the service principal object ID
-from its Azure CLI access token for automated AFD Private Link approval.
-
-For a local run, set the following in addition to the scenario variables:
+Use a pre-created test resource group of your choice. Setup and cleanup require these group tags:
+`managedBy=aks-rp/ci-resources` and `workload=fleet-networking-e2e`; the latter is a tag value,
+not the required group name. The identity must be able to manage test resources and assign the
+necessary roles, including on AKS node resource groups.
+For local runs, set the following in addition to the scenario variables:
 
 ```bash
-export AZURE_RESOURCE_GROUP=fleet-networking-e2e
+export AZURE_RESOURCE_GROUP=<YOUR-TEST-RESOURCE-GROUP>
 export E2E_RUN_ID=<unique-lowercase-run-id>
 export KUBECONFIG=<new-run-specific-kubeconfig-path>
 # Required only when AFD automatic approval is enabled:
 export E2E_TEST_PRINCIPAL_ID=<service-principal-object-id>
 ```
 
-For local AFD auto-approval, sign in as that service principal. An interactive user can instead
-disable auto-approval and arrange manual approval by an authorized PLS owner.
-
 Use a unique `E2E_RUN_ID` for every concurrent run and retry; never reuse an ID while a prior run
 or its cleanup is active. Use at most 63 lowercase letters, digits and hyphens, beginning with a
-letter or digit. CI derives it from the build ID, scenario and job attempt.
-Setup checks the shared group's expected management tags and refuses existing run resources.
-Physical Azure cluster names, VNets, identities and the registry are run-specific, while the
-isolated kubeconfig retains the `hub-admin` and `member-*-admin` context names.
-AFD requires the default Gateway controller namespace and deployment name.
+letter or digit. Setup refuses existing run resources and requires a new kubeconfig path.
+For local AFD auto-approval, sign in as the specified service principal; otherwise disable
+auto-approval and arrange manual approval by an authorized PLS owner.
 
-`make e2e-cleanup` **never deletes the resource group**. It verifies run tags,
-resource IDs, controller profile ownership and AKS-managed node groups before removing the
-run's resources and relevant role assignments. If ownership cannot be established, the hub is
-unavailable when controller cleanup is needed, or Azure cleanup fails, the command stops with an
-error and resources may remain. Keep the run ID and inspect leftovers before retrying; do not
-delete the shared group. For AFD auto-approval, supply the same `E2E_TEST_PRINCIPAL_ID` during
-cleanup. There is no automatic stale-run sweeper.
+`make e2e-cleanup` removes only verified run-owned resources and **never deletes the resource
+group**. Keep the same run ID, kubeconfig and, for AFD auto-approval, principal ID for cleanup.
+If cleanup fails, inspect remaining resources before retrying; there is no automatic stale-run
+sweeper.
 
 Run-specific names and cleanup checks prevent accidental cross-run deletion; they are not an Azure
-security boundary. An identity with Contributor on the shared group can modify other runs' resources
-and delete the group. Node groups still need their own permissions outside the shared group.
-
-These shared-group permissions and cleanup paths require a separately approved live Azure run
-before production use. Offline tests do not establish Azure provisioning or deletion behavior.
+security boundary: an identity with Contributor on the group can modify other runs' resources and
+delete the group.
 
 ## Choose an E2E scenario
 

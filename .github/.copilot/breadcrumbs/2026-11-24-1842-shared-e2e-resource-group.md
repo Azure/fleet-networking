@@ -43,6 +43,8 @@ Cleanup verifies the group, run tags, resource IDs, AKS node-group ownership, ro
 
 Shared AFD requires the test principal object ID, grants it Network Contributor only on verified member node groups, and records the principal for cleanup. CI obtains the object ID from its Azure CLI access token without logging or storing the token. The pipeline service connection remains unchanged by default and can be selected explicitly after its grants are deployed.
 
+The user requested a generic local E2E guide and chose to retain both existing resource-group tag checks. The guide now uses a caller-selected group name and explains the required tag values; setup and cleanup behavior is unchanged.
+
 Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` setup, topology, configuration, AFD and cleanup scripts and tests, plus E2E framework workload naming and Traffic Manager public-IP tagging.
 
 ## Validation and risks
@@ -51,4 +53,5 @@ Changed files: `.pipeline/e2e-tests.yaml`, `test/README.md`, the `test/scripts` 
 - `GOTOOLCHAIN=go1.26.10 go vet ./test/scripts ./test/e2e/framework` passed.
 - `GOTOOLCHAIN=go1.26.10 go test -tags=e2e -run '^$' ./test/e2e` and `go vet -tags=e2e ./test/e2e` passed without executing live E2E.
 - Performance packages compiled and passed `go vet` without running their suites. Installed Azure CLI option checks, Bash syntax, both workflow YAML parsing and `git diff --check` passed.
+- The generic guide's Markdown fences are balanced and its local links resolve.
 - No live Azure provisioning, permission, test or cleanup operation was run. The proposed grants and service connection have not been enabled. Cleanup can fail closed and leave resources; there is no stale-run sweeper. Contributor on the shared RG is not a security boundary between runs.
