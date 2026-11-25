@@ -105,7 +105,7 @@ jobs:
             helm version --short
             kubectl version --client
             yq --version
-            go mod download
+            sh ./hack/retry-go.sh mod download
             df -h /
             mkdir -p "$LOG_DIR"
           displayName: Check E2E prerequisites

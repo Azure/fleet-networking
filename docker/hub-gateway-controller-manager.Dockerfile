@@ -7,7 +7,9 @@ ARG GOARCH=amd64
 WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,source=hack/retry-go.sh,target=/tmp/retry-go.sh \
+    sh /tmp/retry-go.sh mod download
 
 COPY cmd/hub-gateway-controller-manager/ cmd/hub-gateway-controller-manager/
 COPY api/ api/

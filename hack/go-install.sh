@@ -25,6 +25,7 @@ if [[ -z "${GOBIN}" ]]; then
   exit 1
 fi
 
+retry_go="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/retry-go.sh"
 tmp_dir=$(mktemp -d -t goinstall_XXXXXXXXXX)
 function clean {
   rm -rf "${tmp_dir}"
@@ -39,6 +40,6 @@ cd "${tmp_dir}"
 go mod init fake/mod
 
 # install the golang module specified as the first argument
-go install "${1}@${3}"
+sh "$retry_go" install "${1}@${3}"
 mv "${GOBIN}/${2}" "${GOBIN}/${2}-${3}"
 ln -sf "${GOBIN}/${2}-${3}" "${GOBIN}/${2}"
