@@ -342,10 +342,10 @@ kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.18.16/config/crd/ba
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
         $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
@@ -354,7 +354,7 @@ kubectl config use-context $MEMBER_CLUSTER_1-admin
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
@@ -362,10 +362,10 @@ helm install mcs-controller-manager \
     $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
@@ -378,7 +378,7 @@ kubectl config use-context $MEMBER_CLUSTER_2-admin
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
@@ -386,10 +386,10 @@ helm install mcs-controller-manager \
     $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ]  && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
@@ -416,17 +416,17 @@ then
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-        --set crdInstaller.image.tag=$TAG \
+        --set-string crdInstaller.image.tag="$TAG" \
         --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
@@ -437,17 +437,17 @@ then
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_4 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_4
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-        --set crdInstaller.image.tag=$TAG \
+        --set-string crdInstaller.image.tag="$TAG" \
         --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
