@@ -12,8 +12,10 @@ networking components, and runs the Ginkgo tests under `test/e2e`.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [`jq`](https://jqlang.github.io/jq/download/)
 - [`yq`](https://github.com/mikefarah/yq#install)
+- `sha256sum`
 - Bash and GNU Make
-- An Azure subscription in which the signed-in identity has the Owner role
+- An Azure subscription in which the signed-in identity can provision the test resources and
+  create the required role assignments
 
 Sign in and select the subscription before starting:
 
@@ -25,6 +27,39 @@ az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
 
 The setup builds and pushes test images, creates an Azure Container Registry and AKS clusters, and
 assigns Azure roles. Use a test subscription rather than a production subscription.
+
+### Shared resource group
+
+Use a pre-created test resource group of your choice. The identity must be able to manage test
+resources and assign the necessary roles, including on AKS node resource groups.
+For local runs, set the following in addition to the scenario variables:
+
+```bash
+export AZURE_RESOURCE_GROUP=<YOUR-TEST-RESOURCE-GROUP>
+export E2E_RUN_ID=<unique-lowercase-run-id>
+# Recommended: use a separate kubeconfig for this run.
+export KUBECONFIG=<run-specific-kubeconfig-path>
+# Required for Traffic Manager and for AFD automatic approval: the object ID of the signed-in
+# service principal (Azure Pipelines derives it with test/scripts/caller-object-id.sh).
+export E2E_TEST_PRINCIPAL_ID=<service-principal-object-id>
+```
+
+Use a unique `E2E_RUN_ID` for every concurrent run and retry; never reuse an ID while a prior run
+or its cleanup is active. Use at most 63 lowercase letters, digits and hyphens, beginning with a
+letter or digit. Setup does not check for existing run resources. Reusing an ID can overwrite
+or delete resources from another run. Existing kubeconfig contexts can also be overwritten; use
+a separate kubeconfig to avoid changing them.
+For local AFD auto-approval, sign in as the specified service principal; otherwise disable
+auto-approval and arrange manual approval by an authorized PLS owner.
+
+`make e2e-cleanup` removes only verified run-owned resources and **never deletes the resource
+group**. Keep the same run ID, kubeconfig and, for AFD auto-approval, principal ID for cleanup.
+If cleanup fails, inspect remaining resources before retrying; there is no automatic stale-run
+sweeper.
+
+Cleanup checks resource ownership but does not prevent deletion of resources from another run
+using the same ID. It is not an Azure security boundary: an identity with Contributor on the group
+can modify other runs' resources and delete the group.
 
 ## Choose an E2E scenario
 
@@ -67,7 +102,9 @@ export ENABLE_TRAFFIC_MANAGER=true
 
 The setup configures the additional AKS identities, Azure role assignments, and controller feature
 flags required by `test/e2e/traffic_manager_test.go`. Tests in that file skip when
-`ENABLE_TRAFFIC_MANAGER` is not `true`.
+`ENABLE_TRAFFIC_MANAGER` is not `true`. Because some tests update Traffic Manager endpoints that
+target the members' public IPs directly, setup also grants `E2E_TEST_PRINCIPAL_ID` Network
+Contributor on both member node resource groups.
 
 ### Azure Front Door and Gateway API
 
@@ -472,8 +509,8 @@ The existing post-setup CI propagation window applies to these assignments.
 The setup operator needs role-assignment write/read permission on those scopes.
 The installer does not approve connections. **Approval remains asynchronous.**
 The standard AFD opt-in defaults its test-only exact-request approval helper on;
-the runner must already have approval permission on the verified fixture PLS
-resources. Set `ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL=false` for an authorized
+setup grants the test caller Network Contributor on the verified member node
+resource groups. Set `ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL=false` for an authorized
 PLS owner to perform manual approval at the correlated checkpoint below.
 Production controller approval integration with the AFD/PLS teams remains an
 action item.
@@ -590,6 +627,7 @@ export ENABLE_AFD_PRIVATE_HTTP_PROOF=true
 export AFD_PROOF_CONTROLLER_NAMESPACE=<INSTALLED-DEPLOYMENT-NAMESPACE>
 export AFD_PROOF_CONTROLLER_DEPLOYMENT=<INSTALLED-DEPLOYMENT-NAME>
 export AFD_PROOF_CONTROLLER_IMAGE=<EXACT-IMAGE-IN-DEPLOYMENT>
+source test/scripts/e2e-config.sh
 AFD_PROOF_REPORT="${TMPDIR:-/tmp}/afd-private-http-proof-$(date -u +%Y%m%dT%H%M%SZ).json"
 go test -v -count=1 -tags=e2e -run '^TestE2E$' -timeout=10h ./test/e2e \
   -args -ginkgo.v -ginkgo.timeout=9h30m -ginkgo.label-filter=afd-private-http-proof \
@@ -693,10 +731,9 @@ resource IDs, and compares actual Azure SDK profile/endpoints. It also exercises
 Azure drift/deletion recovery, backend/member/weight changes and Kubernetes plus
 Azure resource absence during cleanup.
 
-The [E2E workflow](../.github/workflows/e2e-tests.yml) enables ATM for the shared-VNet
-matrix entry, uses the existing setup/test targets, and collects logs/cleans up
-with `if: always()`. These are implemented test/CI paths, not evidence that a
-particular live run passed.
+The [E2E pipeline](../.pipeline/e2e-tests.yaml) enables ATM for the shared-VNet
+matrix entry, uses the existing setup/test targets, and attempts log collection and cleanup even
+after a failure. These are implemented test/CI paths, not evidence that a particular live run passed.
 
 The reviewed ATM scenario has no application HTTP request, observed health-probe
 logs or statistical traffic-distribution assertion; its Azure comparison ignores
@@ -742,6 +779,7 @@ The environment can be reused for repeated test runs. To run only the current Ga
 scenario:
 
 ```bash
+source test/scripts/e2e-config.sh
 go test -timeout 50m -tags=e2e -v ./test/e2e \
   -args -ginkgo.v -ginkgo.focus='Gateway API contract'
 ```
@@ -757,10 +795,11 @@ make e2e-collect-logs
 
 ## Clean up
 
-Delete the Azure resource group created for the E2E environment:
+Delete only this run's verified resources; the shared resource group remains:
 
 ```bash
 make e2e-cleanup
 ```
 
-Cleanup requires `AZURE_RESOURCE_GROUP` to still identify the test resource group.
+Cleanup requires the same `AZURE_RESOURCE_GROUP`, `E2E_RUN_ID`, `KUBECONFIG` and, for Traffic
+Manager or AFD auto-approval, `E2E_TEST_PRINCIPAL_ID` used by setup.

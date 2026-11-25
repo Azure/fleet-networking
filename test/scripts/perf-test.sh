@@ -3,14 +3,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -x
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 
 # This script creates 4 member clusters in 2 separate groups; each group has its own
 # virtual network. The two virtual networks are peer-linked, so as to allow connectivity
 # between clusters in different groups.
 
 # Create the two virtual networks; each has two subnets for two member clusters.
-export VNET_1=vnet-1
-export VNET_2=vnet-2
+export VNET_1="${E2E_RESOURCE_PREFIX}-vnet-1"
+export VNET_2="${E2E_RESOURCE_PREFIX}-vnet-2"
 export MEMBER_SUBNET_1=subnet-1
 export MEMBER_SUBNET_2=subnet-2
 
@@ -18,7 +19,7 @@ az network vnet create \
     --name $VNET_1 \
     --location $MEMBER_LOCATION_1 \
     -g $RESOURCE_GROUP \
-    --address-prefixes 10.1.0.0/16
+    --address-prefixes 10.1.0.0/16 "${E2E_RESOURCE_TAGS[@]}"
 az network vnet subnet create \
     --vnet-name $VNET_1 \
     --name $MEMBER_SUBNET_1 \
@@ -34,7 +35,7 @@ az network vnet create \
     --name $VNET_2 \
     --location $MEMBER_LOCATION_2 \
     -g $RESOURCE_GROUP \
-    --address-prefixes 10.2.0.0/16
+    --address-prefixes 10.2.0.0/16 "${E2E_RESOURCE_TAGS[@]}"
 az network vnet subnet create \
     --vnet-name $VNET_2 \
     --name $MEMBER_SUBNET_1 \
@@ -73,7 +74,7 @@ az network vnet peering create \
 az aks create \
     --location $MEMBER_LOCATION_1 \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_1 \
+    --name $MEMBER_1_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -81,12 +82,12 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_1/subnets/$MEMBER_SUBNET_1" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 
 az aks create \
     --location $MEMBER_LOCATION_1 \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_2 \
+    --name $MEMBER_2_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -94,12 +95,12 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_1/subnets/$MEMBER_SUBNET_2" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 
 az aks create \
     --location $MEMBER_LOCATION_2 \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_3 \
+    --name $MEMBER_3_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -107,12 +108,12 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_2/subnets/$MEMBER_SUBNET_1" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 
 az aks create \
     --location $MEMBER_LOCATION_2 \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_4 \
+    --name $MEMBER_4_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -120,4 +121,4 @@ az aks create \
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET_2/subnets/$MEMBER_SUBNET_2" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"

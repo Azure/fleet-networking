@@ -16,6 +16,4 @@ case "${RETAIN_AFD_E2E_SETUP:-false}" in
     ;;
 esac
 
-[[ -z "${AZURE_RESOURCE_GROUP}" ]] && echo "AZURE_RESOURCE_GROUP is not set" && exit 1
-
-az group show --name "$AZURE_RESOURCE_GROUP" && az group delete --name "$AZURE_RESOURCE_GROUP" --no-wait --yes
+exec bash "$(dirname "${BASH_SOURCE[0]}")/cleanup-shared-group.sh"

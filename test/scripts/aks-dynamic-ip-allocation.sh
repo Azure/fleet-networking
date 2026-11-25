@@ -3,6 +3,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -x
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 
 # dynamic-ip-allocation creates two member clusters using dynamic allocation of IPs and enhanced subnet support in the same vnet.
 
@@ -15,12 +16,12 @@ set -x
 # https://docs.microsoft.com/en-us/azure/aks/configure-azure-cni#configure-networking---cli-with-dynamic-allocation-of-ips-and-enhanced-subnet-support
 
 # Create virutal network and podsubnet and nodesubnet for both member clusters.
-export VNET=fleet
+export VNET="${E2E_RESOURCE_PREFIX}-fleet"
 export MEMBER_1_NODE_SUBNET=member-1-node
 export MEMBER_1_POD_SUBNET=member-1-pod
 export MEMBER_2_NODE_SUBNET=member-2-node
 export MEMBER_2_POD_SUBNET=member-2-pod
-az network vnet create -g $RESOURCE_GROUP --location $MEMBER_1_LOCATION --name $VNET --address-prefixes 10.0.0.0/8 -o none
+az network vnet create -g $RESOURCE_GROUP --location $MEMBER_1_LOCATION --name $VNET --address-prefixes 10.0.0.0/8 -o none "${E2E_RESOURCE_TAGS[@]}"
 az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_1_NODE_SUBNET --address-prefixes 10.242.0.0/16 -o none
 az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_1_POD_SUBNET --address-prefixes 10.243.0.0/16 -o none
 az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBER_2_NODE_SUBNET --address-prefixes 10.244.0.0/16 -o none
@@ -30,7 +31,7 @@ az network vnet subnet create -g $RESOURCE_GROUP --vnet-name $VNET --name $MEMBE
 az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_1 \
+    --name $MEMBER_1_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -39,13 +40,13 @@ az aks create \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_NODE_SUBNET" \
     --pod-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_POD_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 
 # Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
 az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_2 \
+    --name $MEMBER_2_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -54,4 +55,4 @@ az aks create \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_NODE_SUBNET" \
     --pod-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_POD_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"

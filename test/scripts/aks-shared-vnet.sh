@@ -3,6 +3,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -x
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-config.sh"
 
 # shared-vnet creates two member clusters from subnets within one vnet.
 
@@ -15,7 +16,7 @@ set -x
 # https://docs.microsoft.com/en-us/azure/virtual-network/tutorial-connect-virtual-networks-cli
 
 # Create virutal network and subnet for both member clusters.
-export VNET=fleet
+export VNET="${E2E_RESOURCE_PREFIX}-fleet"
 export MEMBER_1_SUBNET=member-1
 export MEMBER_2_SUBNET=member-2
 
@@ -23,7 +24,7 @@ az network vnet create \
     --name $VNET \
     --location $MEMBER_1_LOCATION \
     -g $RESOURCE_GROUP \
-    --address-prefixes 10.0.0.0/8
+    --address-prefixes 10.0.0.0/8 "${E2E_RESOURCE_TAGS[@]}"
 
 az network vnet subnet create \
     --vnet-name $VNET \
@@ -41,7 +42,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   az aks create \
     --location $MEMBER_1_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_1 \
+    --name $MEMBER_1_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -49,12 +50,12 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 else
   az aks create \
      --location $MEMBER_1_LOCATION \
      --resource-group $RESOURCE_GROUP \
-     --name $MEMBER_CLUSTER_1 \
+     --name $MEMBER_1_AZURE_CLUSTER \
      --node-count $NODE_COUNT \
      --node-vm-size Standard_A2_v2 \
      --generate-ssh-keys \
@@ -63,7 +64,7 @@ else
      --network-plugin azure \
      --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_1_SUBNET" \
      --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_1_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_1_AKS_KUBELET_IDENTITY_ID} \
-     --no-wait
+     --no-wait "${E2E_RESOURCE_TAGS[@]}"
 fi
 
 # Create aks member cluster2, specifying amd64 VM size to ensure linux/amd64 docker images can be consumed.
@@ -71,7 +72,7 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
   az aks create \
     --location $MEMBER_2_LOCATION \
     --resource-group $RESOURCE_GROUP \
-    --name $MEMBER_CLUSTER_2 \
+    --name $MEMBER_2_AZURE_CLUSTER \
     --node-count $NODE_COUNT \
     --node-vm-size Standard_A2_v2 \
     --generate-ssh-keys \
@@ -79,12 +80,12 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "false" ]; then
     --enable-azure-rbac \
     --network-plugin azure \
     --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
-    --no-wait
+    --no-wait "${E2E_RESOURCE_TAGS[@]}"
 else
   az aks create \
       --location $MEMBER_2_LOCATION \
       --resource-group $RESOURCE_GROUP \
-      --name $MEMBER_CLUSTER_2 \
+      --name $MEMBER_2_AZURE_CLUSTER \
       --node-count $NODE_COUNT \
       --node-vm-size Standard_A2_v2 \
       --generate-ssh-keys \
@@ -93,5 +94,5 @@ else
       --network-plugin azure \
       --vnet-subnet-id "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/$VNET/subnets/$MEMBER_2_SUBNET" \
       --enable-managed-identity --assign-identity ${MEMBER_CLUSTER_2_AKS_IDENTITY_ID} --assign-kubelet-identity ${MEMBER_CLUSTER_2_AKS_KUBELET_IDENTITY_ID} \
-      --no-wait
+      --no-wait "${E2E_RESOURCE_TAGS[@]}"
 fi

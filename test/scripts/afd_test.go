@@ -7,6 +7,8 @@ package scripts
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,85 +16,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/yaml"
 )
-
-func TestAFDSharedVNetWorkflow(t *testing.T) {
-	var workflow struct {
-		Jobs map[string]struct {
-			Env      map[string]string
-			Strategy struct {
-				Matrix struct {
-					Include []struct {
-						Network string `json:"network-setting"`
-						ATM     bool   `json:"enable-traffic-manager"`
-						AFD     bool   `json:"enable-afd"`
-					}
-				}
-			}
-			Steps []struct {
-				Name string
-				Env  map[string]string
-				With map[string]string
-			}
-		}
-	}
-	contents := readAFDFile(t, filepath.Join("..", "..", ".github", "workflows", "e2e-tests.yml"))
-	if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(contents), 4096).Decode(&workflow); err != nil {
-		t.Fatal(err)
-	}
-	job := workflow.Jobs["e2e-tests"]
-	if job.Env["ENABLE_AZURE_FRONT_DOOR"] != "${{ matrix.enable-afd }}" ||
-		job.Env["ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL"] != "${{ matrix.enable-afd }}" ||
-		job.Env["RETAIN_AFD_E2E_SETUP"] != "false" {
-		t.Fatal("AFD selection, exact test approvals and ordinary cleanup must reach the entire job")
-	}
-	scenarios := make(map[string]bool)
-	for _, row := range job.Strategy.Matrix.Include {
-		scenario := row.Network
-		switch {
-		case row.AFD:
-			if row.Network != "shared-vnet" || row.ATM {
-				t.Fatal("AFD must use an independent shared-VNet fixture")
-			}
-			scenario += "-afd"
-		case row.ATM:
-			if row.Network != "shared-vnet" {
-				t.Fatal("ATM requires shared-VNet")
-			}
-			scenario += "-atm"
-		}
-		if scenarios[scenario] {
-			t.Fatalf("duplicate CI scenario %s", scenario)
-		}
-		scenarios[scenario] = true
-	}
-	for _, scenario := range []string{"shared-vnet-atm", "shared-vnet-afd", "peered-vnet", "dynamic-ip-allocation", "unsupported"} {
-		if !scenarios[scenario] {
-			t.Errorf("missing CI scenario %s", scenario)
-		}
-	}
-	for _, step := range job.Steps {
-		for _, variable := range []string{"ENABLE_AZURE_FRONT_DOOR", "ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL", "RETAIN_AFD_E2E_SETUP"} {
-			if value, ok := step.Env[variable]; ok && value != job.Env[variable] {
-				t.Errorf("%s overrides job selection for %s", step.Name, variable)
-			}
-		}
-		switch step.Name {
-		case "Collect agent logs":
-			if !strings.Contains(step.Env["LOG_DIR"], "${{ matrix.enable-afd }}") {
-				t.Error("collected logs must distinguish the two shared-VNet fixtures")
-			}
-		case "Upload agent logs":
-			for _, key := range []string{"name", "path"} {
-				if !strings.Contains(step.With[key], "${{ matrix.enable-afd }}") {
-					t.Errorf("artifact %s must distinguish the two shared-VNet fixtures", key)
-				}
-			}
-		}
-	}
-}
 
 func TestAFDConfiguration(t *testing.T) {
 	tests := []struct {
@@ -159,7 +83,7 @@ func TestAFDStandardTestCommand(t *testing.T) {
 			}
 			if enabled == "true" {
 				for _, want := range []string{
-					"testrg.azurecr.io/hub-gateway-controller-manager:candidate",
+					afdRegistry() + "/hub-gateway-controller-manager:candidate",
 					"-count=1", "10h", "-ginkgo.timeout=9h30m",
 				} {
 					if !strings.Contains(output, want) {
@@ -181,8 +105,6 @@ func TestAFDRetainedDiagnostic(t *testing.T) {
 		name, retention, enabled, script, want string
 		fails                                  bool
 	}{
-		{"default cleanup", "", "false", "./cleanup.sh", "az group delete", false},
-		{"explicit ordinary cleanup", "false", "true", "./cleanup.sh", "az group delete", false},
 		{"retained cleanup refused", "true", "true", "./cleanup.sh", "retained", true},
 		{"invalid cleanup flag", "yes", "true", "./cleanup.sh", "true or false", true},
 		{"retained focused runner", "true", "true", "./run-e2e.sh", "-ginkgo.label-filter=afd-private-http-proof", false},
@@ -245,7 +167,7 @@ func TestAFDSetupReaderScope(t *testing.T) {
 			}
 			if !tt.fails {
 				for _, member := range []string{"member-1", "member-2"} {
-					want := "--assignee-object-id hub-principal --assignee-principal-type ServicePrincipal --scope /subscriptions/test-subscription/resourceGroups/MC_" + member
+					want := "--assignee-object-id " + afdCluster("hub") + "-principal --assignee-principal-type ServicePrincipal --scope /subscriptions/test-subscription/resourceGroups/MC_" + afdCluster(member)
 					if !strings.Contains(string(commands), want) {
 						t.Errorf("missing hub Reader grant on verified %s node group", member)
 					}
@@ -315,18 +237,18 @@ case "$kind" in
     printf 'test-tenant\n' ;;
   "aks show")
     cluster_id="$base/$name"
-    if [[ "$name" == member-2 && -n "${AFD_TEST_SECOND_CLUSTER_ID:-}" ]]; then cluster_id="$AFD_TEST_SECOND_CLUSTER_ID"; fi
+    if [[ "$name" == "$MEMBER_2_AZURE_CLUSTER" && -n "${AFD_TEST_SECOND_CLUSTER_ID:-}" ]]; then cluster_id="$AFD_TEST_SECOND_CLUSTER_ID"; fi
     printf '{"id":"%s","nodeResourceGroup":"MC_%s","location":"test-location","identityProfile":{"kubeletidentity":{"objectId":"%s-principal","clientId":"%s-client"}}}\n' "$cluster_id" "$name" "$name" "$name" ;;
   "group show")
     member="${name#MC_}"
-    if [[ "$member" == member-1 ]]; then member="$AFD_TEST_MANAGED_BY"; fi
-    if [[ "$member" == member-2 ]]; then member="${AFD_TEST_SECOND_MANAGED_BY:-member-2}"; fi
+    if [[ "$member" == "$MEMBER_1_AZURE_CLUSTER" && "$AFD_TEST_MANAGED_BY" != member-1 ]]; then member="$AFD_TEST_MANAGED_BY"; fi
+    if [[ "$member" == "$MEMBER_2_AZURE_CLUSTER" && "${AFD_TEST_SECOND_MANAGED_BY:-member-2}" != member-2 ]]; then member="$AFD_TEST_SECOND_MANAGED_BY"; fi
     printf '{"id":"/subscriptions/test-subscription/resourceGroups/%s","managedBy":"%s/%s"}\n' "$name" "$base" "$member" ;;
   "network private-link-service show")
     printf '{"id":"%s","provisioningState":"Succeeded"}\n' "$id" ;;
   "role assignment create"|"role assignment list")
     if [[ "$verb" == list && "${AFD_TEST_EMPTY_BINDINGS:-}" == true ]]; then printf '[]\n'; exit 0; fi
-    printf '[{"principalId":"hub-principal","scope":"%s","roleDefinitionId":"/roles/acdd72a7-3385-48ef-bd42-f606fba81ae7"}]\n' "$scope" ;;
+    printf '[{"principalId":"%s-principal","scope":"%s","roleDefinitionId":"/roles/acdd72a7-3385-48ef-bd42-f606fba81ae7"}]\n' "${HUB_AZURE_CLUSTER:-hub}" "$scope" ;;
   *) echo "unexpected Azure operation: $kind" >&2; exit 1 ;;
 esac
 `
@@ -344,13 +266,13 @@ func TestAFDInstallationWithoutATM(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--role CDN Profile Contributor", "--role Reader",
-		"--scope /subscriptions/test-subscription/resourceGroups/MC_member-1",
-		"--scope /subscriptions/test-subscription/resourceGroups/MC_member-2",
+		"--scope /subscriptions/test-subscription/resourceGroups/MC_" + afdCluster("member-1"),
+		"--scope /subscriptions/test-subscription/resourceGroups/MC_" + afdCluster("member-2"),
 		"helm install hub-gateway-controller-manager", "--set afd.enabled=true",
 		"--set-string fleetSystemNamespace=fleet-system",
 		"--set enablePrivateLinkOriginDiscovery=true", "--kube-context member-1-admin",
-		"--kube-context member-2-admin", "testrg.azurecr.io/hub-gateway-controller-manager",
-		"--assignee-object-id member-1-principal", "--assignee-object-id member-2-principal",
+		"--kube-context member-2-admin", afdRegistry() + "/hub-gateway-controller-manager",
+		"--assignee-object-id " + afdCluster("member-1") + "-principal", "--assignee-object-id " + afdCluster("member-2") + "-principal",
 	} {
 		if !strings.Contains(string(commands), want) {
 			t.Errorf("missing installation prerequisite %q in %s", want, commands)
@@ -373,6 +295,8 @@ func afdTestEnvironment(t *testing.T) {
 		"ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL",
 		"RETAIN_AFD_E2E_SETUP",
 		"HUB_CLUSTER", "MEMBER_CLUSTER_1", "MEMBER_CLUSTER_2",
+		"E2E_RUN_ID", "E2E_RESOURCE_PREFIX", "E2E_TEST_PRINCIPAL_ID",
+		"HUB_AZURE_CLUSTER", "MEMBER_1_AZURE_CLUSTER", "MEMBER_2_AZURE_CLUSTER", "REGISTRY_NAME",
 		"HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME", "HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION",
 		"AFD_PROOF_CONTROLLER_NAMESPACE", "AFD_PROOF_CONTROLLER_DEPLOYMENT",
 		"AFD_TEST_FAIL_COMMAND", "AFD_TEST_EMPTY_BINDINGS", "AFD_TEST_REAL_HELM",
@@ -384,7 +308,20 @@ func afdTestEnvironment(t *testing.T) {
 	t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
 	t.Setenv("AZURE_RESOURCE_GROUP", "test-rg")
 	t.Setenv("AZURE_NETWORK_SETTING", "shared-vnet")
+	t.Setenv("E2E_RUN_ID", "unit-afd-1")
+	t.Setenv("E2E_TEST_PRINCIPAL_ID", "44444444-4444-4444-4444-444444444444")
+	t.Setenv("ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL", "false")
 	t.Setenv("TAG", "candidate")
+}
+
+func afdCluster(name string) string {
+	hash := sha256.Sum256([]byte("test-subscription/test-rg/unit-afd-1"))
+	return fmt.Sprintf("fne%x-%s", hash[:8], strings.ReplaceAll(name, "-", ""))
+}
+
+func afdRegistry() string {
+	hash := sha256.Sum256([]byte("test-subscription/test-rg/unit-afd-1"))
+	return fmt.Sprintf("fne%xacr.azurecr.io", hash[:8])
 }
 
 func runAFDScript(t *testing.T, args ...string) (string, error) {
