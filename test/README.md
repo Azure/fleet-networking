@@ -39,7 +39,8 @@ export AZURE_RESOURCE_GROUP=<YOUR-TEST-RESOURCE-GROUP>
 export E2E_RUN_ID=<unique-lowercase-run-id>
 # Recommended: use a separate kubeconfig for this run.
 export KUBECONFIG=<run-specific-kubeconfig-path>
-# Required only when AFD automatic approval is enabled:
+# Required for Traffic Manager and for AFD automatic approval: the object ID of the signed-in
+# service principal (Azure Pipelines derives it with test/scripts/caller-object-id.sh).
 export E2E_TEST_PRINCIPAL_ID=<service-principal-object-id>
 ```
 
@@ -101,7 +102,9 @@ export ENABLE_TRAFFIC_MANAGER=true
 
 The setup configures the additional AKS identities, Azure role assignments, and controller feature
 flags required by `test/e2e/traffic_manager_test.go`. Tests in that file skip when
-`ENABLE_TRAFFIC_MANAGER` is not `true`.
+`ENABLE_TRAFFIC_MANAGER` is not `true`. Because some tests update Traffic Manager endpoints that
+target the members' public IPs directly, setup also grants `E2E_TEST_PRINCIPAL_ID` Network
+Contributor on both member node resource groups.
 
 ### Azure Front Door and Gateway API
 
@@ -798,5 +801,5 @@ Delete only this run's verified resources; the shared resource group remains:
 make e2e-cleanup
 ```
 
-Cleanup requires the same `AZURE_RESOURCE_GROUP`, `E2E_RUN_ID`, `KUBECONFIG` and, for AFD
-auto-approval, `E2E_TEST_PRINCIPAL_ID` used by setup.
+Cleanup requires the same `AZURE_RESOURCE_GROUP`, `E2E_RUN_ID`, `KUBECONFIG` and, for Traffic
+Manager or AFD auto-approval, `E2E_TEST_PRINCIPAL_ID` used by setup.

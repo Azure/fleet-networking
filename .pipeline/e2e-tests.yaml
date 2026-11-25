@@ -10,7 +10,7 @@ pr: none
 parameters:
   - name: serviceConnection
     type: string
-    default: 'aks fleetnetworking'
+    default: 'aks-devinfra-fleet-networking-e2e-wif'
   - name: scenarios
     type: object
     default:
@@ -132,7 +132,9 @@ jobs:
                 echo "error: service connection subscription does not match the E2E subscription" >&2
                 exit 1
               fi
-              # E2E_TEST_PRINCIPAL_ID is a pipeline variable and must match the service connection.
+              # Role assignments to the test principal follow the service connection that runs this job.
+              E2E_TEST_PRINCIPAL_ID="$(bash test/scripts/caller-object-id.sh)"
+              export E2E_TEST_PRINCIPAL_ID
               make e2e-setup
 
         - bash: |
@@ -196,4 +198,6 @@ jobs:
             keepAzSessionActive: true
             inlineScript: |
               set -euo pipefail
+              E2E_TEST_PRINCIPAL_ID="$(bash test/scripts/caller-object-id.sh)"
+              export E2E_TEST_PRINCIPAL_ID
               make e2e-cleanup

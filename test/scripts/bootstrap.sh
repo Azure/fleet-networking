@@ -24,6 +24,12 @@ if [ "$ENABLE_TRAFFIC_MANAGER" == "true" ] && [ "$AZURE_NETWORK_SETTING" != "sha
   exit 1
 fi
 
+if [[ "$ENABLE_TRAFFIC_MANAGER" == true &&
+      ! "${E2E_TEST_PRINCIPAL_ID:-}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "error: Traffic Manager E2E requires E2E_TEST_PRINCIPAL_ID" >&2
+  exit 1
+fi
+
 if [[ "$ENABLE_AZURE_FRONT_DOOR" == true ]]; then
   for tool in az jq helm kubectl go docker; do
     if ! command -v "$tool" >/dev/null; then
@@ -201,6 +207,10 @@ EOF
   echo "Assigning roles to member-1 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee-object-id ${MEMBER_CLUSTER_1_KUBELET_PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
 
+  # The tests update Traffic Manager endpoints that target this member's public IPs, which requires joining them.
+  echo "Assigning Network Contributor to the E2E test principal on the MC_resourceGroup of member-1"
+  az role assignment create --role "Network Contributor" --assignee-object-id "${E2E_TEST_PRINCIPAL_ID}" --assignee-principal-type ServicePrincipal --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_1_NODE_RESOURCE_GROUP}" > /dev/null
+
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/member_1_azure_config.yaml
   cat << EOF > $(pwd)/member_1_azure_config.yaml
@@ -222,6 +232,10 @@ EOF
 
   echo "Assigning roles to member-2 kubelet identity on the MC_resourceGroup of the member cluster"
   az role assignment create --role "Network Contributor" --assignee-object-id ${MEMBER_CLUSTER_2_KUBELET_PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
+
+  # The tests update Traffic Manager endpoints that target this member's public IPs, which requires joining them.
+  echo "Assigning Network Contributor to the E2E test principal on the MC_resourceGroup of member-2"
+  az role assignment create --role "Network Contributor" --assignee-object-id "${E2E_TEST_PRINCIPAL_ID}" --assignee-principal-type ServicePrincipal --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AKS_MEMBER_2_NODE_RESOURCE_GROUP}" > /dev/null
 
   # Creating azure configuration file for the controllers
   echo "Generating azure configuration file:" $(pwd)/member_2_azure_config.yaml
@@ -342,10 +356,10 @@ kubectl apply -f `go env GOPATH`/pkg/mod/go.goms.io/fleet@v0.18.16/config/crd/ba
 helm install hub-net-controller-manager \
     ./charts/hub-net-controller-manager/ \
     --set image.repository=$REGISTRY/hub-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
         $( [ "$ENABLE_TRAFFIC_MANAGER" = "true" ] && echo "--set enableTrafficManagerFeature=true -f hub_azure_config.yaml" )
 
@@ -354,7 +368,7 @@ kubectl config use-context $MEMBER_CLUSTER_1-admin
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_1 \
@@ -362,10 +376,10 @@ helm install mcs-controller-manager \
     $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ] && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
@@ -378,7 +392,7 @@ kubectl config use-context $MEMBER_CLUSTER_2-admin
 helm install mcs-controller-manager \
     ./charts/mcs-controller-manager \
     --set image.repository=$REGISTRY/mcs-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
     --set config.memberClusterName=$MEMBER_CLUSTER_2 \
@@ -386,10 +400,10 @@ helm install mcs-controller-manager \
     $( [ "$AZURE_NETWORK_SETTING" = "unsupported" ]  && echo "--set enableNetworkingFeatures=false" )
 helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
     --set image.repository=$REGISTRY/member-net-controller-manager \
-    --set image.tag=$TAG \
+    --set-string image.tag="$TAG" \
     --set crdInstaller.enabled=true \
     --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-    --set crdInstaller.image.tag=$TAG \
+    --set-string crdInstaller.image.tag="$TAG" \
     --set crdInstaller.isE2ETest=true \
     --set config.hubURL=$HUB_URL \
     --set config.provider=azure \
@@ -416,17 +430,17 @@ then
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_3 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_3
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-        --set crdInstaller.image.tag=$TAG \
+        --set-string crdInstaller.image.tag="$TAG" \
         --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
@@ -437,17 +451,17 @@ then
     helm install mcs-controller-manager \
         ./charts/mcs-controller-manager \
         --set image.repository=$REGISTRY/mcs-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
         --set config.memberClusterName=$MEMBER_CLUSTER_4 \
         --set azure.clientid=$CLIENT_ID_FOR_MEMBER_4
     helm install member-net-controller-manager ./charts/member-net-controller-manager/ \
         --set image.repository=$REGISTRY/member-net-controller-manager \
-        --set image.tag=$TAG \
+        --set-string image.tag="$TAG" \
         --set crdInstaller.enabled=true \
         --set crdInstaller.image.repository=$REGISTRY/net-crd-installer \
-        --set crdInstaller.image.tag=$TAG \
+        --set-string crdInstaller.image.tag="$TAG" \
         --set crdInstaller.isE2ETest=true \
         --set config.hubURL=$HUB_URL \
         --set config.provider=azure \
