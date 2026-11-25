@@ -21,6 +21,7 @@ import (
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
+	"go.goms.io/fleet-networking/pkg/common/origintls"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewaymodel"
 )
 
@@ -50,12 +51,18 @@ func GatewayParentKey(namespace string, parent gatewayv1.ParentReference) (types
 }
 
 // ValidateListener checks the initial private HTTP-preview listener subset.
-func ValidateListener(listener gatewayv1.Listener) error {
-	// HTTPS endpoint listeners and certificate lifecycle are deferred to the HTTPS follow-up.
-	if listener.Protocol != gatewayv1.HTTPProtocolType || listener.Port != 80 {
+func ValidateListener(listener gatewayv1.Listener, originTLS ...bool) error {
+	secure := len(originTLS) != 0 && originTLS[0] && listener.Protocol == gatewayv1.HTTPSProtocolType
+	if secure {
+		tls := listener.TLS
+		if listener.Port != 443 || listener.Hostname != nil || tls == nil || ptr.Deref(tls.Mode, gatewayv1.TLSModeTerminate) != gatewayv1.TLSModeTerminate ||
+			len(tls.CertificateRefs) != 0 || len(tls.Options) != 1 || tls.Options[gatewayv1.AnnotationKey(origintls.DefaultCertificateOption)] != "true" {
+			return &ListenerError{Reason: gatewayv1.ListenerReasonInvalidCertificateRef, Message: "HTTPS requires port 443, termination with exactly the Fleet default-certificate option, no certificateRefs or hostname"}
+		}
+	} else if listener.Protocol != gatewayv1.HTTPProtocolType || listener.Port != 80 {
 		return &ListenerError{Reason: gatewayv1.ListenerReasonUnsupportedProtocol, Message: fmt.Sprintf("listener %q requires HTTP on port 80", listener.Name)}
 	}
-	if listener.TLS != nil {
+	if !secure && listener.TLS != nil {
 		return &ListenerError{Reason: gatewayv1.ListenerReasonInvalidCertificateRef, Message: "TLS configuration is unsupported in the HTTP preview"}
 	}
 	if _, _, err := gatewaymodel.IntersectHostnames(string(ptr.Deref(listener.Hostname, "")), nil); err != nil {
@@ -93,7 +100,7 @@ func ValidateListener(listener gatewayv1.Listener) error {
 // ResolveAttachments enforces parent selection, namespace policy and hostname
 // intersection. Namespace labels must come from the route's Namespace object.
 func ResolveAttachments(gateway *gatewayv1.Gateway, route *gatewayv1.HTTPRoute, parent gatewayv1.ParentReference,
-	namespaceLabels map[string]string) ([]gatewaymodel.RouteAttachment, error) {
+	namespaceLabels map[string]string, originTLS ...bool) ([]gatewaymodel.RouteAttachment, error) {
 	key, recognized := GatewayParentKey(route.Namespace, parent)
 	if !recognized || key != client.ObjectKeyFromObject(gateway) || gateway.DeletionTimestamp != nil {
 		return nil, &AttachmentError{Reason: gatewayv1.RouteReasonNoMatchingParent, Message: "parent does not identify an available Gateway"}
@@ -109,7 +116,7 @@ func ResolveAttachments(gateway *gatewayv1.Gateway, route *gatewayv1.HTTPRoute, 
 			continue
 		}
 		selected = true
-		if err := ValidateListener(listener); err != nil {
+		if err := ValidateListener(listener, originTLS...); err != nil {
 			continue
 		}
 		from := gatewayv1.NamespacesFromSame
@@ -179,11 +186,20 @@ func ValidateHTTPRoute(route *gatewayv1.HTTPRoute) error {
 
 // ResolveBackend authorizes a reference before reading its target and uses the
 // same source-service field index as the existing hub networking controllers.
-func ResolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef) (gatewaymodel.Backend, error) {
-	return resolveBackend(ctx, reader, namespace, ref, true)
+func ResolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, originTLS ...bool) (gatewaymodel.Backend, error) {
+	return resolveBackend(ctx, reader, namespace, ref, true, originTLS...)
 }
 
-func resolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, indexed bool) (gatewaymodel.Backend, error) {
+// ResolveBackendUnindexed reads complete API inventory for authorization/projection.
+func ResolveBackendUnindexed(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, originTLS ...bool) (gatewaymodel.Backend, error) {
+	return resolveBackend(ctx, reader, namespace, ref, false, originTLS...)
+}
+
+func resolveBackend(ctx context.Context, reader client.Reader, namespace string, ref gatewayv1.HTTPBackendRef, indexed bool, originTLS ...bool) (gatewaymodel.Backend, error) {
+	secure := len(originTLS) != 0 && originTLS[0]
+	if secure {
+		indexed = false
+	}
 	if err := AuthorizeBackendReference(namespace, ref); err != nil {
 		return gatewaymodel.Backend{}, err
 	}
@@ -203,7 +219,7 @@ func resolveBackend(ctx context.Context, reader client.Reader, namespace string,
 	if err := reader.List(ctx, &exports, options...); err != nil {
 		return gatewaymodel.Backend{}, fmt.Errorf("list backend internal exports: %w", err)
 	}
-	backend, err := Resolve(namespace, ref, &service, exports.Items)
+	backend, err := Resolve(namespace, ref, &service, exports.Items, originTLS...)
 	if err != nil {
 		return gatewaymodel.Backend{}, err
 	}
@@ -212,6 +228,9 @@ func resolveBackend(ctx context.Context, reader client.Reader, namespace string,
 		var memberNamespace corev1.Namespace
 		if err := reader.Get(ctx, types.NamespacedName{Name: fmt.Sprintf(hubconfig.HubNamespaceNameFormat, origin.Cluster)}, &memberNamespace); err != nil {
 			if apierrors.IsNotFound(err) {
+				if secure {
+					backend.ExcludedOrigins = append(backend.ExcludedOrigins, gatewaymodel.ExcludedOrigin{Cluster: origin.Cluster, Reason: "MemberNamespaceUnavailable"})
+				}
 				continue
 			}
 			return gatewaymodel.Backend{}, fmt.Errorf("get exporting member namespace: %w", err)
@@ -219,6 +238,8 @@ func resolveBackend(ctx context.Context, reader client.Reader, namespace string,
 		// Namespace withdrawal can precede export garbage collection/aggregation.
 		if memberNamespace.DeletionTimestamp == nil {
 			origins = append(origins, origin)
+		} else if secure {
+			backend.ExcludedOrigins = append(backend.ExcludedOrigins, gatewaymodel.ExcludedOrigin{Cluster: origin.Cluster, Reason: "MemberNamespaceDeleting"})
 		}
 	}
 	backend.Origins = origins
@@ -246,20 +267,20 @@ func AuthorizeBackendReference(namespace string, ref gatewayv1.HTTPBackendRef) e
 // ResolveHTTPRoute builds rule-scoped private intent. An unavailable origin does
 // not hide invalid references in subsequent rules or produce a partial route.
 func ResolveHTTPRoute(ctx context.Context, reader client.Reader, route *gatewayv1.HTTPRoute,
-	attachments []gatewaymodel.RouteAttachment) (gatewaymodel.Route, error) {
-	return resolveHTTPRoute(ctx, reader, route, attachments, true)
+	attachments []gatewaymodel.RouteAttachment, originTLS ...bool) (gatewaymodel.Route, error) {
+	return resolveHTTPRoute(ctx, reader, route, attachments, true, originTLS...)
 }
 
 // ResolveHTTPRouteUnindexed applies the same authorization and backend validation
 // without cache-only export selectors. Callers requiring current API observations
 // must supply an uncached reader; all exports are listed and filtered by identity.
 func ResolveHTTPRouteUnindexed(ctx context.Context, reader client.Reader, route *gatewayv1.HTTPRoute,
-	attachments []gatewaymodel.RouteAttachment) (gatewaymodel.Route, error) {
-	return resolveHTTPRoute(ctx, reader, route, attachments, false)
+	attachments []gatewaymodel.RouteAttachment, originTLS ...bool) (gatewaymodel.Route, error) {
+	return resolveHTTPRoute(ctx, reader, route, attachments, false, originTLS...)
 }
 
 func resolveHTTPRoute(ctx context.Context, reader client.Reader, route *gatewayv1.HTTPRoute,
-	attachments []gatewaymodel.RouteAttachment, indexed bool) (gatewaymodel.Route, error) {
+	attachments []gatewaymodel.RouteAttachment, indexed bool, originTLS ...bool) (gatewaymodel.Route, error) {
 	if err := ValidateHTTPRoute(route); err != nil {
 		return gatewaymodel.Route{}, err
 	}
@@ -267,7 +288,7 @@ func resolveHTTPRoute(ctx context.Context, reader client.Reader, route *gatewayv
 		CreationTimestamp: route.CreationTimestamp.Time, Attachments: attachments}
 	var unavailable error
 	for _, rule := range route.Spec.Rules {
-		backend, err := resolveBackend(ctx, reader, route.Namespace, rule.BackendRefs[0], indexed)
+		backend, err := resolveBackend(ctx, reader, route.Namespace, rule.BackendRefs[0], indexed, originTLS...)
 		if err != nil {
 			var resolutionErr *ResolutionError
 			if !errors.As(err, &resolutionErr) || !resolutionErr.ReferenceValid {

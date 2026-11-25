@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -21,8 +22,10 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
@@ -42,6 +45,10 @@ func TestNewScheme_RegistersGatewayAndFleetTypes(t *testing.T) {
 		name string
 		gvk  schema.GroupVersionKind
 	}{
+		{
+			name: "BackendTLSPolicy",
+			gvk:  gatewayv1alpha3.SchemeGroupVersion.WithKind("BackendTLSPolicy"),
+		},
 		{
 			name: "Gateway",
 			gvk:  gatewayv1.SchemeGroupVersion.WithKind("Gateway"),
@@ -97,6 +104,7 @@ func TestCurrentOptions_UsesCommandLineConfiguration(t *testing.T) {
 		got.leaderElection != *enableLeaderElection ||
 		got.leaderElectionNamespace != *leaderElectionNamespace ||
 		got.enableAFD != *enableAFD ||
+		got.enableOriginTLS != *enableOriginTLS ||
 		got.cloudConfigFile != *cloudConfigFile ||
 		got.afdResourceGroup != *afdResourceGroup {
 		t.Errorf("currentOptions() = %#v, want values from command-line flags", got)
@@ -109,6 +117,7 @@ func TestFeatureFlagDefaults(t *testing.T) {
 		want string
 	}{
 		{name: "enable-afd", want: "false"},
+		{name: "enable-origin-tls", want: "false"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -150,12 +159,37 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 		nilCleanup          bool
 		nilObserver         bool
 		nilProvisioner      bool
+		crdReadError        error
+		wantCRDReads        int
 		wantError           string
 		wantConfigLoads     int
 		wantManagerStarts   int
 		wantRegistrations   int
 		wantInitializations int
 	}{
+		{
+			name:      "origin TLS requires provisioning",
+			options:   managerOptions{enableOriginTLS: true},
+			wantError: "enable-origin-tls requires enable-afd",
+		},
+		{
+			name:                "enabled TLS validates CRDs before registering controllers",
+			options:             managerOptions{enableAFD: true, enableOriginTLS: true},
+			wantConfigLoads:     1,
+			wantManagerStarts:   1,
+			wantRegistrations:   1,
+			wantInitializations: 1,
+			wantCRDReads:        2,
+		},
+		{
+			name:                "denied CRD read stops TLS startup",
+			options:             managerOptions{enableAFD: true, enableOriginTLS: true},
+			crdReadError:        errors.New("forbidden"),
+			wantError:           "validate origin TLS prerequisites",
+			wantConfigLoads:     1,
+			wantInitializations: 1,
+			wantCRDReads:        1,
+		},
 		{
 			name:        "scheme registration failure stops startup",
 			schemeError: errors.New("scheme failed"),
@@ -267,11 +301,20 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			reader := &originTLSCRDReader{err: tt.crdReadError, objects: map[string]map[string]interface{}{
+				"backendtlspolicies.gateway.networking.k8s.io":      {"name": "v1alpha3", "served": true},
+				"internalserviceexports.networking.fleet.azure.com": originTLSExportVersion(),
+			}}
+			informerCache := newReadinessTestCache()
+			if tt.options.enableOriginTLS {
+				informerCache.informers[reflect.TypeOf(&gatewayv1alpha3.BackendTLSPolicy{})] = &readinessTestInformer{}
+			}
 			manager := &fakeControllerManager{
 				healthError:   tt.healthError,
 				readyError:    tt.readyError,
 				startError:    tt.startError,
-				informerCache: newReadinessTestCache(),
+				informerCache: informerCache,
+				apiReader:     reader,
 			}
 			configLoads := 0
 			registrations := 0
@@ -330,7 +373,10 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 					}
 					return newScheme()
 				},
-				setupControllers: func(ctx context.Context, got ctrl.Manager, providers afdProviders) error {
+				setupControllers: func(ctx context.Context, got ctrl.Manager, providers afdProviders, originTLS bool) error {
+					if originTLS != tt.options.enableOriginTLS {
+						t.Error("controller registration received a different origin TLS option")
+					}
 					if got != manager {
 						t.Error("registered controllers on a different manager")
 					}
@@ -341,24 +387,19 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 					if tt.setupError != nil {
 						return tt.setupError
 					}
-					return registerGatewayCacheReadiness(ctx, got)
+					return registerGatewayCacheReadiness(ctx, got, originTLS)
 				},
 			}
 
 			err := run(tt.options, deps)
-			if tt.wantError != "" {
-				if err == nil {
-					t.Fatalf("run() error = nil, want containing %q", tt.wantError)
-				}
-				if !strings.Contains(err.Error(), tt.wantError) {
-					t.Errorf("run() error = %q, want containing %q", err, tt.wantError)
-				}
-			} else if err != nil {
-				t.Fatalf("run() error = %v", err)
-			}
+			assertStartupError(t, err, tt.wantError)
 
 			if configLoads != tt.wantConfigLoads {
 				t.Errorf("Azure configuration loads = %d, want %d", configLoads, tt.wantConfigLoads)
+			}
+
+			if reader.reads != tt.wantCRDReads {
+				t.Errorf("startup CRD reads = %d, want %d", reader.reads, tt.wantCRDReads)
 			}
 			if manager.starts != tt.wantManagerStarts {
 				t.Errorf("manager starts = %d, want %d", manager.starts, tt.wantManagerStarts)
@@ -376,6 +417,22 @@ func TestRun_ManagesStartupLifecycle(t *testing.T) {
 				assertManagerStartupProbes(t, manager, tt.options.enableAFD)
 			}
 		})
+	}
+}
+
+func assertStartupError(t *testing.T, err error, want string) {
+	t.Helper()
+	if want == "" {
+		if err != nil {
+			t.Fatalf("run() error = %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatalf("run() error = nil, want containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("run() error = %q, want containing %q", err, want)
 	}
 }
 
@@ -464,7 +521,7 @@ func TestLoadAFDConfiguration_RejectsMissingSubscription(t *testing.T) {
 func TestSetupControllers_RegistersWithoutContactingAPIServer(t *testing.T) {
 	mgr := newReadinessTestManager(t)
 	provider := &managerProfileCleaner{}
-	if err := setupControllers(context.Background(), mgr, afdProviders{cleanup: provider, observer: provider, provisioner: provider}); err != nil {
+	if err := setupControllers(context.Background(), mgr, afdProviders{cleanup: provider, observer: provider, provisioner: provider}, false); err != nil {
 		t.Fatalf("register runtime controllers: %v", err)
 	}
 	if mgr.check == nil || mgr.checkName != gatewayCacheReadinessCheck {
@@ -545,7 +602,12 @@ type fakeControllerManager struct {
 	healthChecks  map[string]healthz.Checker
 	readyChecks   map[string]healthz.Checker
 	informerCache cache.Cache
+	apiReader     client.Reader
 	cacheRequests int
+}
+
+func (f *fakeControllerManager) GetAPIReader() client.Reader {
+	return f.apiReader
 }
 
 func (f *fakeControllerManager) GetCache() cache.Cache {
@@ -621,10 +683,10 @@ func TestCleanupInitializationRejectsMissingDependencies(t *testing.T) {
 			return err
 		}},
 		{"missing cleanup provider", func() error {
-			return setupControllers(context.Background(), nil, afdProviders{})
+			return setupControllers(context.Background(), nil, afdProviders{}, false)
 		}},
 		{"missing observer", func() error {
-			return setupControllers(context.Background(), nil, afdProviders{cleanup: &managerProfileCleaner{}})
+			return setupControllers(context.Background(), nil, afdProviders{cleanup: &managerProfileCleaner{}}, false)
 		}},
 	}
 	for _, tt := range tests {

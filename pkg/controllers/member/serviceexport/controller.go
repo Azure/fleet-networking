@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 
 	"go.goms.io/fleet/pkg/utils/controller"
 
@@ -37,6 +38,7 @@ import (
 	"go.goms.io/fleet-networking/pkg/common/condition"
 	"go.goms.io/fleet-networking/pkg/common/metrics"
 	"go.goms.io/fleet-networking/pkg/common/objectmeta"
+	"go.goms.io/fleet-networking/pkg/common/origintls"
 )
 
 const (
@@ -52,12 +54,14 @@ const (
 
 	// ControllerName is the name of the Reconciler.
 	ControllerName = "serviceexport-controller"
+	serviceKind    = "Service"
 )
 
 // Reconciler reconciles the export of a Service.
 type Reconciler struct {
 	MemberClusterID string
 	MemberClient    client.Client
+	MemberAPIReader client.Reader
 	HubClient       client.Client
 	// The namespace reserved for the current member cluster in the hub cluster.
 	HubNamespace string
@@ -67,6 +71,7 @@ type Reconciler struct {
 	AzurePublicIPAddressClient publicipaddressclient.Interface
 
 	EnableTrafficManagerFeature bool
+	EnableOriginTLS             bool
 
 	EnablePrivateLinkOriginDiscovery bool
 	AzureLoadBalancerClient          OriginLoadBalancerClient
@@ -80,6 +85,8 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=backendtlspolicies,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,resourceNames=backendtlspolicies.gateway.networking.k8s.io;internalserviceexports.networking.fleet.azure.com,verbs=get
 
 // Reconcile exports a Service.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -272,6 +279,11 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 	svcExportPorts := extractServicePorts(svc)
 	var privateOrigin *fleetnetv1alpha1.PrivateLinkOrigin
 	var discoveryErr error
+	var tlsIntent *fleetnetv1alpha1.OriginTLS
+	var tlsErr error
+	if r.EnableOriginTLS {
+		tlsIntent, tlsErr = r.resolveOriginTLS(ctx, svc)
+	}
 	if r.EnablePrivateLinkOriginDiscovery {
 		privateOrigin, discoveryErr = r.discoverPrivateLinkOrigin(ctx, svc)
 	}
@@ -307,6 +319,9 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 		internalSvcExport.Spec.ServiceReference.UpdateFromMetaObject(svc.ObjectMeta, metav1.NewTime(exportedSince))
 		// Replace even with nil/failed discovery so old private readiness cannot survive drift or disablement.
 		internalSvcExport.Spec.PrivateLinkOrigin = privateOrigin
+		if err := origintls.RefreshObservation(&internalSvcExport, tlsIntent); err != nil {
+			return err
+		}
 
 		if r.EnablePrivateLinkOriginDiscovery {
 			internalSvcExport.Spec.Type = svc.Spec.Type
@@ -327,7 +342,7 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 	statusErr := &apierrors.StatusError{}
 	ok := errors.As(err, &statusErr)
 	switch {
-	case apierrors.IsAlreadyExists(err) && ok && statusErr.Status().Details.Kind == "Service":
+	case apierrors.IsAlreadyExists(err) && ok && statusErr.Status().Details.Kind == serviceKind:
 		// An export with the same key but different UID already exists; unexport the Service first, and
 		// requeue a new attempt to export the Service.
 		// Additional checks are performed here as two forms of AlreadyExists error can be returned in the CreateOrUpdate
@@ -352,6 +367,10 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 			"op", createOrUpdateOp)
 		return ctrl.Result{}, err
 	}
+	if tlsErr != nil {
+		klog.ErrorS(tlsErr, "Origin TLS resolution failed; baseline service export was preserved", "service", svcRef)
+		return ctrl.Result{}, errors.Join(tlsErr, discoveryErr)
+	}
 	if discoveryErr != nil {
 		// Publish the baseline export and failed discovery before returning a retryable Azure error.
 		klog.ErrorS(discoveryErr, "Private origin discovery failed; baseline service export was preserved", "service", svcRef)
@@ -364,7 +383,11 @@ func (r *Reconciler) exportService(ctx context.Context, svcExport *fleetnetv1bet
 		if !privateOrigin.Ready && r.Recorder != nil {
 			r.Recorder.Eventf(svcExport, nil, corev1.EventTypeWarning, privateOrigin.Reason, "DiscoverPrivateOrigin", "Private ingress origin is not ready: %s", privateOrigin.Reason)
 		}
-		return ctrl.Result{RequeueAfter: wait.Jitter(privateOriginRediscoveryInterval, 0.2)}, nil
+		interval := privateOriginRediscoveryInterval
+		if r.EnableOriginTLS {
+			interval = origintls.Heartbeat
+		}
+		return ctrl.Result{RequeueAfter: wait.Jitter(interval, 0.2)}, nil
 	}
 	return ctrl.Result{}, nil
 }
@@ -462,12 +485,18 @@ func (r *Reconciler) lookupPublicIPResourceIDByLoadBalancerIP(ctx context.Contex
 
 // SetupWithManager builds a controller with Reconciler and sets it up with a controller manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		// The ServiceExport controller watches over ServiceExport objects.
 		For(&fleetnetv1beta1.ServiceExport{}).
 		// The ServiceExport controller watches over Service objects.
-		Watches(&corev1.Service{}, &handler.EnqueueRequestForObject{}).
-		Complete(r)
+		Watches(&corev1.Service{}, &handler.EnqueueRequestForObject{})
+	if r.EnableOriginTLS {
+		if !r.EnablePrivateLinkOriginDiscovery || r.MemberAPIReader == nil {
+			return fmt.Errorf("origin TLS requires private origin discovery and uncached policy reads")
+		}
+		builder = builder.Watches(&gatewayv1alpha3.BackendTLSPolicy{}, handler.EnqueueRequestsFromMapFunc(r.exportsForTLSPolicy))
+	}
+	return builder.Complete(r)
 }
 
 // unexportService unexports a Service, specifically, it deletes the corresponding InternalServiceExport from the

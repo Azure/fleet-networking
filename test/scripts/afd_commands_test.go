@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
+const enabled = "true"
+
 func TestAFDCommandFailureStopsWork(t *testing.T) {
 	tests := []struct {
 		name, script, command, forbidden string
@@ -54,6 +56,28 @@ func TestAFDCommandFailureStopsWork(t *testing.T) {
 				t.Fatalf("failed first binding allowed the second grant: %s", commands)
 			}
 		})
+	}
+}
+
+func TestHTTPSInstallationGrantsSchemaReadBeforeMemberUpgrade(t *testing.T) {
+	afdTestEnvironment(t)
+	log := installAFDCommandStubs(t)
+	t.Setenv("ENABLE_ORIGIN_TLS", enabled)
+	output, err := runAFDScript(t, "./install-afd.sh")
+	if err != nil {
+		t.Fatalf("TLS installation failed: %s: %v\n%s", output, err, readAFDFile(t, log))
+	}
+	commands := readAFDFile(t, log)
+	for _, member := range []string{"member-1", "member-2"} {
+		binding := strings.Index(commands, "create clusterrolebinding fleet-origin-tls-schema-reader-"+member)
+		upgrade := strings.Index(commands, "helm upgrade member-net-controller-manager ./charts/member-net-controller-manager --kube-context "+member+"-admin")
+		if binding < 0 || upgrade < binding {
+			t.Fatalf("member enabled without hub schema read: %s", commands)
+		}
+	}
+	if strings.Count(commands, "--set enableOriginTLS=true") != 3 ||
+		strings.Count(commands, "apply --server-side -f ") != 4 {
+		t.Fatalf("TLS prerequisites or capability flags missing: %s", commands)
 	}
 }
 
@@ -93,7 +117,7 @@ func TestAFDRetainedSetupSignals(t *testing.T) {
 	for _, signal := range []string{"INT", "TERM"} {
 		t.Run(signal, func(t *testing.T) {
 			afdTestEnvironment(t)
-			t.Setenv("RETAIN_AFD_E2E_SETUP", "true")
+			t.Setenv("RETAIN_AFD_E2E_SETUP", enabled)
 			script := "cleanup() { echo 'unexpected deletion'; }\n" + start + block +
 				"\nfi\nkill -s " + signal + " $$\necho 'unexpected continuation'\n"
 			output, err := runAFDScript(t, "-ec", script)
@@ -243,7 +267,7 @@ func TestAFDRenderedInstallation(t *testing.T) {
 
 // This optional, offline check consults installed command help; it never invokes Azure operations.
 func TestAFDInstalledAzureCLIOptions(t *testing.T) {
-	if os.Getenv("AFD_VALIDATE_LOCAL_TOOLS") != "true" {
+	if os.Getenv("AFD_VALIDATE_LOCAL_TOOLS") != enabled {
 		t.Skip("Set AFD_VALIDATE_LOCAL_TOOLS=true to check installed Azure CLI command/option metadata")
 	}
 	afdTestEnvironment(t)
@@ -292,7 +316,7 @@ func TestAFDInstalledAzureCLIOptions(t *testing.T) {
 
 func installAFDCommandStubs(t *testing.T) string {
 	t.Helper()
-	t.Setenv("ENABLE_AZURE_FRONT_DOOR", "true")
+	t.Setenv("ENABLE_AZURE_FRONT_DOOR", enabled)
 	t.Setenv("AFD_TEST_MANAGED_BY", "member-1")
 	log := filepath.Join(t.TempDir(), "commands")
 	t.Setenv("AFD_TEST_COMMAND_LOG", log)
@@ -409,7 +433,8 @@ fi
 const afdKubectlStub = `#!/bin/bash
 set -euo pipefail
 printf 'kubectl %s\n' "$*" >>"$AFD_TEST_COMMAND_LOG"
-[[ "$1" == --context && "$2" == hub-admin ]]; shift 2
+[[ "$1" == --context && "$2" =~ ^(hub|member-[12])-admin$ ]]
+context="$2"; shift 2
 namespace=""
 if [[ "$1" == --namespace ]]; then namespace="$2"; shift 2; fi
 verb="$1"
@@ -417,11 +442,25 @@ if [[ "${AFD_TEST_FAIL_COMMAND:-}" == "kubectl $verb" ]]; then
   echo "injected CLI failure: kubectl $verb" >&2; exit 23
 fi
 case "$*" in
+  "apply --server-side -f "*gateway.networking.k8s.io_backendtlspolicies.yaml)
+    [[ -z "$namespace" && -f "$4" ]] ;;
+  "apply --server-side -f ./config/crd/bases/networking.fleet.azure.com_internalserviceexports.yaml")
+    [[ "$context" == hub-admin && -f "../../${4#./}" ]] ;;
+  "wait --for=condition=Established --timeout=60s crd/backendtlspolicies.gateway.networking.k8s.io")
+    [[ -z "$namespace" ]] ;;
+  "wait --for=condition=Established --timeout=60s crd/internalserviceexports.networking.fleet.azure.com")
+    [[ "$context" == hub-admin ]] ;;
+  "create clusterrole fleet-origin-tls-schema-reader --verb=get --resource=customresourcedefinitions.apiextensions.k8s.io --resource-name=internalserviceexports.networking.fleet.azure.com --dry-run=client -o yaml")
+    [[ "$context" == hub-admin ]]
+    printf '{"kind":"ClusterRole","metadata":{"name":"fleet-origin-tls-schema-reader"}}\n' ;;
+  "create clusterrolebinding fleet-origin-tls-schema-reader-member-"*)
+    [[ "$context" == hub-admin && "$*" == *"--clusterrole=fleet-origin-tls-schema-reader --user=member-"*"-principal --dry-run=client -o yaml" ]]
+    printf '{"kind":"ClusterRoleBinding","metadata":{"name":"tls-schema-reader-fixture"}}\n' ;;
   "create namespace fleet-system --dry-run=client -o yaml")
     [[ -z "$namespace" ]]
     printf '{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"fleet-system"}}\n' ;;
   "apply -f -")
-    jq -e '(.kind == "Namespace" or .kind == "Secret") and .metadata.name != null' >/dev/null ;;
+    jq -e '(.kind == "Namespace" or .kind == "Secret" or .kind == "ClusterRole" or .kind == "ClusterRoleBinding") and .metadata.name != null' >/dev/null ;;
   *)
     [[ "$namespace" == fleet-system && $# == 8 &&
        "$1 $2 $3 $4" == "create secret generic afd-cloud-config" &&

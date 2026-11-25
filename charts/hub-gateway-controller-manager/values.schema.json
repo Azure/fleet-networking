@@ -9,6 +9,7 @@
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
     },
     "replicaCount": {"type": "integer", "minimum": 1},
+    "enableOriginTLS": {"type": "boolean"},
     "leaderElection": {"type": "boolean"},
     "leaderElectionNamespace": {
       "type": "string",

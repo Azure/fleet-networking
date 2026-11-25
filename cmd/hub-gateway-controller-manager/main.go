@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"go.goms.io/fleet/pkg/utils/cloudconfig/azure"
@@ -43,6 +44,7 @@ var (
 	leaderElectionNamespace = flag.String("leader-election-namespace", "fleet-system", "The namespace used for leader election.")
 
 	enableAFD        = flag.Bool("enable-afd", false, "Enable Gateway API reconciliation and AFD Premium private HTTP provisioning, observation and owned cleanup; enabling performs Azure writes.")
+	enableOriginTLS  = flag.Bool("enable-origin-tls", false, "Enable HTTPS origin reconciliation; requires enable-afd and installed TLS CRDs.")
 	cloudConfigFile  = flag.String("cloud-config", "/etc/kubernetes/provider/azure.json", "The Azure cloud configuration file.")
 	afdResourceGroup = flag.String("afd-resource-group", "", "The resource group in which the controller manages Azure Front Door resources.")
 )
@@ -72,6 +74,7 @@ func currentOptions() managerOptions {
 		leaderElection:          *enableLeaderElection,
 		leaderElectionNamespace: *leaderElectionNamespace,
 		enableAFD:               *enableAFD,
+		enableOriginTLS:         *enableOriginTLS,
 		cloudConfigFile:         *cloudConfigFile,
 		afdResourceGroup:        *afdResourceGroup,
 	}
@@ -83,6 +86,7 @@ type managerOptions struct {
 	leaderElection          bool
 	leaderElectionNamespace string
 	enableAFD               bool
+	enableOriginTLS         bool
 	cloudConfigFile         string
 	afdResourceGroup        string
 }
@@ -94,7 +98,7 @@ type dependencies struct {
 	loadAFDConfig    func(string, string) (*azure.CloudConfig, error)
 	newScheme        func() (*runtime.Scheme, error)
 	newAFDProviders  func(*azure.CloudConfig, string) (afdProviders, error)
-	setupControllers func(context.Context, ctrl.Manager, afdProviders) error
+	setupControllers func(context.Context, ctrl.Manager, afdProviders, bool) error
 }
 
 func productionDependencies() dependencies {
@@ -112,6 +116,9 @@ func productionDependencies() dependencies {
 }
 
 func run(options managerOptions, deps dependencies) error {
+	if options.enableOriginTLS && !options.enableAFD {
+		return errors.New("enable-origin-tls requires enable-afd")
+	}
 	scheme, err := deps.newScheme()
 	if err != nil {
 		return fmt.Errorf("register controller schemes: %w", err)
@@ -149,8 +156,13 @@ func run(options managerOptions, deps dependencies) error {
 	}
 
 	ctx := deps.signalHandler()
+	if options.enableOriginTLS {
+		if err := validateOriginTLSCRDs(ctx, mgr.GetAPIReader(), mgr.GetAPIReader()); err != nil {
+			return fmt.Errorf("validate origin TLS prerequisites: %w", err)
+		}
+	}
 	if options.enableAFD {
-		if err := deps.setupControllers(ctx, mgr, providers); err != nil {
+		if err := deps.setupControllers(ctx, mgr, providers, options.enableOriginTLS); err != nil {
 			return fmt.Errorf("register Gateway controllers: %w", err)
 		}
 		klog.InfoS("Gateway private HTTP reconciliation, origin observation and owned AFD cleanup registered; Private Link approval is asynchronous")
@@ -170,7 +182,7 @@ func run(options managerOptions, deps dependencies) error {
 	return nil
 }
 
-func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProviders) error {
+func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProviders, originTLS bool) error {
 	if err := providers.validate(); err != nil {
 		return err
 	}
@@ -187,15 +199,16 @@ func setupControllers(ctx context.Context, mgr ctrl.Manager, providers afdProvid
 			OriginObserver:  providers.observer,
 			HTTPProvisioner: providers.provisioner,
 			Recorder:        mgr.GetEventRecorder("gateway"),
+			EnableOriginTLS: originTLS,
 		}).SetupWithManager},
-		{"HTTPRoute", (&httproute.Reconciler{Client: mgr.GetClient()}).SetupWithManager},
+		{"HTTPRoute", (&httproute.Reconciler{Client: mgr.GetClient(), EnableOriginTLS: originTLS}).SetupWithManager},
 	}
 	for _, controller := range controllers {
 		if err := controller.setup(mgr); err != nil {
 			return fmt.Errorf("register %s reconciler: %w", controller.name, err)
 		}
 	}
-	return registerGatewayCacheReadiness(ctx, mgr)
+	return registerGatewayCacheReadiness(ctx, mgr, originTLS)
 }
 
 func newScheme() (*runtime.Scheme, error) {
@@ -205,6 +218,7 @@ func newScheme() (*runtime.Scheme, error) {
 		gatewayv1.Install,
 		// ReferenceGrant remains v1beta1 in Gateway API v1.2.1.
 		gatewayv1beta1.Install,
+		gatewayv1alpha3.Install,
 		fleetnetv1alpha1.AddToScheme,
 	}
 	for _, install := range installers {

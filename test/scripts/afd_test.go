@@ -176,6 +176,85 @@ func TestAFDStandardTestCommand(t *testing.T) {
 	}
 }
 
+func TestHTTPSProofRequiresSeparateOptIn(t *testing.T) {
+	tests := []struct {
+		name, proof, capability, retention, afd string
+		fails                                   bool
+	}{
+		{"default stays off", "", "", "", "true", false},
+		{"explicit HTTPS", "true", "", "", "true", false},
+		{"cannot disable required capability", "true", "false", "", "true", true},
+		{"cannot retain key fixtures", "true", "", "true", "true", true},
+		{"requires AFD", "true", "", "", "false", true},
+		{"invalid opt-in", "yes", "", "", "true", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			afdTestEnvironment(t)
+			t.Setenv("ENABLE_AZURE_FRONT_DOOR", tt.afd)
+			t.Setenv("ENABLE_AFD_PRIVATE_HTTPS_PROOF", tt.proof)
+			t.Setenv("ENABLE_ORIGIN_TLS", tt.capability)
+			t.Setenv("RETAIN_AFD_E2E_SETUP", tt.retention)
+			for key, value := range httpsCSIEnvironment() {
+				t.Setenv(key, value)
+			}
+			bin := t.TempDir()
+			writeAFDCommand(t, filepath.Join(bin, "go"), "#!/bin/bash\nprintf 'go %s\\n' \"$*\"\n")
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := runAFDScript(t, "./run-e2e.sh")
+			if (err != nil) != tt.fails {
+				t.Fatalf("HTTPS selection failed: %s %v", output, err)
+			}
+
+			if tt.fails {
+				return
+			}
+			httpsSelected := strings.Contains(output, "-ginkgo.label-filter=afd-private-https-proof")
+			if httpsSelected != (tt.proof == "true") {
+				t.Fatalf("HTTP and HTTPS proof selection mixed: %s", output)
+			}
+		})
+	}
+}
+
+func httpsCSIEnvironment() map[string]string {
+	return map[string]string{
+		"ORIGIN_TLS_NAMESPACE": "https-proof-script", "ORIGIN_TLS_HOSTNAME": "origin.example.com",
+		"ORIGIN_AKV_NAME": "fixture-vault", "ORIGIN_AKV_CERT_NAME": "serving-certificate",
+		"ORIGIN_AKV_TENANT_ID": "11111111-1111-1111-1111-111111111111",
+		"ORIGIN_AKV_CLIENT_ID": "22222222-2222-2222-2222-222222222222",
+	}
+}
+
+func TestHTTPSProofRequiresCSIReferencesBeforeRunningCommands(t *testing.T) {
+	type testCase struct{ name, key, value string }
+	tests := make([]testCase, 0, len(httpsCSIEnvironment())+2)
+	for key := range httpsCSIEnvironment() {
+		tests = append(tests, testCase{"missing " + key, key, ""})
+	}
+	tests = append(tests,
+		testCase{"reject runner key", "ORIGIN_KEY_FILE", "/tmp/key.pem"},
+		testCase{"reject runner chain", "ORIGIN_CERT_CHAIN_FILE", "/tmp/chain.pem"})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			afdTestEnvironment(t)
+			t.Setenv("ENABLE_AZURE_FRONT_DOOR", "true")
+			t.Setenv("ENABLE_AFD_PRIVATE_HTTPS_PROOF", "true")
+			for key, value := range httpsCSIEnvironment() {
+				t.Setenv(key, value)
+			}
+			t.Setenv(tt.key, tt.value)
+			bin := t.TempDir()
+			writeAFDCommand(t, filepath.Join(bin, "go"), "#!/bin/bash\necho unexpected-go-command\n")
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := runAFDScript(t, "./run-e2e.sh")
+			if err == nil || !strings.Contains(output, "error:") || strings.Contains(output, "unexpected-go-command") {
+				t.Fatalf("invalid CSI inputs reached the runner: %v %s", err, output)
+			}
+		})
+	}
+}
+
 func TestAFDRetainedDiagnostic(t *testing.T) {
 	tests := []struct {
 		name, retention, enabled, script, want string
@@ -371,6 +450,10 @@ func afdTestEnvironment(t *testing.T) {
 		"ENABLE_TRAFFIC_MANAGER", "ENABLE_AZURE_FRONT_DOOR", "ENABLE_GATEWAY_API",
 		"ENABLE_AFD_PRIVATE_HTTP_PROOF", "AFD_PROOF_CONTROLLER_IMAGE", "REGISTRY",
 		"ENABLE_AFD_PRIVATE_LINK_AUTO_APPROVAL",
+		"ENABLE_AFD_PRIVATE_HTTPS_PROOF", "ENABLE_ORIGIN_TLS",
+		"ORIGIN_TLS_NAMESPACE", "ORIGIN_TLS_HOSTNAME", "ORIGIN_AKV_NAME", "ORIGIN_AKV_CERT_NAME",
+		"ORIGIN_AKV_CERT_VERSION", "ORIGIN_AKV_TENANT_ID", "ORIGIN_AKV_CLIENT_ID",
+		"ORIGIN_CERT_CHAIN_FILE", "ORIGIN_KEY_FILE",
 		"RETAIN_AFD_E2E_SETUP",
 		"HUB_CLUSTER", "MEMBER_CLUSTER_1", "MEMBER_CLUSTER_2",
 		"HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_NAME", "HUB_GATEWAY_CONTROLLER_MANAGER_IMAGE_VERSION",

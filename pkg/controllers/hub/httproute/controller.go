@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	fleetnetv1alpha1 "go.goms.io/fleet-networking/api/v1alpha1"
@@ -31,7 +32,8 @@ import (
 
 // Reconciler owns only the AFD controller's HTTPRoute parent statuses.
 type Reconciler struct {
-	Client client.Client
+	Client          client.Client
+	EnableOriginTLS bool
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes;referencegrants,verbs=get;list;watch
@@ -111,7 +113,7 @@ func (r *Reconciler) resolve(ctx context.Context, route *gatewayv1.HTTPRoute, ga
 		if err := r.Client.Get(ctx, client.ObjectKey{Name: route.Namespace}, &namespace); err != nil {
 			return err
 		}
-		_, err := gatewayresolver.ResolveAttachments(gateway, route, status.ParentRef, namespace.Labels)
+		_, err := gatewayresolver.ResolveAttachments(gateway, route, status.ParentRef, namespace.Labels, r.EnableOriginTLS)
 		if err != nil {
 			var attachmentErr *gatewayresolver.AttachmentError
 			if !errors.As(err, &attachmentErr) {
@@ -128,7 +130,8 @@ func (r *Reconciler) resolve(ctx context.Context, route *gatewayv1.HTTPRoute, ga
 		}
 	}
 	// Reference validity is independent of supported routing intent and origin readiness.
-	resolved, err := r.resolveReferences(ctx, route)
+	secure := r.EnableOriginTLS && len(gateway.Spec.Listeners) == 1 && gateway.Spec.Listeners[0].Protocol == gatewayv1.HTTPSProtocolType
+	resolved, err := r.resolveReferences(ctx, route, secure)
 	if err != nil {
 		return err
 	}
@@ -137,7 +140,7 @@ func (r *Reconciler) resolve(ctx context.Context, route *gatewayv1.HTTPRoute, ga
 	return nil
 }
 
-func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTTPRoute) (metav1.Condition, error) {
+func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTTPRoute, originTLS ...bool) (metav1.Condition, error) {
 	resolved := metav1.Condition{Type: string(gatewayv1.RouteConditionResolvedRefs), Status: metav1.ConditionTrue,
 		Reason: string(gatewayv1.RouteReasonResolvedRefs), Message: "Backend references are valid; AFD programming and private traffic are verified independently", ObservedGeneration: route.Generation}
 	for _, rule := range route.Spec.Rules {
@@ -148,7 +151,7 @@ func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTT
 			}
 		}
 		for _, backend := range rule.BackendRefs {
-			_, err := gatewayresolver.ResolveBackend(ctx, r.Client, route.Namespace, backend)
+			_, err := gatewayresolver.ResolveBackend(ctx, r.Client, route.Namespace, backend, originTLS...)
 			if err == nil {
 				continue
 			}
@@ -171,12 +174,16 @@ func (r *Reconciler) resolveReferences(ctx context.Context, route *gatewayv1.HTT
 
 // SetupWithManager watches all dependencies that can authorize or revoke intent.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{}).
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{}).
 		Watches(&gatewayv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&fleetnetv1alpha1.ServiceImport{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&fleetnetv1alpha1.InternalServiceExport{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
 		Watches(&gatewayv1beta1.ReferenceGrant{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).
-		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency)).Complete(r)
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency))
+	if r.EnableOriginTLS {
+		builder = builder.Watches(&gatewayv1alpha3.BackendTLSPolicy{}, handler.EnqueueRequestsFromMapFunc(r.routesForDependency))
+	}
+	return builder.Complete(r)
 }
 
 func (r *Reconciler) routesForDependency(ctx context.Context, object client.Object) []reconcile.Request {

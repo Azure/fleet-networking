@@ -25,6 +25,15 @@ rules:
   - create
   - patch
 - apiGroups:
+  - apiextensions.k8s.io
+  resourceNames:
+  - backendtlspolicies.gateway.networking.k8s.io
+  - internalserviceexports.networking.fleet.azure.com
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+- apiGroups:
   - cluster.kubernetes-fleet.io
   resources:
   - internalmemberclusters
@@ -52,6 +61,26 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - backendtlspolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - backendtlspolicies/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - networking.fleet.azure.com
   resources:

@@ -312,7 +312,7 @@ func (p *BackendProvisioner) ensureOrigin(ctx context.Context, roots RootRequest
 	if !matchesPrivateOrigin(desired, actual.Properties) {
 		properties := request.Parameters.Properties
 		parameters := armcdn.AFDOriginUpdateParameters{Properties: &armcdn.AFDOriginUpdatePropertiesParameters{
-			HostName: properties.HostName, HTTPPort: properties.HTTPPort, Weight: properties.Weight,
+			HostName: properties.HostName, HTTPPort: properties.HTTPPort, HTTPSPort: properties.HTTPSPort, Weight: properties.Weight,
 			Priority: properties.Priority, EnabledState: properties.EnabledState,
 			EnforceCertificateNameCheck: properties.EnforceCertificateNameCheck, SharedPrivateLinkResource: properties.SharedPrivateLinkResource,
 		}}

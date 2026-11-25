@@ -16,12 +16,17 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"go.goms.io/fleet-networking/pkg/common/origintls"
 )
 
 const maxServiceExportWeight = 1000
 const maxHTTPRouteBackendWeight = 1000000
 const pathTypePrefix = "PathPrefix"
 const defaultHTTPPreviewHealthProbePath = "/"
+
+// ProtocolHTTPS identifies TLS on both the listener and origin probe.
+const ProtocolHTTPS = "HTTPS"
 
 // GlobalGateway is the normalized desired state for one Gateway.
 type GlobalGateway struct {
@@ -35,10 +40,11 @@ type GlobalGateway struct {
 
 // Listener is a normalized Gateway listener.
 type Listener struct {
-	Name     string
-	Protocol string
-	Port     int32
-	Hostname string
+	Name               string
+	Protocol           string
+	Port               int32
+	Hostname           string
+	DefaultCertificate bool
 }
 
 // Route is a normalized HTTPRoute attached to a Gateway.
@@ -103,6 +109,16 @@ type Backend struct {
 	// must be verified independently before enabling the provider.
 	OriginHostHeader string
 	Origins          []Origin
+	TLSHostname      string
+	TargetUID        string
+	TLSProvenance    string
+	ExcludedOrigins  []ExcludedOrigin
+}
+
+// ExcludedOrigin records a member-local failure, never an identity vote.
+type ExcludedOrigin struct {
+	Cluster string
+	Reason  string
 }
 
 // HealthProbe is platform-owned; its port is the backend's selected service port.
@@ -119,6 +135,13 @@ func HTTPPreviewHealthProbe() HealthProbe {
 	// Resolve any future platform ConfigMap override here, not on ServiceImport.
 	probePath := defaultHTTPPreviewHealthProbePath
 	return HealthProbe{Path: probePath, Method: "GET", Protocol: "HTTP", IntervalSeconds: 30}
+}
+
+// HTTPSHealthProbe is independent of edge TLS and uses the selected Service port.
+func HTTPSHealthProbe() HealthProbe {
+	probe := HTTPPreviewHealthProbe()
+	probe.Protocol = ProtocolHTTPS
+	return probe
 }
 
 // Origin represents one member-cluster endpoint behind a ServiceImport.
@@ -253,6 +276,7 @@ func clone(model GlobalGateway) GlobalGateway {
 			route.Rules[i].Backends = append([]Backend(nil), source.Rules[i].Backends...)
 			for j := range source.Rules[i].Backends {
 				route.Rules[i].Backends[j].Origins = append([]Origin(nil), source.Rules[i].Backends[j].Origins...)
+				route.Rules[i].Backends[j].ExcludedOrigins = append([]ExcludedOrigin(nil), source.Rules[i].Backends[j].ExcludedOrigins...)
 			}
 		}
 	}
@@ -273,7 +297,8 @@ func validate(model GlobalGateway) error {
 			return fmt.Errorf("duplicate listener %q", listener.Name)
 		}
 		listeners[listener.Name] = listener
-		if listener.Protocol != "HTTP" || listener.Port != 80 {
+		if !((listener.Protocol == "HTTP" && listener.Port == 80 && !listener.DefaultCertificate) ||
+			(listener.Protocol == ProtocolHTTPS && listener.Port == 443 && listener.DefaultCertificate && listener.Hostname == "" && len(model.Listeners) == 1)) {
 			return fmt.Errorf("listener %q requires HTTP on edge port 80 in the initial preview", listener.Name)
 		}
 		if err := validateHostname(listener.Hostname); err != nil {
@@ -315,6 +340,14 @@ func validateRoute(route Route, routeKey string, listeners map[string]Listener) 
 		}
 	}
 	for ruleIndex, rule := range route.Rules {
+		for _, attachment := range route.Attachments {
+			secure := listeners[attachment.Listener].Protocol == ProtocolHTTPS
+			for _, backend := range rule.Backends {
+				if secure != (backend.TLSHostname != "") {
+					return fmt.Errorf("edge and origin protocols must both use HTTP or both HTTPS")
+				}
+			}
+		}
 		if err := validateRule(rule, routeKey, ruleIndex); err != nil {
 			return err
 		}
@@ -358,7 +391,19 @@ func validateBackend(backend Backend, backendKey, routeKey string) error {
 	if backend.RouteWeight < 1 || backend.RouteWeight > maxHTTPRouteBackendWeight {
 		return fmt.Errorf("route %q backend %q requires a positive route weight at most %d", routeKey, backendKey, maxHTTPRouteBackendWeight)
 	}
-	if backend.HealthProbe != HTTPPreviewHealthProbe() || backend.OriginHostHeader != "" {
+	probe := HTTPPreviewHealthProbe()
+	if backend.TLSHostname != "" {
+		probe = HTTPSHealthProbe()
+		if err := origintls.ValidateHostname(backend.TLSHostname); err != nil {
+			return err
+		}
+		if backend.TargetUID == "" || backend.TLSProvenance == "" {
+			return fmt.Errorf("HTTPS backend requires target UID and source provenance")
+		}
+	} else if backend.TargetUID != "" || backend.TLSProvenance != "" || len(backend.ExcludedOrigins) != 0 {
+		return fmt.Errorf("HTTP backend cannot carry TLS authorization")
+	}
+	if backend.HealthProbe != probe || backend.OriginHostHeader != "" {
 		return fmt.Errorf("backend %q requires the fixed HTTP-preview probe and incoming Host policy", backendKey)
 	}
 	if len(backend.Origins) == 0 {

@@ -7,9 +7,12 @@ Licensed under the MIT license.
 package gatewayresolver
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -22,6 +25,7 @@ import (
 	fleetnetv1beta1 "go.goms.io/fleet-networking/api/v1beta1"
 	"go.goms.io/fleet-networking/pkg/annotations"
 	"go.goms.io/fleet-networking/pkg/common/hubconfig"
+	"go.goms.io/fleet-networking/pkg/common/origintls"
 	"go.goms.io/fleet-networking/pkg/controllers/hub/gatewaymodel"
 )
 
@@ -43,7 +47,76 @@ func (e *ResolutionError) Error() string {
 // backend on failure. The caller must enforce ReferenceGrant authorization before
 // invoking Resolve for a cross-namespace reference.
 func Resolve(routeNamespace string, ref gatewayv1.HTTPBackendRef, service *fleetnetv1alpha1.ServiceImport,
-	exports []fleetnetv1alpha1.InternalServiceExport) (gatewaymodel.Backend, error) {
+	exports []fleetnetv1alpha1.InternalServiceExport, originTLS ...bool) (gatewaymodel.Backend, error) {
+	secure := len(originTLS) != 0 && originTLS[0]
+	backend, err := resolveBackendReference(routeNamespace, ref, service, secure)
+	if err != nil {
+		return gatewaymodel.Backend{}, err
+	}
+	namespace := backend.Namespace
+	exportsByCluster, err := selectBackendExports(namespace, service, exports)
+	if err != nil {
+		return gatewaymodel.Backend{}, err
+	}
+	if secure {
+		if err := validateTLSInventory(namespace, service, exportsByCluster, exports); err != nil {
+			return gatewaymodel.Backend{}, err
+		}
+		backend.TargetUID = string(service.UID)
+		backend.HealthProbe = gatewaymodel.HTTPSHealthProbe()
+	}
+	var provenance []string
+	clusterNames := make([]string, 0, len(exportsByCluster))
+	for cluster := range exportsByCluster {
+		clusterNames = append(clusterNames, cluster)
+	}
+	sort.Strings(clusterNames)
+	for _, cluster := range clusterNames {
+		export := exportsByCluster[cluster]
+		if export == nil {
+			if secure {
+				return resolutionFailure("IncompleteInventory", true, "cluster %q is listed but its export is absent", cluster)
+			}
+			// Export deletion and ServiceImport aggregation are not atomic.
+			continue
+		}
+		if secure {
+			binding, eligible, err := resolveMemberTLS(&backend, export)
+			if err != nil {
+				return gatewaymodel.Backend{}, err
+			}
+			provenance = append(provenance, binding)
+			if !eligible {
+				continue
+			}
+		}
+		origin, err := resolveExportOrigin(namespace, service, export)
+		if err != nil {
+			var unavailable *ResolutionError
+			if errors.As(err, &unavailable) && unavailable.Reason == "PrivateOriginUnavailable" {
+				if secure {
+					backend.ExcludedOrigins = append(backend.ExcludedOrigins, gatewaymodel.ExcludedOrigin{Cluster: cluster, Reason: unavailable.Reason})
+				}
+				// Discovery delay must not withdraw other ready private members.
+				continue
+			}
+			return gatewaymodel.Backend{}, err
+		}
+		if origin.Weight != 0 {
+			backend.Origins = append(backend.Origins, origin)
+		}
+	}
+	if len(backend.Origins) == 0 {
+		return resolutionFailure("BackendUnavailable", true, "ServiceImport has no ready private origin from an active member")
+	}
+	if secure {
+		backend.TLSProvenance = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%q", provenance))))
+	}
+	return backend, nil
+}
+
+func resolveBackendReference(routeNamespace string, ref gatewayv1.HTTPBackendRef,
+	service *fleetnetv1alpha1.ServiceImport, secure bool) (gatewaymodel.Backend, error) {
 	if ptr.Deref(ref.Group, "") != gatewayv1.Group(fleetnetv1alpha1.GroupVersion.Group) ||
 		ptr.Deref(ref.Kind, "Service") != serviceImportKind {
 		return resolutionFailure("InvalidKind", false, "only %s/ServiceImport backends are supported", fleetnetv1alpha1.GroupVersion.Group)
@@ -57,7 +130,7 @@ func Resolve(routeNamespace string, ref gatewayv1.HTTPBackendRef, service *fleet
 	if weight < 0 || weight > 1000000 || len(ref.Filters) != 0 {
 		return resolutionFailure("UnsupportedValue", false, "backend weight must be in [0, 1000000] and backend filters are not supported")
 	}
-	if err := validateHTTPPort(ref.Port, service.Status.Ports); err != nil {
+	if err := validateHTTPPort(ref.Port, service.Status.Ports, secure); err != nil {
 		return gatewaymodel.Backend{}, err
 	}
 	if err := annotations.ValidateServiceImportAnnotations(service.Annotations); err != nil {
@@ -66,45 +139,55 @@ func Resolve(routeNamespace string, ref gatewayv1.HTTPBackendRef, service *fleet
 	if service.Status.Type != "" && service.Status.Type != fleetnetv1alpha1.ClusterSetIP {
 		return resolutionFailure("UnsupportedTopology", true, "headless ServiceImports are not supported")
 	}
-	exportsByCluster, err := selectBackendExports(namespace, service, exports)
-	if err != nil {
-		return gatewaymodel.Backend{}, err
-	}
-	backend := gatewaymodel.Backend{
+	return gatewaymodel.Backend{
 		Namespace: namespace, Name: service.Name, Port: int32(*ref.Port),
 		RouteWeight: weight, HealthProbe: gatewaymodel.HTTPPreviewHealthProbe(),
-	}
-	clusterNames := make([]string, 0, len(exportsByCluster))
-	for cluster := range exportsByCluster {
-		clusterNames = append(clusterNames, cluster)
-	}
-	sort.Strings(clusterNames)
-	for _, cluster := range clusterNames {
-		export := exportsByCluster[cluster]
-		if export == nil {
-			// Export deletion and ServiceImport aggregation are not atomic.
-			continue
-		}
-		origin, err := resolveExportOrigin(namespace, service, export)
-		if err != nil {
-			var unavailable *ResolutionError
-			if errors.As(err, &unavailable) && unavailable.Reason == "PrivateOriginUnavailable" {
-				// Discovery delay must not withdraw other ready private members.
-				continue
-			}
-			return gatewaymodel.Backend{}, err
-		}
-		if origin.Weight != 0 {
-			backend.Origins = append(backend.Origins, origin)
-		}
-	}
-	if len(backend.Origins) == 0 {
-		return resolutionFailure("BackendUnavailable", true, "ServiceImport has no ready private origin from an active member")
-	}
-	return backend, nil
+	}, nil
 }
 
-func validateHTTPPort(number *gatewayv1.PortNumber, ports []fleetnetv1alpha1.ServicePort) error {
+func validateTLSInventory(namespace string, service *fleetnetv1alpha1.ServiceImport,
+	selected map[string]*fleetnetv1alpha1.InternalServiceExport, exports []fleetnetv1alpha1.InternalServiceExport) error {
+	if service.UID == "" {
+		return newResolutionError("InvalidExport", true, "TLS backend requires ServiceImport UID")
+	}
+	for i := range exports {
+		source := exports[i].Spec.ServiceReference
+		if exports[i].DeletionTimestamp == nil && source.Namespace == namespace && source.Name == service.Name {
+			if _, exists := selected[source.ClusterID]; !exists {
+				return newResolutionError("IncompleteInventory", true, "export inventory and ServiceImport membership disagree")
+			}
+		}
+	}
+	return nil
+}
+
+func resolveMemberTLS(backend *gatewaymodel.Backend, export *fleetnetv1alpha1.InternalServiceExport) (string, bool, error) {
+	source := export.Spec.ServiceReference
+	cluster := source.ClusterID
+	// Establish source identity before attributing a policy failure to a member.
+	if export.Namespace != fmt.Sprintf(hubconfig.HubNamespaceNameFormat, cluster) || source.UID == "" ||
+		source.NamespacedName != backend.Namespace+"/"+backend.Name {
+		return "", false, newResolutionError("InvalidExport", true, "TLS inventory has unverifiable member provenance")
+	}
+	if reason := tlsExclusion(export, time.Now()); reason != "" {
+		backend.ExcludedOrigins = append(backend.ExcludedOrigins, gatewaymodel.ExcludedOrigin{Cluster: cluster, Reason: reason})
+		return cluster + ":" + string(source.UID) + ":" + reason, false, nil
+	}
+	tls := export.Spec.OriginTLS
+	if backend.TLSHostname != "" && backend.TLSHostname != tls.Hostname {
+		return "", false, newResolutionError("ConflictingTLSIdentity", true, "valid member TLS identities disagree; no majority selection is permitted")
+	}
+	backend.TLSHostname = tls.Hostname
+	binding, err := json.Marshal(tls.Policy)
+	if err != nil {
+		return "", false, err
+	}
+	return cluster + ":" + string(source.UID) + ":" + tls.Hostname + ":" + string(binding), true, nil
+}
+
+const invalidTLSObservation = "InvalidTLSObservation"
+
+func validateHTTPPort(number *gatewayv1.PortNumber, ports []fleetnetv1alpha1.ServicePort, originTLS ...bool) error {
 	if number == nil || *number < 1 || *number > 65535 {
 		return newResolutionError("PortNotFound", false, "a valid ServiceImport backend port is required")
 	}
@@ -127,10 +210,43 @@ func validateHTTPPort(number *gatewayv1.PortNumber, ports []fleetnetv1alpha1.Ser
 	if !exists {
 		return newResolutionError("PortNotFound", false, "ServiceImport has no port %d", *number)
 	}
-	if selected == nil || (ptr.Deref(selected.AppProtocol, "") != "" && *selected.AppProtocol != "http") {
+	secure := len(originTLS) != 0 && originTLS[0]
+	if secure && (selected == nil || ptr.Deref(selected.AppProtocol, "") != "https") {
+		return newResolutionError("UnsupportedProtocol", false, "HTTPS requires an explicit https appProtocol on the selected TCP Service port")
+	}
+	if !secure && (selected == nil || (ptr.Deref(selected.AppProtocol, "") != "" && *selected.AppProtocol != "http")) {
 		return newResolutionError("UnsupportedProtocol", false, "the HTTP preview requires a TCP port with absent or http appProtocol")
 	}
 	return nil
+}
+
+func tlsExclusion(export *fleetnetv1alpha1.InternalServiceExport, now time.Time) string {
+	tls := export.Spec.OriginTLS
+	if tls == nil {
+		return "PolicyMissing"
+	}
+	if !tls.Ready {
+		switch tls.Reason {
+		case "PolicyMissing", "DuplicatePolicies", "PolicyNotExported", "UnsupportedPolicy", "PolicyReadFailed":
+			return tls.Reason
+		default:
+			return invalidTLSObservation
+		}
+	}
+	observedAt, err := origintls.ObservedAt(export)
+	if err != nil {
+		return invalidTLSObservation
+	}
+	if observedAt.IsZero() || now.Sub(observedAt) > origintls.MaxAge || observedAt.After(now.Add(time.Minute)) {
+		return "StaleTLSObservation"
+	}
+	policy := tls.Policy
+	if tls.ServiceUID != string(export.Spec.ServiceReference.UID) || policy == nil || policy.Namespace != export.Spec.ServiceReference.Namespace ||
+		policy.Name == "" || policy.UID == "" || policy.ResourceVersion == "" || policy.Generation < 1 ||
+		policy.ExportToFleet != origintls.ExportAnnotationValue || tls.Trust != "System" || origintls.ValidateHostname(tls.Hostname) != nil {
+		return invalidTLSObservation
+	}
+	return ""
 }
 
 func selectBackendExports(namespace string, service *fleetnetv1alpha1.ServiceImport,

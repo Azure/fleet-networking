@@ -34,9 +34,13 @@ func (r *Reconciler) applyHTTPPreviewStatus(ctx context.Context, gateway *gatewa
 		return false, nil
 	}
 	result := staging.http
-	message := fmt.Sprintf("AFD private HTTP graph: %s", result.State)
+	protocol := "HTTP"
+	if len(model.Listeners) == 1 && model.Listeners[0].Protocol == gatewaymodel.ProtocolHTTPS {
+		protocol = gatewaymodel.ProtocolHTTPS
+	}
+	message := fmt.Sprintf("AFD private %s graph: %s", protocol, result.State)
 	if staging.err != nil {
-		setHTTPPreviewStatus(gateway, false, "AFD private HTTP provisioning failed: "+staging.err.Error())
+		setHTTPPreviewStatus(gateway, false, "AFD private "+protocol+" provisioning failed: "+staging.err.Error())
 		return false, staging.err
 	}
 	switch result.State {
@@ -67,7 +71,26 @@ func (r *Reconciler) applyHTTPPreviewStatus(ctx context.Context, gateway *gatewa
 			setHTTPPreviewStatus(gateway, false, "AFD ready evidence is no longer current: "+err.Error())
 			return false, err
 		}
-		setHTTPPreviewStatus(gateway, true, "Observed complete enabled AFD Premium private HTTP configuration; Private Link approval, edge propagation and live application health are independent")
+		readyMessage := "Observed complete enabled AFD Premium private HTTP configuration; Private Link approval, edge propagation and live application health are independent"
+		if len(model.Listeners) == 1 && model.Listeners[0].Protocol == gatewaymodel.ProtocolHTTPS {
+			readyMessage = "Observed complete enabled AFD Premium private HTTPS configuration; certificate trust, edge propagation and live application health are independent"
+			seen := make(map[string]bool)
+			for _, route := range model.Routes {
+				for _, rule := range route.Rules {
+					for _, backend := range rule.Backends {
+						key := backend.Namespace + "/" + backend.Name
+						if seen[key] {
+							continue
+						}
+						seen[key] = true
+						if len(backend.ExcludedOrigins) != 0 {
+							readyMessage += fmt.Sprintf("; degraded %s: %d eligible origins, excluded members verified absent from owned origin inventory: %v; reduced capacity", key, len(backend.Origins), backend.ExcludedOrigins)
+						}
+					}
+				}
+			}
+		}
+		setHTTPPreviewStatus(gateway, true, readyMessage)
 		gateway.Status.Addresses = []gatewayv1.GatewayStatusAddress{{Type: ptr.To(gatewayv1.HostnameAddressType), Value: host}}
 		return true, nil
 	default:
@@ -151,7 +174,7 @@ func (r *Reconciler) unprogrammableOwner(ctx context.Context, gateway *gatewayv1
 	if !controllerutil.ContainsFinalizer(current, objectmeta.GatewayAFDCleanupFinalizer) {
 		return frontdoor.GatewayOwner{}, errProvisioningIntentChanged
 	}
-	actual, err := resolveGateway(ctx, r.APIReader, current.DeepCopy(), class, false)
+	actual, err := resolveGateway(ctx, r.APIReader, current.DeepCopy(), class, false, r.EnableOriginTLS)
 	if err != nil {
 		return frontdoor.GatewayOwner{}, err
 	}

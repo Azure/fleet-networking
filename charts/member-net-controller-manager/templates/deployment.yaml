@@ -1,3 +1,9 @@
+{{- if not (kindIs "bool" .Values.enableOriginTLS) }}
+{{- fail "enableOriginTLS must be a boolean" }}
+{{- end }}
+{{- if and .Values.enableOriginTLS (not .Values.enablePrivateLinkOriginDiscovery) }}
+{{- fail "enableOriginTLS requires enablePrivateLinkOriginDiscovery" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,6 +50,7 @@ spec:
             - --add_dir_header
             - --enable-traffic-manager-feature={{ .Values.enableTrafficManagerFeature }}
             - --enable-private-link-origin-discovery={{ .Values.enablePrivateLinkOriginDiscovery }}
+            - --enable-origin-tls={{ .Values.enableOriginTLS }}
             - --enable-networking-features={{ .Values.enableNetworkingFeatures }}
             {{- if or .Values.enableTrafficManagerFeature .Values.enablePrivateLinkOriginDiscovery }}
             - --cloud-config=/etc/kubernetes/provider/azure.json

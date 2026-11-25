@@ -3,6 +3,9 @@ fleetSystemNamespace: fleet-system
 nameOverride: ""
 fullnameOverride: ""
 
+# Requires afd.enabled and preinstalled origin TLS CRDs.
+enableOriginTLS: false
+
 # Select an image explicitly; verify that the chosen release has been published.
 image:
   repository: ""

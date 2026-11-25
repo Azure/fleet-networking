@@ -104,6 +104,10 @@ func BuildHTTPPreviewRequests(scope ResourceScope, owner GatewayOwner,
 		return HTTPPreviewRequests{}, fmt.Errorf("AFD HTTP graph requires one nonempty logical backend")
 	}
 	group := backends.OriginGroups[0]
+	protocol, forwarding := armcdn.AFDEndpointProtocolsHTTP, armcdn.ForwardingProtocolHTTPOnly
+	if model.Listeners[0].Protocol == gatewaymodel.ProtocolHTTPS {
+		protocol, forwarding = armcdn.AFDEndpointProtocolsHTTPS, armcdn.ForwardingProtocolHTTPSOnly
+	}
 	return HTTPPreviewRequests{
 		Roots: roots, Backends: backends, RouteName: resourceName("fleet-route", owner.UID),
 		// Omit cache, origin path, rule sets and custom domains: preserve path/query/Host.
@@ -112,10 +116,9 @@ func BuildHTTPPreviewRequests(scope ResourceScope, owner GatewayOwner,
 			OriginGroup: &armcdn.ResourceReference{
 				ID: ptr.To(roots.ProfileID + "/originGroups/" + group.Name),
 			},
-			PatternsToMatch:    []*string{ptr.To(httpPreviewPattern)},
-			SupportedProtocols: []*armcdn.AFDEndpointProtocols{ptr.To(armcdn.AFDEndpointProtocolsHTTP)},
-			// HTTPS origin forwarding and certificate validation are deferred to the HTTPS follow-up.
-			ForwardingProtocol:  ptr.To(armcdn.ForwardingProtocolHTTPOnly),
+			PatternsToMatch:     []*string{ptr.To(httpPreviewPattern)},
+			SupportedProtocols:  []*armcdn.AFDEndpointProtocols{ptr.To(protocol)},
+			ForwardingProtocol:  ptr.To(forwarding),
 			HTTPSRedirect:       ptr.To(armcdn.HTTPSRedirectDisabled),
 			LinkToDefaultDomain: ptr.To(armcdn.LinkToDefaultDomainEnabled),
 		}},

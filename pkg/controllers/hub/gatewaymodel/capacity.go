@@ -38,15 +38,16 @@ func PreflightBackendCapacity(model GlobalGateway) (BackendCapacity, error) {
 		port      int32
 	}
 	services := make(map[string]struct{})
-	groups := make(map[backendKey][]Origin)
+	groups := make(map[backendKey]Backend)
 	var capacity BackendCapacity
 	for _, route := range normalized.Routes {
 		for _, rule := range route.Rules {
 			for _, backend := range rule.Backends {
 				key := backendKey{namespace: backend.Namespace, name: backend.Name, port: backend.Port}
-				if origins, found := groups[key]; found {
+				if previous, found := groups[key]; found {
 					// Never let traversal order choose between inconsistent copies of one backend.
-					if !reflect.DeepEqual(origins, backend.Origins) {
+					previous.RouteWeight = backend.RouteWeight
+					if !reflect.DeepEqual(previous, backend) {
 						return BackendCapacity{}, fmt.Errorf("inconsistent origins for backend %s/%s:%d", key.namespace, key.name, key.port)
 					}
 					continue
@@ -55,7 +56,7 @@ func PreflightBackendCapacity(model GlobalGateway) (BackendCapacity, error) {
 					return BackendCapacity{}, fmt.Errorf("backend %s/%s:%d has %d origins, maximum is %d",
 						key.namespace, key.name, key.port, len(backend.Origins), maxOriginsPerBackend)
 				}
-				groups[key] = backend.Origins
+				groups[key] = backend
 				services[key.namespace+"/"+key.name] = struct{}{}
 				capacity.OriginGroups++
 				capacity.Origins += len(backend.Origins)

@@ -287,6 +287,11 @@ func (r *Reconciler) recordHTTPPreviewEvent(gateway *gatewayv1.Gateway, result *
 		return
 	}
 	if result.State == frontdoor.HTTPPreviewProgrammed {
+		if len(gateway.Spec.Listeners) == 1 && gateway.Spec.Listeners[0].Protocol == gatewayv1.HTTPSProtocolType {
+			r.Recorder.Eventf(gateway, nil, corev1.EventTypeNormal, "AFDHTTPSProgrammed", "ProgramAFDHTTPS",
+				"Observed enabled private HTTPS graph and published its generated hostname; certificate trust and live application health are independent. Inspect status for excluded members and reduced capacity.")
+			return
+		}
 		r.Recorder.Eventf(gateway, nil, corev1.EventTypeNormal, "AFDHTTPProgrammed", "ProgramAFDHTTP",
 			"Observed complete enabled AFD Premium private HTTP graph and published its Azure hostname; live application health is not implied.")
 	} else if len(result.Staging.Route.Backends.Origins.PendingApprovals) != 0 {

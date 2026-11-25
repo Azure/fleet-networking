@@ -37,6 +37,18 @@ metadata:
   name: {{ $clusterRole }}
 # Fleet inputs are controller-owned: observation never needs backend write access.
 rules:
+  {{- if .Values.enableOriginTLS }}
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["backendtlspolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["backendtlspolicies/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames: ["backendtlspolicies.gateway.networking.k8s.io", "internalserviceexports.networking.fleet.azure.com"]
+    verbs: ["get"]
+  {{- end }}
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses", "gateways", "httproutes", "referencegrants"]
     verbs: ["get", "list", "watch"]

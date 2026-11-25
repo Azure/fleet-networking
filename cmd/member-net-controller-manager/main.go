@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1alpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 
 	//+kubebuilder:scaffold:imports
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
@@ -79,6 +80,7 @@ var (
 
 	enableTrafficManagerFeature      = flag.Bool("enable-traffic-manager-feature", true, "If set, the traffic manager feature will be enabled.")
 	enablePrivateLinkOriginDiscovery = flag.Bool("enable-private-link-origin-discovery", false, "Discover private ingress origins and publish ILB/PLS metadata independently of Traffic Manager.")
+	enableOriginTLS                  = flag.Bool("enable-origin-tls", false, "Publish origin TLS metadata; requires private-link origin discovery and installed TLS CRDs.")
 
 	enableNetworkingFeatures = flag.Bool("enable-networking-features", true, "If set, the networking features will be enabled. When disabled, only heartbeat functionality is preserved.")
 
@@ -92,6 +94,7 @@ func init() {
 	utilruntime.Must(fleetnetv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(fleetnetv1beta1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1alpha3.Install(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -117,6 +120,11 @@ func main() {
 
 	// Set up controller-runtime logger
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	if err := validateOriginTLSOptions(*enableOriginTLS, *enablePrivateLinkOriginDiscovery); err != nil {
+		klog.ErrorS(err, "Invalid origin TLS configuration")
+		exitWithErrorFunc()
+	}
 
 	memberConfig, memberOptions := prepareMemberParameters()
 
@@ -156,6 +164,14 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if *enableOriginTLS {
+		if err := validateOriginTLSCRDs(ctx, memberMgr.GetAPIReader(), hubMgr.GetAPIReader()); err != nil {
+			klog.ErrorS(err, "Origin TLS prerequisites are not installed")
+			exitWithErrorFunc()
+		}
+	}
 
 	klog.V(1).InfoS("Setup controllers with controller manager")
 	if err := setupControllersWithManager(ctx, hubMgr, memberMgr); err != nil {
@@ -380,6 +396,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 	klog.V(1).InfoS("Create serviceexport reconciler", "enableTrafficManagerFeature", *enableTrafficManagerFeature)
 	if err := (&serviceexport.Reconciler{
 		MemberClient:                     memberClient,
+		MemberAPIReader:                  memberMgr.GetAPIReader(),
 		HubClient:                        hubClient,
 		MemberClusterID:                  mcName,
 		HubNamespace:                     mcHubNamespace,
@@ -388,6 +405,7 @@ func setupControllersWithManager(ctx context.Context, hubMgr, memberMgr manager.
 		ResourceGroupName:                resourceGroupName,
 		AzurePublicIPAddressClient:       networkClients.publicIPAddresses,
 		EnablePrivateLinkOriginDiscovery: *enablePrivateLinkOriginDiscovery,
+		EnableOriginTLS:                  *enableOriginTLS,
 		AzureLoadBalancerClient:          networkClients.loadBalancers,
 		AzurePrivateLinkServiceClient:    networkClients.privateLinkServices,
 	}).SetupWithManager(memberMgr); err != nil {

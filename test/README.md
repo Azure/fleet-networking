@@ -71,6 +71,15 @@ flags required by `test/e2e/traffic_manager_test.go`. Tests in that file skip wh
 
 ### Azure Front Door and Gateway API
 
+For the proposed end-to-end HTTPS follow-up, first-party test owners should
+review the separate [origin hostname/certificate fixture guide](https-origins-certificates.md).
+It covers approved DNS identity, conditional OneCert/public-CA enrollment,
+private-key custody, member Service-targeted policies/automatic hub projection,
+preflight, rotation and negative fixtures. This is
+preparation only; no TLS E2E opt-in/command exists yet. The implementation and
+required live scenarios remain in the
+[HTTPS proposal](../docs/design/gep-1748-https-origins-proposal.md#e2e-testing-requirements).
+
 The separate Gateway manager has an opt-in local image build target. It requires
 make, Docker/buildx and a Linux container builder:
 
@@ -429,6 +438,17 @@ The synthetic controller scenario has no ready private origin, so it does not
 exercise these ARM operations. The separately opted-in private HTTP scenario
 below prepares actual deployment/identity, approval, SDK, traffic and cleanup
 assertions. Its live execution remains deferred.
+
+#### Installed-controller private HTTPS proof (prepared, not live-verified)
+
+HTTPS has a separate `ENABLE_AFD_PRIVATE_HTTPS_PROOF=true` opt-in and
+`afd-private-https-proof` label; ordinary HTTP runs do not select it.
+See the [certificate fixture interface](https-origins-certificates.md#executable-fixture-interface)
+for AKV/Workload Identity identifier inputs, member CSI prerequisites, required
+candidate images, CRD-first setup and
+explicit live-scope approval. The scenario checks both TLS hops, real probes,
+member-local metadata revocation, provider-verified isolation, no HTTP fallback,
+all-ineligible withdrawal and cleanup. It is compiled offline, not live-verified.
 
 #### Installed-controller private HTTP proof (prepared, not live-verified)
 

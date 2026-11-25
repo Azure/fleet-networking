@@ -57,12 +57,12 @@ func BuildBackendRequests(model gatewaymodel.GlobalGateway) (BackendRequests, er
 			if origin.Weight < 1 || origin.Weight > 1000 {
 				return BackendRequests{}, fmt.Errorf("origin %q weight must be in [1, 1000]", origin.Name)
 			}
-			request.Origins = append(request.Origins, OriginRequest{
+			originRequest := OriginRequest{
 				Name: origin.Name,
 				Parameters: armcdn.AFDOrigin{Properties: &armcdn.AFDOriginProperties{
 					// Omit OriginHostHeader to preserve incoming Host; ARM rejects an explicit empty string.
-					HostName: ptr.To(origin.HostName), HTTPPort: ptr.To(origin.HTTPPort),
-					Weight: ptr.To(int32(origin.Weight)), Priority: ptr.To(origin.Priority),
+					HostName: ptr.To(origin.HostName),
+					Weight:   ptr.To(int32(origin.Weight)), Priority: ptr.To(origin.Priority),
 					EnabledState: ptr.To(armcdn.EnabledStateEnabled), EnforceCertificateNameCheck: ptr.To(origin.EnforceCertificateNameCheck),
 					SharedPrivateLinkResource: &armcdn.SharedPrivateLinkResourceProperties{
 						// Custom PLS has no group ID. Approval status is observed, never requested.
@@ -71,7 +71,13 @@ func BuildBackendRequests(model gatewaymodel.GlobalGateway) (BackendRequests, er
 						RequestMessage:      ptr.To("Fleet AFD private origin for " + plan.ProfileName),
 					},
 				}},
-			})
+			}
+			if origin.HTTPSPort != 0 {
+				originRequest.Parameters.Properties.HTTPSPort = ptr.To(origin.HTTPSPort)
+			} else {
+				originRequest.Parameters.Properties.HTTPPort = ptr.To(origin.HTTPPort)
+			}
+			request.Origins = append(request.Origins, originRequest)
 		}
 		requests.OriginGroups = append(requests.OriginGroups, request)
 	}
@@ -79,6 +85,10 @@ func BuildBackendRequests(model gatewaymodel.GlobalGateway) (BackendRequests, er
 }
 
 func privateHTTPGroupProperties(probe gatewaymodel.HealthProbe) *armcdn.AFDOriginGroupProperties {
+	protocol := armcdn.ProbeProtocolHTTP
+	if probe.Protocol == gatewaymodel.ProtocolHTTPS {
+		protocol = armcdn.ProbeProtocolHTTPS
+	}
 	return &armcdn.AFDOriginGroupProperties{
 		LoadBalancingSettings: &armcdn.LoadBalancingSettingsParameters{
 			SampleSize: ptr.To(int32(4)), SuccessfulSamplesRequired: ptr.To(int32(3)),
@@ -86,7 +96,7 @@ func privateHTTPGroupProperties(probe gatewaymodel.HealthProbe) *armcdn.AFDOrigi
 		},
 		HealthProbeSettings: &armcdn.HealthProbeParameters{
 			ProbePath: ptr.To(probe.Path), ProbeIntervalInSeconds: ptr.To(probe.IntervalSeconds),
-			ProbeProtocol: ptr.To(armcdn.ProbeProtocolHTTP), ProbeRequestType: ptr.To(armcdn.HealthProbeRequestTypeGET),
+			ProbeProtocol: ptr.To(protocol), ProbeRequestType: ptr.To(armcdn.HealthProbeRequestTypeGET),
 		},
 		SessionAffinityState: ptr.To(armcdn.EnabledStateDisabled),
 	}

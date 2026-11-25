@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"go.goms.io/fleet-networking/pkg/common/azureerrors"
+	"go.goms.io/fleet-networking/pkg/common/origintls"
 )
 
 func verifyStaleOrigin(roots RootRequests, group OriginGroupRequest, origin armcdn.AFDOrigin) error {
@@ -42,12 +43,19 @@ func verifyStaleOrigin(roots RootRequests, group OriginGroupRequest, origin armc
 		return fmt.Errorf("extra AFD origin %q lacks a valid PLS identity/location", name)
 	}
 	address, err := netip.ParseAddr(ptr.Deref(properties.HostName, ""))
-	if err != nil || !address.Is4() || !address.IsPrivate() ||
+	privateIP := err == nil && address.Is4() && address.IsPrivate()
+	tlsDNS := origintls.ValidateHostname(ptr.Deref(properties.HostName, "")) == nil && ptr.Deref(properties.HTTPSPort, 0) > 0
+	if (!privateIP && !tlsDNS) ||
 		ptr.Deref(properties.Weight, 0) < 1 || ptr.Deref(properties.Weight, 0) > 1000 {
 		return fmt.Errorf("extra AFD origin %q lacks a supported private endpoint/weight", name)
 	}
 	desired := staleOriginConfiguration(origin)
-	if len(group.Origins) != 0 {
+	if tlsDNS {
+		desired.HTTPPort = 0
+		if desired.HTTPSPort < 1 || desired.HTTPSPort > 65535 {
+			return fmt.Errorf("retired TLS origin has an invalid HTTPS port")
+		}
+	} else if len(group.Origins) != 0 && group.Origins[0].Parameters.Properties.HTTPPort != nil {
 		desired.HTTPPort = *group.Origins[0].Parameters.Properties.HTTPPort
 	} else if desired.HTTPPort < 1 || desired.HTTPPort > 65535 {
 		return fmt.Errorf("retired AFD origin %q has an invalid HTTP port", name)
@@ -71,12 +79,16 @@ func fleetGeneratedName(name, prefix string) bool {
 func staleOriginConfiguration(origin armcdn.AFDOrigin) Origin {
 	properties := origin.Properties
 	link := properties.SharedPrivateLinkResource
-	return Origin{
+	result := Origin{
 		HostName: ptr.Deref(properties.HostName, ""), HTTPPort: ptr.Deref(properties.HTTPPort, 0),
 		Weight: int64(ptr.Deref(properties.Weight, 0)), Priority: ptr.Deref(properties.Priority, 0),
 		OriginHostHeader: ptr.Deref(properties.OriginHostHeader, ""), EnforceCertificateNameCheck: ptr.Deref(properties.EnforceCertificateNameCheck, false),
 		PrivateLink: PrivateLinkTarget{ResourceID: ptr.Deref(link.PrivateLink.ID, ""), Location: ptr.Deref(link.PrivateLinkLocation, "")},
 	}
+	if origintls.ValidateHostname(result.HostName) == nil {
+		result.HTTPSPort, result.HTTPPort = ptr.Deref(properties.HTTPSPort, 0), 0
+	}
+	return result
 }
 
 func verifyStaleOriginState(properties *armcdn.AFDOriginProperties) error {

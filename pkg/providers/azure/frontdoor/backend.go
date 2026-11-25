@@ -51,6 +51,7 @@ type Origin struct {
 	ServiceUID                  string
 	HostName                    string
 	HTTPPort                    int32
+	HTTPSPort                   int32
 	Weight                      int64
 	Priority                    int32
 	OriginHostHeader            string
@@ -144,14 +145,20 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 				}
 				for _, member := range backend.Origins {
 					target := PrivateLinkTarget{ResourceID: member.PrivateLinkResourceID, Location: member.PrivateLinkLocation}
-					group.Origins = append(group.Origins, Origin{
+					origin := Origin{
 						// Replacements change identity; weight-only updates keep the same resource.
 						Name: resourceName("fleet-origin", group.Name, member.Cluster, member.ServiceUID,
 							target.ResourceID, target.Location, member.Endpoint),
 						Cluster: member.Cluster, ServiceUID: member.ServiceUID, HostName: member.Endpoint,
 						HTTPPort: key.Port, Weight: member.Weight, Priority: 1,
 						OriginHostHeader: backend.OriginHostHeader, EnforceCertificateNameCheck: true, PrivateLink: target,
-					})
+					}
+					if backend.TLSHostname != "" {
+						origin.Name = resourceName("fleet-origin", origin.Name, "https", backend.TLSHostname)
+						origin.HostName = backend.TLSHostname
+						origin.HTTPSPort, origin.HTTPPort = key.Port, 0
+					}
+					group.Origins = append(group.Origins, origin)
 				}
 				plan.OriginGroups = append(plan.OriginGroups, group)
 			}
@@ -173,11 +180,11 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 		for _, origin := range group.Origins {
 			target, found := targets[origin.PrivateLink]
 			if !found {
-				target = &PrivateLinkPlan{Target: origin.PrivateLink, HTTPPort: origin.HTTPPort}
+				target = &PrivateLinkPlan{Target: origin.PrivateLink, HTTPPort: origin.port()}
 				targets[origin.PrivateLink] = target
-			} else if target.HTTPPort != origin.HTTPPort {
+			} else if target.HTTPPort != origin.port() {
 				return BackendPlan{}, &PrivateLinkPortConflictError{
-					Target: origin.PrivateLink, FirstPort: target.HTTPPort, SecondPort: origin.HTTPPort,
+					Target: origin.PrivateLink, FirstPort: target.HTTPPort, SecondPort: origin.port(),
 				}
 			}
 			target.Origins = append(target.Origins, OriginReference{OriginGroup: group.Name, Origin: origin.Name})
@@ -201,6 +208,13 @@ func PlanBackends(model gatewaymodel.GlobalGateway) (BackendPlan, error) {
 		return left.Location < right.Location
 	})
 	return plan, nil
+}
+
+func (origin Origin) port() int32 {
+	if origin.HTTPSPort != 0 {
+		return origin.HTTPSPort
+	}
+	return origin.HTTPPort
 }
 
 func resourceName(prefix string, parts ...string) string {
